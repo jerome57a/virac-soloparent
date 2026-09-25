@@ -12,8 +12,6 @@ $app = $stmt->fetch();
 if (!$app) {
     http_response_code(404);
     $pageTitle = 'Application not found';
-    $navActive = '';
-    $showSeal = false;
     require __DIR__ . '/includes/header.php';
     echo '<div class="portal-container"><p>No application found for that reference number.</p></div>';
     $footerVariant = 'portal';
@@ -33,8 +31,6 @@ $qrUri = qr_code_data_uri($statusUrl);
 $st = status_style($app['status']);
 
 $pageTitle = 'Application Slip — ' . $app['reference_no'];
-$navActive = '';
-$showSeal = false;
 require __DIR__ . '/includes/header.php';
 ?>
 

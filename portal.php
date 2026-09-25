@@ -17,8 +17,6 @@ if ($tab === 'login' && $user) {
 }
 
 $pageTitle = 'Solo Parent ID Services — ' . APP_NAME;
-$navActive = 'services';
-$showSeal = false;
 require __DIR__ . '/includes/header.php';
 ?>
 

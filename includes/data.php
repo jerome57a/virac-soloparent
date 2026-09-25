@@ -72,14 +72,4 @@ function important_reminders(): array
     ];
 }
 
-function news_items(): array
-{
-    return [
-        ['title' => 'MSWDO Virac opens online Solo Parent registration', 'date' => 'September 10, 2026', 'excerpt' => 'Solo parents can now apply for their Solo Parent ID and welfare benefits through this portal, cutting down the need for repeated office visits.'],
-        ['title' => 'PESO Virac holds special recruitment activity', 'date' => 'September 3, 2026', 'excerpt' => 'The Public Employment Service Office conducted an orientation for local and overseas job openings, open to qualified residents.'],
-        ['title' => 'Mobile blood donation drive held at Virac Sports Center', 'date' => 'September 1, 2026', 'excerpt' => 'The Municipal Health Office called on qualified donors to join the community blood drive.'],
-        ['title' => 'Youth trained on disaster response readiness', 'date' => 'August 10, 2026', 'excerpt' => 'Young volunteers from several barangays completed a capacity-building training on emergency response.'],
-    ];
-}
-
 const CIVIL_STATUS_OPTIONS = ['Single', 'Married', 'Widowed', 'Separated', 'Annulled'];
