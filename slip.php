@@ -57,8 +57,6 @@ require __DIR__ . '/includes/header.php';
     </div>
 
     <div style="font-size:12px;color:var(--faint)">Present this slip (printed or on your phone) when visiting the MSWDO office. Keep your reference number for status checks online.</div>
-
-    <button type="button" class="btn-navy no-print mt-3" onclick="window.print()">Print Slip</button>
   </div>
 </div>
 

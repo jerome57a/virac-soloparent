@@ -5,7 +5,7 @@ require __DIR__ . '/../includes/csrf.php';
 require __DIR__ . '/../includes/auth.php';
 
 if (current_staff($pdo)) {
-    redirect(base_url('admin/index.php'));
+    redirect(base_url('admin/dashboard.php'));
 }
 
 $error = '';
@@ -13,14 +13,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_require();
     $username = trim((string) ($_POST['username'] ?? ''));
     $password = (string) ($_POST['password'] ?? '');
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ? AND role IN ('staff','admin')");
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ? AND role IN ('mswd_social_worker','admin')");
     $stmt->execute([$username]);
     $account = $stmt->fetch();
     if (!$account || !password_verify($password, $account['password_hash'])) {
         $error = 'Incorrect username or password.';
+    } elseif (!$account['is_active']) {
+        $error = 'This account has been deactivated. Please contact your system administrator.';
     } else {
         login_staff($account);
-        redirect(base_url('admin/index.php'));
+        audit_log($pdo, (int) $account['id'], $account['full_name'], $account['role'], 'Login');
+        redirect(base_url('admin/dashboard.php'));
     }
 }
 

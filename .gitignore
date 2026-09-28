@@ -1,0 +1,5 @@
+# Applicant-uploaded documents (and their temporary in-progress drafts)
+# contain personal information and must never be committed to version
+# control. The application creates these folders on demand at runtime;
+# nothing under here needs to be tracked.
+/storage/uploads/*

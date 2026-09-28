@@ -54,6 +54,11 @@ function apply_finalize_submission(PDO $pdo, array $user, array $draft): string
 
     apply_clear_draft();
 
+    audit_log($pdo, (int) $user['id'], $user['full_name'], $user['role'], 'Application Submission', 'application', $applicationId, $refNumber);
+    foreach ($draft['documents'] as $docKey => $meta) {
+        audit_log($pdo, (int) $user['id'], $user['full_name'], $user['role'], 'Document Upload', 'application', $applicationId, $docKey . ' — ' . $meta['original_name']);
+    }
+
     (new SmsService($pdo))->notifySubmitted($applicationId, $draft['contact'], $refNumber);
 
     return $refNumber;

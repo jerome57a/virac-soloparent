@@ -7,14 +7,19 @@ require __DIR__ . '/../includes/auth.php';
 $staff = require_staff_login($pdo);
 
 $statusFilter = (string) ($_GET['status'] ?? 'ALL');
+$typeFilter = (string) ($_GET['type'] ?? 'ALL');
 $q = trim((string) ($_GET['q'] ?? ''));
-$validStatuses = ['Pending Review', 'Under Verification', 'Approved', 'ID Released', 'Returned'];
+$validStatuses = ['Pending Review', 'Under Verification', 'For Revision', 'Interview Scheduled', 'Approved', 'ID Released', 'Rejected'];
 
 $sql = 'SELECT a.*, c.name AS category_name FROM applications a JOIN categories c ON c.id = a.category_id WHERE 1=1';
 $params = [];
 if ($statusFilter !== 'ALL' && in_array($statusFilter, $validStatuses, true)) {
     $sql .= ' AND a.status = ?';
     $params[] = $statusFilter;
+}
+if ($typeFilter !== 'ALL' && in_array($typeFilter, ['new', 'renewal'], true)) {
+    $sql .= ' AND a.type = ?';
+    $params[] = $typeFilter;
 }
 if ($q !== '') {
     $sql .= ' AND (a.reference_no LIKE ? OR a.full_name LIKE ?)';
@@ -26,11 +31,12 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $apps = $stmt->fetchAll();
 
-$pageTitle = 'MSWDO Staff Dashboard';
+$pageTitle = 'Applications';
 require __DIR__ . '/../includes/header.php';
 ?>
 <div class="portal-container">
-  <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+  <a href="<?= base_url('admin/dashboard.php') ?>" style="font-size:13px">&larr; Back to dashboard</a>
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mt-2 mb-4">
     <h1 class="font-heading m-0" style="font-size:26px">Applications</h1>
     <div class="d-flex align-items-center gap-3">
       <span style="font-size:14px">Signed in as <b><?= e($staff['full_name']) ?></b></span>
@@ -49,6 +55,11 @@ require __DIR__ . '/../includes/header.php';
         <option value="<?= e($s) ?>" <?= $statusFilter === $s ? 'selected' : '' ?>><?= e($s) ?></option>
       <?php endforeach; ?>
     </select>
+    <select name="type" class="form-select" style="max-width:180px;padding:10px;border:1px solid var(--input-border);border-radius:6px">
+      <option value="ALL" <?= $typeFilter === 'ALL' ? 'selected' : '' ?>>New + Renewals</option>
+      <option value="new" <?= $typeFilter === 'new' ? 'selected' : '' ?>>New Applications</option>
+      <option value="renewal" <?= $typeFilter === 'renewal' ? 'selected' : '' ?>>Renewals Only</option>
+    </select>
     <button type="submit" class="btn-navy">Filter</button>
   </form>
 
@@ -59,7 +70,7 @@ require __DIR__ . '/../includes/header.php';
   <?php foreach ($apps as $app): $st = status_style($app['status']); ?>
     <a href="<?= base_url('admin/application.php?id=' . (int) $app['id']) ?>" class="app-card text-decoration-none" style="color:inherit">
       <div>
-        <div class="app-ref"><?= e($app['reference_no']) ?></div>
+        <div class="app-ref"><?= e($app['reference_no']) ?><?php if ($app['type'] === 'renewal'): ?> <span class="doc-tag" style="vertical-align:middle">RENEWAL</span><?php endif; ?></div>
         <div class="app-date"><?= e($app['full_name']) ?> · <?= e($app['category_name']) ?></div>
         <div class="app-date">Submitted <?= e(date('M j, Y', strtotime($app['submitted_at']))) ?></div>
       </div>

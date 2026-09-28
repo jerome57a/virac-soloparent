@@ -21,9 +21,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $account = $stmt->fetch();
         if (!$account || !password_verify($password, $account['password_hash'])) {
             $authError = 'Incorrect username or password.';
+        } elseif (!$account['is_active']) {
+            $authError = 'This account has been deactivated. Please contact MSWDO Virac for assistance.';
         } else {
             login_user($account);
-            redirect(base_url('portal.php?tab=overview'));
+            audit_log($pdo, (int) $account['id'], $account['full_name'], $account['role'], 'Login');
+            redirect(base_url('dashboard.php'));
         }
     } elseif ($action === 'signup') {
         $authMode = 'signup';
@@ -57,6 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'role' => 'applicant',
                 ];
                 login_user($newUser);
+                audit_log($pdo, $newUser['id'], $newUser['full_name'], $newUser['role'], 'Registration');
                 redirect(base_url('portal.php?tab=apply'));
             }
         }

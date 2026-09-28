@@ -3,10 +3,9 @@
 $applyUrl = base_url('portal.php?tab=apply');
 $eligUrl = '#elig-checker';
 ?>
-<h2 class="font-heading" style="font-size:26px;margin:0 0 6px;color:var(--ink)">A Guide to the Solo Parent ID</h2>
 <div style="font-size:15px;color:var(--muted);margin-bottom:28px;max-width:780px">Everything you need to know before applying: eligibility, benefits, requirements, and how to apply online through e-SoloParentID.</div>
 
-<div class="section-title">What is the Solo Parent ID?</div>
+<h2 class="section-title" style="font-family:var(--font-body);margin-top:0">What is the Solo Parent ID?</h2>
 
 <div class="text-center" style="margin:0 0 24px">
 <img 

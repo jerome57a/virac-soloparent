@@ -1,11 +1,12 @@
 <?php
 /**
- * Validates and stores one uploaded document into the applicant's
- * temporary per-session folder. Returns ['ok' => bool, 'error' => string,
- * 'meta' => array|null] where meta matches the shape stored in
- * $draft['documents'][doc_key].
+ * Validates and stores one uploaded document into a temporary per-session
+ * folder (the Apply Online draft's folder by default; pass $destDir to use
+ * a different one, e.g. the ID Renewal draft's own folder). Returns
+ * ['ok' => bool, 'error' => string, 'meta' => array|null] where meta
+ * matches the shape stored in $draft['documents'][doc_key].
  */
-function handle_doc_upload(array $file): array
+function handle_doc_upload(array $file, ?string $destDir = null): array
 {
     if (!isset($file['error']) || $file['error'] === UPLOAD_ERR_NO_FILE) {
         return ['ok' => false, 'error' => 'Please choose a file.', 'meta' => null];
@@ -33,7 +34,7 @@ function handle_doc_upload(array $file): array
         return ['ok' => false, 'error' => 'File must be JPG, PNG, or PDF.', 'meta' => null];
     }
 
-    $dir = apply_tmp_dir();
+    $dir = $destDir ?? apply_tmp_dir();
     if (!is_dir($dir) && !mkdir($dir, 0750, true) && !is_dir($dir)) {
         return ['ok' => false, 'error' => 'Could not save the file. Please try again.', 'meta' => null];
     }

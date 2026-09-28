@@ -72,4 +72,61 @@ function important_reminders(): array
     ];
 }
 
+/** News & Announcements shown on the portal's News & Announcements tab. */
+function announcements_list(): array
+{
+    return [
+        [
+            'id' => 1,
+            'title' => 'Solo Parent ID Renewal Schedule for Early 2027',
+            'short_desc' => 'IDs expiring between January and June 2027 should be renewed at the MSWDO before the expiry date to avoid a lapse in benefits.',
+            'category' => 'Renewal',
+            'published_at' => '2026-09-22',
+            'details' => "MSWDO Virac reminds all Solo Parent ID holders whose ID validity ends between January and June 2027 to begin their renewal at least 30 days before expiry.\n\nBring your current Solo Parent ID, a valid government ID, and any updated proof of solo parent status (if your circumstance has changed) to the MSWDO office, or start your renewal request online through the e-SoloParentID portal.\n\nIDs not renewed within 60 days after expiry will require a fresh application instead of a renewal.",
+            'image' => null,
+            'attachment' => null,
+        ],
+        [
+            'id' => 2,
+            'title' => 'e-SoloParentID Online Portal Now Accepting Applications',
+            'short_desc' => 'Solo parents in Virac can now apply for their Solo Parent ID and track their application status entirely online.',
+            'category' => 'Program Update',
+            'published_at' => '2026-09-10',
+            'details' => "MSWDO Virac has launched the e-SoloParentID online portal, allowing qualified solo parents to submit applications, upload requirements, and monitor their application status without visiting the office in person.\n\nWalk-in applications are still accepted for residents who prefer in-person assistance.",
+            'image' => null,
+            'attachment' => null,
+        ],
+        [
+            'id' => 3,
+            'title' => 'Reminder: Complete All Requirements Before Submitting',
+            'short_desc' => 'Incomplete document uploads are the most common reason applications are returned for revision.',
+            'category' => 'Application Reminder',
+            'published_at' => '2026-09-05',
+            'details' => "Before submitting your application, please double-check that you have uploaded all required documents for your solo parent category, including the Barangay Certificate, PSA Birth Certificate(s) of your children, a valid government ID, and a 2x2 ID photo, along with any category-specific requirement.\n\nApplications with missing documents will be marked \"For Revision\" and will need to be corrected and resubmitted, which can delay processing.",
+            'image' => null,
+            'attachment' => null,
+        ],
+        [
+            'id' => 4,
+            'title' => 'Monthly Cash Subsidy Disbursement Notice',
+            'short_desc' => 'Eligible indigent solo parents may claim their monthly cash subsidy under RA 11861 starting next week.',
+            'category' => 'Program Update',
+            'published_at' => '2026-08-30',
+            'details' => "Qualified indigent solo parents earning minimum wage may claim their monthly cash subsidy under RA 11861 at the MSWDO office. Please bring your valid Solo Parent ID and a valid government-issued ID.\n\nFor questions about your eligibility, contact the MSWDO office during regular business hours.",
+            'image' => null,
+            'attachment' => null,
+        ],
+        [
+            'id' => 5,
+            'title' => 'Scheduled System Maintenance',
+            'short_desc' => 'The online portal will be briefly unavailable while we perform scheduled maintenance.',
+            'category' => 'System Notice',
+            'published_at' => '2026-08-20',
+            'details' => "The e-SoloParentID portal will undergo scheduled maintenance to improve system performance. During this time, the online application and status-checking features may be temporarily unavailable.\n\nWe apologize for any inconvenience and encourage applicants to complete pending submissions beforehand.",
+            'image' => null,
+            'attachment' => null,
+        ],
+    ];
+}
+
 const CIVIL_STATUS_OPTIONS = ['Single', 'Married', 'Widowed', 'Separated', 'Annulled'];

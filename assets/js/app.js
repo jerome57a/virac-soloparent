@@ -46,17 +46,17 @@
     });
   }
 
-  // ---- Nav drawer: expandable "Benefits" submenu ----
-  var benefitsToggle = document.getElementById('nav-benefits-toggle');
-  var benefitsSubmenu = document.getElementById('nav-benefits-submenu');
-  if (benefitsToggle && benefitsSubmenu) {
-    benefitsToggle.addEventListener('click', function () {
-      var willOpen = benefitsSubmenu.hidden;
-      benefitsSubmenu.hidden = !willOpen;
-      benefitsToggle.classList.toggle('open', willOpen);
-      benefitsToggle.setAttribute('aria-expanded', String(willOpen));
+  // ---- Nav drawer: expandable submenus (My Application, ID Renewal, ...) ----
+  document.querySelectorAll('.nav-drawer-toggle').forEach(function (toggle) {
+    var submenu = document.getElementById(toggle.getAttribute('aria-controls'));
+    if (!submenu) return;
+    toggle.addEventListener('click', function () {
+      var willOpen = !submenu.classList.contains('open');
+      submenu.classList.toggle('open', willOpen);
+      toggle.classList.toggle('open', willOpen);
+      toggle.setAttribute('aria-expanded', String(willOpen));
     });
-  }
+  });
 
   // ---- Eligibility checker (client-side only, no data is stored) ----
   var elig = document.getElementById('elig-checker');

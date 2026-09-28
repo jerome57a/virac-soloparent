@@ -23,7 +23,8 @@ CREATE TABLE users (
   username      VARCHAR(50)  NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   mobile        VARCHAR(20)  DEFAULT NULL,
-  role          ENUM('applicant','staff','admin') NOT NULL DEFAULT 'applicant',
+  role          ENUM('applicant','mswd_social_worker','admin') NOT NULL DEFAULT 'applicant',
+  is_active     TINYINT(1) NOT NULL DEFAULT 1,
   created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
@@ -67,12 +68,14 @@ CREATE TABLE applications (
   sex           ENUM('Male','Female') NOT NULL,
   civil_status  VARCHAR(30) NOT NULL,
   category_id   INT NOT NULL,
-  status        ENUM('Pending Review','Under Verification','Approved','ID Released','Returned') NOT NULL DEFAULT 'Pending Review',
+  reviewed_by   INT NULL,
+  status        ENUM('Pending Review','Under Verification','For Revision','Interview Scheduled','Approved','ID Released','Rejected') NOT NULL DEFAULT 'Pending Review',
   consent_at    DATETIME NOT NULL,
   submitted_at  DATETIME NOT NULL,
   updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_app_user FOREIGN KEY (user_id) REFERENCES users(id),
-  CONSTRAINT fk_app_category FOREIGN KEY (category_id) REFERENCES categories(id)
+  CONSTRAINT fk_app_category FOREIGN KEY (category_id) REFERENCES categories(id),
+  CONSTRAINT fk_app_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 CREATE TABLE application_children (
@@ -105,6 +108,22 @@ CREATE TABLE status_history (
   CONSTRAINT fk_hist_app FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+CREATE TABLE interviews (
+  id                  INT AUTO_INCREMENT PRIMARY KEY,
+  application_id      INT NOT NULL,
+  scheduled_at        DATETIME NOT NULL,
+  location            VARCHAR(255) NOT NULL,
+  notes               VARCHAR(500) DEFAULT NULL,
+  result              VARCHAR(500) DEFAULT NULL,
+  result_recorded_at  DATETIME DEFAULT NULL,
+  scheduled_by        INT NOT NULL,
+  created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_interview_app (application_id),
+  CONSTRAINT fk_interview_app FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
+  CONSTRAINT fk_interview_staff FOREIGN KEY (scheduled_by) REFERENCES users(id)
+) ENGINE=InnoDB;
+
 CREATE TABLE sms_logs (
   id               INT AUTO_INCREMENT PRIMARY KEY,
   application_id   INT NOT NULL,
@@ -114,6 +133,22 @@ CREATE TABLE sms_logs (
   provider_status  VARCHAR(30) NOT NULL DEFAULT 'queued',
   sent_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_sms_app FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- actor_name/actor_role are snapshotted at write time (not just a live join to
+-- users) so the log stays accurate even if the account's name/role changes later.
+CREATE TABLE audit_logs (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  user_id      INT NULL,
+  actor_name   VARCHAR(150) NOT NULL,
+  actor_role   VARCHAR(30) NOT NULL,
+  action       VARCHAR(100) NOT NULL,
+  entity_type  VARCHAR(50) DEFAULT NULL,
+  entity_id    INT DEFAULT NULL,
+  details      VARCHAR(500) DEFAULT NULL,
+  ip_address   VARCHAR(45) DEFAULT NULL,
+  created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_audit_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------

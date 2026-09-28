@@ -67,11 +67,13 @@ function mask_name(string $fullName): string
 function status_style(string $status): array
 {
     $map = [
-        'Pending Review'     => ['bg' => '#fdf1d6', 'color' => '#8a6d1a'],
-        'Under Verification' => ['bg' => '#dce8f5', 'color' => '#1b3a6b'],
-        'Approved'           => ['bg' => '#dcf3e2', 'color' => '#1c7a3f'],
-        'ID Released'        => ['bg' => '#1b3a6b', 'color' => '#ffffff'],
-        'Returned'           => ['bg' => '#fde8e8', 'color' => '#a51c1c'],
+        'Pending Review'      => ['bg' => '#fdf1d6', 'color' => '#8a6d1a'],
+        'Under Verification'  => ['bg' => '#dce8f5', 'color' => '#1b3a6b'],
+        'For Revision'        => ['bg' => '#fde8e8', 'color' => '#a51c1c'],
+        'Interview Scheduled' => ['bg' => '#f0eafe', 'color' => '#5b3a9e'],
+        'Approved'            => ['bg' => '#dcf3e2', 'color' => '#1c7a3f'],
+        'ID Released'         => ['bg' => '#1b3a6b', 'color' => '#ffffff'],
+        'Rejected'            => ['bg' => '#fde8e8', 'color' => '#7f1616'],
     ];
     return $map[$status] ?? $map['Pending Review'];
 }
@@ -117,4 +119,71 @@ function get_category_only_requirements(PDO $pdo, ?int $categoryId): array
     $stmt = $pdo->prepare('SELECT * FROM document_requirements WHERE category_id = ? ORDER BY sort_order, id');
     $stmt->execute([$categoryId]);
     return $stmt->fetchAll();
+}
+
+/** Session-tracked read state for the News & Announcements tab (works for logged-in and anonymous visitors alike). */
+function is_announcement_unread(int $id): bool
+{
+    return empty($_SESSION['read_announcements'][$id]);
+}
+
+function mark_announcement_read(int $id): void
+{
+    $_SESSION['read_announcements'][$id] = true;
+}
+
+function count_unread_announcements(array $announcements): int
+{
+    $count = 0;
+    foreach ($announcements as $a) {
+        if (is_announcement_unread($a['id'])) {
+            $count++;
+        }
+    }
+    return $count;
+}
+
+/** Session-tracked read state for the applicant's Notifications list (sms_logs rows). */
+function is_notification_unread(int $id): bool
+{
+    return empty($_SESSION['read_notifications'][$id]);
+}
+
+function mark_notification_read(int $id): void
+{
+    $_SESSION['read_notifications'][$id] = true;
+}
+
+function count_unread_notifications(array $notifications): int
+{
+    $count = 0;
+    foreach ($notifications as $n) {
+        if (is_notification_unread($n['id'])) {
+            $count++;
+        }
+    }
+    return $count;
+}
+
+/**
+ * Records a security/workflow-relevant action. actor_name/actor_role are
+ * snapshotted rather than resolved via a live join, so the log stays
+ * accurate even if that account's name/role changes or the account is
+ * later removed (user_id is nullable and ON DELETE SET NULL for that reason).
+ */
+function audit_log(
+    PDO $pdo,
+    ?int $userId,
+    string $actorName,
+    string $actorRole,
+    string $action,
+    ?string $entityType = null,
+    ?int $entityId = null,
+    ?string $details = null
+): void {
+    $stmt = $pdo->prepare(
+        'INSERT INTO audit_logs (user_id, actor_name, actor_role, action, entity_type, entity_id, details, ip_address)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+    $stmt->execute([$userId, $actorName, $actorRole, $action, $entityType, $entityId, $details, $_SERVER['REMOTE_ADDR'] ?? null]);
 }

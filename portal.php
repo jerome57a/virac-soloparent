@@ -5,7 +5,7 @@ require __DIR__ . '/includes/csrf.php';
 require __DIR__ . '/includes/auth.php';
 require __DIR__ . '/includes/data.php';
 
-$validTabs = ['overview', 'login', 'apply', 'myapps', 'status'];
+$validTabs = ['overview', 'login', 'apply', 'myapps', 'status', 'news'];
 $tab = $_GET['tab'] ?? 'overview';
 if (!in_array($tab, $validTabs, true)) {
     $tab = 'overview';
@@ -17,19 +17,15 @@ if ($tab === 'login' && $user) {
 }
 
 $pageTitle = 'Solo Parent ID Services — ' . APP_NAME;
+$unreadAnnouncementCount = count_unread_announcements(announcements_list());
 require __DIR__ . '/includes/header.php';
 ?>
 
 <div class="portal-container">
   <div class="portal-tabs">
-    <div class="portal-tabs-links">
-      <?php
-      $tabLabels = ['overview' => 'Overview', 'apply' => 'Apply Online', 'myapps' => 'My Applications', 'status' => 'Check Status'];
-      foreach ($tabLabels as $key => $label):
-      ?>
-        <a href="<?= base_url('portal.php?tab=' . $key) ?>" class="portal-tab <?= $tab === $key ? 'active' : '' ?>"><?= e($label) ?></a>
-      <?php endforeach; ?>
-    </div>
+    <?php if ($tab === 'overview'): ?>
+      <h1 class="font-heading" style="font-size:26px;margin:0;color:var(--ink)">A Guide to the Solo Parent ID</h1>
+    <?php endif; ?>
     <div class="portal-tabs-auth">
       <?php if ($user): ?>
         <div class="signed-in-pill">
@@ -58,6 +54,9 @@ require __DIR__ . '/includes/header.php';
           break;
       case 'status':
           require __DIR__ . '/includes/portal/status.php';
+          break;
+      case 'news':
+          require __DIR__ . '/includes/portal/news.php';
           break;
       default:
           require __DIR__ . '/includes/portal/overview.php';

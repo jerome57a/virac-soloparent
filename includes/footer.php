@@ -70,6 +70,6 @@ $v = $variants[$footerVariant] ?? $variants['services'];
 <?php endif; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="<?= asset('js/app.js') ?>"></script>
+<script src="<?= asset('js/app.js') ?>?v=<?= @filemtime(APP_ROOT . '/assets/js/app.js') ?: 1 ?>"></script>
 </body>
 </html>

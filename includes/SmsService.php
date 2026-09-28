@@ -64,4 +64,15 @@ class SmsService
         }
         $this->send($applicationId, $mobile, $msg);
     }
+
+    public function notifyInterviewScheduled(int $applicationId, string $mobile, string $refNumber, string $scheduledAt, string $location): void
+    {
+        $when = date('F j, Y g:i A', strtotime($scheduledAt));
+        $this->send($applicationId, $mobile, "MSWDO Virac: An interview for application $refNumber has been scheduled on $when at $location. Please arrive on time and bring a valid ID.");
+    }
+
+    public function notifyRenewalSubmitted(int $applicationId, string $mobile, string $refNumber): void
+    {
+        $this->send($applicationId, $mobile, "MSWDO Virac: Your Solo Parent ID renewal request $refNumber has been received and is Pending Review. We will text you when its status changes.");
+    }
 }
