@@ -21,30 +21,28 @@ require __DIR__ . '/includes/header.php';
 ?>
 
 <div class="portal-container">
-  <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-2">
-    <div>
-      <div class="portal-title">Solo Parent ID Services</div>
-    </div>
-    <?php if ($user): ?>
-      <div class="signed-in-pill">
-        <div style="font-size:14px;color:var(--ink)">Signed in as <b><?= e($user['full_name']) ?></b></div>
-        <form method="post" action="<?= base_url('logout.php') ?>" class="m-0">
-          <?= csrf_field() ?>
-          <button type="submit" class="btn-outline" style="padding:6px 14px;font-size:13px">Log out</button>
-        </form>
-      </div>
-    <?php else: ?>
-      <a href="<?= base_url('portal.php?tab=login') ?>" class="btn-navy text-decoration-none" style="padding:10px 20px">Log In / Create Account</a>
-    <?php endif; ?>
-  </div>
-
   <div class="portal-tabs">
-    <?php
-    $tabLabels = ['overview' => 'Overview', 'apply' => 'Apply Online', 'myapps' => 'My Applications', 'status' => 'Check Status'];
-    foreach ($tabLabels as $key => $label):
-    ?>
-      <a href="<?= base_url('portal.php?tab=' . $key) ?>" class="portal-tab <?= $tab === $key ? 'active' : '' ?>"><?= e($label) ?></a>
-    <?php endforeach; ?>
+    <div class="portal-tabs-links">
+      <?php
+      $tabLabels = ['overview' => 'Overview', 'apply' => 'Apply Online', 'myapps' => 'My Applications', 'status' => 'Check Status'];
+      foreach ($tabLabels as $key => $label):
+      ?>
+        <a href="<?= base_url('portal.php?tab=' . $key) ?>" class="portal-tab <?= $tab === $key ? 'active' : '' ?>"><?= e($label) ?></a>
+      <?php endforeach; ?>
+    </div>
+    <div class="portal-tabs-auth">
+      <?php if ($user): ?>
+        <div class="signed-in-pill">
+          <div style="font-size:14px;color:var(--ink)">Signed in as <b><?= e($user['full_name']) ?></b></div>
+          <form method="post" action="<?= base_url('logout.php') ?>" class="m-0">
+            <?= csrf_field() ?>
+            <button type="submit" class="btn-outline" style="padding:6px 14px;font-size:13px">Log out</button>
+          </form>
+        </div>
+      <?php else: ?>
+        <a href="<?= base_url('portal.php?tab=login') ?>" class="btn-navy text-decoration-none" style="padding:10px 20px">Log In / Create Account</a>
+      <?php endif; ?>
+    </div>
   </div>
 
   <?php

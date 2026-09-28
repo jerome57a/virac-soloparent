@@ -7,15 +7,43 @@ $eligUrl = '#elig-checker';
 <div style="font-size:15px;color:var(--muted);margin-bottom:28px;max-width:780px">Everything you need to know before applying: eligibility, benefits, requirements, and how to apply online through e-SoloParentID.</div>
 
 <div class="section-title">What is the Solo Parent ID?</div>
+
+<div class="text-center" style="margin:0 0 24px">
+<img 
+    src="<?= asset('images/solo-parent-benefits-hero.png') ?>" 
+    alt="A solo parent and child, surrounded by Solo Parent ID benefit icons and a sample ID card"
+    style="
+        width: 100%;
+        max-width: 480px;
+        height: auto;
+        border-radius: 12px;
+        display: block;
+        margin: 15px 0 20px 0;
+    "
+>
+</div>
+
 <div class="body-copy">The Solo Parent Identification Card (SPIC) is an official government-issued ID issued by the Municipal Social Welfare and Development Office (MSWDO) to qualified solo parents in the Municipality of Virac, Catanduanes, pursuant to Republic Act No. 8972 (Solo Parents' Welfare Act of 2000), as expanded by Republic Act No. 11861 (Expanded Solo Parents Welfare Act of 2022).</div>
 <div class="body-copy">Holding a Solo Parent ID grants access to a range of government benefits and privileges designed to assist solo parents in raising their children. The ID is valid for one year and must be renewed annually at the MSWDO.</div>
 <div class="info-box">📱 New: Through the e-SoloParentID system, qualified solo parents in Virac can now apply, submit documents, and track their application entirely online, without visiting the MSWDO office.</div>
 
-
-<div style="font-size:12px;color:var(--faint);margin-bottom:36px">Sample Solo Parent ID card design for the Municipality of Virac (for illustration only).</div>
-
-<div class="section-title" style="margin-bottom:4px">Benefits of Having a Solo Parent ID</div>
+<div id="benefits" class="section-title" style="margin-bottom:4px">Benefits of Having a Solo Parent ID</div>
 <div class="section-sub">Having a Solo Parent ID provides access to various benefits and support, including:</div>
+
+<img
+    src="<?= asset('images/solo-parent01.png') ?>"
+    alt="Benefits of Having a Solo Parent ID"
+    class="img-fluid"
+    style="
+        width: 100%;
+        max-width: 480px;
+        height: auto;
+        border-radius: 12px;
+        display: block;
+        margin: 15px 0 20px 0;
+    "
+>
+
 <div class="benefit-grid">
   <?php foreach (benefit_cards() as $b): ?>
       <div class="benefit-card">
@@ -35,7 +63,7 @@ $eligUrl = '#elig-checker';
 </div>
 <div class="warn-box">💡 Not sure if you qualify? Use the Eligibility Checker below, or visit the MSWDO Office for a personal assessment.</div>
 
-<div class="section-title" style="margin-bottom:4px">Required Documents</div>
+<div id="requirements" class="section-title" style="margin-bottom:4px">Required Documents</div>
 <div class="section-sub" style="max-width:780px">Prepare the following documents before applying. Bring both the original and photocopies when submitting. When applying through e-SoloParentID, upload clear digital copies (JPG, PNG, or PDF; max 5MB each).</div>
 <div class="doc-groups">
   <?php foreach (required_doc_groups() as $g): ?>

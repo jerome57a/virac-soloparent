@@ -1,18 +1,61 @@
 (function () {
   'use strict';
 
-  // ---- Philippine Standard Time clock (home page) ----
-  function tickClock() {
-    var el = document.getElementById('pst-clock');
-    if (!el) return;
-    var now = new Date();
-    el.textContent = now.toLocaleString('en-PH', {
-      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-      hour: 'numeric', minute: '2-digit', second: '2-digit',
+  // ---- Nav header slide-out drawer ----
+  var navMenuBtn = document.getElementById('nav-menu-btn');
+  var navDrawer = document.getElementById('nav-drawer');
+  var navOverlay = document.getElementById('nav-drawer-overlay');
+  var navDrawerClose = document.getElementById('nav-drawer-close');
+
+  function openNavDrawer() {
+    navOverlay.hidden = false;
+    requestAnimationFrame(function () {
+      navDrawer.classList.add('open');
+      navOverlay.classList.add('open');
+    });
+    document.body.classList.add('nav-drawer-open');
+    navMenuBtn.setAttribute('aria-expanded', 'true');
+    navDrawer.setAttribute('aria-hidden', 'false');
+  }
+  function closeNavDrawer() {
+    navDrawer.classList.remove('open');
+    navOverlay.classList.remove('open');
+    document.body.classList.remove('nav-drawer-open');
+    navMenuBtn.setAttribute('aria-expanded', 'false');
+    navDrawer.setAttribute('aria-hidden', 'true');
+    window.setTimeout(function () {
+      if (!navOverlay.classList.contains('open')) navOverlay.hidden = true;
+    }, 300);
+  }
+
+  if (navMenuBtn && navDrawer && navOverlay) {
+    navMenuBtn.addEventListener('click', function () {
+      if (navDrawer.classList.contains('open')) {
+        closeNavDrawer();
+      } else {
+        openNavDrawer();
+      }
+    });
+    navOverlay.addEventListener('click', closeNavDrawer);
+    if (navDrawerClose) navDrawerClose.addEventListener('click', closeNavDrawer);
+    navDrawer.querySelectorAll('.nav-drawer-link').forEach(function (link) {
+      link.addEventListener('click', closeNavDrawer);
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && navDrawer.classList.contains('open')) closeNavDrawer();
     });
   }
-  if (document.getElementById('pst-clock')) {
-    setInterval(tickClock, 1000);
+
+  // ---- Nav drawer: expandable "Benefits" submenu ----
+  var benefitsToggle = document.getElementById('nav-benefits-toggle');
+  var benefitsSubmenu = document.getElementById('nav-benefits-submenu');
+  if (benefitsToggle && benefitsSubmenu) {
+    benefitsToggle.addEventListener('click', function () {
+      var willOpen = benefitsSubmenu.hidden;
+      benefitsSubmenu.hidden = !willOpen;
+      benefitsToggle.classList.toggle('open', willOpen);
+      benefitsToggle.setAttribute('aria-expanded', String(willOpen));
+    });
   }
 
   // ---- Eligibility checker (client-side only, no data is stored) ----

@@ -19,15 +19,6 @@ function current_user(PDO $pdo): ?array
     return $user;
 }
 
-function require_applicant_login(PDO $pdo): array
-{
-    $user = current_user($pdo);
-    if (!$user || $user['role'] !== 'applicant') {
-        redirect(base_url('portal.php?tab=login'));
-    }
-    return $user;
-}
-
 function login_user(array $user): void
 {
     session_regenerate_id(true);
