@@ -3,3 +3,8 @@
 # control. The application creates these folders on demand at runtime;
 # nothing under here needs to be tracked.
 /storage/uploads/*
+
+# Applicant profile photos (personal data) and full database dumps
+# (every table, including password hashes) -- never commit either.
+/storage/avatars/*
+/storage/db_backups/*

@@ -2,30 +2,9 @@
 require __DIR__ . '/../config/database.php';
 require __DIR__ . '/../includes/functions.php';
 require __DIR__ . '/../includes/csrf.php';
-require __DIR__ . '/../includes/auth.php';
+require __DIR__ . '/../controllers/AuthController.php';
 
-if (current_staff($pdo)) {
-    redirect(base_url('admin/dashboard.php'));
-}
-
-$error = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    csrf_require();
-    $username = trim((string) ($_POST['username'] ?? ''));
-    $password = (string) ($_POST['password'] ?? '');
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ? AND role IN ('mswd_social_worker','admin')");
-    $stmt->execute([$username]);
-    $account = $stmt->fetch();
-    if (!$account || !password_verify($password, $account['password_hash'])) {
-        $error = 'Incorrect username or password.';
-    } elseif (!$account['is_active']) {
-        $error = 'This account has been deactivated. Please contact your system administrator.';
-    } else {
-        login_staff($account);
-        audit_log($pdo, (int) $account['id'], $account['full_name'], $account['role'], 'Login');
-        redirect(base_url('admin/dashboard.php'));
-    }
-}
+$error = (new AuthController($pdo))->handleStaffLogin();
 
 $pageTitle = 'MSWDO Staff Login';
 require __DIR__ . '/../includes/header.php';
@@ -40,6 +19,7 @@ require __DIR__ . '/../includes/header.php';
       <input class="form-control" type="password" name="password" placeholder="Password" required>
       <button type="submit" class="btn-navy">Log In</button>
     </form>
+    <a href="<?= base_url('forgot-password.php') ?>" style="display:inline-block;font-size:13px;margin-top:12px">Forgot password?</a>
   </div>
   <div style="font-size:12px;color:var(--faint);margin-top:12px">This area is for MSWDO Virac personnel only.</div>
 </div>

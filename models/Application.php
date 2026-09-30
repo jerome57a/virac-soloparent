@@ -1,0 +1,297 @@
+<?php
+require_once __DIR__ . '/Model.php';
+
+/** Data access for applications and their status history, as seen by the owning applicant. */
+class Application extends Model
+{
+    public const EDITABLE_STATUSES = ['Pending Review', 'Under Verification', 'For Revision'];
+    public const STATUSES = ['Pending Review', 'Under Verification', 'For Revision', 'Interview Scheduled', 'Approved', 'ID Released', 'Rejected'];
+    public const ELIGIBILITY_STATUSES = ['Not Assessed', 'Eligible', 'Not Eligible'];
+
+    // ---- Staff queue / search ----
+
+    /** Staff queue search. $filters: status, type, barangay, q (each optional). Returns ['rows', 'total', 'page', 'totalPages']. */
+    public function search(array $filters, int $page, int $perPage): array
+    {
+        $where = '1=1';
+        $params = [];
+        if (in_array($filters['status'] ?? '', self::STATUSES, true)) {
+            $where .= ' AND a.status = ?';
+            $params[] = $filters['status'];
+        }
+        if (in_array($filters['type'] ?? '', ['new', 'renewal'], true)) {
+            $where .= ' AND a.type = ?';
+            $params[] = $filters['type'];
+        }
+        if (($filters['barangay'] ?? '') !== '') {
+            $where .= ' AND a.barangay LIKE ?';
+            $params[] = '%' . $filters['barangay'] . '%';
+        }
+        if (($filters['q'] ?? '') !== '') {
+            $where .= ' AND (a.reference_no LIKE ? OR a.full_name LIKE ?)';
+            $params[] = '%' . $filters['q'] . '%';
+            $params[] = '%' . $filters['q'] . '%';
+        }
+
+        $countStmt = $this->pdo->prepare("SELECT COUNT(*) FROM applications a WHERE $where");
+        $countStmt->execute($params);
+        $pager = paginate((int) $countStmt->fetchColumn(), $page, $perPage);
+
+        $stmt = $this->pdo->prepare(
+            "SELECT a.*, c.name AS category_name FROM applications a JOIN categories c ON c.id = a.category_id
+             WHERE $where ORDER BY a.submitted_at DESC LIMIT {$pager['perPage']} OFFSET {$pager['offset']}"
+        );
+        $stmt->execute($params);
+        return ['rows' => $stmt->fetchAll()] + $pager;
+    }
+
+    /** Admin read-only monitoring list: latest 200, by status/type/reference-or-name. */
+    public function monitoringList(string $status, string $type, string $q): array
+    {
+        $sql = 'SELECT a.*, c.name AS category_name FROM applications a JOIN categories c ON c.id = a.category_id WHERE 1=1';
+        $params = [];
+        if (in_array($status, self::STATUSES, true)) {
+            $sql .= ' AND a.status = ?';
+            $params[] = $status;
+        }
+        if (in_array($type, ['new', 'renewal'], true)) {
+            $sql .= ' AND a.type = ?';
+            $params[] = $type;
+        }
+        if ($q !== '') {
+            $sql .= ' AND (a.reference_no LIKE ? OR a.full_name LIKE ?)';
+            array_push($params, "%$q%", "%$q%");
+        }
+        $stmt = $this->pdo->prepare($sql . ' ORDER BY a.submitted_at DESC LIMIT 200');
+        $stmt->execute($params);
+        return $stmt->fetchAll();
+    }
+
+    /** status => count across all applications. */
+    public function countsByStatus(): array
+    {
+        return $this->pdo->query('SELECT status, COUNT(*) AS n FROM applications GROUP BY status')->fetchAll(PDO::FETCH_KEY_PAIR);
+    }
+
+    /** Every application with category and reviewer name, newest first, for the CSV export. */
+    public function allForExport(): array
+    {
+        return $this->pdo->query(
+            'SELECT a.reference_no, a.type, a.full_name, c.name AS category_name, a.status, a.mobile, a.email, r.full_name AS reviewer_name, a.submitted_at
+             FROM applications a
+             JOIN categories c ON c.id = a.category_id
+             LEFT JOIN users r ON r.id = a.reviewed_by
+             ORDER BY a.submitted_at DESC'
+        )->fetchAll();
+    }
+
+    /** Count of applications matching a fixed, code-supplied WHERE clause (never user input). */
+    public function countWhere(string $where): int
+    {
+        return (int) $this->pdo->query("SELECT COUNT(*) FROM applications WHERE $where")->fetchColumn();
+    }
+
+    public function recentlyReviewedBy(int $staffId, int $limit = 5): array
+    {
+        $stmt = $this->pdo->prepare('SELECT * FROM applications WHERE reviewed_by = ? ORDER BY updated_at DESC LIMIT ' . (int) $limit);
+        $stmt->execute([$staffId]);
+        return $stmt->fetchAll();
+    }
+
+    /** Applications per month (YYYY-MM => n) for the last 6 months. */
+    public function monthlyCounts(): array
+    {
+        return $this->pdo->query(
+            "SELECT DATE_FORMAT(submitted_at, '%Y-%m') AS ym, COUNT(*) AS n FROM applications
+             WHERE submitted_at >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+             GROUP BY ym ORDER BY ym"
+        )->fetchAll();
+    }
+
+    // ---- Single application (staff review) ----
+
+    public function findForReview(int $id): ?array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT a.*, c.name AS category_name, r.full_name AS reviewer_name
+             FROM applications a
+             JOIN categories c ON c.id = a.category_id
+             LEFT JOIN users r ON r.id = a.reviewed_by
+             WHERE a.id = ?'
+        );
+        $stmt->execute([$id]);
+        return $stmt->fetch() ?: null;
+    }
+
+    public function findIdByReference(string $ref): ?int
+    {
+        $stmt = $this->pdo->prepare('SELECT id FROM applications WHERE reference_no = ?');
+        $stmt->execute([$ref]);
+        $id = $stmt->fetchColumn();
+        return $id === false ? null : (int) $id;
+    }
+
+    public function children(int $applicationId): array
+    {
+        $stmt = $this->pdo->prepare('SELECT * FROM application_children WHERE application_id = ?');
+        $stmt->execute([$applicationId]);
+        return $stmt->fetchAll();
+    }
+
+    public function history(int $applicationId): array
+    {
+        $stmt = $this->pdo->prepare('SELECT * FROM status_history WHERE application_id = ? ORDER BY changed_at DESC, id DESC');
+        $stmt->execute([$applicationId]);
+        return $stmt->fetchAll();
+    }
+
+    /** Sets status + reviewer; releasing an ID also stamps its expiry $validityYears from today. */
+    public function setReviewedStatus(int $applicationId, string $status, int $staffId, ?int $validityYears = null): void
+    {
+        if ($validityYears !== null) {
+            $this->pdo->prepare('UPDATE applications SET status = ?, reviewed_by = ?, id_expires_at = DATE_ADD(CURDATE(), INTERVAL ' . (int) $validityYears . ' YEAR) WHERE id = ?')
+                ->execute([$status, $staffId, $applicationId]);
+            return;
+        }
+        $this->pdo->prepare('UPDATE applications SET status = ?, reviewed_by = ? WHERE id = ?')->execute([$status, $staffId, $applicationId]);
+    }
+
+    public function setEligibility(int $applicationId, string $status, ?string $remarks): void
+    {
+        $this->pdo->prepare('UPDATE applications SET eligibility_status = ?, eligibility_remarks = ? WHERE id = ?')
+            ->execute([$status, $remarks, $applicationId]);
+    }
+
+    /** One applicant's applications with category name, newest first (staff applicant record). */
+    public function forUserWithCategory(int $userId): array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT a.*, c.name AS category_name FROM applications a
+             JOIN categories c ON c.id = a.category_id
+             WHERE a.user_id = ? ORDER BY a.submitted_at DESC'
+        );
+        $stmt->execute([$userId]);
+        return $stmt->fetchAll();
+    }
+
+    /** Latest status_history row for each of the given applications, keyed by application_id. */
+    public function latestHistoryFor(array $applicationIds): array
+    {
+        if (!$applicationIds) {
+            return [];
+        }
+        $placeholders = implode(',', array_fill(0, count($applicationIds), '?'));
+        $stmt = $this->pdo->prepare("SELECT * FROM status_history WHERE application_id IN ($placeholders) ORDER BY changed_at DESC, id DESC");
+        $stmt->execute(array_values($applicationIds));
+        $latest = [];
+        foreach ($stmt->fetchAll() as $h) {
+            $latest[$h['application_id']] ??= $h;
+        }
+        return $latest;
+    }
+
+    /** Every application of one applicant, newest first, with category name and interview (if any). */
+    public function forUserDetailed(int $userId): array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT a.*, c.name AS category_name, i.scheduled_at AS interview_at, i.location AS interview_location
+             FROM applications a
+             JOIN categories c ON c.id = a.category_id
+             LEFT JOIN interviews i ON i.application_id = a.id
+             WHERE a.user_id = ? ORDER BY a.submitted_at DESC'
+        );
+        $stmt->execute([$userId]);
+        return $stmt->fetchAll();
+    }
+
+    public function forUser(int $userId): array
+    {
+        $stmt = $this->pdo->prepare('SELECT * FROM applications WHERE user_id = ? ORDER BY submitted_at DESC');
+        $stmt->execute([$userId]);
+        return $stmt->fetchAll();
+    }
+
+    public function findOwned(int $applicationId, int $userId): ?array
+    {
+        $stmt = $this->pdo->prepare('SELECT id, status FROM applications WHERE id = ? AND user_id = ?');
+        $stmt->execute([$applicationId, $userId]);
+        return $stmt->fetch() ?: null;
+    }
+
+    public function findByReference(string $ref): ?array
+    {
+        $stmt = $this->pdo->prepare('SELECT * FROM applications WHERE reference_no = ?');
+        $stmt->execute([$ref]);
+        return $stmt->fetch() ?: null;
+    }
+
+    public function findByReferenceWithCategory(string $ref): ?array
+    {
+        $stmt = $this->pdo->prepare('SELECT a.*, c.name AS category_name FROM applications a JOIN categories c ON c.id = a.category_id WHERE a.reference_no = ?');
+        $stmt->execute([$ref]);
+        return $stmt->fetch() ?: null;
+    }
+
+    /** The applicant's most recent released (new) ID -- the thing a renewal renews. */
+    public function latestReleasedNew(int $userId): ?array
+    {
+        $stmt = $this->pdo->prepare(
+            "SELECT a.*, c.name AS category_name FROM applications a
+             JOIN categories c ON c.id = a.category_id
+             WHERE a.user_id = ? AND a.type = 'new' AND a.status = 'ID Released'
+             ORDER BY a.submitted_at DESC LIMIT 1"
+        );
+        $stmt->execute([$userId]);
+        return $stmt->fetch() ?: null;
+    }
+
+    /** Latest status_history row per application, keyed by application_id. */
+    public function latestHistoryByApplication(int $userId): array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT h.* FROM status_history h
+             JOIN applications a ON a.id = h.application_id
+             WHERE a.user_id = ? ORDER BY h.changed_at DESC, h.id DESC'
+        );
+        $stmt->execute([$userId]);
+        $latest = [];
+        foreach ($stmt->fetchAll() as $h) {
+            if (!isset($latest[$h['application_id']])) {
+                $latest[$h['application_id']] = $h;
+            }
+        }
+        return $latest;
+    }
+
+    /** Inserts the application row and returns its id. $type is 'new' or 'renewal'. */
+    public function create(string $refNumber, int $userId, string $type, array $fields, string $now): int
+    {
+        $this->pdo->prepare(
+            "INSERT INTO applications
+                (reference_no, user_id, type, full_name, barangay, address, mobile, email, birthdate, sex, civil_status, category_id, status, consent_at, submitted_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending Review', ?, ?)"
+        )->execute([
+            $refNumber, $userId, $type, $fields['full_name'], $fields['barangay'], $fields['address'],
+            $fields['mobile'], $fields['email'], $fields['birthdate'], $fields['sex'],
+            $fields['civil_status'], $fields['category_id'], $now, $now,
+        ]);
+        return (int) $this->pdo->lastInsertId();
+    }
+
+    public function addChild(int $applicationId, string $name, string $birthdate): void
+    {
+        $this->pdo->prepare('INSERT INTO application_children (application_id, full_name, birthdate) VALUES (?, ?, ?)')
+            ->execute([$applicationId, $name, $birthdate]);
+    }
+
+    public function setStatus(int $applicationId, string $status): void
+    {
+        $this->pdo->prepare('UPDATE applications SET status = ? WHERE id = ?')->execute([$status, $applicationId]);
+    }
+
+    public function addHistory(int $applicationId, string $status, ?string $remarks, string $changedBy): void
+    {
+        $this->pdo->prepare('INSERT INTO status_history (application_id, status, remarks, changed_by) VALUES (?, ?, ?, ?)')
+            ->execute([$applicationId, $status, $remarks, $changedBy]);
+    }
+}

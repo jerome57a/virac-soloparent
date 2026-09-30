@@ -1,47 +1,35 @@
 <?php
+/**
+ * Thin delegation layer: the real logic now lives in services/AuthService.php
+ * and models/User.php. These functions keep their exact original
+ * signatures/behavior so the ~50 existing pages across admin/, staff/,
+ * applicant/, and shared pages that already call them keep working
+ * completely unchanged. New code should use AuthService directly instead
+ * of these functions.
+ */
+require_once __DIR__ . '/../services/AuthService.php';
 
 function current_user(PDO $pdo): ?array
 {
-    if (empty($_SESSION['user_id'])) {
-        return null;
-    }
-    // Always re-checked against the DB (not session-cached) so a deactivated
-    // account loses access immediately, not just after its next login.
-    $stmt = $pdo->prepare('SELECT id, full_name, email, username, mobile, role FROM users WHERE id = ? AND is_active = 1');
-    $stmt->execute([$_SESSION['user_id']]);
-    $user = $stmt->fetch();
-    if (!$user) {
-        unset($_SESSION['user_id'], $_SESSION['_user_cache']);
-        return null;
-    }
-    return $user;
+    return (new AuthService($pdo))->currentUser();
 }
 
 function login_user(array $user): void
 {
-    session_regenerate_id(true);
-    $_SESSION['user_id'] = $user['id'];
+    // No $pdo needed for a pure session write, but kept as a standalone
+    // service call for a single source of truth.
+    $service = new AuthService($GLOBALS['pdo']);
+    $service->loginUser($user);
 }
 
 function logout_user(): void
 {
-    unset($_SESSION['user_id'], $_SESSION['apply_draft']);
-    session_regenerate_id(true);
+    (new AuthService($GLOBALS['pdo']))->logoutUser();
 }
 
 function current_staff(PDO $pdo): ?array
 {
-    if (empty($_SESSION['staff_id'])) {
-        return null;
-    }
-    $stmt = $pdo->prepare("SELECT id, full_name, email, username, role FROM users WHERE id = ? AND role IN ('mswd_social_worker','admin') AND is_active = 1");
-    $stmt->execute([$_SESSION['staff_id']]);
-    $user = $stmt->fetch();
-    if (!$user) {
-        unset($_SESSION['staff_id']);
-        return null;
-    }
-    return $user;
+    return (new AuthService($pdo))->currentStaff();
 }
 
 function require_staff_login(PDO $pdo): array
@@ -58,19 +46,17 @@ function require_admin_login(PDO $pdo): array
 {
     $staff = require_staff_login($pdo);
     if ($staff['role'] !== 'admin') {
-        redirect(base_url('admin/dashboard.php'));
+        redirect(base_url('staff/dashboard.php'));
     }
     return $staff;
 }
 
 function login_staff(array $user): void
 {
-    session_regenerate_id(true);
-    $_SESSION['staff_id'] = $user['id'];
+    (new AuthService($GLOBALS['pdo']))->loginStaff($user);
 }
 
 function logout_staff(): void
 {
-    unset($_SESSION['staff_id']);
-    session_regenerate_id(true);
+    (new AuthService($GLOBALS['pdo']))->logoutStaff();
 }

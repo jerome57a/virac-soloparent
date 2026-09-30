@@ -17,7 +17,7 @@ class SmsService
         $this->pdo = $pdo;
     }
 
-    public function send(int $applicationId, string $mobile, string $message): void
+    public function send(?int $applicationId, string $mobile, string $message): void
     {
         $status = 'skipped-no-api-key';
 
@@ -51,28 +51,93 @@ class SmsService
         return $ok;
     }
 
+    /**
+     * Renders an admin-editable sms_templates row, substituting {placeholder}
+     * tokens. Falls back to $fallback (with the same substitution applied)
+     * if the template row is missing or was emptied out, so a bad edit in
+     * the admin UI can never silently break notifications.
+     */
+    private function template(string $key, array $placeholders, string $fallback): string
+    {
+        $stmt = $this->pdo->prepare('SELECT body FROM sms_templates WHERE template_key = ?');
+        $stmt->execute([$key]);
+        $body = trim((string) $stmt->fetchColumn());
+        if ($body === '') {
+            $body = $fallback;
+        }
+        return strtr($body, $placeholders);
+    }
+
     public function notifySubmitted(int $applicationId, string $mobile, string $refNumber): void
     {
-        $this->send($applicationId, $mobile, "MSWDO Virac: Your Solo Parent ID application $refNumber has been received and is Pending Review. We will text you when its status changes.");
+        $msg = $this->template(
+            'submitted',
+            ['{ref}' => $refNumber],
+            "MSWDO Virac: Your Solo Parent ID application {ref} has been received and is Pending Review. We will text you when its status changes."
+        );
+        $this->send($applicationId, $mobile, $msg);
     }
 
     public function notifyStatusChange(int $applicationId, string $mobile, string $refNumber, string $status, string $remarks = ''): void
     {
-        $msg = "MSWDO Virac: Application $refNumber is now $status.";
-        if ($remarks !== '') {
-            $msg .= " Note: $remarks";
-        }
+        $msg = $this->template(
+            'status_change',
+            ['{ref}' => $refNumber, '{status}' => $status, '{remarks}' => $remarks !== '' ? $remarks : 'none'],
+            "MSWDO Virac: Application {ref} is now {status}. Note: {remarks}"
+        );
         $this->send($applicationId, $mobile, $msg);
     }
 
     public function notifyInterviewScheduled(int $applicationId, string $mobile, string $refNumber, string $scheduledAt, string $location): void
     {
         $when = date('F j, Y g:i A', strtotime($scheduledAt));
-        $this->send($applicationId, $mobile, "MSWDO Virac: An interview for application $refNumber has been scheduled on $when at $location. Please arrive on time and bring a valid ID.");
+        $msg = $this->template(
+            'interview_scheduled',
+            ['{ref}' => $refNumber, '{when}' => $when, '{location}' => $location],
+            "MSWDO Virac: An interview for application {ref} has been scheduled on {when} at {location}. Please arrive on time and bring a valid ID."
+        );
+        $this->send($applicationId, $mobile, $msg);
     }
 
     public function notifyRenewalSubmitted(int $applicationId, string $mobile, string $refNumber): void
     {
-        $this->send($applicationId, $mobile, "MSWDO Virac: Your Solo Parent ID renewal request $refNumber has been received and is Pending Review. We will text you when its status changes.");
+        $msg = $this->template(
+            'renewal_submitted',
+            ['{ref}' => $refNumber],
+            "MSWDO Virac: Your Solo Parent ID renewal request {ref} has been received and is Pending Review. We will text you when its status changes."
+        );
+        $this->send($applicationId, $mobile, $msg);
+    }
+
+    public function notifyRenewalReminder(int $applicationId, string $mobile, string $refNumber, string $expiresAt): void
+    {
+        $when = date('F j, Y', strtotime($expiresAt));
+        $msg = $this->template(
+            'renewal_reminder',
+            ['{ref}' => $refNumber, '{when}' => $when],
+            "MSWDO Virac: Your Solo Parent ID ({ref}) expires on {when}. Please visit MSWDO or apply for renewal online soon to avoid interruption."
+        );
+        $this->send($applicationId, $mobile, $msg);
+    }
+
+    public function notifyAppointmentReminder(int $applicationId, string $mobile, string $refNumber, string $scheduledAt, string $location): void
+    {
+        $when = date('F j, Y g:i A', strtotime($scheduledAt));
+        $msg = $this->template(
+            'appointment_reminder',
+            ['{ref}' => $refNumber, '{when}' => $when, '{location}' => $location],
+            "MSWDO Virac: Reminder -- your appointment for application {ref} is on {when} at {location}. Please arrive on time and bring a valid ID."
+        );
+        $this->send($applicationId, $mobile, $msg);
+    }
+
+    public function notifyPasswordReset(string $mobile, string $code): void
+    {
+        $msg = $this->template(
+            'password_reset',
+            ['{code}' => $code, '{minutes}' => (string) PASSWORD_RESET_CODE_MINUTES],
+            "MSWDO Virac: Your password reset code is {code}. It expires in {minutes} minutes. If you didn't request this, ignore this message."
+        );
+        $this->send(null, $mobile, $msg);
     }
 }

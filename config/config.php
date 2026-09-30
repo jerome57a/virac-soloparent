@@ -1,7 +1,8 @@
 <?php
 /**
- * App-wide constants. Adjust BASE_URL if the project folder name
- * or virtual host differs from the default XAMPP setup.
+ * Bootstrap only: output buffering, BASE_URL detection, timezone, session
+ * setup. App-wide constants live in constants.php, auth policy in
+ * auth.php -- both required below.
  */
 
 // Buffer all output for the whole request. Several pages render shared
@@ -16,9 +17,10 @@ if (!defined('BASE_URL')) {
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     $host   = $_SERVER['HTTP_HOST'] ?? 'localhost';
     $script = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? ''));
-    // Strip a trailing /admin (or any subfolder) so BASE_URL always points at the app root.
+    // Strip a trailing /admin, /staff, or /applicant (the app's
+    // one-level-deep script subfolders) so BASE_URL always points at the app root.
     $root = $script;
-    if (basename($root) === 'admin') {
+    if (in_array(basename($root), ['admin', 'staff', 'applicant'], true)) {
         $root = dirname($root);
     }
     if ($root === '/' || $root === '\\') {
@@ -27,25 +29,20 @@ if (!defined('BASE_URL')) {
     define('BASE_URL', $scheme . '://' . $host . $root);
 }
 
-define('APP_NAME', 'Virac Solo Parent ID Online Portal');
-define('APP_ROOT', dirname(__DIR__));
-define('STORAGE_PATH', APP_ROOT . '/storage/uploads');
-define('MAX_UPLOAD_BYTES', 5 * 1024 * 1024); // 5MB
-define('ALLOWED_UPLOAD_EXT', ['jpg', 'jpeg', 'png', 'pdf']);
-define('ALLOWED_UPLOAD_MIME', ['image/jpeg', 'image/png', 'application/pdf']);
-
-// SMS provider (Semaphore PH). Leave SMS_API_KEY blank to run in "log only" mode.
-define('SMS_PROVIDER', 'semaphore');
-define('SMS_API_KEY', '');
-define('SMS_SENDER_NAME', 'VIRACMSWD');
-
 date_default_timezone_set('Asia/Manila');
 
+require __DIR__ . '/constants.php';
+require __DIR__ . '/auth.php';
+
+// 'secure' only when actually served over HTTPS -- forcing it on would
+// stop the session cookie being sent at all on a plain-HTTP dev install
+// (like this local XAMPP setup), silently breaking every login.
 session_set_cookie_params([
     'lifetime' => 0,
     'path' => '/',
     'httponly' => true,
     'samesite' => 'Lax',
+    'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
 ]);
 if (session_status() === PHP_SESSION_NONE) {
     session_start();

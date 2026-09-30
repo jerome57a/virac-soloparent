@@ -19,17 +19,8 @@ function benefit_cards(): array
 
 function eligibility_list(): array
 {
-    return [
-        ['title' => 'Deceased spouse', 'desc' => 'The other parent has passed away and you are solely responsible for your child/children.'],
-        ['title' => 'Abandoned or separated (6+ months)', 'desc' => 'Your spouse has been absent for at least six (6) months and you bear sole parental responsibility.'],
-        ['title' => 'Spouse detained or imprisoned (3+ months)', 'desc' => 'Your spouse is serving a sentence and you are the sole caregiver of your child/children.'],
-        ['title' => 'Spouse physically or mentally incapacitated', 'desc' => 'Your spouse is unable to fulfill parental responsibilities due to a certified medical condition.'],
-        ['title' => 'Legal separation, annulment, or nullity of marriage', 'desc' => 'As decreed by a court or church, with you entrusted with the custody of the child/children.'],
-        ['title' => 'Unwed parent', 'desc' => 'An unmarried mother or father who has chosen to keep and raise their child/children.'],
-        ['title' => 'Legal guardian', 'desc' => 'Any person who solely provides parental care and support to a minor child or children.'],
-        ['title' => 'Spouse is an OFW (RA 11861)', 'desc' => 'Spouse is a low-skilled or semi-skilled overseas Filipino worker who has been abroad for an uninterrupted period of 12 months or more.'],
-        ['title' => 'Victim of rape or crimes against chastity', 'desc' => 'A woman who gives birth as a result of rape or similar crimes and keeps and raises the child.'],
-    ];
+    require_once __DIR__ . '/../services/EligibilityService.php';
+    return EligibilityService::circumstances();
 }
 
 function required_doc_groups(): array

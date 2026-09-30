@@ -1,7 +1,7 @@
 <?php
 /** @var PDO $pdo */
 $applyUrl = base_url('portal.php?tab=apply');
-$eligUrl = '#elig-checker';
+$eligUrl = base_url('eligibility.php');
 ?>
 <div style="font-size:15px;color:var(--muted);margin-bottom:28px;max-width:780px">Everything you need to know before applying: eligibility, benefits, requirements, and how to apply online through e-SoloParentID.</div>
 
@@ -94,54 +94,6 @@ $eligUrl = '#elig-checker';
 </div>
 
 <div class="cta-row">
-  <a href="#elig-checker" id="open-elig-btn" class="btn-navy text-decoration-none">✦ Check Your Eligibility</a>
+  <a href="<?= e($eligUrl) ?>" class="btn-navy text-decoration-none">✦ Check Your Eligibility</a>
   <a href="<?= e($applyUrl) ?>" class="btn-red text-decoration-none">✦ Apply Online Now</a>
 </div>
-
-<div id="elig-checker" class="elig-panel" data-apply-url="<?= e($applyUrl) ?>" style="display:none">
-  <div class="d-flex justify-content-between align-items-start gap-3 mb-1">
-    <div class="font-heading" style="font-size:22px">Eligibility Checker</div>
-    <button type="button" class="elig-close" id="elig-close-btn" aria-label="Close">×</button>
-  </div>
-  <div style="font-size:14px;color:var(--muted);margin-bottom:22px">Use the Eligibility Checker to confirm you qualify. Answer three quick questions.</div>
-
-  <div style="font-weight:700;font-size:15px;color:var(--ink);margin-bottom:10px">1. Are you a resident of Virac, Catanduanes?</div>
-  <div class="d-flex flex-wrap gap-2 mb-3">
-    <?php foreach (['Yes', 'No'] as $opt): ?>
-      <button type="button" class="option-btn" style="flex:1 1 120px" data-elig-group="resident" data-elig-value="<?= e($opt) ?>"><?= e($opt) ?></button>
-    <?php endforeach; ?>
-  </div>
-
-  <div style="font-weight:700;font-size:15px;color:var(--ink);margin-bottom:10px">2. Which best describes your situation?</div>
-  <div class="d-flex flex-column gap-2 mb-3">
-    <?php foreach (eligibility_list() as $el): ?>
-      <button type="button" class="option-btn wide" data-elig-group="circ" data-elig-value="<?= e($el['title']) ?>"><?= e($el['title']) ?></button>
-    <?php endforeach; ?>
-    <button type="button" class="option-btn wide" data-elig-group="circ" data-elig-value="None of these apply to me">None of these apply to me</button>
-  </div>
-
-  <div style="font-weight:700;font-size:15px;color:var(--ink);margin-bottom:10px">3. Are you solely caring for a child below 22 years old, or a child of any age with a disability?</div>
-  <div class="d-flex flex-wrap gap-2 mb-3">
-    <?php foreach (['Yes', 'No'] as $opt): ?>
-      <button type="button" class="option-btn" style="flex:1 1 120px" data-elig-group="child" data-elig-value="<?= e($opt) ?>"><?= e($opt) ?></button>
-    <?php endforeach; ?>
-  </div>
-
-  <div id="elig-result"></div>
-  <div style="margin-top:16px">
-    <button type="button" id="elig-reset" class="btn-outline" style="padding:8px 16px;font-size:13px">Start over</button>
-  </div>
-</div>
-
-<script>
-  document.getElementById('open-elig-btn').addEventListener('click', function (e) {
-    e.preventDefault();
-    var panel = document.getElementById('elig-checker');
-    panel.style.display = 'block';
-    var y = panel.getBoundingClientRect().top + window.scrollY - 20;
-    window.scrollTo({ top: y, behavior: 'smooth' });
-  });
-  document.getElementById('elig-close-btn').addEventListener('click', function () {
-    document.getElementById('elig-checker').style.display = 'none';
-  });
-</script>

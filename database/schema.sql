@@ -19,12 +19,17 @@ USE virac_solo_parent;
 CREATE TABLE users (
   id            INT AUTO_INCREMENT PRIMARY KEY,
   full_name     VARCHAR(150) NOT NULL,
+  profile_photo VARCHAR(255) DEFAULT NULL,
   email         VARCHAR(150) NOT NULL,
   username      VARCHAR(50)  NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   mobile        VARCHAR(20)  DEFAULT NULL,
   role          ENUM('applicant','mswd_social_worker','admin') NOT NULL DEFAULT 'applicant',
   is_active     TINYINT(1) NOT NULL DEFAULT 1,
+  failed_login_attempts INT NOT NULL DEFAULT 0,
+  locked_until  DATETIME DEFAULT NULL,
+  password_reset_code VARCHAR(10) DEFAULT NULL,
+  password_reset_expires_at DATETIME DEFAULT NULL,
   created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
@@ -70,6 +75,9 @@ CREATE TABLE applications (
   category_id   INT NOT NULL,
   reviewed_by   INT NULL,
   status        ENUM('Pending Review','Under Verification','For Revision','Interview Scheduled','Approved','ID Released','Rejected') NOT NULL DEFAULT 'Pending Review',
+  eligibility_status  ENUM('Not Assessed','Eligible','Not Eligible') NOT NULL DEFAULT 'Not Assessed',
+  eligibility_remarks VARCHAR(500) DEFAULT NULL,
+  id_expires_at DATE NULL,
   consent_at    DATETIME NOT NULL,
   submitted_at  DATETIME NOT NULL,
   updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -87,14 +95,16 @@ CREATE TABLE application_children (
 ) ENGINE=InnoDB;
 
 CREATE TABLE application_documents (
-  id             INT AUTO_INCREMENT PRIMARY KEY,
-  application_id INT NOT NULL,
-  doc_key        VARCHAR(50) NOT NULL,
-  original_name  VARCHAR(255) NOT NULL,
-  stored_path    VARCHAR(255) NOT NULL,
-  mime           VARCHAR(100) NOT NULL,
-  size_bytes     INT NOT NULL,
-  uploaded_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  id                  INT AUTO_INCREMENT PRIMARY KEY,
+  application_id      INT NOT NULL,
+  doc_key             VARCHAR(50) NOT NULL,
+  original_name       VARCHAR(255) NOT NULL,
+  stored_path         VARCHAR(255) NOT NULL,
+  mime                VARCHAR(100) NOT NULL,
+  verification_status ENUM('Pending','Verified','Needs Correction') NOT NULL DEFAULT 'Pending',
+  staff_remarks       VARCHAR(500) DEFAULT NULL,
+  size_bytes          INT NOT NULL,
+  uploaded_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_doc_app FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
@@ -108,31 +118,77 @@ CREATE TABLE status_history (
   CONSTRAINT fk_hist_app FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- Dates/times MSWD (or admin) opens up for applicant-self-service appointment
+-- booking. An interview can instead be scheduled directly by staff with no
+-- slot at all (interviews.slot_id NULL) -- slots are an option, not the only path.
+CREATE TABLE appointment_slots (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  slot_date   DATE NOT NULL,
+  start_time  TIME NOT NULL,
+  end_time    TIME NOT NULL,
+  capacity    INT NOT NULL DEFAULT 10,
+  created_by  INT NOT NULL,
+  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_slot (slot_date, start_time),
+  CONSTRAINT fk_slot_creator FOREIGN KEY (created_by) REFERENCES users(id)
+) ENGINE=InnoDB;
+
 CREATE TABLE interviews (
   id                  INT AUTO_INCREMENT PRIMARY KEY,
   application_id      INT NOT NULL,
+  slot_id             INT NULL,
   scheduled_at        DATETIME NOT NULL,
   location            VARCHAR(255) NOT NULL,
   notes               VARCHAR(500) DEFAULT NULL,
   result              VARCHAR(500) DEFAULT NULL,
   result_recorded_at  DATETIME DEFAULT NULL,
-  scheduled_by        INT NOT NULL,
+  scheduled_by        INT NULL,
+  reminder_sent_at    DATETIME DEFAULT NULL,
   created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_interview_app (application_id),
   CONSTRAINT fk_interview_app FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
+  CONSTRAINT fk_interview_slot FOREIGN KEY (slot_id) REFERENCES appointment_slots(id) ON DELETE SET NULL,
   CONSTRAINT fk_interview_staff FOREIGN KEY (scheduled_by) REFERENCES users(id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE sms_logs (
   id               INT AUTO_INCREMENT PRIMARY KEY,
-  application_id   INT NOT NULL,
+  application_id   INT NULL, -- NULL for account-level SMS not tied to one application (e.g. password reset)
   mobile           VARCHAR(20) NOT NULL,
   message          VARCHAR(500) NOT NULL,
   provider         VARCHAR(30) NOT NULL DEFAULT 'none',
   provider_status  VARCHAR(30) NOT NULL DEFAULT 'queued',
   sent_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_sms_app FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- One row per application once its expiry reminder has gone out, so the
+-- scheduled job (run daily) never sends a second reminder for the same
+-- id_expires_at -- a renewal creates a brand-new application row with its
+-- own id, so that new record is naturally eligible for its own reminder later.
+CREATE TABLE renewal_reminders (
+  id              INT AUTO_INCREMENT PRIMARY KEY,
+  application_id  INT NOT NULL,
+  sent_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_reminder_app (application_id),
+  CONSTRAINT fk_reminder_app FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- The applicant-facing "internal notification system" -- decoupled from
+-- sms_logs (which is an SMS delivery audit trail, keyed by application,
+-- and can't represent a pre-application event like registration) so every
+-- notification has a real user_id and a real read/unread state.
+CREATE TABLE notifications (
+  id                      INT AUTO_INCREMENT PRIMARY KEY,
+  user_id                 INT NOT NULL,
+  type                    VARCHAR(30) NOT NULL,
+  message                 VARCHAR(500) NOT NULL,
+  related_application_id  INT NULL,
+  is_read                 TINYINT(1) NOT NULL DEFAULT 0,
+  created_at              TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_notif_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_notif_app FOREIGN KEY (related_application_id) REFERENCES applications(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- actor_name/actor_role are snapshotted at write time (not just a live join to
@@ -149,6 +205,58 @@ CREATE TABLE audit_logs (
   ip_address   VARCHAR(45) DEFAULT NULL,
   created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_audit_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- ---------------------------------------------------------------
+-- Chat Support: self-service FAQ (admin-managed)
+-- ---------------------------------------------------------------
+CREATE TABLE faqs (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  question    VARCHAR(255) NOT NULL,
+  answer      TEXT NOT NULL,
+  sort_order  INT NOT NULL DEFAULT 0,
+  is_active   TINYINT(1) NOT NULL DEFAULT 1,
+  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+INSERT INTO faqs (question, answer, sort_order) VALUES
+('Who can apply for a Solo Parent ID?', 'Any solo parent residing in Virac, Catanduanes who solely provides parental care to a child (below 22, or of any age if the child has a disability) under one of the circumstances in RA 8972 / RA 11861 -- e.g. widowed, abandoned, separated, or an unwed parent. Use the Eligibility Checker if you are unsure.', 1),
+('What documents do I need?', 'Standard requirements for everyone: Barangay Certificate of Residency and Solo Parent Status, PSA Birth Certificate(s) of your children, a valid government ID, and a 2x2 ID photo. Depending on your specific circumstance (e.g. death of spouse, annulment), one or two additional documents are required -- these are listed for you automatically once you select your category in the application form.', 2),
+('How long does processing take?', 'Once submitted, your application is Pending Review, then moves to Under Verification. If needed, MSWDO may schedule a short interview/assessment. Most applications are resolved within a few weeks, but this can vary depending on document completeness and MSWDO office workload.', 3),
+('What if my application needs correction?', 'If a document is unclear or a requirement is missing, your application status will show "For Revision" with the specific remarks from MSWDO staff. Go to My Application or Upload Documents to see what needs fixing and to re-upload the corrected file.', 4),
+('How do I renew my Solo Parent ID?', 'Your Solo Parent ID is valid for one year. Once it is close to expiring (or already expired), go to ID Renewal in the menu -- your previous information is pre-filled, and you only need to reconfirm your standard documents and submit.', 5),
+('How will I be notified of updates?', 'MSWDO sends an SMS to your registered mobile number whenever your application status changes, an interview is scheduled, or your ID is approved/released. You can also see the full history under Notifications.', 6),
+('Where is the MSWDO office?', 'MSWDO Office, Municipal Building, Salvacion, Virac, Catanduanes. Office hours are Monday to Friday, 8:00 AM to 5:00 PM.', 7);
+
+-- ---------------------------------------------------------------
+-- SMS notification templates (admin-editable; SmsService falls back to
+-- its own built-in text if a template row is missing or emptied out).
+-- Placeholders: {ref} {status} {remarks} {when} {location}
+-- ---------------------------------------------------------------
+CREATE TABLE sms_templates (
+  template_key VARCHAR(50) PRIMARY KEY,
+  label        VARCHAR(150) NOT NULL,
+  body         VARCHAR(500) NOT NULL,
+  updated_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+INSERT INTO sms_templates (template_key, label, body) VALUES
+('submitted', 'Application Submitted', 'MSWDO Virac: Your Solo Parent ID application {ref} has been received and is Pending Review. We will text you when its status changes.'),
+('status_change', 'Status Change (approval/rejection/correction/etc.)', 'MSWDO Virac: Application {ref} is now {status}. Note: {remarks}'),
+('interview_scheduled', 'Interview/Appointment Scheduled', 'MSWDO Virac: An interview for application {ref} has been scheduled on {when} at {location}. Please arrive on time and bring a valid ID.'),
+('renewal_submitted', 'Renewal Submitted', 'MSWDO Virac: Your Solo Parent ID renewal request {ref} has been received and is Pending Review. We will text you when its status changes.'),
+('renewal_reminder', 'Renewal Reminder (auto)', 'MSWDO Virac: Your Solo Parent ID ({ref}) expires on {when}. Please visit MSWDO or apply for renewal online soon to avoid interruption.'),
+('appointment_reminder', 'Appointment Reminder (auto)', 'MSWDO Virac: Reminder -- your appointment for application {ref} is on {when} at {location}. Please arrive on time and bring a valid ID.'),
+('password_reset', 'Password Reset Code', 'MSWDO Virac: Your password reset code is {code}. It expires in {minutes} minutes. If you didn''t request this, ignore this message.');
+
+-- ---------------------------------------------------------------
+-- Admin-configurable runtime settings (key/value; code falls back to
+-- config.php constants if a key is missing).
+-- ---------------------------------------------------------------
+CREATE TABLE system_settings (
+  setting_key   VARCHAR(50) PRIMARY KEY,
+  setting_value VARCHAR(255) NOT NULL,
+  updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------
