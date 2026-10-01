@@ -169,7 +169,8 @@ $navApplicationOpen = in_array($tab ?? '', ['apply', 'status', 'myapps'], true);
     <?php else: ?>
     <div class="nav-drawer-section-label">Main</div>
 
-    <a href="<?= base_url('portal.php?tab=overview') ?>" class="nav-drawer-link nav-drawer-link-icon <?= ($tab ?? '') === 'overview' ? 'active' : '' ?>">
+    <?php // Signed-in applicants go to their own dashboard; visitors get the public portal overview. ?>
+    <a href="<?= base_url(!empty($user) ? 'applicant/dashboard.php' : 'portal.php?tab=overview') ?>" class="nav-drawer-link nav-drawer-link-icon <?= empty($user) && ($tab ?? '') === 'overview' ? 'active' : '' ?>">
       <svg class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>
       <span>Dashboard</span>
     </a>
