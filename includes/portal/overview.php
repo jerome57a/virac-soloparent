@@ -10,10 +10,6 @@ $eligUrl = base_url('eligibility.php');
   </div>
   <div class="elig-cta-actions">
     <a href="<?= e($eligUrl) ?>" class="btn-red text-decoration-none">Check Eligibility</a>
-    <?php if (empty($user)): ?>
-      <a href="<?= base_url('login.php') ?>" class="btn-outline text-decoration-none">Log In</a>
-      <a href="<?= base_url('register.php') ?>" class="btn-outline text-decoration-none">Create Account</a>
-    <?php endif; ?>
   </div>
 </div>
 
