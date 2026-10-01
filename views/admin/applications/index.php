@@ -26,7 +26,7 @@
   </div>
 
   <form method="get" class="d-flex flex-wrap gap-2 mb-4">
-    <input type="text" name="q" value="<?= e($q) ?>" placeholder="Search reference no. or name" class="form-control" style="max-width:280px;padding:10px;border:1px solid var(--input-border);border-radius:6px">
+    <input type="text" name="q" aria-label="Search by reference number or name" value="<?= e($q) ?>" placeholder="Search reference no. or name" class="form-control" style="max-width:280px;padding:10px;border:1px solid var(--input-border);border-radius:6px">
     <select name="status" class="form-select" style="max-width:220px;padding:10px;border:1px solid var(--input-border);border-radius:6px">
       <option value="ALL" <?= $statusFilter === 'ALL' ? 'selected' : '' ?>>All statuses</option>
       <?php foreach ($validStatuses as $s): ?>

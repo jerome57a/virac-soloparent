@@ -1,36 +1,69 @@
 <?php
 /**
- * @var string $ownDashboard
- * @var string $error
+ * Staff QR verification: scan a slip's QR code or type its slip code /
+ * reference number, and see whether it is Valid, Expired, Invalid or
+ * Unknown, with only the details needed at the counter.
+ *
+ * @var array   $staff
+ * @var string  $ownDashboard
+ * @var string  $error
+ * @var ?array  $outcome  QrVerificationService::verify() result
+ * @var string  $input    what was scanned / typed
  */
+$banners = [
+    'VALID'   => ['✓', 'Valid', 'qr-valid'],
+    'EXPIRED' => ['⏱', 'Expired', 'qr-expired'],
+    'INVALID' => ['✗', 'Invalid', 'qr-invalid'],
+    'UNKNOWN' => ['?', 'Unknown QR', 'qr-unknown'],
+];
 ?>
-<div class="portal-container" style="max-width:560px">
+<div class="portal-container" style="max-width:600px">
   <a href="<?= e($ownDashboard) ?>" style="font-size:13px">&larr; Back to dashboard</a>
   <h1 class="font-heading mt-2 mb-3" style="font-size:26px">QR Verification</h1>
-  <div style="font-size:13px;color:var(--muted);margin-bottom:20px">Scan an applicant's QR code (from their application slip or Solo Parent ID) or enter their reference number directly to open their record.</div>
+  <div style="font-size:13px;color:var(--muted);margin-bottom:20px">Scan the QR code on an applicant's slip or Solo Parent ID to confirm it is authentic, or type the slip code printed under the QR (or their reference number).</div>
 
-  <?php if ($error): ?><div class="auth-error mb-3"><?= e($error) ?></div><?php endif; ?>
+  <?php if ($error): ?><div class="auth-error mb-3" role="alert"><?= e($error) ?></div><?php endif; ?>
+
+  <?php if ($outcome): [$icon, $label, $class] = $banners[$outcome['result']]; $a = $outcome['app']; ?>
+    <div class="qr-result <?= $class ?>" role="status" aria-live="polite">
+      <div class="qr-result-head"><span class="qr-result-icon" aria-hidden="true"><?= $icon ?></span> <?= e($label) ?></div>
+      <div class="qr-result-msg"><?= e($outcome['message']) ?></div>
+      <?php if ($a): $st = status_style($a['status']); ?>
+        <div class="review-grid qr-result-grid">
+          <div class="review-row"><div class="k">Name</div><div class="v"><?= e($a['full_name']) ?></div></div>
+          <div class="review-row"><div class="k">Reference</div><div class="v"><?= e($a['reference_no']) ?></div></div>
+          <div class="review-row"><div class="k">Type</div><div class="v"><?= $a['type'] === 'renewal' ? 'ID Renewal' : 'New Solo Parent ID' ?> · <?= e($a['category_name']) ?></div></div>
+          <div class="review-row"><div class="k">Status</div><div class="v"><span class="status-pill" style="background:<?= e($st['bg']) ?>;color:<?= e($st['color']) ?>"><?= e($a['status']) ?></span></div></div>
+          <?php if ($a['id_expires_at']): ?><div class="review-row"><div class="k">ID valid until</div><div class="v"><?= e(format_date_long($a['id_expires_at'])) ?></div></div><?php endif; ?>
+          <?php if ($a['appointment']): ?><div class="review-row"><div class="k">Appointment</div><div class="v"><?= e(date('M j, Y g:i A', strtotime($a['appointment']['scheduled_at']))) ?> · <?= e($a['appointment']['location']) ?></div></div><?php endif; ?>
+          <?php if ($outcome['slip']): ?><div class="review-row"><div class="k">Slip issued</div><div class="v"><?= e(date('M j, Y', strtotime($outcome['slip']['issued_at']))) ?> · code <?= e(QrSlipService::slipCode($outcome['slip']['token'])) ?></div></div><?php endif; ?>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-top:8px">Check the name against the applicant's valid government ID.</div>
+        <a href="<?= application_url($staff, (int) $a['id']) ?>" class="btn-outline text-decoration-none mt-2" style="display:inline-block;padding:6px 14px;font-size:13px">Open full record</a>
+      <?php endif; ?>
+    </div>
+  <?php endif; ?>
 
   <div class="review-card">
     <div class="review-card-head"><div class="title">Scan QR Code</div></div>
     <div id="qr-reader-wrap">
-      <video id="qr-video" style="width:100%;max-width:400px;border-radius:8px;background:#000;display:none"></video>
+      <video id="qr-video" style="width:100%;max-width:400px;border-radius:8px;background:#000;display:none" muted></video>
       <canvas id="qr-canvas" style="display:none"></canvas>
-      <button type="button" id="qr-start-btn" class="btn-navy">Start Camera</button>
+      <button type="button" id="qr-start-btn" class="btn-navy"><?= $outcome ? 'Scan Another' : 'Start Camera' ?></button>
       <div id="qr-status" style="font-size:13px;color:var(--muted);margin-top:10px"></div>
     </div>
   </div>
 
   <div class="review-card">
-    <div class="review-card-head"><div class="title">Or Enter Reference Number</div></div>
+    <div class="review-card-head"><div class="title">Or Enter Slip Code / Reference Number</div></div>
     <form method="get" class="d-flex flex-wrap gap-2">
-      <input type="text" name="ref" placeholder="e.g. VIRAC-SP-2026-0001" class="form-control" style="flex:1 1 220px;padding:10px;border:1px solid var(--input-border);border-radius:6px" required>
-      <button type="submit" class="btn-navy">Look Up</button>
+      <input type="text" name="code" maxlength="300" autocomplete="off" placeholder="Slip code or reference no." title="e.g. CF4E-30DD-744D-3804 or VIRAC-SP-2026-0001" class="form-control" style="flex:1 1 240px;padding:10px;border:1px solid var(--input-border);border-radius:6px" required>
+      <button type="submit" class="btn-navy">Verify</button>
     </form>
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="<?= public_asset('js/jsQR.js') ?>"></script>
 <script>
 (function () {
   var startBtn = document.getElementById('qr-start-btn');
@@ -61,9 +94,9 @@
       var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       var code = jsQR(imageData.data, imageData.width, imageData.height);
       if (code && code.data) {
-        statusEl.textContent = 'Found: ' + code.data + ' — opening record...';
+        statusEl.textContent = 'QR code found — verifying...';
         stop();
-        window.location.href = '?ref=' + encodeURIComponent(code.data);
+        window.location.href = '?code=' + encodeURIComponent(code.data);
         return;
       }
     }
@@ -72,7 +105,7 @@
 
   startBtn.addEventListener('click', function () {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      statusEl.textContent = 'Camera access is not available in this browser.';
+      statusEl.textContent = 'Camera access is not available in this browser. Type the slip code below instead.';
       return;
     }
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }).then(function (s) {
@@ -82,12 +115,11 @@
       video.setAttribute('playsinline', 'true');
       video.play();
       scanning = true;
-      statusEl.textContent = 'Point the camera at a QR code...';
+      statusEl.textContent = 'Point the camera at the QR code...';
       requestAnimationFrame(tick);
     }).catch(function () {
-      statusEl.textContent = 'Could not access the camera. Check browser permissions, or use the reference number field below.';
+      statusEl.textContent = 'Could not access the camera. Check browser permissions, or type the slip code below.';
     });
   });
 })();
 </script>
-

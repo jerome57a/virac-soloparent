@@ -108,4 +108,60 @@
     consentBox.addEventListener('change', syncSubmit);
     syncSubmit();
   }
+
+  // ---- Loading state for every POST form ----
+  // Once a form is really submitting (it passed validation and any confirm()),
+  // its button shows "Please wait…" and further submits are ignored, so a
+  // double click can't send an application, upload or SMS twice. The button
+  // is not disabled: a disabled button would drop its name/value (e.g.
+  // action=...) from the submitted data. Forms opting out: data-no-loading.
+  var busyForms = [];
+  function resetBusy() {
+    busyForms.forEach(function (entry) {
+      entry.form.removeAttribute('aria-busy');
+      delete entry.form.dataset.submitting;
+      if (entry.button) {
+        entry.button.classList.remove('is-loading');
+        entry.button.removeAttribute('aria-disabled');
+        if (entry.label !== null) entry.button.innerHTML = entry.label;
+      }
+      if (entry.textNode) {
+        entry.textNode.nodeValue = entry.text;
+        entry.textNode.parentNode.classList.remove('is-loading');
+      }
+    });
+    busyForms = [];
+  }
+  document.addEventListener('submit', function (e) {
+    var form = e.target;
+    if (!(form instanceof HTMLFormElement) || (form.method || '').toLowerCase() !== 'post' || form.hasAttribute('data-no-loading') || form.target === '_blank') return;
+    if (form.dataset.submitting) { e.preventDefault(); return; }
+    if (e.defaultPrevented) return; // cancelled by a confirm() or other handler
+    form.dataset.submitting = '1';
+    form.setAttribute('aria-busy', 'true');
+    var button = e.submitter || form.querySelector('button[type=submit], button:not([type]), input[type=submit]');
+    var entry = { form: form, button: button, label: null, textNode: null, text: null };
+    // Upload forms that send as soon as a file is picked have no button: their "Choose file" label says "Uploading…".
+    var picker = !button && form.querySelector('label > input[type=file]');
+    if (picker) {
+      var label = picker.parentNode;
+      for (var n = label.firstChild; n; n = n.nextSibling) {
+        if (n.nodeType === 3 && n.nodeValue.trim() !== '') { entry.textNode = n; entry.text = n.nodeValue; n.nodeValue = 'Uploading…'; label.classList.add('is-loading'); break; }
+      }
+    }
+    if (button) {
+      button.classList.add('is-loading');
+      button.setAttribute('aria-disabled', 'true');
+      if (button.tagName === 'BUTTON' && button.textContent.trim() !== '') {
+        entry.label = button.innerHTML;
+        button.style.minWidth = button.offsetWidth + 'px';
+        button.textContent = 'Please wait…';
+      }
+    }
+    busyForms.push(entry);
+    // A response that doesn't leave the page (e.g. a file download) mustn't leave the form stuck.
+    setTimeout(resetBusy, 10000);
+  });
+  // Coming back with the browser's Back button restores the page as it was left.
+  window.addEventListener('pageshow', function (e) { if (e.persisted) resetBusy(); });
 })();

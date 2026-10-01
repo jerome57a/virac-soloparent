@@ -1,5 +1,5 @@
 <?php
-/** @var array $draft @var array $errors @var array $docDefs @var array $categoryMap */
+/** @var array $draft @var array $errors @var array $docDefs @var array $categoryMap @var ?string $submitLabel (default "Submit Application") */
 $categoryName = $draft['categoryId'] ? ($categoryMap[$draft['categoryId']] ?? '') : '—';
 
 $reviewSections = [
@@ -55,7 +55,8 @@ $reviewSections = [
   <?php if (!empty($errors['consent'])): ?><div class="field-error mb-2"><?= e($errors['consent']) ?></div><?php endif; ?>
 
   <div class="form-nav-buttons">
+    <button type="submit" name="action" value="save_draft" formnovalidate class="btn-outline">Save &amp; finish later</button>
     <button type="submit" name="action" value="back" formnovalidate class="btn-outline">Back</button>
-    <button type="submit" name="action" value="submit" id="submit-application-btn" class="btn-red">Submit Application</button>
+    <button type="submit" name="action" value="submit" id="submit-application-btn" class="btn-red"><?= e($submitLabel ?? 'Submit Application') ?></button>
   </div>
 </form>

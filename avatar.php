@@ -3,22 +3,28 @@ require __DIR__ . '/config/database.php';
 require __DIR__ . '/includes/functions.php';
 require __DIR__ . '/includes/auth.php';
 
-$userId = (int) ($_GET['user_id'] ?? 0);
-$stmt = $pdo->prepare('SELECT id, profile_photo FROM users WHERE id = ?');
-$stmt->execute([$userId]);
-$target = $stmt->fetch();
+// Only the account owner or MSWDO staff may view a profile photo. Same
+// approach as download.php: login first, and "no photo" for anything the
+// viewer isn't allowed to see.
+$viewer = current_user($pdo);
+$staff = current_staff($pdo);
+if (!$viewer && !$staff) {
+    http_response_code(403);
+    die('Please log in to view this photo.');
+}
 
-if (!$target || !$target['profile_photo']) {
+$userId = (int) ($_GET['user_id'] ?? 0);
+if (!$staff && (int) $viewer['id'] !== $userId) {
     http_response_code(404);
     die('No photo.');
 }
 
-$viewer = current_user($pdo);
-$staff = current_staff($pdo);
-$isOwner = $viewer && (int) $viewer['id'] === $userId;
-if (!$isOwner && !$staff) {
-    http_response_code(403);
-    die('You are not allowed to view this photo.');
+$stmt = $pdo->prepare('SELECT id, profile_photo FROM users WHERE id = ?');
+$stmt->execute([$userId]);
+$target = $stmt->fetch();
+if (!$target || !$target['profile_photo']) {
+    http_response_code(404);
+    die('No photo.');
 }
 
 $path = AVATAR_STORAGE_PATH . '/' . $target['profile_photo'];

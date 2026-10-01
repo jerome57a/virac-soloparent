@@ -1,8 +1,9 @@
 <?php
 /**
- * Bootstrap only: output buffering, BASE_URL detection, timezone, session
- * setup. App-wide constants live in constants.php, auth policy in
- * auth.php -- both required below.
+ * Bootstrap only: output buffering, BASE_URL detection, timezone, error
+ * handling, security headers, session setup. App-wide constants live in
+ * constants.php, environment settings (debug, DB credentials) in app.php,
+ * auth policy in auth.php.
  */
 
 // Buffer all output for the whole request. Several pages render shared
@@ -32,7 +33,22 @@ if (!defined('BASE_URL')) {
 date_default_timezone_set('Asia/Manila');
 
 require __DIR__ . '/constants.php';
+require __DIR__ . '/app.php';
+require __DIR__ . '/errors.php';
 require __DIR__ . '/auth.php';
+require __DIR__ . '/permissions.php';
+require __DIR__ . '/settings.php';
+
+if (PHP_SAPI !== 'cli') {
+    header('X-Content-Type-Options: nosniff');
+    header('X-Frame-Options: SAMEORIGIN');
+    header('Referrer-Policy: strict-origin-when-cross-origin');
+    header_remove('X-Powered-By');
+    // Framing, plugins, <base> hijacking and off-site form posts are refused outright.
+    header("Content-Security-Policy: frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'");
+    // The camera is used only by the staff QR scanner, on this site.
+    header('Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=(), usb=()');
+}
 
 // 'secure' only when actually served over HTTPS -- forcing it on would
 // stop the session cookie being sent at all on a plain-HTTP dev install
@@ -45,5 +61,10 @@ session_set_cookie_params([
     'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
 ]);
 if (session_status() === PHP_SESSION_NONE) {
+    // Strict mode: PHP refuses session IDs it didn't issue itself (blocks
+    // session fixation via a planted cookie); IDs only ever come from cookies.
+    ini_set('session.use_strict_mode', '1');
+    ini_set('session.use_only_cookies', '1');
+    session_name('ESPID_SESSION');
     session_start();
 }

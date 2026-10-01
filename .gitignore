@@ -8,3 +8,10 @@
 # (every table, including password hashes) -- never commit either.
 /storage/avatars/*
 /storage/db_backups/*
+
+# Machine-specific settings (may hold real credentials) and runtime logs.
+/config/local.php
+/storage/logs/*
+
+# Composer dependencies: recreate with "composer install" (versions pinned in composer.lock).
+/vendor/

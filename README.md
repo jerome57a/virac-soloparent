@@ -13,68 +13,118 @@ feature coverage per role.
 
 1. Copy (or symlink) this `virac-soloparent/` folder into `C:\xampp\htdocs\`.
 2. Start Apache and MySQL in the XAMPP Control Panel.
-3. Import the schema (creates the `virac_solo_parent` database, the 9
-   solo-parent categories, and their document requirements):
+3. Create the database structure, then load the reference data (roles,
+   the 9 solo-parent categories and their document requirements, FAQs,
+   SMS templates) and the initial administrator:
    ```
    "C:\xampp\mysql\bin\mysql.exe" -u root < database\schema.sql
+   "C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\seed.sql
    ```
-   (or use phpMyAdmin → Import → select `database/schema.sql`).
-4. Create the first System Administrator account:
-   ```
-   C:\xampp\php\php.exe database\seed_admin.php
-   ```
-   This prints a generated admin username/password — log in at
-   `/admin/login.php`, then delete `database/seed_admin.php`. Use that
-   admin account's **Manage Users** page to create MSWD Social Worker
-   accounts (there's no other way to create staff accounts, by design).
+   (or phpMyAdmin → Import `database/schema.sql`, then `database/seed.sql`).
+4. Log in at `/admin/login.php` as **admin** / **Admin@Virac2026** and
+   change that password straight away (**My Account** in the menu). Use
+   **Manage Users** to create MSWD Staff accounts (there's no other way to
+   create staff accounts, by design).
 5. Visit `http://localhost/virac-soloparent/index.php`.
 
-Default DB credentials (`config/database.php`) are `root` / no password,
-matching a stock XAMPP install. Edit that file if yours differs.
+Default DB credentials are `root` / no password, matching a stock XAMPP
+install. If yours differ, copy `config/local.example.php` to
+`config/local.php` and edit it (that file is git-ignored). Set
+`APP_DEBUG` to `true` there to see error details while developing.
 
-## Optional: QR codes on the application slip
+## QR codes on the application slip
 
-The printable slip (`slip.php`) shows a QR code linking to the status
-checker when `endroid/qr-code` is installed:
+The printable slip (`slip.php`) and the applicant's **My Solo Parent ID**
+page show a QR code. It encodes only a link to the MSWDO staff
+verification page with a random 256-bit token (`qr_application_slips`) —
+no name or reference number — and staff must be signed in to use it.
+QR images need the `endroid/qr-code` library (pinned in `composer.lock`):
 ```
 composer install
 ```
-Without Composer, the slip still works and simply shows the status-check
-URL as text instead of a QR image.
+Without it the slip still works and shows the slip code as text instead of
+a QR image.
+## SMS delivery
 
-## Optional: real SMS delivery
+`services/SMSService.php` sends every text message and logs each attempt in
+`sms_logs` (PENDING, then SENT or FAILED with the gateway's answer). Messages
+come from the admin-editable templates on **SMS Notifications**, where
+failed messages can also be retried and a test SMS sent.
 
-`includes/SmsService.php` logs every notification to the `sms_logs` table
-regardless of configuration. To actually send SMS via Semaphore PH, set
-`SMS_API_KEY` in `config/config.php`.
+Texts about an application go to the applicant's **confirmed account
+number**, so a number changed and re-confirmed on My Profile after
+submission is used from then on; the number saved on the application is
+used only while the account has no confirmed number. The application keeps
+its original number as part of the record. Staff application pages show
+both — **Confirmed mobile number** (used for SMS) and **Application mobile
+number** (as submitted), flagged when they differ — or a single row when
+they are the same.
 
-## Automatic renewal reminders
+It runs in **test mode** by default: messages are logged (flagged as test)
+but nothing is sent. To send real SMS through Semaphore PH, set these as
+server environment variables or in `config/local.php` (never in code):
 
-`database/send_renewal_reminders.php` texts every applicant whose released
-ID expires within the configured window (default 30 days, editable at
-**System Settings** → Renewal Reminders) and hasn't been reminded yet for
-that expiry (`renewal_reminders` table, one row per application, so it's
-safe to run as often as you like without double-texting anyone). To run it
-automatically once a day via Windows Task Scheduler:
+| Setting | Default | |
+|---|---|---|
+| `SMS_PROVIDER` | `test` | `semaphore` to send for real |
+| `SMS_API_KEY` | (none) | your Semaphore API key |
+| `SMS_SENDER_NAME` | `VIRACMSWD` | must be approved by Semaphore |
+| `SMS_API_URL` | Semaphore's messages API | point at a sandbox/mock gateway to test |
+| `SMS_TIMEOUT` | `10` | seconds per gateway call |
+| `SMS_MAX_ATTEMPTS` | `3` | attempts allowed per message, including retries |
 
-1. Task Scheduler → Create Task → Trigger: Daily, any time.
-2. Action → Start a program:
-   - Program: `C:\xampp\php\php.exe`
-   - Arguments: `C:\xampp\htdocs\virac-soloparent\database\send_renewal_reminders.php`
+Password-reset codes are sent but never stored: the log keeps the text with
+the code masked.
 
-It can also be run manually any time (`C:\xampp\php\php.exe database\send_renewal_reminders.php`,
-or the **Send Reminders Now** button on System Settings).
+## Scheduled jobs (renewal and appointment reminders)
 
-## Automatic appointment reminders
+Both run from the command line only (`cron/`, which the web server refuses
+to serve) and log every run in `scheduled_job_runs`; the latest runs show
+on **System Settings**, which warns if a job hasn't run in two days.
 
-`database/send_appointment_reminders.php` works the same way for upcoming
-interviews/appointments: texts the applicant once their scheduled time is
-within the configured window (default 24 hours), tracked per-interview via
-`interviews.reminder_sent_at` (reset to `NULL` whenever that interview is
-rescheduled, so a new time always gets its own fresh reminder). Same setup
-as above — add a second Task Scheduler entry pointing at
-`database\send_appointment_reminders.php` (hourly is reasonable, given the
-default 24-hour window), or trigger it manually from System Settings.
+- `cron/renewal-reminders.php` — **daily**. Reminds (in-app + SMS) every
+  applicant whose released ID expires within the configured window
+  (default 30 days, **System Settings** → Renewal reminder period), once
+  per ID per expiry date (`renewal_reminders`). IDs with a renewal already
+  filed and deactivated accounts are skipped; an ID whose window was missed
+  gets a catch-up reminder after it expires. Safe to run any number of
+  times — overlapping runs are locked out and never double-send.
+- `cron/appointment-reminders.php` — **hourly**. Reminds applicants of a
+  booked appointment within the configured window (default 24 hours), once
+  per scheduled time.
+
+Windows Task Scheduler: Create Task → Trigger (Daily / Hourly) → Action:
+Start a program, Program `C:\xampp\php\php.exe`, Arguments
+`C:\xampp\htdocs\virac-soloparent\cron\renewal-reminders.php` (or
+`...\cron\appointment-reminders.php`). On Linux, e.g.
+`0 8 * * * php /path/to/virac-soloparent/cron/renewal-reminders.php`.
+Both can also be run by hand, or with **Send Reminders Now** on System
+Settings. (The old `database/send_*_reminders.php` paths still work.)
+## Chat Support (Help Assistant)
+
+`applicant/dashboard.php?section=chat` — `services/HelpAssistantService.php`,
+`models/ChatMessage.php`, conversation stored in `chat_messages`.
+
+- A **rule-based assistant** (no external AI; nothing leaves the server)
+  answers questions about applying, documents, appointments, renewal, the
+  QR slip / ID, where things are in the portal and the office — from the
+  applicant's own records (status and correction reasons, documents that
+  need fixing, their appointment, renewal window) and the FAQ list, with
+  links to the right page. Links are stored as keys from a fixed list, so
+  a reply can never point outside the app.
+- **It never decides.** Any question about eligibility, approval or
+  rejection gets the same answer: the assistant can't say, *official
+  decisions are made only by MSWD staff*, plus what is recorded so far and
+  the preliminary (non-binding) Eligibility Checker. The same notice is
+  shown above the chat.
+- **Ask MSWDO staff** hands the conversation to MSWD social workers
+  (permission `chat.respond`), who are notified once per open request and
+  reply from `staff/chat.php` (waiting conversations first). Staff only see
+  conversations in which the applicant asked for staff; each reply
+  notifies the applicant and is audit-logged. Admins don't handle chats.
+- Limits: 500 characters per applicant message (1000 per staff reply),
+  30 messages per 5 minutes per applicant, CSRF on every post, all text
+  escaped on output.
 
 ## Actors & access control
 
@@ -85,7 +135,7 @@ matching the e-SoloParentID system design:
 |---|---|---|
 | `applicant` | Register, apply, upload documents, track status/history, request ID renewal, view interview schedule, view notifications, read announcements | `applicant/dashboard.php` |
 | `mswd_social_worker` | Review applications & renewals, validate documents, assess eligibility, manage appointments, approve/reject/request correction, verify by QR, update statuses | `staff/dashboard.php` (processing-focused) |
-| `admin` | System-wide monitoring, analytics & reports, user/account management, SMS & notification management, application requirements & system settings, audit logs, database/system monitoring & backup. Can also process applications like MSWD (shares the same queue), but the dashboard steers them toward monitoring, not case-by-case processing | `admin/dashboard.php` (system-management-focused) |
+| `admin` | System-wide monitoring, analytics & reports, user/account management, SMS & notification management, application requirements & system settings, audit logs, database/system monitoring & backup. Can view applications read-only; decisions, document verification and interviews belong to MSWD staff only | `admin/dashboard.php` (system-management-focused) |
 
 Access control is enforced **server-side** on every protected page via
 `require_staff_login()` / `require_admin_login()` in `includes/auth.php` —
@@ -136,18 +186,19 @@ a raw `?id=`/`?user_id=` parameter for authorization.
   `staff/appointment_slots.php`) — pick an open date/time, or reschedule
   into a different open slot. Staff can still schedule/reschedule directly
   from the application page with no slot at all; both paths write to the
-  same `interviews` row, and the review page shows who booked it.
-- **ID Renewal**: a real, separate single-step flow (`includes/RenewalSubmit.php`)
+  same `appointments` row, and the review page shows who booked it.
+- **ID Renewal**: a real, separate single-step flow (`services/RenewalService.php`)
   gated on already holding an `ID Released` application — re-confirms the
   standard documents only (not the original qualifying circumstance) and
   creates a real `applications` row with `type = 'renewal'`, which MSWD
   processes through the exact same review page as new applications.
 - **My Solo Parent ID**: once released, shows the QR/slip plus a
   Valid/Expired badge computed from `applications.id_expires_at` (set to
-  one year past release, per `ID_VALIDITY_YEARS` in `config/config.php`).
-- **Chat Support**: a searchable, admin-managed FAQ (`admin/faq.php`,
-  `faqs` table) plus MSWDO's office contact details — self-service, no
-  live-chat backend.
+  the ID validity period after release -- the `id_validity_years` System
+  Setting, default 1 year from `ID_VALIDITY_YEARS` in `config/constants.php`).
+- **Chat Support**: a Help Assistant plus hand-off to MSWDO staff (see
+  *Chat Support* below), with the searchable, admin-managed FAQ
+  (`admin/faq.php`, `faqs` table) and the office contact details below it.
 - **Profile**: view/update full name, email, and mobile; change password;
   upload a profile photo (served access-controlled via `avatar.php`, same
   owner-or-staff pattern as `download.php`).
@@ -195,85 +246,172 @@ a raw `?id=`/`?user_id=` parameter for authorization.
   opens up the date/time blocks (with a capacity) that applicants can
   self-book from — a slot with existing bookings can't be deleted.
 - **Applicant Records** (`staff/applicants.php` search/list,
-  `staff/applicant_view.php` detail): person-centric view of an applicant's
-  profile plus their full new-application and renewal history — each entry
-  also shows its appointment (if any), document verification breakdown,
-  and latest decision/remarks — separate from the application-centric
-  processing queue. Both this and the queue (`staff/index.php`) are
-  searchable by name/reference number and filterable by barangay (plus
-  status/type on the queue), with pagination on both.
+  `staff/applicant_view.php` detail; `services/RecordService.php`,
+  `models/ApplicantRecord.php`): centralised, read-only record management
+  for MSWD staff and administrators (`applicants.view`). Search by
+  applicant name, name on an application, reference number, username,
+  email or mobile, and filter by barangay (every barangay on file),
+  application status (or "no application yet"), application type and
+  account status — status and type must hold for the same application —
+  sorted by name or latest application, 20 per page. The record page shows
+  the profile, application history, renewal history (with the ID each
+  renewal renews), every document (status, verifier, remarks, view link),
+  appointments (outcome or cancellation reason), decisions and the full
+  status history (25 per page); the lower sections can be narrowed to one
+  application. Changes still happen on the application's processing page
+  (`staff/index.php` queue, which has its own status/type/barangay filters).
 - **QR Verification** (`staff/qr_verify.php`): scan an applicant's QR code
   (camera-based, via the `jsQR` library) or type in a reference number to
   jump straight to that application's review page.
-- **Reports** (`staff/reports.php`): daily/monthly/approved/rejected/
-  pending/renewal counts.
+- **Reports** (`staff/reports.php`): the same eight reports as the
+  administrators' Reporting page (see below), with print and CSV export.
 
 **System Administrator** (pages under `admin/`)
 - **Application Monitoring** (`admin/applications.php` list,
   `admin/application_view.php` read-only detail): the same queue MSWD
   works from, but view-only — no status/document/interview/eligibility
   actions — reflecting that admin's role is oversight, not casework.
-- **Manage Users** (`admin/users.php`): create accounts of any role,
-  change a user's role, activate/deactivate accounts, **Edit**
-  (`admin/user_edit.php` — full name/email/mobile; username is fixed, same
-  convention as the applicant's own profile edit), **Reset Access**
-  (generates a new random password for an account, shown once), and
-  **Activity** (jumps into Audit Logs pre-filtered to that account). Quick
-  filters split accounts into System Administrators / MSWD Staff /
-  Applicant Accounts. An admin cannot deactivate, change the role of, or
-  reset the password of their own account (self-lockout guard on the
-  first two) — editing their own info and viewing their own activity are
-  both still allowed.
-- **Analytics & Reports** (`admin/analytics.php`): total applicants/new/
-  renewal/approved/rejected, a 12-month application trend, solo parents by
-  barangay, category breakdown, sex/civil-status demographics, IDs
-  expiring within 60 days, and appointment statistics (total/today/
-  upcoming/completed, self-booked vs. staff-scheduled, and upcoming
-  slot-capacity utilization) — plus print and CSV export.
+- **Manage Users** (`admin/users.php`, permission `users.manage`, admins
+  only; `services/UserManagementService.php`): every account of the three
+  roles — Administrator, MSWD Staff, Solo Parent — filtered by role, status
+  (active, deactivated, locked out, temporary password) and name /
+  username / email / mobile, 25 per page, with last sign-in; plus a create
+  form (validated name, email, unique username and mobile, password
+  policy, optional "require a new password at first sign-in"). Each
+  account's **manage page** (`admin/user_edit.php`) edits name / email /
+  mobile (the username is fixed), assigns the role, activates or
+  deactivates (takes effect on the user's next request), **Reset Access**
+  (a 12-character temporary password shown once to the admin — never
+  stored in plain text or logged — which also clears any lockout and makes
+  the user choose a new password before they can use anything else),
+  **Unlock** (clears a lockout only), and shows the account's **activity**
+  from the audit log: what it did and what was done to it, 20 per page.
+  An admin can't deactivate, re-role or reset their own account, so an
+  active administrator always remains; an account with applications on
+  file stays a Solo Parent account. Mobile numbers match in both 09… and
+  +639… forms. All rules are enforced in the service, not just the form.
+- **My Account** (`staff/account.php`): staff and administrators see their
+  account details and change their own password (applicants do the same
+  on My Profile).
+- **Analytics** (`admin/analytics.php`, permission `analytics.view`;
+  `services/AnalyticsService.php`, `models/Analytics.php`). Every figure is
+  counted live from the database for a chosen period (last 12 months, this
+  year, last year, all time or a custom range):
+  - Summary cards: registered applicants (and how many have applied), new
+    applications and renewals submitted, approvals and rejections made in
+    the period (from the status history), applications pending now, IDs
+    expiring within the renewal reminder period and IDs already expired
+    without a renewal, appointments scheduled.
+  - Charts: applications by month (new vs renewal, every month shown, up
+    to 36), by barangay (spellings merged ignoring case/spaces; top 12 plus
+    "Other"), by current status, by category, sex and civil status,
+    appointments by outcome, and seats booked in open upcoming slots.
+  - Charts are plain HTML/CSS (`views/partials/charts.php`) with a hover /
+    keyboard tooltip on every mark (`public/js/charts.js`) and a "Show as
+    table" view; colours are a validated colour-blind-safe pair. The page
+    prints cleanly; detailed lists and CSV export are on Reports.
 - **SMS Notification Management** (`admin/sms.php`): sent/failed/logged-only
   counts, a searchable/filterable log of every message, and an editor for
   the `sms_templates` each notification is rendered from
   (`{ref}`/`{status}`/`{remarks}`/`{when}`/`{location}` placeholders) —
   `SmsService` falls back to its built-in text if a template is emptied out.
-- **System Settings** (`admin/settings.php`): default appointment location,
-  default appointment capacity (pre-fills new slots on
-  `staff/appointment_slots.php`), document upload max size (enforced live
-  by `handle_doc_upload()` across every upload path — apply, renewal, and
-  correction re-upload), ID validity period, and the renewal/appointment
-  reminder windows — all in `system_settings`, read via `get_setting()`
-  with a `config.php`-constant fallback so an unset key never breaks
-  anything; includes manual **Send Reminders Now** triggers and history
-  for both reminder jobs (see above); plus links to **Application
-  Requirements** (`admin/requirements.php` — add/edit/remove
-  `document_requirements` per category without touching code) and a
-  read-only system configuration summary. Allowed document file types stay
-  fixed in `config/config.php` (JPG/PNG/PDF) — not exposed as a setting.
+- **System Settings** (`admin/settings.php`, administrators only —
+  permission `settings.manage`; `services/SettingsService.php`). Every
+  setting is defined once in `config/settings.php` (type, default, allowed
+  range), stored in `system_settings`, and read anywhere with
+  `setting('key')` (one query per request; an unsaved key uses its
+  default). Each section is saved on its own, validated strictly (nothing
+  in the section is written if any value is wrong), and audit-logged with
+  every old → new value:
+  - **Basic System Information** — system name (page titles), office
+    name, address, hours, email and phone (footer, portal page, Chat
+    Support, Help Assistant).
+  - **Document Limits** — maximum file size (capped at the server's PHP
+    upload limit) and allowed types (JPG, PNG, PDF), enforced on every
+    upload path and shown on the upload forms.
+  - **Appointments** — default location and slot capacity, the days and
+    hours MSWD staff may open slots, how far ahead, the minimum notice to
+    book/reschedule/cancel online, and the reminder window.
+  - **ID Validity & Renewal** — validity in years (IDs released from now
+    on) and the renewal reminder period (which is also when renewal opens).
+  - **Notification Settings** — SMS on/off, each SMS message on/off
+    (`sms_templates.is_enabled`; the password-reset code is always sent),
+    and in-app alerts to MSWD staff about new work. Applicants' in-app
+    notifications and administrators' security/job alerts are always on.
+  - Links to **Application Requirements** (`admin/requirements.php`) and
+    the SMS wording (`admin/sms.php`), the **Send Reminders Now** triggers
+    with run history, and a read-only server summary.
 - **Database & System Monitoring** (`admin/monitoring.php`): per-table row
   counts, storage usage, recent activity, and a real **one-click database
   backup** — a pure-PHP export (no `shell_exec`) written to
   `storage/db_backups/`, downloadable or deletable from the same page.
-- **CSV Export** (`admin/export_csv.php`): download the full applications
-  list or users list as CSV, with no filtering (see **Reporting** below for
-  filtered exports).
-- **Reporting** (`admin/reports.php`): 8 report types — Application,
-  Applicant, Approval, Rejection, Renewal, Barangay Distribution,
-  Appointment, and Expiring ID — each with a date-range filter, a search
-  box, Print, and a CSV export scoped to the current filter (unlike the
-  full-list export above). Approval/Rejection reports pull the actual
-  decision date from `status_history`, not the submission date.
+- **CSV Export** (`admin/export_csv.php`, administrators only —
+  `data.export`): the full applications or users list, unfiltered (see
+  **Reporting** below for filtered exports).
+- **Reporting** (`admin/reports.php` for administrators, `staff/reports.php`
+  for MSWD staff — permissions `reports.view` / `reports.export`;
+  `controllers/ReportController.php`, `models/Report.php`). Eight reports:
+  Applicant, Application, Approval, Rejection, Renewal, Barangay
+  Distribution, Appointment and Expiring ID. Each has a date range on the
+  date that matters for it (registered, submitted, decided, scheduled,
+  expires), a search box, report-specific filters (status, type, account,
+  outcome, renewal filed), 50 rows per page with an accurate total, and:
+  - **Print** — a clean page with the report name, filters, row count, the
+    date/time and who generated it, and a data-privacy notice; every
+    matching row, not just the screen page.
+  - **CSV export** — every matching row (up to 10,000; narrow the filters
+    beyond that), UTF-8 for Excel, with spreadsheet formulas neutralised
+    (a cell starting with `=`, `+`, `-` or `@` gets a leading apostrophe).
+  - Every print and export is audit-logged with the report, row count and
+    filters. Approval/Rejection use the decision date from the status
+    history; Barangay Distribution merges spellings and totals each person
+    once; the Expiring ID report opens on the renewal reminder window and
+    shows days left and whether a renewal was filed.
 - **Manage FAQ** (`admin/faq.php`): create/edit/hide/delete the questions
   and answers shown on the applicant's Chat Support page.
-- **Audit Logs** (`admin/audit_log.php`): a read-only log of every sensitive
-  action system-wide — login/logout, registration, application/renewal
-  submission with a per-document upload entry for each file, document
-  verification, correction requests (their own distinct action, not lumped
-  into generic status changes), approval, rejection, appointment
-  scheduling/booking/slot changes, user creation/edit/role/activation/reset,
-  system setting changes, and report/CSV/backup exports — searchable by
-  actor/details, filterable by action type and date range. Nothing in the
-  UI can delete or edit an entry, and it stays accurate even after an
-  account is deleted (actor name/role are snapshotted at write time, not
-  live-joined).
+- **Audit Log** (`admin/audit_log.php`, administrators only — `audit.view`;
+  `services/AuditLogService.php`, `models/AuditLog.php`). Every entry
+  records the **user**, their **role**, the **action**, the **target
+  record** (type + id), the **timestamp** and **details**, plus IP address
+  and browser. What is logged:
+  - Sign-in & security: login, logout, registration, **failed sign-ins**
+    (wrong password with the attempt number, unknown username — logged
+    against no account with the username as typed, never the password —
+    deactivated or locked account), **account locked**, password reset
+    requested / failed (wrong code) / completed, password changed, access
+    denied.
+  - Applications: **application created** (the applicant's first draft
+    save, new or renewal), draft saved/discarded, submission, renewal
+    submission, eligibility assessment, case notes.
+  - Documents: upload (one entry per file), resubmission, verification,
+    staff viewing a document.
+  - Decisions: correction request, approval, rejection, other status
+    changes.
+  - Appointments: booked, rescheduled, cancelled, missed; interview
+    scheduling and results; slot created/reopened/cancelled/deleted.
+  - Users: created, edited, role change, activated/deactivated, unlocked,
+    access reset; profile and photo changes.
+  - Settings: system settings (old → new values), SMS templates, document
+    requirements, FAQs, announcements.
+  - System: report/CSV/audit-log exports, backups, SMS retries/tests,
+    scheduled job runs, QR verification.
+
+  The viewer shows 50 events per page with an accurate total, newest first;
+  category tabs, action, role and date filters, a search over user, action
+  and details, and a per-account view (click a user's name). Targets show
+  as readable names linking to the record (e.g. the application reference
+  number, the user's account). **Download CSV** exports every matching
+  event (up to 10,000, formula-safe) and is itself audit-logged. The
+  dashboard's Activity & Security tiles link into it (access denied, failed
+  sign-ins, password resets).
+
+  **Append-only**: the database refuses `UPDATE` and `DELETE` on
+  `audit_logs` (triggers from `database/migrate_step26_audit.sql`), so no
+  code path, bug or injected query can alter history. Deleting a user still
+  works — `user_id` becomes NULL while the snapshotted name and role keep the
+  entry readable. Backups include the triggers. A database administrator
+  doing deliberate maintenance must opt in for their session with
+  `SET @audit_log_maintenance = 1;`.
 - A dedicated **Administrator Dashboard**, distinct from MSWD's: registered
   solo parents, total/renewal applications, active users, IDs expiring
   soon, a system-health indicator, SMS status, and quick links into every
@@ -287,13 +425,21 @@ a raw `?id=`/`?user_id=` parameter for authorization.
 
 ## Database
 
-See `database/schema.sql` for the authoritative schema (safe to re-run on
-a fresh install; **do not** re-run it against a database with real data —
-it drops and recreates everything). Tables: `users`, `categories`,
-`document_requirements`, `applications`, `application_children`,
-`application_documents`, `status_history`, `interviews`, `appointment_slots`,
-`sms_logs`, `sms_templates`, `system_settings`, `renewal_reminders`,
-`notifications`, `audit_logs`, `faqs`.
+`database/schema.sql` is the authoritative structure and
+`database/seed.sql` the reference data (**do not** re-run `schema.sql`
+against a database with real data — it drops and recreates everything).
+
+The 16 core tables: `roles`, `users`, `applicants`, `applications`,
+`document_requirements`, `application_documents`,
+`eligibility_assessments`, `appointments`, `application_status_history`,
+`application_decisions`, `qr_application_slips`, `notifications`,
+`sms_logs`, `chat_messages`, `audit_logs`, `system_settings`. Supporting
+tables: `categories`, `application_children`, `appointment_slots`,
+`renewal_reminders`, `sms_templates`, `faqs`.
+
+The app's database connection runs in strict SQL mode, so an invalid
+value (e.g. an unknown status) is rejected instead of silently stored
+as an empty string.
 
 If you already have a live database from before the applicant/admin/MSWD
 dashboard features were added, run the additive migrations instead of
@@ -305,6 +451,25 @@ existing rows are always untouched. Run them in order, once each:
 "C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_renewal_reminders.sql
 "C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_notifications.sql
 "C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_login_lockout.sql
+"C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_mvc_auth.sql
+"C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_step2_schema.sql
+"C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_step8_drafts.sql
+"C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_step9_documents.sql
+"C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_step10_verification.sql
+"C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_step11_appointments.sql
+"C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_step12_processing.sql
+"C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_step14_renewal.sql
+"C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_step15_reminders.sql
+"C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_step16_qr_slips.sql
+"C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_step18_notifications.sql
+"C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_step19_sms.sql
+"C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_step20_chat.sql
+"C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_step22_users.sql
+"C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_step23_settings.sql
+"C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_step26_audit.sql
+"C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_step27_security.sql
+"C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_step30_mobile.sql
+"C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_step31_sms_events.sql
 ```
 **Never** run `schema.sql` itself against a database with real data —
 it hardcodes `DROP DATABASE IF EXISTS virac_solo_parent`, so doing so
@@ -327,70 +492,226 @@ destroys every account and application in it. Only ever run the
 
 ## Security notes
 
-A dedicated review pass checked authentication, authorization, password
-security, file upload security, input validation, SQL injection, XSS,
-CSRF, session security, sensitive data exposure, and unauthorized record
-access. Two real gaps were found and fixed:
-- **No brute-force protection on login** — 5 failed attempts (applicant or
-  staff, tracked separately per account via `users.failed_login_attempts`/
-  `locked_until`) now locks that account out for 15 minutes, even against
-  the correct password. Both login forms use the same shared helper
-  (`login_lockout_message()`/`record_failed_login()`/`clear_login_lockout()`
-  in `includes/functions.php`) so the policy can't drift between them.
-- **Session cookie had no `secure` flag** — now set automatically when the
-  app is actually served over HTTPS (`config/config.php`), and stays
-  exactly as before on a plain-HTTP install like this local XAMPP setup,
-  so nothing here breaks local development.
+Security review (Step 27) — what protects each area, as verified live by
+`s27security` (role × page matrix, wrong-role and cross-account writes,
+CSRF, sessions, passwords, rate limits, headers, an XSS crawl, SQL
+injection and malformed input, uploads, QR, secrets):
 
-Verified clean, with no changes needed: every POST handler requires a
-valid CSRF token; every SQL query is parameterized (no user input is ever
-concatenated into query text — only into bound `$params`, with the sole
-raw-concatenation exceptions being internally-computed, already-int-cast
-values in `LIMIT`/`OFFSET`/`INTERVAL` clauses); every dynamic value in
-every template is passed through `e()`; every `admin/*.php` and
-`staff/*.php` page enforces its role guard (confirmed live — an MSWD
-account is redirected away from every admin-only page); ownership is
-checked before any action that could touch another applicant's data
-(document upload/download, avatar, slip); uploaded files are re-validated
-server-side by real MIME sniffing (not the client-supplied Content-Type),
-saved under a randomly generated name outside the web-servable path, and
-never trusted by their original name/extension; `password_hash` is never
-selected into anything that gets rendered; `SMS_API_KEY` is a server-side
-constant, never sent to the browser or displayed (Settings shows only
-whether it's configured); the QR code encodes only the reference number
-(the same public, name-masked status-check URL), no other personal data.
+- **Authentication.** bcrypt (`password_hash`), re-hashed when PHP's
+  default changes; an unknown username costs the same time as a wrong
+  password (no username probing). 5 failed attempts lock an account for
+  15 minutes; on top of that, 50 failed sign-ins from one IP within 15
+  minutes (password spraying across accounts) stop all sign-in attempts
+  from it for 15 minutes, logged once as "Sign-in Blocked".
+- **Passwords.** 8–72 characters with a letter and a digit (bcrypt only
+  reads 72 bytes, so longer is refused rather than silently truncated).
+  Changing, resetting, or an administrator replacing a password signs the
+  account out on every other device (`users.auth_version`); the session
+  that made the change carries on under a new session ID.
+- **Password reset.** 6-digit SMS code, valid 15 minutes, single use,
+  stored only as a bcrypt hash (never readable from the database or a
+  backup) and masked in the SMS log. Wrong codes count toward the account
+  lockout. At most 3 codes per account per 15 minutes (silently — the
+  response never reveals whether an account exists) and 10 requests per
+  IP per hour, so it can't be used to flood someone's phone with texts.
+- **Mobile-linked accounts (Step 30).** Registration asks for a mobile
+  number and texts a 6-digit code to it. Until the code is entered at
+  `verify-mobile.php`, the account can only reach My Profile (to correct
+  a mistyped number) and the public pages. The dashboard, Apply Online
+  and My Applications all send it to the confirmation page. The code
+  lasts 10 minutes and is stored only as a bcrypt hash, masked in the SMS
+  log. Five wrong entries void it, and an account can be sent at most 3
+  codes per 15 minutes. Changing the number — by the applicant on My
+  Profile or by an administrator — makes it unconfirmed again, and the
+  applicant's own change sends a code to the new number. A confirmed
+  number can be used to sign in instead of the username, in `09…` or
+  `+63…` form; an unconfirmed one can't. Usernames must contain a letter,
+  so a username can never look like someone else's mobile number. If a
+  text never arrives, an administrator can mark the number confirmed on
+  the account page ("Confirm Mobile") once MSWDO has checked it some
+  other way. This is audited. Accounts that existed before Step 30 were
+  marked confirmed by the migration, since their numbers had already
+  been receiving SMS.
+- **Authorization.** Every page names its permission
+  (`config/permissions.php`, `Controller::authorize()`); denials are
+  audit-logged. Administrators monitor applications read-only — they can't
+  change statuses, verify documents, or replace a QR slip. Applicants only
+  ever reach their own records: documents, photo, slip, uploads,
+  notifications and chat are all owner-checked, and "not yours" looks the
+  same as "doesn't exist".
+- **Public status lookup.** Reference numbers are sequential, so the
+  "Check Status" tab needs the reference **and** the last 4 digits of the
+  mobile number on the application, and allows 10 failed lookups per IP per
+  15 minutes — the applicant list can't be walked through. It shows only
+  the masked name, submission date and status.
+- **Registration.** At most 10 new accounts per IP per hour.
+- **Rate limits** live in `rate_limit_hits` (`services/RateLimiter.php`),
+  keyed by hashes, pruned after a day.
+- **CSRF.** Every POST requires the per-session token (a missing, foreign or
+  malformed token gets a 400 and changes nothing); nothing changes state
+  on GET.
+- **Sessions.** HttpOnly, SameSite=Lax cookie (Secure when served over
+  HTTPS); strict mode, so a planted session ID is never adopted; new ID at
+  every sign-in, password change and sign-out; 30-minute idle and 12-hour
+  absolute timeouts; the account is re-checked against the database on
+  every request, so a deactivation or role change applies immediately.
+- **SQL injection.** Every value is a bound parameter; the only text put
+  into SQL is from code-side whitelists (sort orders, report columns,
+  filters) or integer-cast. Prepared statements are real (not emulated),
+  so stacked queries are impossible.
+- **XSS.** Every value in every template goes through `e()`; the crawl
+  seeds script payloads in names, addresses, remarks, file names and chat
+  and finds none rendered raw.
+- **File uploads.** JPG/PNG/PDF only, checked against the file's real
+  content (not its name or the browser's type), stored under random names
+  in `storage/uploads/` which Apache refuses to serve; files are only
+  delivered by `download.php` after the owner/staff check, with `nosniff`
+  and `no-store`.
+- **Headers.** `X-Content-Type-Options`, `X-Frame-Options`,
+  `Referrer-Policy`, a Content-Security-Policy that forbids framing by
+  other sites, plugins, `<base>` hijacking and off-site form posts, and a
+  Permissions-Policy (camera only for this site's QR scanner). PHP's
+  version header is removed. Bootstrap from the CDN is pinned with
+  Subresource Integrity, so a tampered CDN file is refused.
+- **Sensitive data & secrets.** Apache refuses `config/`, `database/`,
+  `storage/`, `vendor/`, source folders, `.git`, `.env`, SQL/MD/JSON files
+  and directory listings. Errors show a plain page (details go to
+  `storage/logs/`) unless `APP_DEBUG` is on. `SMS_API_KEY` comes from the
+  environment or the untracked `config/local.php`, is never shown, and is
+  scrubbed from gateway error text. Exports never include password hashes.
+- **QR slips.** The QR carries a random 64-hex token (not the reference
+  number); only signed-in MSWD staff can verify one; a changed character
+  is "unknown", a replaced slip's old code stops working, and repeated
+  unknown codes are throttled.
+- **Audit trail** — see the Audit Log section: append-only, enforced by
+  the database.
+
+For production: serve over HTTPS (the session cookie then becomes
+Secure automatically), set `ServerTokens Prod` / `ServerSignature Off` in
+Apache so it doesn't advertise its version, and keep `APP_DEBUG` off.
 
 ## UI review notes
 
-A dedicated pass checked navigation, forms, buttons, validation, error/
-empty states, confirmation dialogs, accessibility, and design consistency
-across every page. One real gap found and fixed: the appointment slot
-**Delete** button (`staff/appointment_slots.php`) had no confirmation
-dialog, unlike every other destructive action in the app (FAQ delete,
-backup delete, requirement delete, password reset all already confirm) —
-added, matching the existing pattern exactly.
+UI review (Step 28): every page, for each role, at phone (360 px), tablet
+(768 px) and desktop (1280 px) widths with real device emulation, both with
+no records (empty states) and with realistic records — 306 page views. All
+pages: no horizontal page scrolling at any width (wide tables scroll inside
+their own box), no JavaScript or console errors, one page heading (`h1`)
+each, no unlabeled form fields or buttons, no images without alt text, no
+duplicate ids, and every destructive action asks for confirmation.
 
-Everything else checked came back consistent, with nothing needing a
-change: every icon-only interactive control has an `aria-label`; every
-list/table page has an empty-state message; destructive actions confirm,
-reversible ones (activate/deactivate, hide/show) intentionally don't;
-mobile responsiveness comes from `.portal-container`'s existing fluid
-`clamp()` padding plus Bootstrap's responsive grid, with the one genuinely
-wide element (the Reports table) wrapped in `.table-responsive` so it
-scrolls horizontally on narrow screens instead of breaking the layout;
-every page reuses the established button/card/pill classes rather than
-introducing new ones. "Loading states" in the traditional sense mostly
-don't apply — this is a server-rendered multi-page app where every action
-is a full page load/redirect, not client-side async — except the one
-genuinely async interaction (the QR camera scanner), which already shows
-live status text through scanning, success, and permission-denied cases.
+What changed:
+- **Loading state on every form** (`public/js/app.js`). Once a form is
+  really submitting (it passed validation and any confirmation), its
+  button reads "Please wait…" and repeat clicks are ignored — a double
+  click can no longer send an application, upload, chat message or SMS
+  twice. Upload pickers that send as soon as a file is chosen show
+  "Uploading…". The button's own value still reaches the server, and the
+  state resets if the person comes back with the Back button or the
+  response was a download. Opt out per form with `data-no-loading`.
+- **Help & Support** is a real page (it was a "coming soon" placeholder):
+  the MSWDO's contact details and office hours from System Settings, links
+  to Chat Support, the Eligibility Checker, application tracking and news,
+  and a five-step "how it works". The applicant menu's **Settings** entry
+  (also a placeholder) is gone — everything an applicant can change lives
+  on My Profile, and old links go there.
+- **Keyboard access to uploads.** The document and photo pickers hid their
+  file input with `display:none`, so they could not be reached with the
+  keyboard. The input is now visually hidden but focusable, and its
+  "Choose file / Replace" button shows the focus ring.
+- **Page headings.** Applicant sections, the portal tabs, the slip page and
+  the staff applicant record now each have exactly one `h1` (the applicant
+  section title is still shown in the mobile top bar; on desktop it stays
+  available to screen readers). The applicant record shows the applicant's
+  name as its title, like every other staff page.
+- **Field names.** 37 fields that only had placeholder text (which
+  disappears while typing and isn't reliably read out) now have proper
+  accessible names — sign-in, registration, password reset, profile
+  passwords, staff review forms, settings, FAQ, SMS and announcement forms.
+- **Readable small text.** The faint grey used for hints, timestamps and IP
+  addresses was 3.1:1 against white; it is now 4.9:1 (WCAG AA).
+- **Tap targets on phones.** Section link bars (System Settings, applicant
+  record), chat suggestion chips, "Mark as read" and the header title link
+  are now at least 32 px tall. Standalone text links ("← Back to…",
+  "Forgot password?") stay as they are — they have space around them.
+
+Unchanged by design: pages keep their existing layouts, cards, buttons and
+colours; reversible actions (activate/deactivate, hide/show) don't ask for
+confirmation; empty states already said what will appear and offered the
+next step (e.g. "Apply Online Now").
+
+## End-to-end workflow check
+
+Workflow test (Step 29): one applicant, one MSWD staff member and one
+administrator went through the whole process using only the real pages, with
+no application data seeded:
+
+1. The administrator creates the staff account, which must change its
+   password at first sign-in.
+2. Staff sign in, change the password and open an interview slot.
+3. The applicant registers, signs in, runs the eligibility check, fills in
+   the four-step application with six documents, and submits.
+4. The application receives a reference number and a QR slip. The applicant
+   gets an in-app notice and an SMS, and staff get an in-app notice.
+5. The applicant books the slot. The application moves to "Interview
+   Scheduled" and the applicant gets a notice and an SMS.
+6. Staff review: they verify five documents, flag the sixth and ask for a
+   correction. The applicant sees the reason and re-uploads, and staff are
+   told about the new upload.
+7. Staff verify the new upload, record the interview result, assess
+   eligibility, approve the application and release the ID. Approval is
+   refused until the checklist is met. The QR slip now expires with the
+   ID and scans as valid.
+8. The applicant tracks every stage on the dashboard, on the public status
+   page, on My ID and in notifications.
+9. The administrator sees the same record across the dashboard, monitoring,
+   applications, users, analytics, reports, SMS log and audit log, and
+   changes a setting and changes it back. Both changes are audited.
+   Deactivating the applicant signs them out at once.
+
+What the walk-through changed:
+- **Interview results are recorded on or after the interview day.** Before,
+  a result could be saved for an interview that hadn't happened yet. That
+  marked the appointment completed and satisfied the approval checklist
+  early. The staff page now says from which day the result can be recorded.
+- **No "Note: none" in SMS.** A status-change text with no staff remarks
+  now ends after the status ("…is now ID Released."). Before, it ended
+  "Note: none". If an administrator rewords the template so that the
+  remarks share a sentence with other details, only the placeholder is
+  left empty.
+
+## Final validation
+
+Final validation (Step 30): each objective of the e-SoloParentID system is
+listed below with where it lives and which test suite checks it. The
+regression run covers every listed suite.
+
+| Objective | Where | Checked by |
+|---|---|---|
+| Responsive UI | `public/css/`, every page at 360 / 768 / 1280 px | `s28ui`, `s28final` |
+| Mobile-linked authentication | `verify-mobile.php`, `AuthService` (codes), sign-in by confirmed mobile, SMS reset codes | `s30mobile`, `s3auth`, `s27security` |
+| Online application | `portal.php?tab=apply` (4 steps, saved drafts) | `s8apply`, `s29flow` |
+| Digital document submission | Application step 3, Upload Documents, re-upload after correction | `s9docs`, `s10verify`, `s29flow` |
+| Eligibility checker | `eligibility.php`, dashboard Eligibility section | `s7elig` |
+| Automated document validation | `DocumentValidationService` (type, real content, size, completeness per category) | `s9docs` |
+| Online renewal | Dashboard ID Renewal (`RenewalService`) | `s14renew` |
+| Automatic renewal reminder | `cron/renewal-reminders.php` (SMS + in-app, before and after expiry) | `s15remind` |
+| Appointment scheduling | Slots (`staff/appointment_slots.php`), applicant booking, staff outcomes, reminders | `s11appt`, `s15remind` |
+| Status tracking | Dashboard tracker, status timeline, public lookup (reference + last 4 digits of the mobile) | `s13tracker`, `s29flow` |
+| MSWD dashboard | `staff/dashboard.php`, application review | `s5dash`, `s12process` |
+| QR slip | `slip.php`, `staff/qr_verify.php` | `s16slip`, `s17verify` |
+| Analytics | `admin/analytics.php` | `s24analytics` |
+| Reporting | `admin/reports.php`, `staff/reports.php` (CSV/print) | `s25reports` |
+| Chat support | Help Assistant + hand-off to MSWDO staff | `s20chat`, `s20vis` |
+| Record management | Applicant records, application history, notes | `s21records` |
+| User management | `admin/users.php`, `admin/user_edit.php` | `s22users`, `s30mobile` |
+| SMS API integration | `SMSService` (Semaphore; test mode logs only) | `s19sms` |
+| Automated SMS | Submission, status changes, interviews, cancellations, reminders, codes | `s19sms`, `s29flow` |
 
 ## Not wired up (needs real credentials/infra, or is a deliberate stub)
 
 - Actual SMS delivery (Semaphore PH/Vonage) — see above; every
   notification is logged regardless.
-- Applicant-facing **Settings** and **Help & Support** nav items still show
-  a "Coming soon" placeholder (distinct from **Profile** and **Chat
-  Support**, which are fully implemented).
-- Chat Support is FAQ-only self-service — there's no live two-way chat with
-  a staff inbox.
+- The Help Assistant is rule-based (keywords in English and common
+  Filipino); it doesn't use an external AI service, so unusual phrasings
+  fall back to the FAQ or to "Ask MSWDO staff".

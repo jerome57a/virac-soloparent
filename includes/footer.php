@@ -38,7 +38,7 @@ $v = $variants[$footerVariant] ?? $variants['services'];
   </div>
   <div>
     <div class="footer-heading">CONTACT DETAILS</div>
-    <div class="footer-contact">Municipal Building, Salvacion, Virac, Catanduanes, 4800<br>lguvirac2022@gmail.com<br>052 740 1512</div>
+    <div class="footer-contact"><?= e(setting('office_address')) ?><br><?= e(setting('office_email')) ?><br><?= e(setting('office_phone')) ?></div>
     <div class="footer-logos">
       <img src="<?= asset('images/transparency-seal.png') ?>" alt="Philippine Transparency Seal" class="footer-seal">
       <img src="<?= asset('images/bagong-pilipinas-logo.png') ?>" alt="Bagong Pilipinas" class="footer-bp">
@@ -69,7 +69,7 @@ $v = $variants[$footerVariant] ?? $variants['services'];
 <div class="footer-bottom-bar">All content is in the public domain unless otherwise stated. · Republic of the Philippines</div>
 <?php endif; ?>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 <script src="<?= public_asset('js/app.js') ?>"></script>
 </body>
 </html>

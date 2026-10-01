@@ -1,16 +1,19 @@
 <?php
 /**
  * @var array $myApplications
- * @var array $latestRemarksByApp  application_id => latest status_history row
+ * @var array $trackers  application_id => ApplicationTrackerService::track() result
+ * @var array $user
+ * @var ?array $applicationDraft
  */
 ?>
-      <?php if (!$myApplications): ?>
+      <?php require __DIR__ . '/draft-card.php'; ?>
+      <?php if (!$myApplications && !$applicationDraft): ?>
         <div class="dash-card">
           <div style="font-size:14px;color:var(--muted);margin-bottom:14px">You have not submitted any applications yet.</div>
           <a href="<?= base_url('portal.php?tab=apply') ?>" class="btn-red text-decoration-none">Apply Online Now</a>
         </div>
       <?php else: ?>
-        <?php foreach ($myApplications as $app): $st = status_style($app['status']); $stage = application_stage_info($app['status']); $latestRemark = $latestRemarksByApp[$app['id']]['remarks'] ?? null; ?>
+        <?php foreach ($myApplications as $app): $st = status_style($app['status']); ?>
           <div class="review-card">
             <div class="review-card-head">
               <div class="title"><?= e($app['reference_no']) ?> <span class="doc-tag" style="vertical-align:middle"><?= $app['type'] === 'renewal' ? 'RENEWAL' : 'NEW' ?></span></div>
@@ -20,26 +23,10 @@
               <div class="status-pill" style="background:<?= e($st['bg']) ?>;color:<?= e($st['color']) ?>"><?= e($app['status']) ?></div>
             </div>
 
-            <div class="step-bar" style="margin-bottom:16px">
-              <?php foreach ($stage['steps'] as $i => $s): ?>
-                <div class="step-item <?= $s['state'] === 'done' ? 'done' : ($s['state'] === 'active' ? 'active' : '') ?>">
-                  <div class="step-circle"><?= $s['state'] === 'done' ? '✓' : $i + 1 ?></div>
-                  <div class="step-label"><?= e($s['label']) ?></div>
-                  <div class="step-progress"></div>
-                </div>
-              <?php endforeach; ?>
-            </div>
-
-            <?php if ($stage['rejected']): ?>
-              <div class="step-alert">❌ This application was not approved.<?php if ($latestRemark): ?> <?= e($latestRemark) ?><?php endif; ?></div>
-            <?php elseif ($stage['needsCorrection']): ?>
-              <div class="step-alert">⚠️ Needs Correction<?php if ($latestRemark): ?>: <?= e($latestRemark) ?><?php endif; ?> &mdash; go to Upload Documents to fix and re-upload.</div>
-            <?php elseif ($latestRemark): ?>
-              <div class="info-box" style="max-width:none">📝 <?= e($latestRemark) ?></div>
-            <?php endif; ?>
+            <?php $tracker = $trackers[$app['id']]; $trackerUserId = (int) $user['id']; require __DIR__ . '/tracker.php'; ?>
 
             <?php if ($app['interview_at']): ?>
-              <div class="info-box" style="max-width:none">📅 Interview scheduled for <b><?= e(date('F j, Y g:i A', strtotime($app['interview_at']))) ?></b> at <?= e($app['interview_location']) ?>.</div>
+              <div class="info-box" style="max-width:none"><?= appointment_summary_html($app) ?></div>
             <?php endif; ?>
 
             <div class="d-flex gap-2 flex-wrap mt-2">

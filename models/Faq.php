@@ -20,6 +20,13 @@ class Faq extends Model
         $this->pdo->prepare('UPDATE faqs SET question = ?, answer = ?, sort_order = ? WHERE id = ?')->execute([$question, $answer, $sortOrder, $id]);
     }
 
+    public function find(int $id): ?array
+    {
+        $stmt = $this->pdo->prepare('SELECT * FROM faqs WHERE id = ?');
+        $stmt->execute([$id]);
+        return $stmt->fetch() ?: null;
+    }
+
     public function toggleActive(int $id): void
     {
         $this->pdo->prepare('UPDATE faqs SET is_active = NOT is_active WHERE id = ?')->execute([$id]);

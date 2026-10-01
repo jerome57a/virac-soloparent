@@ -9,5 +9,6 @@ $standalone = false;
 if ($result) {
     require APP_ROOT . '/views/home/eligibility-result.php';
 } else {
+    $embedded = true;
     require APP_ROOT . '/views/home/eligibility.php';
 }

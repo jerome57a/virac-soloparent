@@ -16,7 +16,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($pageTitle) ?></title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
 <link rel="stylesheet" href="<?= public_asset('css/style.css') ?>">
 <link rel="stylesheet" href="<?= public_asset('css/dashboard.css') ?>">
 </head>
@@ -110,9 +110,9 @@
         <span>My Profile</span>
       </a>
 
-      <a href="?section=settings" class="dash-nav-link <?= $section === 'settings' ? 'active' : '' ?>">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="15" cy="12" r="2"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="18" r="2"/></svg>
-        <span>Settings</span>
+      <a href="?section=help" class="dash-nav-link <?= $section === 'help' ? 'active' : '' ?>">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 2-3 4"/><line x1="12" y1="17" x2="12" y2="17.01"/></svg>
+        <span>Help &amp; Support</span>
       </a>
 
       <form method="post" action="<?= base_url('logout.php') ?>" class="dash-nav-logout-form">
@@ -143,10 +143,13 @@
     <button type="button" class="dash-sidebar-toggle" id="dash-sidebar-toggle" aria-label="Open menu">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
-    <div class="dash-topbar-title"><?= e($sectionTitle) ?></div>
+    <h1 class="dash-topbar-title"><?= e($sectionTitle) ?></h1>
   </header>
 
   <main class="dash-content">
+<?php if ($layoutFlash = take_flash()): ?>
+      <div class="info-box" style="max-width:none" role="status"><?= e($layoutFlash) ?></div>
+<?php endif; ?>
 <?php require APP_ROOT . '/' . $contentView; ?>
   </main>
 </div>

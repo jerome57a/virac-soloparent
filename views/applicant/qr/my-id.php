@@ -2,8 +2,8 @@
 /**
  * @var ?array  $idApplication
  * @var ?array  $idExpiryInfo
- * @var ?string $idStatusUrl
- * @var ?string $idQrUri
+ * @var ?string $idQrUri     QR of the ID's secure slip token (null if the QR library isn't installed)
+ * @var ?string $idSlipCode
  * @var ?array  $latestApplication
  */
 ?>
@@ -14,10 +14,9 @@
           <div class="ref"><?= e($idApplication['reference_no']) ?></div>
 
           <?php if ($idQrUri): ?>
-            <img src="<?= e($idQrUri) ?>" alt="QR code" style="width:180px;height:180px;margin:12px auto">
-          <?php else: ?>
-            <div style="font-size:12px;color:var(--faint);margin:16px 0">Status check link: <?= e($idStatusUrl) ?></div>
+            <img src="<?= e($idQrUri) ?>" alt="QR code for MSWDO verification" class="slip-qr">
           <?php endif; ?>
+          <?php if ($idSlipCode): ?><div class="slip-code">Slip code: <b><?= e($idSlipCode) ?></b></div><?php endif; ?>
 
           <div class="text-start mt-3" style="font-size:14px">
             <div class="mb-1"><b>Applicant:</b> <?= e($idApplication['full_name']) ?></div>

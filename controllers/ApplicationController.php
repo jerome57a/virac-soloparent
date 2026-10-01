@@ -1,19 +1,28 @@
 <?php
 require_once __DIR__ . '/Controller.php';
+require_once __DIR__ . '/../services/RateLimiter.php';
 require_once __DIR__ . '/../services/ApplicationService.php';
+require_once __DIR__ . '/../services/ApplicationTrackerService.php';
 require_once __DIR__ . '/../services/AuthService.php';
 require_once __DIR__ . '/../models/Application.php';
 require_once __DIR__ . '/../models/Document.php';
-require_once __DIR__ . '/../includes/QrService.php';
+require_once __DIR__ . '/../services/QrSlipService.php';
+require_once __DIR__ . '/../models/Appointment.php';
 
 class ApplicationController extends Controller
 {
     /** Dashboard "My Application" section: every application with its progress tracker. */
     public function statusList(array $user, array $applications): array
     {
+        $tracker = new ApplicationTrackerService($this->pdo);
+        $trackers = [];
+        foreach ($applications as $app) {
+            $trackers[$app['id']] = $tracker->track($app);
+        }
         return ['view' => 'application/status.php', 'data' => [
             'myApplications' => $applications,
-            'latestRemarksByApp' => (new Application($this->pdo))->latestHistoryByApplication((int) $user['id']),
+            'trackers' => $trackers,
+            'applicationDraft' => (new ApplicationService($this->pdo))->draftSummary($user),
         ]];
     }
 
@@ -26,6 +35,17 @@ class ApplicationController extends Controller
         }
 
         $service = new ApplicationService($this->pdo);
+
+        // One active application at a time: no new wizard (and no draft actions) while one exists.
+        $blocking = $service->blockingApplication($user);
+        if ($blocking) {
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                csrf_require();
+            }
+            $this->render('views/applicant/application/blocked.php', ['app' => $blocking]);
+            return;
+        }
+
         $draft = $service->getDraft($user);
         $errors = [];
         $submitError = null;
@@ -34,6 +54,7 @@ class ApplicationController extends Controller
             csrf_require();
             [$draft, $errors, $submitError] = $this->handleApplyAction($service, $user, $draft);
         }
+        $draftInfo = $service->draftSummary($user);
 
         $step = (int) $draft['step'];
         $documents = new Document($this->pdo);
@@ -58,6 +79,8 @@ class ApplicationController extends Controller
             'categoryDocs' => $categoryDocs,
             'docDefs' => $documents->requirementsFor($draft['categoryId']),
             'catOnlyKeys' => array_column($documents->categoryOnlyRequirements($draft['categoryId']), 'doc_key'),
+            'draftSavedAt' => $draftInfo['updatedAt'] ?? null,
+            'flashMessage' => take_flash(),
         ]);
     }
 
@@ -75,11 +98,26 @@ class ApplicationController extends Controller
                 if (!$errors) {
                     $draft['step'] = min(4, $step + 1);
                 }
-                $service->saveDraft($draft);
+                $service->saveDraft($user, $draft);
                 if (!$errors) {
                     $this->redirectTo($applyUrl);
                 }
                 return [$draft, $errors, null];
+
+            case 'save_draft':
+                // Keep what's on the current step as-is (no validation) and leave.
+                $service->saveDraft($user, $service->collectStepInput($step, $draft, $_POST));
+                audit_log($this->pdo, (int) $user['id'], $user['full_name'], $user['role'], 'Application Draft Saved', 'user', (int) $user['id'], 'Step ' . $step);
+                flash('Your application draft is saved. Continue it any time from your dashboard or the Apply tab.');
+                $this->redirectTo('applicant/dashboard.php?section=application');
+                return [$draft, [], null];
+
+            case 'discard_draft':
+                $service->clearDraft($user);
+                audit_log($this->pdo, (int) $user['id'], $user['full_name'], $user['role'], 'Application Draft Discarded', 'user', (int) $user['id'], 'Draft and its uploaded files deleted (was at step ' . $step . ')');
+                flash('Your application draft was discarded.');
+                $this->redirectTo($applyUrl);
+                return [$draft, [], null];
 
             case 'back':
                 $draft = $service->collectStepInput($step, $draft, $_POST);
@@ -107,11 +145,16 @@ class ApplicationController extends Controller
                 break;
 
             case 'upload_doc':
-                $draft = $service->files()->attachToDraft($draft, (string) ($_POST['doc_key'] ?? ''), $_FILES['file'] ?? [], $service->tmpDir());
-                break;
-
             case 'remove_doc':
-                $draft = $service->files()->detachFromDraft($draft, (string) ($_POST['doc_key'] ?? ''));
+                // Only requirement keys that apply to the chosen category are accepted.
+                $docKey = is_string($_POST['doc_key'] ?? null) ? $_POST['doc_key'] : '';
+                $allowed = array_column((new Document($this->pdo))->requirementsFor($draft['categoryId']), 'doc_key');
+                if (!in_array($docKey, $allowed, true)) {
+                    break;
+                }
+                $draft = $action === 'upload_doc'
+                    ? $service->files()->attachToDraft($draft, $docKey, $_FILES['file'] ?? [], $service->draftDir((int) $user['id']))
+                    : $service->files()->detachFromDraft($draft, $docKey);
                 break;
 
             case 'submit':
@@ -119,15 +162,18 @@ class ApplicationController extends Controller
                 $invalid = $service->firstInvalidStep($draft);
                 if ($invalid) {
                     $draft['step'] = $invalid['step'];
-                    $service->saveDraft($draft);
+                    $service->saveDraft($user, $draft);
                     return [$draft, $invalid['errors'], null];
                 }
                 try {
                     $refNumber = $service->submit($user, $draft);
                     $this->redirectTo('slip.php?ref=' . urlencode($refNumber));
+                } catch (DomainException $e) {
+                    $this->redirectTo($applyUrl); // shows the "you already have an application" page
                 } catch (Throwable $e) {
-                    $service->saveDraft($draft);
-                    return [$draft, [], 'Something went wrong while submitting your application. Please try again.'];
+                    error_log('Application submission failed: ' . $e->getMessage());
+                    $service->saveDraft($user, $draft);
+                    return [$draft, [], 'Something went wrong while submitting your application. Your draft is saved -- please try again.'];
                 }
                 return [$draft, [], null];
 
@@ -135,7 +181,7 @@ class ApplicationController extends Controller
                 return [$draft, [], null];
         }
 
-        $service->saveDraft($draft);
+        $service->saveDraft($user, $draft);
         $this->redirectTo($applyUrl);
         return [$draft, [], null];
     }
@@ -152,46 +198,100 @@ class ApplicationController extends Controller
         ]);
     }
 
-    /** Portal "Check Status" tab: public lookup by reference number, name masked. */
+    /**
+     * Portal "Check Status" tab: public lookup, name masked. Reference
+     * numbers are sequential, so the last 4 digits of the mobile number on
+     * the application are required too, and failed lookups are limited per
+     * IP -- the list of applicants can't be walked through.
+     */
     public function publicStatus(): void
     {
-        $query = trim((string) ($_GET['ref'] ?? ''));
-        $result = $query !== '' ? (new Application($this->pdo))->findByReference($query) : null;
+        $query = is_string($_GET['ref'] ?? null) ? mb_substr(trim($_GET['ref']), 0, 40) : '';
+        $mobile4 = is_string($_GET['m4'] ?? null) ? trim($_GET['m4']) : '';
+        $result = null;
+        $error = '';
+        if ($query !== '' || $mobile4 !== '') {
+            $limiter = new RateLimiter($this->pdo);
+            if (!preg_match('/^\d{4}$/', $mobile4) || $query === '') {
+                $error = 'Enter your reference number and the last 4 digits of the mobile number on your application.';
+            } elseif ($limiter->tooMany('status_ip', RateLimiter::clientIp())) {
+                $error = 'Too many unsuccessful lookups. Please try again in 15 minutes.';
+            } else {
+                $app = (new Application($this->pdo))->findByReference($query);
+                if ($app && hash_equals(substr(preg_replace('/\D/', '', (string) $app['mobile']), -4), $mobile4)) {
+                    $result = $app;
+                } else {
+                    $limiter->hit('status_ip', RateLimiter::clientIp());
+                    $error = 'No application matches that reference number and mobile number.';
+                }
+            }
+        }
         $this->render('views/home/status.php', [
             'query' => $query,
+            'mobile4' => $mobile4,
             'result' => $result,
-            'notFound' => $query !== '' && !$result,
+            'error' => $error,
         ]);
     }
 
-    /** slip.php: printable application slip with QR code, for the owner or any staff member. */
+    /**
+     * slip.php?ref=: the printable QR application slip, for the applicant who
+     * owns it or any staff member. POST action=replace_slip replaces a lost
+     * slip (the old QR stops working).
+     */
     public function slip(): void
     {
-        $app = (new Application($this->pdo))->findByReferenceWithCategory(trim((string) ($_GET['ref'] ?? '')));
+        $applications = new Application($this->pdo);
+        $ref = is_string($_GET['ref'] ?? null) ? trim($_GET['ref']) : '';
+        $app = $applications->findByReferenceWithCategory($ref);
+        $auth = new AuthService($this->pdo);
+        $user = $auth->currentUser();
+        $staff = $auth->currentStaff();
 
-        if (!$app) {
+        // Same answer whether the reference doesn't exist or isn't yours, so references can't be probed.
+        if (!$app || (!($user && (int) $user['id'] === (int) $app['user_id']) && !$staff)) {
+            if (!$user && !$staff) {
+                $this->redirectTo('portal.php?tab=login');
+            }
             http_response_code(404);
             $this->renderPage('Application not found', 'views/applicant/qr/slip-not-found.php');
             return;
         }
 
-        $auth = new AuthService($this->pdo);
-        $user = $auth->currentUser();
-        $staff = $auth->currentStaff();
-        if (!($user && (int) $user['id'] === (int) $app['user_id']) && !$staff) {
-            $this->redirectTo('portal.php?tab=login');
+        $service = new QrSlipService($this->pdo);
+        $slipUrl = 'slip.php?ref=' . urlencode($app['reference_no']);
+        // Replacing the QR invalidates the old slip: the owner may, and MSWD staff (application processing) may.
+        // Administrators only monitor applications, so they can view and print but not replace.
+        $isOwner = $user && (int) $user['id'] === (int) $app['user_id'];
+        $canReplace = $isOwner || can($staff, 'applications.process');
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            csrf_require();
+            if (!$isOwner) {
+                $this->authorize($staff, 'applications.process');
+            }
+            if (($_POST['action'] ?? '') === 'replace_slip' && $app['status'] !== 'Rejected') {
+                $service->replace($app, $isOwner ? $user : $staff);
+                flash('A new QR code was issued. The old slip no longer works — print or save this one.');
+            }
+            $this->redirectTo($slipUrl);
         }
 
-        $statusUrl = base_url('portal.php?tab=status&ref=' . urlencode($app['reference_no']));
+        $slip = $service->slipFor($app);
+        $appointment = (new Appointment($this->pdo))->interviewFor((int) $app['id']);
+        $renewalOf = $app['renewal_of_id'] ? $applications->findWithChildren((int) $app['renewal_of_id']) : null;
         $this->renderPage('Application Slip — ' . $app['reference_no'], 'views/applicant/qr/application-slip.php', [
             'app' => $app,
-            'statusUrl' => $statusUrl,
-            'qrUri' => qr_code_data_uri($statusUrl),
+            'slip' => $slip,
+            'qrUri' => $slip ? QrSlipService::qrImage($slip['token']) : null,
+            'slipCode' => $slip ? QrSlipService::slipCode($slip['token']) : null,
+            'appointment' => $appointment && $appointment['status'] === 'BOOKED' ? $appointment : null,
+            'renewalOfRef' => $renewalOf['reference_no'] ?? null,
+            'flashMessage' => take_flash(),
             'user' => $user,
             'staff' => $staff,
+            'canReplace' => $canReplace,
         ]);
     }
-
     /** Full page wrapped in the site header/footer (the header reads $pageTitle/$user/$staff from scope). */
     private function renderPage(string $pageTitle, string $view, array $data = []): void
     {

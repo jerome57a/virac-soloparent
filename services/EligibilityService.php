@@ -1,12 +1,84 @@
 <?php
+require_once __DIR__ . '/../models/EligibilityAssessment.php';
+
 /**
  * Public, non-binding eligibility pre-check (Section 3, RA 8972 / RA 11861).
- * Nothing is stored; final eligibility is always decided by the MSWD
- * Social Worker.
+ * The result is only PRELIMINARY -- final eligibility is always decided by
+ * the MSWD Social Worker during processing.
+ *
+ * The latest check is stored as a temporary assessment keyed by a random
+ * token kept in the visitor's session (the database only ever sees its
+ * SHA-256 hash). Logging in or registering links it to the account.
+ * Methods that store or load need the PDO; the rules themselves don't.
  */
 class EligibilityService
 {
     public const NONE_OPTION = 'None of these apply to me';
+    /** Anonymous (never-claimed) assessments are deleted after this many days. */
+    private const UNCLAIMED_RETENTION_DAYS = 30;
+
+    private ?PDO $pdo;
+
+    public function __construct(?PDO $pdo = null)
+    {
+        $this->pdo = $pdo;
+    }
+
+    /** Evaluates, stores as this visitor's preliminary assessment (linked to $userId if logged in), and returns the result. */
+    public function record(array $answers, ?int $userId): array
+    {
+        $result = $this->evaluate($answers);
+        $model = new EligibilityAssessment($this->pdo);
+        $model->purgeUnclaimed(self::UNCLAIMED_RETENTION_DAYS);
+        $model->savePreliminary($this->tokenHash(true), $userId, $answers, $result['eligible'] ? 'LIKELY_ELIGIBLE' : 'NOT_ELIGIBLE', $result['reason']);
+        return $result;
+    }
+
+    /** This visitor's latest stored check as ['answers', 'result', 'checkedAt'], or null if they haven't checked yet. */
+    public function current(): ?array
+    {
+        $tokenHash = $this->tokenHash(false);
+        $row = $tokenHash ? (new EligibilityAssessment($this->pdo))->findByToken($tokenHash) : null;
+        return $row ? $this->hydrate($row) : null;
+    }
+
+    /** The applicant's latest preliminary check (for their dashboard and staff review), or null. */
+    public function latestForUser(int $userId): ?array
+    {
+        $row = (new EligibilityAssessment($this->pdo))->latestForUser($userId);
+        return $row ? $this->hydrate($row) : null;
+    }
+
+    /** Called right after an applicant logs in or registers: attaches the check they made while signed out. */
+    public function claimForUser(int $userId): void
+    {
+        $tokenHash = $this->tokenHash(false);
+        if ($tokenHash) {
+            (new EligibilityAssessment($this->pdo))->claimForUser($tokenHash, $userId);
+        }
+    }
+
+    private function hydrate(array $row): array
+    {
+        $answers = $this->normalizeAnswers(json_decode($row['answers'], true) ?: []);
+        return [
+            'answers' => $answers,
+            'result' => ['eligible' => $row['preliminary_result'] === 'LIKELY_ELIGIBLE', 'reason' => $row['result_reason']],
+            'checkedAt' => $row['created_at'],
+        ];
+    }
+
+    /** SHA-256 of this visitor's session token (created on first check), or null if none exists and $create is false. */
+    private function tokenHash(bool $create): ?string
+    {
+        if (empty($_SESSION['eligibility_token'])) {
+            if (!$create) {
+                return null;
+            }
+            $_SESSION['eligibility_token'] = bin2hex(random_bytes(32));
+        }
+        return hash('sha256', $_SESSION['eligibility_token']);
+    }
 
     public static function circumstances(): array
     {

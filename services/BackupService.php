@@ -58,6 +58,7 @@ class BackupService
         foreach ($this->pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN) as $table) {
             $this->writeTable($fh, $table);
         }
+        $this->writeTriggers($fh);
         fwrite($fh, "SET FOREIGN_KEY_CHECKS=1;\n");
         fclose($fh);
 
@@ -90,6 +91,26 @@ class BackupService
             fwrite($fh, "INSERT INTO `$table` ($columnList) VALUES\n" . implode(",\n", $valueLines) . ";\n");
         }
         fwrite($fh, "\n");
+    }
+
+    /**
+     * Recreates the triggers (e.g. the audit log's append-only guard) after
+     * the data is loaded, in mysqldump's DELIMITER form.
+     */
+    private function writeTriggers($fh): void
+    {
+        $triggers = $this->pdo->query('SHOW TRIGGERS')->fetchAll(PDO::FETCH_COLUMN);
+        if (!$triggers) {
+            return;
+        }
+        fwrite($fh, "-- ----------------------------\n-- Triggers\n-- ----------------------------\nDELIMITER $$\n");
+        foreach ($triggers as $name) {
+            $create = $this->pdo->query('SHOW CREATE TRIGGER `' . str_replace('`', '``', $name) . '`')->fetch()['SQL Original Statement'] ?? '';
+            // Drop the DEFINER clause so the backup restores under whichever account imports it.
+            $create = preg_replace('/^CREATE\s+DEFINER=\S+\s+TRIGGER/i', 'CREATE TRIGGER', $create);
+            fwrite($fh, "DROP TRIGGER IF EXISTS `$name`$$\n$create$$\n");
+        }
+        fwrite($fh, "DELIMITER ;\n\n");
     }
 
     /** Existing backups (name, size, created timestamp), newest first. */

@@ -1,5 +1,5 @@
 <?php
-/** @var array $history  status_history rows, newest first */
+/** @var array $history  application_status_history rows, newest first */
 ?>
       <div class="review-card">
         <div class="review-card-head"><div class="title">Status History</div></div>

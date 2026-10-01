@@ -6,9 +6,16 @@ require_once __DIR__ . '/../services/SettingsService.php';
 require_once __DIR__ . '/../services/BackupService.php';
 require_once __DIR__ . '/../services/ContentService.php';
 require_once __DIR__ . '/../services/ReportService.php';
+require_once __DIR__ . '/../services/AuditLogService.php';
+require_once __DIR__ . '/../services/AnalyticsService.php';
 require_once __DIR__ . '/../services/RenewalService.php';
+require_once __DIR__ . '/../services/ScheduledJobService.php';
+require_once __DIR__ . '/../services/SMSService.php';
+require_once __DIR__ . '/NotificationController.php';
+require_once __DIR__ . '/ReportController.php';
 require_once __DIR__ . '/../services/AppointmentService.php';
 require_once __DIR__ . '/../models/Application.php';
+require_once __DIR__ . '/../models/EligibilityAssessment.php';
 require_once __DIR__ . '/../models/Appointment.php';
 require_once __DIR__ . '/../models/AuditLog.php';
 require_once __DIR__ . '/../models/Document.php';
@@ -18,9 +25,10 @@ require_once __DIR__ . '/../models/SmsLog.php';
 require_once __DIR__ . '/../models/User.php';
 
 /**
- * System Administrator pages under admin/. Admin-only: no login goes to
- * the staff login, and MSWD social workers are bounced to their own
- * dashboard. Application decisions stay with MSWD staff (staff/), so the
+ * System Administrator pages under admin/. No login goes to the staff
+ * login; each action then requires its own permission (config/
+ * permissions.php), so an MSWD social worker gets a 403 on admin-only
+ * pages. Application decisions stay with MSWD staff (staff/), so the
  * application pages here are read-only monitoring.
  */
 class AdminController extends Controller
@@ -34,16 +42,22 @@ class AdminController extends Controller
         if (!$staff) {
             $this->redirectTo('admin/login.php');
         }
-        if ($staff['role'] !== 'admin') {
-            $this->redirectTo('staff/dashboard.php');
-        }
+        // Which staff role may use which page is decided per action by authorize().
         $this->admin = $staff;
+        $this->requireOwnPassword($staff, 'staff/account.php', false);
     }
 
     public function dashboard(): void
     {
+        $this->authorize($this->admin, 'admin.dashboard', 'staff/dashboard.php');
+        $reports = new ReportService($this->pdo);
+        $backups = (new BackupService($this->pdo))->all();
         $this->page('Administrator Dashboard', 'dashboard.php', [
-            'stats' => (new ReportService($this->pdo))->dashboardStats(),
+            'stats' => $reports->dashboardStats(),
+            'userStats' => $reports->userStats(),
+            'auditStats' => $reports->auditStats(),
+            'summary' => $reports->analyticsSummary(),
+            'lastBackupAt' => $backups[0]['created'] ?? null,
             'recentActivity' => (new AuditLog($this->pdo))->recent(8),
         ]);
     }
@@ -52,6 +66,7 @@ class AdminController extends Controller
 
     public function applications(): void
     {
+        $this->authorize($this->admin, 'applications.monitor', 'staff/index.php');
         $statusFilter = (string) ($_GET['status'] ?? 'ALL');
         $typeFilter = (string) ($_GET['type'] ?? 'ALL');
         $q = trim((string) ($_GET['q'] ?? ''));
@@ -68,6 +83,7 @@ class AdminController extends Controller
 
     public function application(): void
     {
+        $this->authorize($this->admin, 'applications.monitor', 'staff/application.php?id=' . (int) ($_GET['id'] ?? 0));
         $id = (int) ($_GET['id'] ?? 0);
         $applications = new Application($this->pdo);
         $app = $applications->findForReview($id);
@@ -79,58 +95,61 @@ class AdminController extends Controller
             'app' => $app,
             'interview' => (new Appointment($this->pdo))->interviewFor($id),
             'children' => $applications->children($id),
-            'docs' => (new Document($this->pdo))->forApplication($id),
+            'docs' => (new Document($this->pdo))->forReview($id, $app['category_id'] !== null ? (int) $app['category_id'] : null),
+            'docHistory' => (new Document($this->pdo))->statusHistoryFor($id),
+            'decisions' => $applications->decisions($id),
+            'renewalOf' => $this->renewalContext($app)[0],
+            'renewalChanges' => $this->renewalContext($app)[1],
+            'notes' => $applications->notes($id),
+            'mswdAssessments' => (new EligibilityAssessment($this->pdo))->mswdForApplication($id),
             'history' => $applications->history($id),
         ]);
     }
 
     // ---- Users ----
 
+    /** admin/users.php: every account (filters, pagination) and the create form. */
     public function users(): void
     {
+        $this->authorize($this->admin, 'users.manage');
+        $service = new UserManagementService($this->pdo);
         [$error, $success] = ['', ''];
+        $form = [];
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_require();
-            $service = new UserManagementService($this->pdo);
-            $targetId = (int) ($_POST['user_id'] ?? 0);
-            switch ((string) ($_POST['action'] ?? '')) {
-                case 'create':
-                    [$error, $success] = $service->create(
-                        $this->admin,
-                        trim((string) ($_POST['fullName'] ?? '')),
-                        trim((string) ($_POST['email'] ?? '')),
-                        trim((string) ($_POST['username'] ?? '')),
-                        (string) ($_POST['password'] ?? ''),
-                        (string) ($_POST['role'] ?? '')
-                    );
-                    break;
-                case 'toggle_active':
-                    [$error, $success] = $service->toggleActive($this->admin, $targetId);
-                    break;
-                case 'reset_password':
-                    [$error, $success] = $service->resetPassword($this->admin, $targetId);
-                    break;
-                case 'change_role':
-                    [$error, $success] = $service->changeRole($this->admin, $targetId, (string) ($_POST['role'] ?? ''));
-                    break;
+            if (($_POST['action'] ?? '') === 'create') {
+                [$error, $success, $newId] = $service->create($this->admin, $_POST);
+                if ($newId) {
+                    flash($success);
+                    $this->redirectTo('admin/user_edit.php?id=' . $newId);
+                }
+                $form = array_intersect_key($_POST, array_flip(['fullName', 'email', 'username', 'mobile', 'role', 'mustChange']));
             }
         }
-
-        $roleFilter = (string) ($_GET['role'] ?? 'ALL');
-        $q = trim((string) ($_GET['q'] ?? ''));
+        $filters = [
+            'role' => (string) ($_GET['role'] ?? ''),
+            'status' => (string) ($_GET['status'] ?? ''),
+            'q' => trim((string) ($_GET['q'] ?? '')),
+        ];
+        $result = $service->list($filters['role'], $filters['status'], $filters['q'], (int) ($_GET['page'] ?? 1));
         $this->page('Manage Users', 'users/index.php', [
             'error' => $error,
-            'success' => $success,
-            'roleFilter' => $roleFilter,
-            'q' => $q,
+            'success' => $success ?: (string) take_flash(),
+            'form' => $form,
+            'filters' => $filters,
             'roleLabels' => User::ROLE_LABELS,
-            'users' => (new User($this->pdo))->listForAdmin($roleFilter, $q),
+            'statusFilters' => UserManagementService::STATUS_FILTERS,
+            'users' => $result['rows'],
+            'pager' => $result,
         ]);
     }
 
+    /** admin/user_edit.php?id=: one account -- details, role, status, access, activity. */
     public function userEdit(): void
     {
-        $target = (new User($this->pdo))->findById((int) ($_GET['id'] ?? 0));
+        $this->authorize($this->admin, 'users.manage');
+        $service = new UserManagementService($this->pdo);
+        $target = $service->find((int) ($_GET['id'] ?? 0));
         if (!$target) {
             http_response_code(404);
             die('Account not found.');
@@ -139,83 +158,81 @@ class AdminController extends Controller
         [$error, $success] = ['', ''];
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_require();
-            $fullName = trim((string) ($_POST['full_name'] ?? ''));
-            $email = trim((string) ($_POST['email'] ?? ''));
-            $mobile = trim((string) ($_POST['mobile'] ?? ''));
-            [$error, $success] = (new UserManagementService($this->pdo))->updateAccount($this->admin, $target, $fullName, $email, $mobile);
-            if ($success) {
-                $target = array_merge($target, ['full_name' => $fullName, 'email' => $email, 'mobile' => $mobile]);
-            }
+            [$error, $success] = match ((string) ($_POST['action'] ?? '')) {
+                'update' => $service->updateAccount($this->admin, $target, $_POST),
+                'change_role' => $service->changeRole($this->admin, $target, (string) ($_POST['role'] ?? '')),
+                'activate' => $service->setActive($this->admin, $target, true),
+                'deactivate' => $service->setActive($this->admin, $target, false),
+                'reset_access' => $service->resetAccess($this->admin, $target),
+                'unlock' => $service->unlock($this->admin, $target),
+                'confirm_mobile' => $service->confirmMobile($this->admin, $target),
+                default => ['Unknown action.', ''],
+            };
+            $target = $service->find((int) $target['id']);
         }
 
-        $this->page('Edit ' . $target['username'], 'users/edit.php', [
+        $scope = (string) ($_GET['scope'] ?? '');
+        $this->page('Manage ' . $target['username'], 'users/edit.php', [
             'error' => $error,
-            'success' => $success,
+            'success' => $success ?: (string) take_flash(),
             'target' => $target,
+            'isSelf' => (int) $target['id'] === (int) $this->admin['id'],
+            'locked' => !empty($target['locked_until']) && strtotime($target['locked_until']) > time(),
+            'applicationCount' => (new User($this->pdo))->applicationCount((int) $target['id']),
             'roleLabels' => User::ROLE_LABELS,
+            'scope' => in_array($scope, ['by', 'on'], true) ? $scope : '',
+            'activity' => $service->activity((int) $target['id'], $scope, (int) ($_GET['apage'] ?? 1)),
         ]);
     }
-
     // ---- Audit, analytics, reports ----
 
     public function auditLog(): void
     {
-        $q = trim((string) ($_GET['q'] ?? ''));
-        $actionFilter = trim((string) ($_GET['action'] ?? ''));
-        $dateFrom = trim((string) ($_GET['from'] ?? ''));
-        $dateTo = trim((string) ($_GET['to'] ?? ''));
-        $auditLog = new AuditLog($this->pdo);
-        $this->page('Audit Logs', 'audit/index.php', [
-            'q' => $q,
-            'actionFilter' => $actionFilter,
-            'dateFrom' => $dateFrom,
-            'dateTo' => $dateTo,
-            'logs' => $auditLog->search($q, $actionFilter, $dateFrom, $dateTo),
-            'actions' => $auditLog->distinctActions(),
+        $this->authorize($this->admin, 'audit.view');
+        $service = new AuditLogService($this->pdo);
+        [$filters, $filterError] = $service->filters($_GET);
+
+        if (($_GET['output'] ?? '') === 'csv') {
+            $export = $service->exportRows($filters);
+            if ($export === null) {
+                http_response_code(413);
+                die('More than ' . number_format(AuditLog::EXPORT_LIMIT) . ' events match. Narrow the date range or filters, then export again.');
+            }
+            [$header, $rows] = $export;
+            // Logged before streaming, so the export itself is never missing from the log it exported.
+            $this->auditSystem('Audit Log Export', count($rows) . (count($rows) === 1 ? ' event — ' : ' events — ') . $service->describe($filters));
+            (new ReportService($this->pdo))->streamCsv('audit-log-' . date('Y-m-d') . '.csv', $header, $rows);
+            exit;
+        }
+
+        $this->page('Audit Log', 'audit/index.php', $service->page($filters, (int) ($_GET['page'] ?? 1)) + [
+            'filters' => $filters,
+            'filterError' => $filterError,
         ]);
     }
 
     public function analytics(): void
     {
-        $this->page('Analytics & Reports', 'analytics/index.php', (new ReportService($this->pdo))->analytics());
+        $this->authorize($this->admin, 'analytics.view');
+        $analytics = new AnalyticsService($this->pdo);
+        $period = $analytics->period($_GET);
+        $this->page('Analytics', 'analytics/index.php', $analytics->build($period) + ['period' => $period]);
     }
 
-    /** Filterable reports; ?export=csv downloads the same rows. */
+    /** admin/reports.php: the eight reports (shared with MSWD staff on staff/reports.php). */
     public function reports(): void
     {
-        $type = (string) ($_GET['type'] ?? 'application');
-        if (!isset(Report::TYPES[$type])) {
-            $type = 'application';
+        $this->authorize($this->admin, 'reports.view');
+        if ($this->admin['role'] !== 'admin') {
+            // MSWD staff use the same reports on their own page.
+            $this->redirectTo('staff/reports.php' . ($_GET ? '?' . http_build_query($_GET) : ''));
         }
-        $dateFrom = trim((string) ($_GET['from'] ?? ''));
-        $dateTo = trim((string) ($_GET['to'] ?? ''));
-        $q = trim((string) ($_GET['q'] ?? ''));
-        $report = new Report($this->pdo);
-        $result = $report->run($type, $dateFrom, $dateTo, $q);
-
-        if (($_GET['export'] ?? '') === 'csv') {
-            audit_log($this->pdo, (int) $this->admin['id'], $this->admin['full_name'], $this->admin['role'], 'Report Export', 'report', null, Report::TYPES[$type]);
-            $keys = array_keys($result['columns']);
-            (new ReportService($this->pdo))->streamCsv(
-                $type . '-report-' . date('Y-m-d') . '.csv',
-                array_values($result['columns']),
-                array_map(fn($row) => array_map(fn($k) => $row[$k] ?? '', $keys), $result['rows'])
-            );
-            return;
-        }
-
-        $this->page(Report::TYPES[$type], 'reports/index.php', $result + [
-            'type' => $type,
-            'typeLabels' => Report::TYPES,
-            'dateFrom' => $dateFrom,
-            'dateTo' => $dateTo,
-            'q' => $q,
-            'rowLimit' => $report->rowLimit(),
-        ]);
+        $data = (new ReportController($this->pdo))->handle($this->admin, 'admin/reports.php');
+        $this->page(Report::TYPES[$data['type']], '../reports/index.php', $data);
     }
-
     public function exportCsv(): void
     {
+        $this->authorize($this->admin, 'data.export');
         $type = (string) ($_GET['export'] ?? '');
         $service = new ReportService($this->pdo);
         $export = $service->fullExport($type);
@@ -231,6 +248,7 @@ class AdminController extends Controller
 
     public function monitoring(): void
     {
+        $this->authorize($this->admin, 'system.monitor');
         $backups = new BackupService($this->pdo);
         [$error, $success] = ['', ''];
 
@@ -269,6 +287,7 @@ class AdminController extends Controller
 
     public function downloadBackup(): void
     {
+        $this->authorize($this->admin, 'system.monitor');
         $backups = new BackupService($this->pdo);
         $name = basename((string) ($_GET['name'] ?? ''));
         if (!$backups->isValidName($name)) {
@@ -290,49 +309,62 @@ class AdminController extends Controller
 
     public function settings(): void
     {
+        $this->authorize($this->admin, 'settings.manage');
         $settings = new SettingsService($this->pdo);
         [$error, $success] = ['', ''];
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_require();
-            $action = (string) ($_POST['action'] ?? 'save_settings');
-            if ($action === 'send_reminders_now') {
-                $result = (new RenewalService($this->pdo))->sendDueReminders();
-                $this->auditSystem('Renewal Reminders Sent (Manual)', implode(', ', $result['sent']) ?: 'none due');
-                $success = 'Checked ' . $result['checked'] . ' expiring ID(s), sent ' . count($result['sent']) . ' reminder(s).';
-            } elseif ($action === 'send_appointment_reminders_now') {
-                $result = (new AppointmentService($this->pdo))->sendDueReminders();
-                $this->auditSystem('Appointment Reminders Sent (Manual)', implode(', ', $result['sent']) ?: 'none due');
-                $success = 'Checked ' . $result['checked'] . ' upcoming appointment(s), sent ' . count($result['sent']) . ' reminder(s).';
+            $action = (string) ($_POST['action'] ?? '');
+            $jobs = ['send_reminders_now' => 'renewal_reminders', 'send_appointment_reminders_now' => 'appointment_reminders'];
+            if (isset($jobs[$action])) {
+                $result = (new ScheduledJobService($this->pdo))->run($jobs[$action], 'manual', $this->admin);
+                $summary = 'Checked ' . $result['checked'] . ', sent ' . count($result['sent']) . (count($result['failed']) ? ', failed ' . count($result['failed']) : '') . '. ' . $result['message'];
+                if ($result['status'] !== 'FAILED') {
+                    $success = $summary;
+                } else {
+                    $error = $summary;
+                }
+            } elseif ($action === 'save_section') {
+                $section = (string) ($_POST['section'] ?? '');
+                [$error, $success] = $settings->saveSection($this->admin, $section, $_POST);
+                $errorSection = $error && isset(SETTINGS_REGISTRY[$section]) ? $section : null;
             } else {
-                $error = $settings->save($this->admin, $_POST) ?? '';
-                $success = $error === '' ? 'Settings saved.' : '';
+                $error = 'Unknown action.';
             }
         }
 
         $this->page('System Settings', 'settings/index.php', [
             'error' => $error,
             'success' => $success,
+            'errorSection' => $errorSection ?? null,
+            'posted' => $_SERVER['REQUEST_METHOD'] === 'POST' ? $_POST : [],
             'current' => $settings->current(),
-            'recentReminders' => $settings->recentRenewalReminders(),
+            'smsTemplates' => $settings->smsTemplates(),
+            'serverUploadLimitMb' => SettingsService::serverUploadLimitMb(),
+            'recentReminders' => (new RenewalReminder($this->pdo))->recent(10),
+            'renewalRuns' => (new ScheduledJobService($this->pdo))->recentRuns('renewal_reminders', 5),
+            'appointmentRuns' => (new ScheduledJobService($this->pdo))->recentRuns('appointment_reminders', 5),
             'recentApptReminders' => $settings->recentAppointmentReminders(),
         ]);
     }
 
     public function requirements(): void
     {
+        $this->authorize($this->admin, 'content.manage');
         [$error, $success] = ['', ''];
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_require();
             $content = new ContentService($this->pdo);
-            $label = trim((string) ($_POST['label'] ?? ''));
+            $str = fn(string $k) => is_string($_POST[$k] ?? null) ? trim($_POST[$k]) : '';
+            $label = $str('label');
             $isRequired = !empty($_POST['is_required']);
-            $sortOrder = (int) ($_POST['sort_order'] ?? 0);
-            $reqId = (int) ($_POST['req_id'] ?? 0);
-            switch ((string) ($_POST['action'] ?? '')) {
+            $sortOrder = (int) $str('sort_order');
+            $reqId = (int) $str('req_id');
+            switch ($str('action')) {
                 case 'create':
-                    $categoryId = ($_POST['category_id'] ?? '') !== '' ? (int) $_POST['category_id'] : null;
-                    [$error, $success] = $content->createRequirement($this->admin, $categoryId, trim((string) ($_POST['doc_key'] ?? '')), $label, $isRequired, $sortOrder);
+                    $categoryId = $str('category_id') !== '' ? (int) $str('category_id') : null;
+                    [$error, $success] = $content->createRequirement($this->admin, $categoryId, $str('doc_key'), $label, $isRequired, $sortOrder);
                     break;
                 case 'update':
                     [$error, $success] = $content->updateRequirement($this->admin, $reqId, $label, $isRequired, $sortOrder);
@@ -355,6 +387,7 @@ class AdminController extends Controller
 
     public function faq(): void
     {
+        $this->authorize($this->admin, 'content.manage');
         [$error, $success] = ['', ''];
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_require();
@@ -388,20 +421,37 @@ class AdminController extends Controller
 
     public function sms(): void
     {
+        $this->authorize($this->admin, 'sms.manage');
         [$error, $success] = ['', ''];
+        $post = fn(string $k) => is_string($_POST[$k] ?? null) ? trim($_POST[$k]) : '';
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_require();
-            if (($_POST['action'] ?? '') === 'update_template') {
-                [$error, $success] = (new ContentService($this->pdo))->updateSmsTemplate(
-                    $this->admin,
-                    (string) ($_POST['template_key'] ?? ''),
-                    trim((string) ($_POST['body'] ?? ''))
-                );
+            $action = $post('action');
+            if ($action === 'update_template') {
+                [$error, $success] = (new ContentService($this->pdo))->updateSmsTemplate($this->admin, $post('template_key'), $post('body'));
+            } elseif ($action === 'retry') {
+                $logId = (int) $post('log_id');
+                [$error, $result] = (new SMSService($this->pdo))->retry($logId);
+                if (!$error) {
+                    $this->auditSystem('SMS Retried', 'sms_logs #' . $logId . ' -> ' . $result['status']);
+                    $success = $result['status'] === 'SENT' ? 'The message was sent' . ($result['test_mode'] ? ' (test mode: logged only).' : '.') : 'The retry failed: ' . $result['error'];
+                }
+            } elseif ($action === 'send_test') {
+                if (SMSService::normalizeNumber($post('mobile')) === null) {
+                    $error = 'Enter a valid Philippine mobile number (e.g. 09171234567).';
+                } else {
+                    $result = (new SMSService($this->pdo))->send(null, $post('mobile'), 'MSWDO Virac: Test message from e-SoloParentID (' . date('M j, Y g:i A') . '). No action needed.', 'test_message');
+                    $this->auditSystem('SMS Test Sent', SMSService::normalizeNumber($post('mobile')) . ' -> ' . $result['status']);
+                    $success = $result['status'] === 'SENT'
+                        ? ($result['test_mode'] ? 'Test message logged (test mode — nothing was sent).' : 'Test message sent. Check the phone.')
+                        : '';
+                    $error = $result['status'] === 'SENT' ? '' : 'The test message failed: ' . $result['error'];
+                }
             }
         }
 
-        $statusFilter = (string) ($_GET['status'] ?? 'ALL');
-        $q = trim((string) ($_GET['q'] ?? ''));
+        $statusFilter = is_string($_GET['status'] ?? null) ? $_GET['status'] : 'ALL';
+        $q = is_string($_GET['q'] ?? null) ? trim($_GET['q']) : '';
         $sms = new SmsLog($this->pdo);
         $this->page('SMS Notification Management', 'sms/index.php', [
             'error' => $error,
@@ -412,9 +462,35 @@ class AdminController extends Controller
             'logs' => $sms->search($statusFilter, $q),
             'totals' => [
                 'sent' => $sms->countByStatus('sent'),
+                'test' => $sms->countByStatus('test'),
                 'failed' => $sms->countByStatus('failed'),
-                'skipped' => $sms->countByStatus('skipped-no-api-key'),
+                'pending' => $sms->countByStatus('pending'),
             ],
+        ]);
+    }
+
+    /** admin/notifications.php: the administrator's own notifications, and sending system announcements. */
+    public function notifications(): void
+    {
+        $this->authorize($this->admin, 'admin.dashboard', 'staff/notifications.php');
+        $service = new NotificationService($this->pdo);
+        $broadcastError = '';
+        $isBroadcast = $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'broadcast';
+        if ($isBroadcast) {
+            csrf_require();
+            $this->authorize($this->admin, 'content.manage', 'admin/notifications.php');
+            [$broadcastError, $count] = $service->broadcast($this->admin, is_string($_POST['message'] ?? null) ? $_POST['message'] : '', is_string($_POST['audience'] ?? null) ? $_POST['audience'] : '');
+            if (!$broadcastError) {
+                flash("Announcement sent to $count " . ($count === 1 ? 'person' : 'people') . '.');
+                $this->redirectTo('admin/notifications.php');
+            }
+        }
+        $data = (new NotificationController($this->pdo))->handle($this->admin, 'admin/notifications.php', !$isBroadcast);
+        $this->page('Notifications', 'notifications/index.php', $data + [
+            'ownDashboard' => base_url('admin/dashboard.php'),
+            'broadcastError' => $broadcastError,
+            'broadcasts' => $service->recentBroadcasts(),
+            'canBroadcast' => can($this->admin, 'content.manage'),
         ]);
     }
 
@@ -431,5 +507,18 @@ class AdminController extends Controller
             'contentView' => 'views/admin/' . $view,
             'staff' => $this->admin,
         ]));
+    }
+    /** [the record a renewal renews (with children) or null, the changes since it]. */
+    protected function renewalContext(array $app): array
+    {
+        if ($app['type'] !== 'renewal' || !$app['renewal_of_id']) {
+            return [null, []];
+        }
+        $applications = new Application($this->pdo);
+        $previous = $applications->findWithChildren((int) $app['renewal_of_id']);
+        if (!$previous) {
+            return [null, []];
+        }
+        return [$previous, RenewalService::diff($previous, $app + ['children' => $applications->children((int) $app['id'])])];
     }
 }

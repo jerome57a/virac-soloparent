@@ -3,6 +3,20 @@
 $applyUrl = base_url('portal.php?tab=apply');
 $eligUrl = base_url('eligibility.php');
 ?>
+<div class="elig-cta" role="region" aria-label="Check your eligibility">
+  <div>
+    <div class="elig-cta-title">Are you a solo parent in Virac?</div>
+    <div class="elig-cta-text">Answer 3 quick questions to see if you may qualify for a Solo Parent ID — no account needed.</div>
+  </div>
+  <div class="elig-cta-actions">
+    <a href="<?= e($eligUrl) ?>" class="btn-red text-decoration-none">Check Eligibility</a>
+    <?php if (empty($user)): ?>
+      <a href="<?= base_url('login.php') ?>" class="btn-outline text-decoration-none">Log In</a>
+      <a href="<?= base_url('register.php') ?>" class="btn-outline text-decoration-none">Create Account</a>
+    <?php endif; ?>
+  </div>
+</div>
+
 <div style="font-size:15px;color:var(--muted);margin-bottom:28px;max-width:780px">Everything you need to know before applying: eligibility, benefits, requirements, and how to apply online through e-SoloParentID.</div>
 
 <h2 class="section-title" style="font-family:var(--font-body);margin-top:0">What is the Solo Parent ID?</h2>
@@ -84,7 +98,7 @@ $eligUrl = base_url('eligibility.php');
     </div>
   <?php endforeach; ?>
 </div>
-<div style="font-size:13px;color:var(--muted);max-width:780px;margin-bottom:36px">You may also apply in person at the MSWDO Office, Municipal Building, Salvacion, Virac, Catanduanes during office hours (Mon–Fri, 8:00 AM – 5:00 PM). Bring original and photocopies of all required documents.</div>
+<div style="font-size:13px;color:var(--muted);max-width:780px;margin-bottom:36px">You may also apply in person at the <?= e(setting('office_name')) ?> office, <?= e(setting('office_address')) ?>, during office hours (<?= e(setting('office_hours')) ?>). Bring original and photocopies of all required documents.</div>
 
 <div class="section-title" style="margin-bottom:14px">Important Reminders</div>
 <div class="bullet-list" style="margin-bottom:36px">

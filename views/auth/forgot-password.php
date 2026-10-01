@@ -15,7 +15,7 @@
       <p style="font-size:14px;color:var(--muted)">Enter your username or the mobile number on your account. We'll text you a 6-digit reset code, valid for <?= (int) PASSWORD_RESET_CODE_MINUTES ?> minutes.</p>
       <form method="post" class="d-flex flex-column gap-3">
         <?= csrf_field() ?>
-        <input class="form-control" type="text" name="identifier" placeholder="Username or mobile number" required>
+        <input class="form-control" type="text" name="identifier" aria-label="Username or mobile number" placeholder="Username or mobile number" required>
         <button type="submit" class="btn-navy">Send reset code</button>
       </form>
     <?php endif; ?>

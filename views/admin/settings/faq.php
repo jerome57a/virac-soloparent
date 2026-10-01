@@ -24,8 +24,8 @@
         <form method="post" class="d-flex flex-column gap-3">
           <?= csrf_field() ?>
           <input type="hidden" name="action" value="create">
-          <input class="form-control" type="text" name="question" placeholder="Question" required>
-          <textarea class="form-control" name="answer" rows="4" placeholder="Answer" required></textarea>
+          <input class="form-control" type="text" name="question" aria-label="Question" placeholder="Question" required>
+          <textarea class="form-control" name="answer" aria-label="Answer" rows="4" placeholder="Answer" required></textarea>
           <label style="font-size:13px;font-weight:600;color:var(--ink)">
             Sort order (lower shows first)
             <input type="number" name="sort_order" value="0" class="form-control mt-1" style="padding:10px;border:1px solid var(--input-border);border-radius:6px">

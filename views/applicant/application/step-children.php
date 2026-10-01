@@ -32,6 +32,7 @@
   <button type="submit" name="action" value="add_child" formnovalidate class="btn-add-child">+ Add another child</button>
 
   <div class="form-nav-buttons">
+    <button type="submit" name="action" value="save_draft" formnovalidate class="btn-outline">Save &amp; finish later</button>
     <button type="submit" name="action" value="back" formnovalidate class="btn-outline">Back</button>
     <button type="submit" name="action" value="continue" class="btn-navy">Continue</button>
   </div>

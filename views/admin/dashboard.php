@@ -1,26 +1,102 @@
 <?php
 /**
- * @var array $staff
- * @var array $stats
- * @var array $recentActivity
+ * Administrator dashboard -- system-level overview: users, applications,
+ * activity, SMS, audit/security and trend summary. All counts are live.
+ *
+ * @var array  $staff
+ * @var array  $stats         application + SMS counts (ReportService::dashboardStats)
+ * @var array  $userStats     applicants, mswdStaff, admins, deactivated, locked, newThisMonth
+ * @var array  $auditStats    eventsToday, loginsToday, accessDenied7d, failedLogins7d, passwordResets7d
+ * @var array  $summary       thisMonth, lastMonth, approvalRate (null if nothing decided), decided
+ * @var ?int   $lastBackupAt  timestamp of the newest database backup
+ * @var array  $recentActivity
  */
+$trend = $summary['thisMonth'] - $summary['lastMonth'];
 ?>
 <div class="portal-container">
   <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
     <div>
       <h1 class="font-heading m-0" style="font-size:26px">Administrator Dashboard</h1>
-      <div style="font-size:13px;color:var(--muted)">System-level overview</div>
+      <div style="font-size:13px;color:var(--muted)">System-level overview · <?= e(date('l, F j, Y')) ?></div>
     </div>
     <span style="font-size:14px">Signed in as <b><?= e($staff['full_name']) ?></b></span>
   </div>
 
-  <div class="dash-quick-grid" style="margin-bottom:24px">
-    <div class="dash-card" style="margin-bottom:0"><div class="dash-card-label">Total Registered Solo Parents</div><div style="font-size:28px;font-weight:700;color:var(--ink)"><?= $stats['totalApplicants'] ?></div></div>
-    <div class="dash-card" style="margin-bottom:0"><div class="dash-card-label">Total Applications</div><div style="font-size:28px;font-weight:700;color:var(--ink)"><?= $stats['totalApplications'] ?></div></div>
-    <div class="dash-card" style="margin-bottom:0"><div class="dash-card-label">Renewal Applications</div><div style="font-size:28px;font-weight:700;color:var(--ink)"><?= $stats['totalRenewals'] ?></div></div>
-    <div class="dash-card" style="margin-bottom:0"><div class="dash-card-label">Active System Users</div><div style="font-size:28px;font-weight:700;color:var(--ink)"><?= $stats['activeUsers'] ?></div></div>
-    <a href="<?= base_url('admin/analytics.php') ?>" class="dash-card" style="margin-bottom:0;text-decoration:none;display:block"><div class="dash-card-label">Expiring IDs (60 days)</div><div style="font-size:28px;font-weight:700;color:<?= $stats['expiringIds'] > 0 ? 'var(--red)' : 'var(--ink)' ?>"><?= $stats['expiringIds'] ?></div></a>
-    <a href="<?= base_url('admin/monitoring.php') ?>" class="dash-card" style="margin-bottom:0;text-decoration:none;display:block"><div class="dash-card-label">System Health</div><div style="font-size:20px;font-weight:700;color:#1c7a3f">✓ Connected</div></a>
+  <div class="dash-section-title">Applications</div>
+  <div class="stat-grid">
+    <a href="<?= base_url('admin/applications.php') ?>" class="stat-tile">
+      <div class="stat-label">Total Applications</div>
+      <div class="stat-value"><?= (int) $stats['totalApplications'] ?></div>
+      <div class="stat-sub"><?= (int) $stats['totalRenewals'] ?> of them renewals</div>
+    </a>
+    <a href="<?= base_url('admin/analytics.php') ?>" class="stat-tile">
+      <div class="stat-label">This Month</div>
+      <div class="stat-value"><?= (int) $summary['thisMonth'] ?></div>
+      <div class="stat-sub"><?= $trend === 0 ? 'same as' : ($trend > 0 ? '+' . $trend . ' vs' : $trend . ' vs') ?> last month (<?= (int) $summary['lastMonth'] ?>)</div>
+    </a>
+    <a href="<?= base_url('admin/analytics.php') ?>" class="stat-tile">
+      <div class="stat-label">Approval Rate</div>
+      <div class="stat-value"><?= $summary['approvalRate'] === null ? '—' : (int) $summary['approvalRate'] . '%' ?></div>
+      <div class="stat-sub">of <?= (int) $summary['decided'] ?> decided application<?= (int) $summary['decided'] === 1 ? '' : 's' ?></div>
+    </a>
+    <a href="<?= base_url('admin/analytics.php') ?>" class="stat-tile">
+      <div class="stat-label">Expiring IDs</div>
+      <div class="stat-value <?= $stats['expiringIds'] > 0 ? 'stat-alert' : '' ?>"><?= (int) $stats['expiringIds'] ?></div>
+      <div class="stat-sub">within <?= (int) $stats['expiringWindow'] ?> days</div>
+    </a>
+  </div>
+
+  <div class="dash-section-title">Users</div>
+  <div class="stat-grid">
+    <a href="<?= base_url('admin/users.php?role=applicant') ?>" class="stat-tile">
+      <div class="stat-label">Registered Solo Parents</div>
+      <div class="stat-value"><?= (int) $userStats['applicants'] ?></div>
+      <div class="stat-sub"><?= (int) $userStats['newThisMonth'] ?> new this month</div>
+    </a>
+    <a href="<?= base_url('admin/users.php?role=mswd_social_worker') ?>" class="stat-tile">
+      <div class="stat-label">MSWD Staff</div>
+      <div class="stat-value"><?= (int) $userStats['mswdStaff'] ?></div>
+      <div class="stat-sub"><?= (int) $userStats['admins'] ?> administrator<?= (int) $userStats['admins'] === 1 ? '' : 's' ?></div>
+    </a>
+    <a href="<?= base_url('admin/users.php') ?>" class="stat-tile">
+      <div class="stat-label">Active Accounts</div>
+      <div class="stat-value"><?= (int) $stats['activeUsers'] ?></div>
+      <div class="stat-sub"><?= (int) $userStats['deactivated'] ?> deactivated</div>
+    </a>
+    <a href="<?= base_url('admin/users.php') ?>" class="stat-tile">
+      <div class="stat-label">Locked Out Now</div>
+      <div class="stat-value <?= $userStats['locked'] > 0 ? 'stat-alert' : '' ?>"><?= (int) $userStats['locked'] ?></div>
+      <div class="stat-sub">after failed logins</div>
+    </a>
+  </div>
+
+  <div class="dash-section-title">Activity &amp; Security</div>
+  <div class="stat-grid">
+    <a href="<?= base_url('admin/audit_log.php?from=' . date('Y-m-d')) ?>" class="stat-tile">
+      <div class="stat-label">Audit Events Today</div>
+      <div class="stat-value"><?= (int) $auditStats['eventsToday'] ?></div>
+      <div class="stat-sub"><?= (int) $auditStats['loginsToday'] ?> login<?= (int) $auditStats['loginsToday'] === 1 ? '' : 's' ?></div>
+    </a>
+    <a href="<?= base_url('admin/audit_log.php?action=Access+Denied') ?>" class="stat-tile">
+      <div class="stat-label">Access Denied</div>
+      <div class="stat-value <?= $auditStats['accessDenied7d'] > 0 ? 'stat-alert' : '' ?>"><?= (int) $auditStats['accessDenied7d'] ?></div>
+      <div class="stat-sub">last 7 days</div>
+    </a>
+    <a href="<?= base_url('admin/audit_log.php?action=Login+Failed') ?>" class="stat-tile">
+      <div class="stat-label">Failed Sign-ins</div>
+      <div class="stat-value <?= $auditStats['failedLogins7d'] > 0 ? 'stat-alert' : '' ?>"><?= (int) $auditStats['failedLogins7d'] ?></div>
+      <div class="stat-sub">last 7 days, incl. wrong reset codes</div>
+    </a>
+    <a href="<?= base_url('admin/audit_log.php?action=Password+Reset+Requested') ?>" class="stat-tile">
+      <div class="stat-label">Password Resets</div>
+      <div class="stat-value"><?= (int) $auditStats['passwordResets7d'] ?></div>
+      <div class="stat-sub">last 7 days</div>
+    </a>
+    <a href="<?= base_url('admin/monitoring.php') ?>" class="stat-tile">
+      <div class="stat-label">System Health</div>
+      <div class="stat-value" style="font-size:20px;color:#1c7a3f">✓ Database OK</div>
+      <div class="stat-sub"><?= $lastBackupAt ? 'Last backup ' . e(date('M j, Y g:i A', $lastBackupAt)) : 'No backup yet' ?></div>
+    </a>
   </div>
 
   <div class="review-card">
@@ -40,6 +116,7 @@
     <div class="review-grid">
       <a href="<?= base_url('admin/sms.php?status=sent') ?>" class="review-row text-decoration-none"><div class="k">Sent</div><div class="v"><?= $stats['smsSent'] ?></div></a>
       <a href="<?= base_url('admin/sms.php?status=failed') ?>" class="review-row text-decoration-none"><div class="k">Failed</div><div class="v"><?= $stats['smsFailed'] ?></div></a>
+      <a href="<?= base_url('admin/sms.php?status=test') ?>" class="review-row text-decoration-none"><div class="k">Test mode (logged, not sent)</div><div class="v"><?= $stats['smsLoggedOnly'] ?></div></a>
     </div>
   </div>
 

@@ -16,6 +16,9 @@ function csrf_field(): string
 function csrf_verify(): bool
 {
     $token = $_POST['csrf_token'] ?? '';
+    if (!is_string($token)) {
+        return false;
+    }
     return !empty($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
 }
 

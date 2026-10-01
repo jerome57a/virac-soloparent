@@ -3,14 +3,19 @@ require_once __DIR__ . '/Controller.php';
 require_once __DIR__ . '/../services/AuthService.php';
 require_once __DIR__ . '/../services/EligibilityService.php';
 require_once __DIR__ . '/../services/DocumentValidationService.php';
+require_once __DIR__ . '/../services/AppointmentService.php';
+require_once __DIR__ . '/../services/ApplicantProfileService.php';
 require_once __DIR__ . '/../models/Applicant.php';
 require_once __DIR__ . '/../models/Application.php';
 require_once __DIR__ . '/../models/Notification.php';
-require_once __DIR__ . '/../includes/QrService.php';
+require_once __DIR__ . '/../services/QrSlipService.php';
 require_once __DIR__ . '/ApplicationController.php';
+require_once __DIR__ . '/../services/ApplicationTrackerService.php';
 require_once __DIR__ . '/DocumentController.php';
 require_once __DIR__ . '/AppointmentController.php';
 require_once __DIR__ . '/RenewalController.php';
+require_once __DIR__ . '/NotificationController.php';
+require_once __DIR__ . '/../services/HelpAssistantService.php';
 
 /**
  * The applicant dashboard (applicant/dashboard.php?section=...). Owns the
@@ -34,7 +39,6 @@ class ApplicantController extends Controller
         'chat'          => 'Chat Support',
         'profile'       => 'My Profile',
         'help'          => 'Help & Support',
-        'settings'      => 'Settings',
     ];
 
     private array $user;
@@ -46,12 +50,23 @@ class ApplicantController extends Controller
         if (!$user) {
             $this->redirectTo('portal.php?tab=login');
         }
+        $this->authorize($user, 'applicant.portal');
         $this->user = $user;
         $this->applications = (new Application($this->pdo))->forUserDetailed((int) $user['id']);
 
         $section = (string) ($_GET['section'] ?? 'dashboard');
+        // Account settings (details, photo, password) all live on My Profile; old "Settings" links go there.
+        if ($section === 'settings') {
+            $this->redirectTo('applicant/dashboard.php?section=profile');
+        }
         if (!isset(self::SECTION_TITLES[$section])) {
             $section = 'dashboard';
+        }
+        $this->requireOwnPassword($user, 'applicant/dashboard.php?section=profile#password', $section === 'profile');
+        // The account is usable once its mobile number is confirmed by SMS code (after registering, or after the
+        // number changed). My Profile stays open, so a mistyped number can be corrected.
+        if (empty($user['mobile_verified_at']) && $section !== 'profile') {
+            $this->redirectTo('verify-mobile.php');
         }
         $title = self::SECTION_TITLES[$section];
 
@@ -88,8 +103,11 @@ class ApplicantController extends Controller
                 $result = $this->sectionProfile();
                 break;
             case 'help':
-            case 'settings':
-                $result = ['view' => 'coming-soon.php', 'data' => []];
+                $result = ['view' => 'help.php', 'data' => [
+                    'office' => ['name' => setting('office_name'), 'address' => setting('office_address'), 'hours' => setting('office_hours'),
+                                 'email' => setting('office_email'), 'phone' => setting('office_phone')],
+                    'hasApplication' => (bool) $this->applications,
+                ]];
                 break;
             default:
                 $result = $this->sectionDashboard();
@@ -105,7 +123,7 @@ class ApplicantController extends Controller
             'user' => $this->user,
             'section' => $section,
             'sectionTitle' => $title,
-            'pageTitle' => $title . ' — ' . APP_NAME,
+            'pageTitle' => $title . ' — ' . setting('system_name'),
             'contentView' => 'views/applicant/' . $result['view'],
             'unreadAnnouncementCount' => count_unread_announcements($announcements),
             'unreadNotificationCount' => (new Notification($this->pdo))->unreadCount((int) $this->user['id']),
@@ -141,34 +159,116 @@ class ApplicantController extends Controller
     private function sectionDashboard(): array
     {
         $idApplication = $this->idApplication();
+        $renewal = $this->renewalInfo($idApplication);
+        $upcoming = $this->nextAppointment();
+        $bookable = (new AppointmentService($this->pdo))->findBookableApplication($this->applications);
+        $draft = (new ApplicationService($this->pdo))->draftSummary($this->user);
+
         return ['view' => 'dashboard.php', 'data' => [
             'latestApplication' => $this->applications[0] ?? null,
+            'latestTracker' => isset($this->applications[0]) ? (new ApplicationTrackerService($this->pdo))->track($this->applications[0]) : null,
             'idApplication' => $idApplication,
             'idExpiryInfo' => $this->idExpiryInfo($idApplication),
+            'renewal' => $renewal,
+            'upcomingAppointment' => $upcoming,
+            'canBookAppointment' => AppointmentService::needsBooking($bookable),
+            'recentNotifications' => (new Notification($this->pdo))->forUser((int) $this->user['id'], 3),
+            'eligibilityCheck' => (new EligibilityService($this->pdo))->latestForUser((int) $this->user['id']),
+            'quickActions' => $this->quickActions($renewal, $bookable, $draft),
+            'applicationDraft' => $draft,
         ]];
+    }
+
+    /**
+     * Renewal status of the applicant's released ID: state is none (no
+     * released ID), in_progress (a renewal is already being processed),
+     * expired, due (within the renewal window, admin-configurable, default
+     * 30 days) or valid.
+     */
+    private function renewalInfo(?array $idApplication): array
+    {
+        foreach ($this->applications as $app) {
+            if ($app['type'] === 'renewal' && !in_array($app['status'], ['ID Released', 'Rejected'], true)) {
+                return ['state' => 'in_progress', 'application' => $app];
+            }
+        }
+        if (!$idApplication || $idApplication['status'] !== 'ID Released' || !$idApplication['id_expires_at']) {
+            return ['state' => 'none'];
+        }
+        $windowDays = (int) get_setting($this->pdo, 'renewal_reminder_days', '30');
+        $daysLeft = (int) floor((strtotime($idApplication['id_expires_at']) - strtotime('today')) / 86400);
+        $state = $daysLeft < 0 ? 'expired' : ($daysLeft <= $windowDays ? 'due' : 'valid');
+        return ['state' => $state, 'daysLeft' => $daysLeft, 'expiresAt' => $idApplication['id_expires_at'], 'windowDays' => $windowDays];
+    }
+
+    /** Soonest appointment still ahead, across all of the applicant's applications. */
+    private function nextAppointment(): ?array
+    {
+        $next = null;
+        foreach ($this->applications as $app) {
+            if ($app['interview_status'] === 'BOOKED' && strtotime($app['interview_at']) >= time()
+                && (!$next || $app['interview_at'] < $next['interview_at'])) {
+                $next = $app;
+            }
+        }
+        return $next;
+    }
+
+    /** Shortcuts for what this applicant most likely needs to do next, most urgent first. */
+    private function quickActions(array $renewal, ?array $bookable, ?array $draft): array
+    {
+        $latest = $this->applications[0] ?? null;
+        $actions = [];
+        if ($draft) {
+            $actions[] = ['Continue My Application', base_url('portal.php?tab=apply'), 'apply'];
+        } elseif (!$latest || $latest['status'] === 'Rejected') {
+            if (!$latest) {
+                $actions[] = ['Check Eligibility', base_url('applicant/dashboard.php?section=eligibility'), 'check'];
+            }
+            $actions[] = ['Apply for Solo Parent ID', base_url('portal.php?tab=apply'), 'apply'];
+        }
+        if ($latest && $latest['status'] === 'For Revision') {
+            $actions[] = ['Fix My Documents', base_url('applicant/dashboard.php?section=documents'), 'documents'];
+        }
+        if (AppointmentService::needsBooking($bookable)) {
+            $actions[] = ['Book Appointment', base_url('applicant/dashboard.php?section=appointment'), 'calendar'];
+        }
+        if (in_array($renewal['state'], ['due', 'expired'], true)) {
+            $actions[] = ['Renew My ID', base_url('applicant/dashboard.php?section=renewal&type=new'), 'renew'];
+        }
+        if ($latest) {
+            $actions[] = ['Track My Application', base_url('applicant/dashboard.php?section=application'), 'apply'];
+        }
+        $actions[] = ['Notifications', base_url('applicant/dashboard.php?section=notifications'), 'bell'];
+        $actions[] = ['Chat Support', base_url('applicant/dashboard.php?section=chat'), 'chat'];
+        return $actions;
     }
 
     private function sectionEligibility(): array
     {
-        $service = new EligibilityService();
-        $answers = ['resident' => '', 'circ' => '', 'child' => ''];
+        $service = new EligibilityService($this->pdo);
+        $userId = (int) $this->user['id'];
+        $latest = $service->latestForUser($userId);
+        $answers = $latest['answers'] ?? ['resident' => '', 'circ' => '', 'child' => ''];
         $error = '';
-        $result = null;
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_require();
             $answers = $service->normalizeAnswers($_POST);
-            if ($service->missingAnswers($answers)) {
-                $error = 'Please answer all three questions to see your result.';
-            } else {
-                $result = $service->evaluate($answers);
+            if (!$service->missingAnswers($answers)) {
+                $service->record($answers, $userId);
+                $this->redirectTo('applicant/dashboard.php?section=eligibility&result=1');
             }
+            $error = 'Please answer all three questions to see your result.';
         }
+        $showResult = isset($_GET['result']) && $latest && $_SERVER['REQUEST_METHOD'] !== 'POST';
 
         return ['view' => 'eligibility.php', 'data' => [
             'answers' => $answers,
             'error' => $error,
-            'result' => $result,
+            'result' => $showResult ? $latest['result'] : null,
+            'checkedAt' => $latest['checkedAt'] ?? null,
+            'loggedIn' => true,
             'circumstances' => EligibilityService::circumstances(),
             'noneOption' => EligibilityService::NONE_OPTION,
             'applyUrl' => base_url('portal.php?tab=apply'),
@@ -199,39 +299,45 @@ class ApplicantController extends Controller
     private function sectionMyid(): array
     {
         $idApplication = $this->idApplication();
-        $idStatusUrl = null;
-        $idQrUri = null;
-        if ($idApplication) {
-            $idStatusUrl = base_url('portal.php?tab=status&ref=' . urlencode($idApplication['reference_no']));
-            $idQrUri = qr_code_data_uri($idStatusUrl);
-        }
+        // The same secure slip token as the application slip -- no reference number or personal data in the QR.
+        $slip = $idApplication ? (new QrSlipService($this->pdo))->slipFor($idApplication) : null;
         return ['view' => 'qr/my-id.php', 'data' => [
             'idApplication' => $idApplication,
             'idExpiryInfo' => $this->idExpiryInfo($idApplication),
-            'idStatusUrl' => $idStatusUrl,
-            'idQrUri' => $idQrUri,
+            'idQrUri' => $slip ? QrSlipService::qrImage($slip['token']) : null,
+            'idSlipCode' => $slip ? QrSlipService::slipCode($slip['token']) : null,
             'latestApplication' => $this->applications[0] ?? null,
         ]];
     }
 
     private function sectionNotifications(): array
     {
-        $notifications = new Notification($this->pdo);
-        $userId = (int) $this->user['id'];
-        $myNotifications = $notifications->forUser($userId);
-        if ($notifications->unreadCount($userId) > 0) {
-            $notifications->markAllRead($userId);
-            foreach ($myNotifications as &$n) {
-                $n['is_read'] = 1;
-            }
-            unset($n);
-        }
-        return ['view' => 'notifications/index.php', 'data' => ['myNotifications' => $myNotifications]];
+        return ['view' => 'notifications/index.php', 'data' => (new NotificationController($this->pdo))->handle($this->user, 'applicant/dashboard.php?section=notifications')];
     }
 
+    /** Chat Support: the Help Assistant, and hand-off to MSWDO staff who reply in the same thread. */
     private function sectionChat(): array
     {
-        return ['view' => 'chat/index.php', 'data' => ['faqs' => get_faqs($this->pdo)]];
+        $assistant = new HelpAssistantService($this->pdo);
+        $error = null;
+        $typed = '';
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            csrf_require();
+            $typed = is_string($_POST['message'] ?? null) ? $_POST['message'] : '';
+            $error = ($_POST['action'] ?? '') === 'handoff'
+                ? $assistant->requestStaff($this->user, $typed)
+                : $assistant->ask($this->user, $this->applications, $typed);
+            if (!$error) {
+                $this->redirectTo('applicant/dashboard.php?section=chat#chat-latest');
+            }
+        }
+        return ['view' => 'chat/index.php', 'data' => [
+            'thread' => $assistant->thread($this->user),
+            'awaitingStaff' => $assistant->awaitingStaff($this->user),
+            'chatError' => $error,
+            'typed' => $error ? $typed : '',
+            'faqs' => get_faqs($this->pdo),
+        ]];
     }
 
     private function sectionProfile(): array
@@ -239,74 +345,53 @@ class ApplicantController extends Controller
         $profileError = '';
         $profileSuccess = '';
 
+        $profiles = new ApplicantProfileService($this->pdo);
+        $formValues = null;
+
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_require();
             $action = (string) ($_POST['action'] ?? '');
             if ($action === 'update_info') {
-                [$profileError, $profileSuccess] = $this->updateInfo();
+                [$profileError, $profileSuccess] = $profiles->update($this->user, $_POST);
+                if ($profileError) {
+                    $formValues = $_POST; // redisplay what they typed
+                }
             } elseif ($action === 'change_password') {
                 [$profileError, $profileSuccess] = $this->changePassword();
             } elseif ($action === 'upload_photo') {
-                [$profileError, $profileSuccess] = $this->uploadPhoto();
+                [$profileError, $profileSuccess] = $profiles->uploadPhoto($this->user, $_FILES['photo'] ?? []);
+            } elseif ($action === 'remove_photo') {
+                [$profileError, $profileSuccess] = $profiles->removePhoto($this->user);
             }
+            $this->refreshUser();
         }
 
-        return ['view' => 'profile.php', 'data' => compact('profileError', 'profileSuccess')];
-    }
+        $saved = $profiles->profile((int) $this->user['id']) + [
+            'full_name' => $this->user['full_name'], 'email' => $this->user['email'], 'mobile' => $this->user['mobile'],
+        ];
+        $form = [];
+        foreach (['full_name', 'email', 'mobile', 'birthdate', 'sex', 'civil_status', 'barangay', 'address'] as $key) {
+            $form[$key] = $formValues !== null && is_string($formValues[$key] ?? null) ? $formValues[$key] : (string) ($saved[$key] ?? '');
+        }
 
-    /** @return array{0: string, 1: string} [error, success] */
-    private function updateInfo(): array
-    {
-        $fullName = trim((string) ($_POST['full_name'] ?? ''));
-        $email = trim((string) ($_POST['email'] ?? ''));
-        $mobile = trim((string) ($_POST['mobile'] ?? ''));
-        if ($fullName === '') {
-            return ['Enter your full name.', ''];
-        }
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            return ['Enter a valid email address.', ''];
-        }
-        if (!is_valid_ph_mobile($mobile)) {
-            return ['Enter a valid Philippine mobile number (e.g. 09171234567).', ''];
-        }
-        (new Applicant($this->pdo))->updateProfile((int) $this->user['id'], $fullName, $email, $mobile);
-        audit_log($this->pdo, (int) $this->user['id'], $fullName, $this->user['role'], 'Profile Updated');
-        $this->refreshUser();
-        return ['', 'Your profile has been updated.'];
+        return ['view' => 'profile.php', 'data' => [
+            'profileError' => $profileError,
+            'profileSuccess' => $profileSuccess,
+            'form' => $form,
+            'profileUpdatedAt' => $saved['updated_at'] ?? null,
+            'civilStatusOptions' => CIVIL_STATUS_OPTIONS,
+        ]];
     }
 
     /** @return array{0: string, 1: string} [error, success] */
     private function changePassword(): array
     {
-        $applicant = new Applicant($this->pdo);
-        $userId = (int) $this->user['id'];
-        $newPassword = (string) ($_POST['new_password'] ?? '');
-        if (!password_verify((string) ($_POST['current_password'] ?? ''), $applicant->passwordHash($userId))) {
-            return ['Current password is incorrect.', ''];
-        }
-        if (strlen($newPassword) < 6) {
-            return ['New password must be at least 6 characters.', ''];
-        }
-        $applicant->updatePasswordHash($userId, password_hash($newPassword, PASSWORD_DEFAULT));
-        audit_log($this->pdo, $userId, $this->user['full_name'], $this->user['role'], 'Password Changed');
-        return ['', 'Your password has been updated.'];
-    }
-
-    /** @return array{0: string, 1: string} [error, success] */
-    private function uploadPhoto(): array
-    {
-        $result = (new DocumentValidationService($this->pdo))->storeProfilePhoto($_FILES['photo'] ?? [], (int) $this->user['id']);
-        if (!$result['ok']) {
-            return [$result['error'], ''];
-        }
-        $oldPhoto = $this->user['profile_photo'];
-        (new Applicant($this->pdo))->setProfilePhoto((int) $this->user['id'], $result['relativePath']);
-        if ($oldPhoto && is_file(AVATAR_STORAGE_PATH . '/' . $oldPhoto)) {
-            @unlink(AVATAR_STORAGE_PATH . '/' . $oldPhoto);
-        }
-        audit_log($this->pdo, (int) $this->user['id'], $this->user['full_name'], $this->user['role'], 'Profile Photo Updated');
-        $this->refreshUser();
-        return ['', 'Your profile photo has been updated.'];
+        return (new AuthService($this->pdo))->changeOwnPassword(
+            $this->user,
+            (string) ($_POST['current_password'] ?? ''),
+            (string) ($_POST['new_password'] ?? ''),
+            (string) ($_POST['new_password_confirm'] ?? '')
+        );
     }
 
     private function refreshUser(): void

@@ -14,9 +14,11 @@
     <?php else: ?>
       <form method="post" class="d-flex flex-column gap-3">
         <?= csrf_field() ?>
-        <input class="form-control" type="text" name="identifier" placeholder="Username or mobile number" value="<?= e((string) ($_POST['identifier'] ?? '')) ?>" required>
-        <input class="form-control" type="text" name="code" placeholder="6-digit code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required>
-        <input class="form-control" type="password" name="new_password" placeholder="New password" minlength="6" required>
+        <input class="form-control" type="text" name="identifier" aria-label="Username or mobile number" placeholder="Username or mobile number" value="<?= e((string) ($_POST['identifier'] ?? '')) ?>" required>
+        <input class="form-control" type="text" name="code" aria-label="6-digit reset code" placeholder="6-digit code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required>
+        <input class="form-control" type="password" name="new_password" aria-label="New password" placeholder="New password" minlength="<?= PASSWORD_MIN_LENGTH ?>" autocomplete="new-password" required>
+        <input class="form-control" type="password" name="new_password_confirm" aria-label="Confirm new password" placeholder="Confirm new password" minlength="<?= PASSWORD_MIN_LENGTH ?>" autocomplete="new-password" required>
+        <div style="font-size:12px;color:var(--faint);margin-top:-6px">At least <?= PASSWORD_MIN_LENGTH ?> characters, with at least one letter and one number.</div>
         <button type="submit" class="btn-navy">Reset password</button>
       </form>
       <a href="<?= base_url('forgot-password.php') ?>" style="display:inline-block;font-size:13px;margin-top:12px">Didn't get a code? Request a new one</a>

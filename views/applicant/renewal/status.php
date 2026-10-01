@@ -1,5 +1,9 @@
 <?php
-/** @var ?array $latestRenewal */
+/**
+ * @var ?array $latestRenewal
+ * @var ?array $renewalTracker  ApplicationTrackerService::track() for it
+ * @var array  $user
+ */
 ?>
         <?php if (!$latestRenewal): ?>
           <div class="dash-card">
@@ -15,7 +19,8 @@
               <div class="status-pill" style="background:<?= e($st['bg']) ?>;color:<?= e($st['color']) ?>"><?= e($latestRenewal['status']) ?></div>
             </div>
             <?php if ($latestRenewal['interview_at']): ?>
-              <div class="info-box" style="max-width:none;margin-bottom:0">📅 Interview scheduled for <b><?= e(date('F j, Y g:i A', strtotime($latestRenewal['interview_at']))) ?></b> at <?= e($latestRenewal['interview_location']) ?>.</div>
+              <div class="info-box" style="max-width:none"><?= appointment_summary_html($latestRenewal) ?></div>
             <?php endif; ?>
+            <?php $tracker = $renewalTracker; $trackerUserId = (int) $user['id']; require APP_ROOT . '/views/applicant/application/tracker.php'; ?>
           </div>
         <?php endif; ?>

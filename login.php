@@ -8,7 +8,7 @@ extract((new AuthController($pdo))->handleApplicantAuth('login'));
 $loginTabUrl = base_url('login.php');
 $signupTabUrl = base_url('register.php');
 
-$pageTitle = 'Log In — ' . APP_NAME;
+$pageTitle = 'Log In — ' . setting('system_name');
 require __DIR__ . '/includes/header.php';
 ?>
 <div class="portal-container" style="max-width:460px">

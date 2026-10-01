@@ -32,25 +32,6 @@ function current_staff(PDO $pdo): ?array
     return (new AuthService($pdo))->currentStaff();
 }
 
-function require_staff_login(PDO $pdo): array
-{
-    $staff = current_staff($pdo);
-    if (!$staff) {
-        redirect(base_url('admin/login.php'));
-    }
-    return $staff;
-}
-
-/** Stricter than require_staff_login(): only the 'admin' role may pass. MSWD workers are bounced back to their own dashboard. */
-function require_admin_login(PDO $pdo): array
-{
-    $staff = require_staff_login($pdo);
-    if ($staff['role'] !== 'admin') {
-        redirect(base_url('staff/dashboard.php'));
-    }
-    return $staff;
-}
-
 function login_staff(array $user): void
 {
     (new AuthService($GLOBALS['pdo']))->loginStaff($user);

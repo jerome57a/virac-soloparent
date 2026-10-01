@@ -32,7 +32,8 @@ $invalid = fn(string $key) => isset($errors[$key]) ? 'is-invalid' : '';
 
     <label class="field-label">
       <span>Mobile number *</span>
-      <input type="tel" name="contact" placeholder="09XX XXX XXXX" value="<?= e($draft['contact']) ?>" inputmode="tel" autocomplete="tel" class="<?= $invalid('contact') ?>">
+      <input type="tel" value="<?= e($draft['contact']) ?>" readonly aria-readonly="true" class="<?= $invalid('contact') ?>">
+      <span class="field-hint">Your confirmed account number — application updates are texted here. To use a different number, <a href="<?= base_url('applicant/dashboard.php?section=profile') ?>">change it on My Profile</a>.</span>
       <?php if (!empty($errors['contact'])): ?><span class="field-error"><?= e($errors['contact']) ?></span><?php endif; ?>
     </label>
 
@@ -83,6 +84,7 @@ $invalid = fn(string $key) => isset($errors[$key]) ? 'is-invalid' : '';
   </div>
 
   <div class="form-nav-buttons">
+    <button type="submit" name="action" value="save_draft" formnovalidate class="btn-outline">Save &amp; finish later</button>
     <button type="submit" name="action" value="continue" class="btn-navy">Continue</button>
   </div>
 </form>

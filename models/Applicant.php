@@ -11,52 +11,39 @@ class Applicant extends User
         return $stmt->fetch() ?: null;
     }
 
-    /**
-     * Staff applicant-records search by name/username/email/mobile and/or
-     * any application's barangay. Returns ['rows', ...paginate() fields];
-     * each row carries app_count and last_submitted.
-     */
-    public function search(string $q, string $barangay, int $page, int $perPage): array
+    /** Contact details kept on the account (users): name, email, mobile. */
+    public function updateContact(int $userId, string $fullName, string $email, string $mobile): void
     {
-        $where = "u.role = 'applicant'";
-        $params = [];
-        if ($q !== '') {
-            $where .= ' AND (u.full_name LIKE ? OR u.username LIKE ? OR u.email LIKE ? OR u.mobile LIKE ?)';
-            array_push($params, "%$q%", "%$q%", "%$q%", "%$q%");
-        }
-        if ($barangay !== '') {
-            $where .= ' AND EXISTS (SELECT 1 FROM applications a2 WHERE a2.user_id = u.id AND a2.barangay LIKE ?)';
-            $params[] = "%$barangay%";
-        }
-
-        $countStmt = $this->pdo->prepare("SELECT COUNT(*) FROM users u WHERE $where");
-        $countStmt->execute($params);
-        $pager = paginate((int) $countStmt->fetchColumn(), $page, $perPage);
-
-        $stmt = $this->pdo->prepare(
-            "SELECT u.*,
-               (SELECT COUNT(*) FROM applications a WHERE a.user_id = u.id) AS app_count,
-               (SELECT MAX(a.submitted_at) FROM applications a WHERE a.user_id = u.id) AS last_submitted
-             FROM users u WHERE $where ORDER BY u.full_name LIMIT {$pager['perPage']} OFFSET {$pager['offset']}"
-        );
-        $stmt->execute($params);
-        return ['rows' => $stmt->fetchAll()] + $pager;
+        // A changed number is no longer confirmed (mobile_verified_at is assigned before mobile, so it compares with
+        // the old number; either stored form of the same number counts as unchanged).
+        $mobile = normalize_mobile($mobile);
+        [$as0, $as63] = mobile_variants($mobile);
+        $this->pdo->prepare(
+            'UPDATE users SET full_name = ?, email = ?, mobile_verified_at = IF(mobile IN (?, ?), mobile_verified_at, NULL),
+                              mobile_code = IF(mobile IN (?, ?), mobile_code, NULL), mobile = ? WHERE id = ?'
+        )->execute([$fullName, $email, $as0, $as63, $as0, $as63, $mobile, $userId]);
     }
 
-    public function updateProfile(int $userId, string $fullName, string $email, string $mobile): void
+    /** The applicant's personal/address profile (applicants row), created empty on first use. */
+    public function profile(int $userId): array
     {
-        $this->pdo->prepare('UPDATE users SET full_name = ?, email = ?, mobile = ? WHERE id = ?')
-            ->execute([$fullName, $email, $mobile, $userId]);
-    }
-
-    public function passwordHash(int $userId): string
-    {
-        $stmt = $this->pdo->prepare('SELECT password_hash FROM users WHERE id = ?');
+        $this->ensureApplicantProfile($userId);
+        $stmt = $this->pdo->prepare('SELECT birthdate, sex, civil_status, barangay, address, updated_at FROM applicants WHERE user_id = ?');
         $stmt->execute([$userId]);
-        return (string) $stmt->fetchColumn();
+        return $stmt->fetch();
     }
 
-    public function setProfilePhoto(int $userId, string $relativePath): void
+    /** Blank values are stored as NULL ("not provided yet"). */
+    public function updatePersonal(int $userId, ?string $birthdate, ?string $sex, ?string $civilStatus, ?string $barangay, ?string $address): void
+    {
+        $this->ensureApplicantProfile($userId);
+        $this->pdo->prepare('UPDATE applicants SET birthdate = ?, sex = ?, civil_status = ?, barangay = ?, address = ? WHERE user_id = ?')
+            ->execute([$birthdate, $sex, $civilStatus, $barangay, $address, $userId]);
+    }
+
+    /** True if another account already uses this mobile number. */
+
+    public function setProfilePhoto(int $userId, ?string $relativePath): void
     {
         $this->pdo->prepare('UPDATE users SET profile_photo = ? WHERE id = ?')->execute([$relativePath, $userId]);
     }

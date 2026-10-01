@@ -28,12 +28,12 @@
               <option value="<?= (int) $c['id'] ?>"><?= e($c['name']) ?></option>
             <?php endforeach; ?>
           </select>
-          <input class="form-control" type="text" name="doc_key" placeholder="Doc key (e.g. medCert2)" required>
-          <input class="form-control" type="text" name="label" placeholder="Requirement label" required>
+          <input class="form-control" type="text" name="doc_key" aria-label="Document key" maxlength="50" pattern="[A-Za-z0-9_]+" placeholder="Doc key (e.g. medCert2)" required>
+          <input class="form-control" type="text" name="label" aria-label="Requirement label" maxlength="255" placeholder="Requirement label" required>
           <label class="d-flex align-items-center gap-2" style="font-size:13px">
             <input type="checkbox" name="is_required" value="1" checked> Required (not optional)
           </label>
-          <input class="form-control" type="number" name="sort_order" value="0" placeholder="Sort order">
+          <input class="form-control" type="number" name="sort_order" aria-label="Sort order" value="0" min="0" max="9999" placeholder="Sort order">
           <button type="submit" class="btn-navy">Add Requirement</button>
         </form>
       </div>
@@ -53,11 +53,11 @@
             <input type="hidden" name="action" value="update">
             <input type="hidden" name="req_id" value="<?= (int) $r['id'] ?>">
             <span style="font-size:12px;color:var(--faint);min-width:100px"><?= e($r['doc_key']) ?></span>
-            <input class="form-control" type="text" name="label" value="<?= e($r['label']) ?>" style="flex:1 1 200px;padding:8px;border:1px solid var(--input-border);border-radius:6px;font-size:13px">
+            <input class="form-control" type="text" name="label" maxlength="255" required value="<?= e($r['label']) ?>" style="flex:1 1 200px;padding:8px;border:1px solid var(--input-border);border-radius:6px;font-size:13px">
             <label class="d-flex align-items-center gap-1" style="font-size:12px">
               <input type="checkbox" name="is_required" value="1" <?= $r['is_required'] ? 'checked' : '' ?>> Required
             </label>
-            <input class="form-control" type="number" name="sort_order" value="<?= (int) $r['sort_order'] ?>" style="width:70px;padding:8px;border:1px solid var(--input-border);border-radius:6px;font-size:13px">
+            <input class="form-control" type="number" name="sort_order" min="0" max="9999" value="<?= (int) $r['sort_order'] ?>" style="width:70px;padding:8px;border:1px solid var(--input-border);border-radius:6px;font-size:13px">
             <button type="submit" class="btn-outline" style="padding:6px 12px;font-size:12px">Save</button>
           </form>
           <form method="post" class="mt-2" onsubmit="return confirm('Remove this requirement?');">

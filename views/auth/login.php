@@ -5,8 +5,9 @@
  * register.php, which pass their own tab URLs.
  *
  * @var string $authMode    'login' | 'signup'
- * @var string $authError
- * @var array  $oldSignup
+ * @var string  $authError
+ * @var ?string $authNotice  one-time notice, e.g. session expired
+ * @var array   $oldSignup
  * @var string $loginTabUrl
  * @var string $signupTabUrl
  */
@@ -17,6 +18,9 @@
     <a href="<?= e($signupTabUrl) ?>" class="auth-tab text-decoration-none text-center <?= $authMode === 'signup' ? 'active' : '' ?>">Create Account</a>
   </div>
 
+  <?php if (!empty($authNotice)): ?>
+    <div class="info-box" style="max-width:none"><?= e($authNotice) ?></div>
+  <?php endif; ?>
   <?php if ($authError): ?>
     <div class="auth-error"><?= e($authError) ?></div>
   <?php endif; ?>
@@ -27,8 +31,8 @@
     <form method="post" class="d-flex flex-column gap-3">
       <?= csrf_field() ?>
       <input type="hidden" name="action" value="login">
-      <input class="form-control" type="text" name="username" placeholder="Username" required>
-      <input class="form-control" type="password" name="password" placeholder="Password" required>
+      <input class="form-control" type="text" name="username" aria-label="Username or mobile number" placeholder="Username or mobile number" autocomplete="username" required>
+      <input class="form-control" type="password" name="password" aria-label="Password" placeholder="Password" autocomplete="current-password" required>
       <button type="submit" class="btn-navy">Log In</button>
     </form>
     <a href="<?= base_url('forgot-password.php') ?>" style="display:inline-block;font-size:13px;margin-top:12px">Forgot password?</a>
