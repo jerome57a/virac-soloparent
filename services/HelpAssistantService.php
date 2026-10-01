@@ -39,7 +39,6 @@ class HelpAssistantService
         'appointment' => ['Appointment', 'applicant/dashboard.php?section=appointment'],
         'renewal' => ['ID Renewal', 'applicant/dashboard.php?section=renewal'],
         'myid' => ['My Solo Parent ID', 'applicant/dashboard.php?section=myid'],
-        'eligibility' => ['Eligibility Checker (preliminary)', 'applicant/dashboard.php?section=eligibility'],
         'apply' => ['Apply', 'portal.php?tab=apply'],
         'profile' => ['My Profile', 'applicant/dashboard.php?section=profile'],
         'notifications' => ['Notifications', 'applicant/dashboard.php?section=notifications'],
@@ -330,15 +329,15 @@ class HelpAssistantService
         $categories = $this->pdo->query('SELECT name FROM categories ORDER BY sort_order, name')->fetchAll(PDO::FETCH_COLUMN);
         $text = 'A solo parent who lives in Virac, Catanduanes and alone provides parental care to a child (below 22, or of any age if the child has a disability) '
             . 'may apply under one of these circumstances (RA 8972 / RA 11861):' . "\n- " . implode("\n- ", $categories)
-            . "\n\nThe Eligibility Checker gives a preliminary, non-binding result. " . self::DISCLAIMER;
-        return $this->reply('criteria', $text, ['eligibility', 'apply'], ['documents', 'application']);
+            . "\n\n" . self::DISCLAIMER;
+        return $this->reply('criteria', $text, ['apply'],['documents', 'application']);
     }
 
     // The guardrail: never decides, always the same position.
     private function decisionAnswer(array $applications): array
     {
         $text = "I can't tell you whether you are eligible or whether you will be approved. " . self::DISCLAIMER;
-        $links = ['eligibility'];
+        $links = [];
         $app = $this->currentApplication($applications);
         if ($app) {
             $text .= "\n\nWhat is recorded so far: your " . self::typeLabel($app) . ' ' . $app['reference_no'] . ' has the status "' . $app['status'] . '".';
@@ -347,7 +346,7 @@ class HelpAssistantService
             }
             $links[] = 'status';
         } else {
-            $text .= "\n\nYou can use the Eligibility Checker for a preliminary, non-binding result, then apply online. MSWD staff will assess your application and documents.";
+            $text .= "\n\nYou can apply online; MSWD staff will assess your application and documents.";
             $links[] = 'apply';
         }
         return $this->reply('decision', $text, $links, ['documents', 'status', 'application']);
@@ -364,7 +363,7 @@ class HelpAssistantService
             } else {
                 $text .= ' Open Apply to start one; you can save your progress and come back later.';
             }
-            return $this->reply('status', $text, ['apply', 'eligibility'], ['application', 'documents']);
+            return $this->reply('status', $text, ['apply'],['application', 'documents']);
         }
 
         $track = (new ApplicationTrackerService($this->pdo))->track($app);
@@ -520,8 +519,7 @@ class HelpAssistantService
         if ($draft) {
             $text .= "\n\nYou have a saved draft (last saved " . self::date($draft['updated_at'], true) . ', step ' . (int) ($draft['data']['step'] ?? 1) . ' of 4).';
         }
-        $text .= "\n\nNot sure if you qualify? The Eligibility Checker gives a preliminary, non-binding result; MSWD staff make the official assessment.";
-        return $this->reply('application', $text, ['apply', 'eligibility'], ['documents', 'decision']);
+        return $this->reply('application', $text, ['apply'],['documents', 'decision']);
     }
 
     private function myIdAnswer(array $applications): array

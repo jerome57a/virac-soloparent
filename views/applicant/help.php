@@ -7,12 +7,10 @@
  */
 $links = [
     ['section=chat', 'Chat Support', 'Ask the Help Assistant, or send your question to an MSWDO social worker.'],
-    ['section=eligibility', 'Eligibility Checker', 'Three quick questions to see whether you may qualify.'],
     ['section=application', $hasApplication ? 'Track my application' : 'Apply online', $hasApplication ? 'See where your application is and what to do next.' : 'Start your Solo Parent ID application.'],
     ['section=news', 'News & Announcements', 'Office schedules, payouts and program updates.'],
 ];
 $steps = [
-    ['Check eligibility', 'Answer the Eligibility Checker (optional, but it tells you which documents you will need).'],
     ['Apply online', 'Fill in the form and upload your documents (JPG, PNG or PDF). Your draft is saved, so you can finish later.'],
     ['Book an appointment', 'Pick an interview slot. You will get an SMS confirmation and a reminder before the date.'],
     ['Track your status', 'MSWD reviews your documents. If something needs correcting you are notified and can re-upload it here.'],

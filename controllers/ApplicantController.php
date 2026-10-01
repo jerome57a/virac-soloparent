@@ -28,7 +28,6 @@ class ApplicantController extends Controller
 {
     private const SECTION_TITLES = [
         'dashboard'     => 'Dashboard',
-        'eligibility'   => 'Eligibility Checker',
         'application'   => 'My Application',
         'renewal'       => 'ID Renewal',
         'myid'          => 'My Solo Parent ID',
@@ -59,6 +58,10 @@ class ApplicantController extends Controller
         if ($section === 'settings') {
             $this->redirectTo('applicant/dashboard.php?section=profile');
         }
+        // The Eligibility Checker is a public, pre-application step (eligibility.php); old dashboard links land on the dashboard.
+        if ($section === 'eligibility') {
+            $this->redirectTo('applicant/dashboard.php');
+        }
         if (!isset(self::SECTION_TITLES[$section])) {
             $section = 'dashboard';
         }
@@ -83,9 +86,6 @@ class ApplicantController extends Controller
             case 'renewal':
                 $result = (new RenewalController($this->pdo))->handle($this->user, $this->applications);
                 $title = $result['title'];
-                break;
-            case 'eligibility':
-                $result = $this->sectionEligibility();
                 break;
             case 'news':
                 $result = $this->sectionNews();
@@ -222,9 +222,6 @@ class ApplicantController extends Controller
         if ($draft) {
             $actions[] = ['Continue My Application', base_url('portal.php?tab=apply'), 'apply'];
         } elseif (!$latest || $latest['status'] === 'Rejected') {
-            if (!$latest) {
-                $actions[] = ['Check Eligibility', base_url('applicant/dashboard.php?section=eligibility'), 'check'];
-            }
             $actions[] = ['Apply for Solo Parent ID', base_url('portal.php?tab=apply'), 'apply'];
         }
         if ($latest && $latest['status'] === 'For Revision') {
@@ -242,39 +239,6 @@ class ApplicantController extends Controller
         $actions[] = ['Notifications', base_url('applicant/dashboard.php?section=notifications'), 'bell'];
         $actions[] = ['Chat Support', base_url('applicant/dashboard.php?section=chat'), 'chat'];
         return $actions;
-    }
-
-    private function sectionEligibility(): array
-    {
-        $service = new EligibilityService($this->pdo);
-        $userId = (int) $this->user['id'];
-        $latest = $service->latestForUser($userId);
-        $answers = $latest['answers'] ?? ['resident' => '', 'circ' => '', 'child' => ''];
-        $error = '';
-
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            csrf_require();
-            $answers = $service->normalizeAnswers($_POST);
-            if (!$service->missingAnswers($answers)) {
-                $service->record($answers, $userId);
-                $this->redirectTo('applicant/dashboard.php?section=eligibility&result=1');
-            }
-            $error = 'Please answer all three questions to see your result.';
-        }
-        $showResult = isset($_GET['result']) && $latest && $_SERVER['REQUEST_METHOD'] !== 'POST';
-
-        return ['view' => 'eligibility.php', 'data' => [
-            'answers' => $answers,
-            'error' => $error,
-            'result' => $showResult ? $latest['result'] : null,
-            'checkedAt' => $latest['checkedAt'] ?? null,
-            'loggedIn' => true,
-            'circumstances' => EligibilityService::circumstances(),
-            'noneOption' => EligibilityService::NONE_OPTION,
-            'applyUrl' => base_url('portal.php?tab=apply'),
-            'formAction' => base_url('applicant/dashboard.php?section=eligibility'),
-            'restartUrl' => base_url('applicant/dashboard.php?section=eligibility'),
-        ]];
     }
 
     private function sectionNews(): array

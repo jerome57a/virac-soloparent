@@ -115,7 +115,7 @@ Settings. (The old `database/send_*_reminders.php` paths still work.)
 - **It never decides.** Any question about eligibility, approval or
   rejection gets the same answer: the assistant can't say, *official
   decisions are made only by MSWD staff*, plus what is recorded so far and
-  the preliminary (non-binding) Eligibility Checker. The same notice is
+  a link to apply. The same notice is
   shown above the chat.
 - **Ask MSWDO staff** hands the conversation to MSWD social workers
   (permission `chat.respond`), who are notified once per open request and
@@ -157,7 +157,7 @@ a raw `?id=`/`?user_id=` parameter for authorization.
   Online, My Applications, Check Status) per the design handoff, plus a
   dedicated fixed-sidebar, mobile-first **Dashboard** (`applicant/dashboard.php`) for
   logged-in applicants covering every stage of the process: Dashboard home,
-  Eligibility Checker, Apply, My Application, Upload Documents, Appointment,
+  Apply, My Application, Upload Documents, Appointment,
   ID Renewal, My Solo Parent ID, News & Announcements, Notifications, Chat
   Support, and Profile.
 - The 4-step application (Personal Info → Children → Documents → Review),
@@ -165,9 +165,13 @@ a raw `?id=`/`?user_id=` parameter for authorization.
   session/temp storage until final submit, at which point real
   `applications` / `application_children` / `application_documents` rows
   are created in one DB transaction.
-- **Eligibility Checker** (`applicant/dashboard.php?section=eligibility`, also on the
-  public Overview tab): a 3-question guided check with an instant result —
-  never the final legal determination, which stays with MSWD.
+- **Eligibility Checker** (`eligibility.php`, linked from the public Overview
+  tab): a 3-question pre-application check with an instant result — never
+  the final legal determination, which stays with MSWD. It is public only:
+  the applicant dashboard has no eligibility step (old
+  `?section=eligibility` links go to the dashboard), and a check made
+  before logging in or registering is attached to the account and shown on
+  the dashboard until an application exists.
 - **Application status tracker**: each application shows a 6-step visual
   progress bar (`application_stage_info()` in `includes/functions.php`)
   mapped from `applications.status` — Eligibility Check → Application
@@ -470,6 +474,7 @@ existing rows are always untouched. Run them in order, once each:
 "C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_step27_security.sql
 "C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_step30_mobile.sql
 "C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_step31_sms_events.sql
+"C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_step33_faqs.sql
 ```
 **Never** run `schema.sql` itself against a database with real data —
 it hardcodes `DROP DATABASE IF EXISTS virac_solo_parent`, so doing so
@@ -611,7 +616,7 @@ What changed:
   response was a download. Opt out per form with `data-no-loading`.
 - **Help & Support** is a real page (it was a "coming soon" placeholder):
   the MSWDO's contact details and office hours from System Settings, links
-  to Chat Support, the Eligibility Checker, application tracking and news,
+  to Chat Support, applying or application tracking, and news,
   and a five-step "how it works". The applicant menu's **Settings** entry
   (also a placeholder) is gone — everything an applicant can change lives
   on My Profile, and old links go there.
@@ -692,7 +697,7 @@ regression run covers every listed suite.
 | Mobile-linked authentication | `verify-mobile.php`, `AuthService` (codes), sign-in by confirmed mobile, SMS reset codes | `s30mobile`, `s3auth`, `s27security` |
 | Online application | `portal.php?tab=apply` (4 steps, saved drafts) | `s8apply`, `s29flow` |
 | Digital document submission | Application step 3, Upload Documents, re-upload after correction | `s9docs`, `s10verify`, `s29flow` |
-| Eligibility checker | `eligibility.php`, dashboard Eligibility section | `s7elig` |
+| Eligibility checker | `eligibility.php` (public, before login) | `s7elig` |
 | Automated document validation | `DocumentValidationService` (type, real content, size, completeness per category) | `s9docs` |
 | Online renewal | Dashboard ID Renewal (`RenewalService`) | `s14renew` |
 | Automatic renewal reminder | `cron/renewal-reminders.php` (SMS + in-app, before and after expiry) | `s15remind` |
