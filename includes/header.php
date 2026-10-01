@@ -17,8 +17,6 @@ if (!empty($user)) {
     $navLoggedIn = false;
     $navAccountUrl = base_url('portal.php?tab=login');
 }
-
-$navApplicationOpen = in_array($tab ?? '', ['apply', 'status', 'myapps'], true);
 ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -167,48 +165,38 @@ $navApplicationOpen = in_array($tab ?? '', ['apply', 'status', 'myapps'], true);
         </button>
       </form>
     <?php else: ?>
+    <?php
+    // Public navigation only. Applicant-only tools (applications, renewal, ID,
+    // documents, notifications, profile, help) live in the applicant dashboard sidebar.
+    $navScript = basename($_SERVER['SCRIPT_NAME'] ?? '');
+    $navOnPortal = $navScript === 'portal.php';
+    ?>
     <div class="nav-drawer-section-label">Main</div>
 
-    <?php // Signed-in applicants go to their own dashboard; visitors get the public portal overview. ?>
-    <a href="<?= base_url(!empty($user) ? 'applicant/dashboard.php' : 'portal.php?tab=overview') ?>" class="nav-drawer-link nav-drawer-link-icon <?= empty($user) && ($tab ?? '') === 'overview' ? 'active' : '' ?>">
+    <a href="<?= base_url('portal.php?tab=overview') ?>" class="nav-drawer-link nav-drawer-link-icon <?= $navOnPortal && ($tab ?? '') === 'overview' ? 'active' : '' ?>">
       <svg class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>
-      <span>Dashboard</span>
+      <span>Home</span>
     </a>
 
-    <div class="nav-drawer-group">
-      <button type="button" class="nav-drawer-toggle nav-drawer-link-icon <?= $navApplicationOpen ? 'open' : '' ?>" id="nav-application-toggle" aria-expanded="<?= $navApplicationOpen ? 'true' : 'false' ?>" aria-controls="nav-application-submenu">
-        <svg class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
-        <span>My Application</span>
-        <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-      </button>
-      <div class="nav-drawer-submenu <?= $navApplicationOpen ? 'open' : '' ?>" id="nav-application-submenu">
-        <a href="<?= base_url('portal.php?tab=apply') ?>" class="nav-drawer-link <?= ($tab ?? '') === 'apply' ? 'active' : '' ?>">Apply for Solo Parent ID</a>
-        <a href="<?= base_url('portal.php?tab=status') ?>" class="nav-drawer-link <?= ($tab ?? '') === 'status' ? 'active' : '' ?>">Application Status</a>
-        <a href="<?= base_url('portal.php?tab=myapps') ?>" class="nav-drawer-link <?= ($tab ?? '') === 'myapps' ? 'active' : '' ?>">Application History</a>
-      </div>
-    </div>
+    <a href="<?= base_url('eligibility.php') ?>" class="nav-drawer-link nav-drawer-link-icon <?= $navScript === 'eligibility.php' ? 'active' : '' ?>">
+      <svg class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      <span>Eligibility Checker</span>
+    </a>
 
-    <div class="nav-drawer-group">
-      <button type="button" class="nav-drawer-toggle nav-drawer-link-icon" id="nav-renewal-toggle" aria-expanded="false" aria-controls="nav-renewal-submenu">
-        <svg class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg>
-        <span>ID Renewal</span>
-        <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-      </button>
-      <div class="nav-drawer-submenu" id="nav-renewal-submenu">
-        <a href="<?= base_url('applicant/dashboard.php?section=renewal&type=new') ?>" class="nav-drawer-link">Renew ID</a>
-        <a href="<?= base_url('applicant/dashboard.php?section=renewal&type=status') ?>" class="nav-drawer-link">Renewal Status</a>
-        <a href="<?= base_url('applicant/dashboard.php?section=renewal&type=history') ?>" class="nav-drawer-link">Renewal History</a>
-      </div>
-    </div>
+    <?php // Signed-in applicants apply inside their dashboard layout; visitors get the public log-in prompt. ?>
+    <a href="<?= base_url(!empty($user) ? 'applicant/dashboard.php?section=apply' : 'portal.php?tab=apply') ?>" class="nav-drawer-link nav-drawer-link-icon <?= $navOnPortal && ($tab ?? '') === 'apply' ? 'active' : '' ?>">
+      <svg class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+      <span>Apply for Solo Parent ID</span>
+    </a>
 
-    <a href="<?= base_url('applicant/dashboard.php?section=myid') ?>" class="nav-drawer-link nav-drawer-link-icon">
-      <svg class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="12" r="2"/><line x1="14" y1="10" x2="18" y2="10"/><line x1="14" y1="14" x2="18" y2="14"/></svg>
-      <span>My Solo Parent ID</span>
+    <a href="<?= base_url('portal.php?tab=status') ?>" class="nav-drawer-link nav-drawer-link-icon <?= $navOnPortal && ($tab ?? '') === 'status' ? 'active' : '' ?>">
+      <svg class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <span>Track Application</span>
     </a>
 
     <div class="nav-drawer-section-label">Information</div>
 
-    <a href="<?= base_url('portal.php?tab=news') ?>" class="nav-drawer-link nav-drawer-link-icon <?= ($tab ?? '') === 'news' ? 'active' : '' ?>">
+    <a href="<?= base_url('portal.php?tab=news') ?>" class="nav-drawer-link nav-drawer-link-icon <?= $navOnPortal && ($tab ?? '') === 'news' ? 'active' : '' ?>">
       <svg class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M4 4h12v14a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2V4z"/>
         <path d="M18 8h2a2 2 0 0 1 2 2v9a1 1 0 0 1-1 1H8"/>
@@ -220,26 +208,12 @@ $navApplicationOpen = in_array($tab ?? '', ['apply', 'status', 'myapps'], true);
       <?php if ($unreadAnnouncementCount > 0): ?><span class="nav-drawer-badge"><?= (int) $unreadAnnouncementCount ?></span><?php endif; ?>
     </a>
 
-    <a href="<?= base_url('applicant/dashboard.php?section=documents') ?>" class="nav-drawer-link nav-drawer-link-icon">
-      <svg class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
-      <span>My Documents</span>
-    </a>
-
-    <a href="<?= base_url('applicant/dashboard.php?section=notifications') ?>" class="nav-drawer-link nav-drawer-link-icon">
-      <svg class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
-      <span>Notifications</span>
-    </a>
-
     <div class="nav-drawer-section-label">Account</div>
 
     <?php if (!empty($user)): ?>
-      <a href="<?= base_url('applicant/dashboard.php?section=profile') ?>" class="nav-drawer-link nav-drawer-link-icon">
+      <a href="<?= base_url('applicant/dashboard.php') ?>" class="nav-drawer-link nav-drawer-link-icon">
         <svg class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-        <span>My Profile</span>
-      </a>
-      <a href="<?= base_url('applicant/dashboard.php?section=help') ?>" class="nav-drawer-link nav-drawer-link-icon">
-        <svg class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 2-3 4"/><line x1="12" y1="17" x2="12" y2="17.01"/></svg>
-        <span>Help &amp; Support</span>
+        <span>My Dashboard</span>
       </a>
       <form method="post" action="<?= base_url('logout.php') ?>" class="nav-drawer-logout-form">
         <?= csrf_field() ?>
@@ -249,9 +223,13 @@ $navApplicationOpen = in_array($tab ?? '', ['apply', 'status', 'myapps'], true);
         </button>
       </form>
     <?php else: ?>
-      <a href="<?= base_url('portal.php?tab=login') ?>" class="nav-drawer-link nav-drawer-link-icon">
-        <svg class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-        <span>Log In / Create Account</span>
+      <a href="<?= base_url('login.php') ?>" class="nav-drawer-link nav-drawer-link-icon <?= $navScript === 'login.php' ? 'active' : '' ?>">
+        <svg class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+        <span>Login</span>
+      </a>
+      <a href="<?= base_url('register.php') ?>" class="nav-drawer-link nav-drawer-link-icon <?= $navScript === 'register.php' ? 'active' : '' ?>">
+        <svg class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+        <span>Register</span>
       </a>
     <?php endif; ?>
     <?php endif; ?>
