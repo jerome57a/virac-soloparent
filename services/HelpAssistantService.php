@@ -39,7 +39,7 @@ class HelpAssistantService
         'appointment' => ['Appointment', 'applicant/dashboard.php?section=appointment'],
         'renewal' => ['ID Renewal', 'applicant/dashboard.php?section=renewal'],
         'myid' => ['My Solo Parent ID', 'applicant/dashboard.php?section=myid'],
-        'apply' => ['Apply', 'portal.php?tab=apply'],
+        'apply' => ['Apply', 'applicant/dashboard.php?section=apply'],
         'profile' => ['My Profile', 'applicant/dashboard.php?section=profile'],
         'notifications' => ['Notifications', 'applicant/dashboard.php?section=notifications'],
         'news' => ['News & Announcements', 'applicant/dashboard.php?section=news'],

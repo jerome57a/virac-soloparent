@@ -82,7 +82,7 @@ $notifIcons = [
             <div style="font-size:14px;color:var(--muted);margin:8px 0 14px">Start your Solo Parent ID application online in a few easy steps.</div>
           <?php endif; ?>
           <div class="d-flex flex-wrap gap-2">
-            <a href="<?= base_url('portal.php?tab=apply') ?>" class="btn-red text-decoration-none">Apply Online Now</a>
+            <a href="<?= base_url('applicant/dashboard.php?section=apply') ?>" class="btn-red text-decoration-none">Apply Online Now</a>
           </div>
         </div>
       <?php endif; ?>

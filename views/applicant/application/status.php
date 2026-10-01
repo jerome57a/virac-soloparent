@@ -10,7 +10,7 @@
       <?php if (!$myApplications && !$applicationDraft): ?>
         <div class="dash-card">
           <div style="font-size:14px;color:var(--muted);margin-bottom:14px">You have not submitted any applications yet.</div>
-          <a href="<?= base_url('portal.php?tab=apply') ?>" class="btn-red text-decoration-none">Apply Online Now</a>
+          <a href="<?= base_url('applicant/dashboard.php?section=apply') ?>" class="btn-red text-decoration-none">Apply Online Now</a>
         </div>
       <?php else: ?>
         <?php foreach ($myApplications as $app): $st = status_style($app['status']); ?>

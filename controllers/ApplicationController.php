@@ -26,14 +26,22 @@ class ApplicationController extends Controller
         ]];
     }
 
-    /** Portal "Apply" tab: the 4-step wizard. Renders into the portal page. */
+    /** Where the application wizard lives: inside the applicant dashboard layout. */
+    private const APPLY_URL = 'applicant/dashboard.php?section=apply';
+
+    /** Portal "Apply" tab: visitors are asked to log in; signed-in applicants apply from their dashboard. */
     public function apply(?array $user): void
     {
         if (!$user) {
             $this->render('views/applicant/application/login-required.php', ['message' => 'to start your application.']);
             return;
         }
+        $this->redirectTo(self::APPLY_URL);
+    }
 
+    /** Dashboard "Apply for Solo Parent ID" section: the 4-step wizard. */
+    public function applySection(array $user): array
+    {
         $service = new ApplicationService($this->pdo);
 
         // One active application at a time: no new wizard (and no draft actions) while one exists.
@@ -42,8 +50,7 @@ class ApplicationController extends Controller
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 csrf_require();
             }
-            $this->render('views/applicant/application/blocked.php', ['app' => $blocking]);
-            return;
+            return ['view' => 'application/blocked.php', 'data' => ['app' => $blocking]];
         }
 
         $draft = $service->getDraft($user);
@@ -66,7 +73,7 @@ class ApplicationController extends Controller
         }
         $errCount = count($errors);
 
-        $this->render('views/applicant/application/create.php', [
+        return ['view' => 'application/create.php', 'data' => [
             'draft' => $draft,
             'errors' => $errors,
             'submitError' => $submitError,
@@ -81,7 +88,7 @@ class ApplicationController extends Controller
             'catOnlyKeys' => array_column($documents->categoryOnlyRequirements($draft['categoryId']), 'doc_key'),
             'draftSavedAt' => $draftInfo['updatedAt'] ?? null,
             'flashMessage' => take_flash(),
-        ]);
+        ]];
     }
 
     /** @return array{0: array, 1: array, 2: ?string} [draft, errors, submitError] -- redirects on every action that succeeds. */
@@ -89,7 +96,7 @@ class ApplicationController extends Controller
     {
         $action = (string) ($_POST['action'] ?? '');
         $step = (int) $draft['step'];
-        $applyUrl = 'portal.php?tab=apply';
+        $applyUrl = self::APPLY_URL;
 
         switch ($action) {
             case 'continue':

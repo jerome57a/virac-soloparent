@@ -28,6 +28,7 @@ class ApplicantController extends Controller
 {
     private const SECTION_TITLES = [
         'dashboard'     => 'Dashboard',
+        'apply'         => 'Apply for Solo Parent ID',
         'application'   => 'My Application',
         'renewal'       => 'ID Renewal',
         'myid'          => 'My Solo Parent ID',
@@ -74,6 +75,9 @@ class ApplicantController extends Controller
         $title = self::SECTION_TITLES[$section];
 
         switch ($section) {
+            case 'apply':
+                $result = (new ApplicationController($this->pdo))->applySection($this->user);
+                break;
             case 'application':
                 $result = (new ApplicationController($this->pdo))->statusList($this->user, $this->applications);
                 break;
@@ -220,9 +224,9 @@ class ApplicantController extends Controller
         $latest = $this->applications[0] ?? null;
         $actions = [];
         if ($draft) {
-            $actions[] = ['Continue My Application', base_url('portal.php?tab=apply'), 'apply'];
+            $actions[] = ['Continue My Application', base_url('applicant/dashboard.php?section=apply'), 'apply'];
         } elseif (!$latest || $latest['status'] === 'Rejected') {
-            $actions[] = ['Apply for Solo Parent ID', base_url('portal.php?tab=apply'), 'apply'];
+            $actions[] = ['Apply for Solo Parent ID', base_url('applicant/dashboard.php?section=apply'), 'apply'];
         }
         if ($latest && $latest['status'] === 'For Revision') {
             $actions[] = ['Fix My Documents', base_url('applicant/dashboard.php?section=documents'), 'documents'];

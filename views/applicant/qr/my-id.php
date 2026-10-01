@@ -43,6 +43,6 @@
         <div class="dash-card">
           <div class="dash-card-label">No Solo Parent ID Yet</div>
           <div style="font-size:14px;color:var(--muted);margin:8px 0 14px">Apply for your Solo Parent ID to get started.</div>
-          <a href="<?= base_url('portal.php?tab=apply') ?>" class="btn-red text-decoration-none">Apply Online Now</a>
+          <a href="<?= base_url('applicant/dashboard.php?section=apply') ?>" class="btn-red text-decoration-none">Apply Online Now</a>
         </div>
       <?php endif; ?>
