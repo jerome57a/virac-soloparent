@@ -7,16 +7,17 @@
  */
 ?>
 <div class="portal-container" style="max-width:860px">
-  <a href="<?= e($ownDashboard) ?>" style="font-size:13px">&larr; Back to dashboard</a>
-  <h1 class="font-heading mt-2 mb-1" style="font-size:26px">Chat Support</h1>
+  <?php require APP_ROOT . '/views/partials/staff-page-heading.php'; ?>
   <p style="font-size:14px;color:var(--muted);margin-bottom:16px">
     Questions applicants sent to MSWDO staff from the Help Assistant. <b><?= (int) $waiting ?></b> waiting for a reply.
     The assistant only gives guidance; decisions on eligibility and approval are yours to make in the application review.
   </p>
   <?php if ($flashMessage): ?><div class="info-box" style="max-width:none" role="status"><?= e($flashMessage) ?></div><?php endif; ?>
 
+  <label class="staff-chat-search"><span data-i18n>Search conversations</span><input type="search" class="form-control" data-staff-chat-search autocomplete="off" placeholder="Name, username or question" data-i18n-attrs="placeholder"></label>
+  <p class="empty-state" data-staff-chat-empty role="status" hidden data-i18n>No conversations match your search.</p>
   <?php foreach ($inbox as $c): ?>
-    <a href="<?= e(base_url('staff/chat.php?user=' . (int) $c['user_id'])) ?>" class="chat-inbox-row">
+    <a href="<?= e(base_url('staff/chat.php?user=' . (int) $c['user_id'])) ?>" class="chat-inbox-row" data-staff-conversation>
       <div style="min-width:0">
         <div style="font-weight:700"><?= e($c['full_name']) ?> <span style="font-weight:400;color:var(--faint);font-size:12px">@<?= e($c['username']) ?></span></div>
         <div style="font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><?= e(fit_text((string) $c['last_question'], 120)) ?></div>
@@ -27,11 +28,12 @@
         <?php else: ?>
           <span class="status-pill" style="background:var(--success-bg);color:var(--success-text)">Answered</span>
         <?php endif; ?>
+        <div class="staff-open-record" data-i18n>Open conversation</div>
         <div style="color:var(--faint);margin-top:4px">Last activity <?= e(date('M j, g:i A', strtotime($c['last_activity']))) ?></div>
       </div>
     </a>
   <?php endforeach; ?>
   <?php if (!$inbox): ?>
-    <div style="font-size:14px;color:var(--muted)">No applicant has asked for staff yet.</div>
+    <div class="empty-state">No applicant has asked for staff yet.</div>
   <?php endif; ?>
 </div>

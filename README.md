@@ -4,12 +4,73 @@ PHP 8 + MySQL + Bootstrap 5 implementation of the design handoff in
 `../design_handoff_solo_parent_portal/`. Built and tested against XAMPP
 (Apache + MariaDB) on Windows.
 
-**Status:** All research objectives implemented and validated — see
-**Security notes**, **UI review notes** below for the dedicated review
-passes, and the actor sections under **What's implemented** for full
-feature coverage per role.
+**Status:** Implemented workflows are described under **What's implemented**.
+See **Security notes**, **UI review notes**, and **Recent updates and
+verification (October 13, 2026)** for review scope and verification details.
 
 ## Setup (XAMPP)
+
+For a separate Codex cloud workspace, see [Codex cloud setup](docs/codex-cloud.md).
+
+### Checkbox preparation and interview flow (October 14, 2026)
+
+The capstone title remains **e-SoloParentID: An Online Application and Renewal
+System with Automated Verification and SMS Notification**. Automated checking
+identifies unchecked requirements; physical document verification and eligibility
+are separate MSWDO decisions. No uploads are required in the applicant flow.
+
+Applicants may submit with unchecked requirements. The document step, final
+review and saved checklist show a preparation list with requirement guides.
+Pending checklist selections remain editable after an interview is scheduled;
+staff-verified records are protected. Staff may schedule despite unchecked items,
+by selecting an open appointment slot created under Manage Slots. Capacity and
+availability are checked when the booking is saved. See
+[the appointment management guide](docs/appointment-management.md).
+New submissions remain Pending Review and send a submission confirmation SMS;
+no interview slot is reserved automatically. Staff assigns the first interview
+and sends the schedule SMS. Applicants may reschedule an existing booking
+using an open slot; cancelled/missed appointments require a new staff schedule.
+
+Submission and automatic interview/reminder SMS name the unchecked required
+documents to bring to the interview. Whole document names are included within the
+500-character message limit; long lists explicitly show how many additional
+requirements are on the full dashboard checklist. Staff-verified physical
+documents are excluded from preparation reminders. Applicant schedule views
+show the full current preparation list. Automatic
+interview SMS messages and their preview include the reference, date, time,
+location, physical-document instructions and unchecked-requirement reminder.
+Staff may still choose an exact custom message. Appointment reminders include
+preparation instructions; document correction SMS keeps detailed staff remarks
+on the authenticated dashboard. Existing editable SMS templates are preserved.
+Provider acceptance does not establish delivery; the existing logs and retry
+controls remain available. Reminder timing uses `appointment_reminder_hours`
+(24 by default), and requires the existing scheduled job
+`php cron/appointment-reminders.php` to run regularly.
+
+Verifying documents no longer automatically sets eligibility, including renewals.
+Existing automatic eligibility on in-progress applications is reopened for staff
+assessment when staff views/reviews it; its history remains intact. Approval
+requires physical verification, explicit eligibility and the interview outcome
+(simplified renewals retain their existing interview exemption).
+
+No schema migration is needed. Run the disposable database checks with
+`SMS_PROVIDER=test`: `php database/test_staff_review_workflow.php` and
+`php database/test_simplified_renewal.php`.
+
+### Language and appearance
+
+The public, applicant, staff, and administrator headers include an English/Tagalog
+selector and a light/dark mode button. Each browser remembers the choices in local
+storage. English and light mode are the defaults. No database migration is needed.
+
+Interface translations are maintained in `public/js/translations.js`. Only template
+copy marked with `data-i18n` is translated; submitted values, names, messages, and
+uploaded/printed documents are preserved. Untranslated text and custom database
+content remain in their original language. Add catalog entries and run
+`node scripts/build-display-preferences.cjs` to mark matching literal template copy
+and regenerate dark surface overrides after changing the existing stylesheets.
+
+### Installation
 
 1. Copy (or symlink) this `virac-soloparent/` folder into `C:\xampp\htdocs\`.
 2. Start Apache and MySQL in the XAMPP Control Panel.
@@ -31,6 +92,114 @@ Default DB credentials are `root` / no password, matching a stock XAMPP
 install. If yours differ, copy `config/local.example.php` to
 `config/local.php` and edit it (that file is git-ignored). Set
 `APP_DEBUG` to `true` there to see error details while developing.
+
+## Keeping an existing database aligned
+
+`database/schema.sql` is the canonical structure for the current system
+(33 tables). It recreates the database and is for fresh installations only.
+The historical `migrate_*.sql` files describe upgrades from specific older
+versions; do not import all of them into an already current database.
+
+Use the configured connection from `config/app.php` / `config/local.php`:
+
+```powershell
+php database/sync_schema.php --check
+php database/sync_schema.php --apply
+```
+
+The check compares columns, types, defaults, nullability, indexes, foreign
+keys, table options, and the audit protection triggers against an isolated
+copy of the current schema. Index ordering and auto-increment counters are
+ignored. The temporary reference database is removed after the command;
+the database account needs permission to create and drop that temporary
+database. Both commands leave a matching database unchanged.
+
+`--apply` adds missing tables, columns, indexes, foreign keys and triggers.
+Before any upgrade it saves a structure-and-data backup in
+`storage/db_backups/`. It preserves existing records, reference data,
+custom SMS templates and settings. Incompatible column types, constraints,
+or legacy unique keys are reported for a reviewed migration rather than
+changed automatically. DDL is not transactional: if an addition fails,
+the backup remains available and `--check` reports what is still pending.
+Run upgrades while the application is not receiving writes so the backup
+and data checks stay consistent.
+
+This command synchronizes structure only. Feature migrations can also
+backfill data: `migrate_document_checklists.sql` now inserts only missing
+entries, uses the same category/renewal requirements as the application,
+and preserves applicant declarations and staff reviews when rerun.
+`migrate_interview_sms_tracking.sql` can also be rerun without duplicate
+column, index or foreign-key errors. Neither is required after a fresh
+schema-and-seed installation.
+
+### Fixed one-year ID validity
+
+New and renewed Solo Parent IDs expire **one calendar year after confirmed
+release**, rather than after approval or the planned handover appointment.
+The release code enforces this period even if an older installation has a
+different saved `id_validity_years` value. System Settings displays a fixed,
+read-only value of 1; the server rejects a longer validity period.
+
+For an existing installation, apply `database/migrate_fixed_id_validity.sql`
+to align the saved setting. With the default XAMPP connection, run from the
+project directory in PowerShell:
+
+```powershell
+Get-Content -Raw database/migrate_fixed_id_validity.sql | & 'C:\xampp\mysql\bin\mysql.exe' -u root virac_solo_parent
+```
+
+Use the database name and account from your installation if they differ.
+This migration is safe to rerun and updates only the validity setting;
+existing ID and QR expiry dates stay unchanged. `sync_schema.php` does not
+apply this setting update because it synchronizes database structure only.
+Fresh installations use the one-year default without this migration.
+For future releases, QR validity follows the recorded ID expiry, and renewal
+access and reminders continue to use that expiry date.
+
+## Simplified ID renewal
+
+Renewal uses one confirmation form for an existing released ID. It preserves
+identity, children and accepted checklist evidence, including the original
+reviewer and review date. Applicants confirm contact details and availability
+of only the requested renewal documents; they do not repeat the four-step
+new-application wizard or attend a new interview for this renewal workflow.
+
+Configure the office-confirmed document list in **System Settings → Application
+Requirements → Category renewal requirements** (`admin/requirements.php`).
+The separate `renewal_requirements` table supports a fresh-copy rule or reuse
+of an accepted, unexpired document for each category and document key. Existing
+new-application requirements are not changed. No category list is assumed:
+until the office configures one, applicants are directed to MSWDO and cannot
+submit an incomplete renewal. A fresh barangay certificate is an example
+that must be confirmed for the applicable category, not a default for all.
+
+Staff can record each checklist document's expiry date while reviewing it.
+Documents stay valid through that date. A previously verified document with
+a recorded past expiry requires a replacement; no unrecorded expiry period
+is invented. A blank expiry means no expiry has been recorded. A fresh copy
+is still required whenever the category policy explicitly requests one.
+
+New renewal requests store their checklist snapshot and link retained records
+through `source_checklist_id`. Later policy edits do not rewrite a submitted
+request or the previous ID's history. Previously submitted renewals keep their
+existing checklist and interview workflow; `applications.renewal_simplified`
+identifies new requests using the shorter workflow. Approval, scheduled ID
+handover, confirmation and fixed one-year ID validity remain distinct steps.
+
+For existing installations, run `php database/sync_schema.php --apply` (creates
+a backup and adds missing structure) or apply
+`database/migrate_simplified_renewal.sql` on XAMPP/MariaDB. Then configure the
+confirmed category document lists. The migration does not seed guessed rules.
+
+```powershell
+php database/test_simplified_renewal.php
+```
+
+The test uses a disposable database and synthetic category rules to check
+document retention, expiry boundaries/replacements, tampered input, renewal
+without repeated identity/children entry or a new interview, document-only
+approval, retained history and one-year renewed-ID validity. It requires
+permission to create and drop the test database and sends no SMS.
 
 ## QR codes on the application slip
 
@@ -191,15 +360,15 @@ a raw `?id=`/`?user_id=` parameter for authorization.
   into a different open slot. Staff can still schedule/reschedule directly
   from the application page with no slot at all; both paths write to the
   same `appointments` row, and the review page shows who booked it.
-- **ID Renewal**: a real, separate single-step flow (`services/RenewalService.php`)
-  gated on already holding an `ID Released` application — re-confirms the
-  standard documents only (not the original qualifying circumstance) and
-  creates a real `applications` row with `type = 'renewal'`, which MSWD
-  processes through the exact same review page as new applications.
+- **ID Renewal**: a short confirmation form (`services/RenewalService.php`)
+  for an existing released ID. Identity, children and accepted unexpired
+  checklist documents remain on file. Only office-configured category
+  renewal documents and expired replacements are requested. Staff review
+  and approve the linked renewal without a new interview. Scheduled ID
+  handover, confirmation and one-year validity remain separate steps.
 - **My Solo Parent ID**: once released, shows the QR/slip plus a
   Valid/Expired badge computed from `applications.id_expires_at` (set to
-  the ID validity period after release -- the `id_validity_years` System
-  Setting, default 1 year from `ID_VALIDITY_YEARS` in `config/constants.php`).
+  exactly one year after confirmed release for new and renewed IDs).
 - **Chat Support**: a Help Assistant plus hand-off to MSWDO staff (see
   *Chat Support* below), with the searchable, admin-managed FAQ
   (`admin/faq.php`, `faqs` table) and the office contact details below it.
@@ -240,7 +409,12 @@ a raw `?id=`/`?user_id=` parameter for authorization.
 - A dedicated **MSWD Dashboard** (`staff/dashboard.php`): pending / under
   verification / for revision / pending renewal counts (each linking into
   the filtered queue), upcoming interviews, and applications recently
-  processed by that specific staff member.
+  processed by all staff, with the last reviewer's name shown.
+  Newly created staff accounts can immediately access existing applications,
+  applicant records and appointments and continue permitted casework after
+  sign-in. Creating an account or opening the dashboard does not transfer
+  record ownership or replace previous staff history; new actions retain
+  their own staff attribution.
 - **Document verification**: per-document status (`Pending` / `Verified` /
   `Needs Correction`) and remarks, set directly from the application review
   page — surfaces immediately on the applicant's Upload Documents page.
@@ -257,7 +431,8 @@ a raw `?id=`/`?user_id=` parameter for authorization.
   email or mobile, and filter by barangay (every barangay on file),
   application status (or "no application yet"), application type and
   account status — status and type must hold for the same application —
-  sorted by name or latest application, 20 per page. The record page shows
+  sorted by name or latest application, 20 per page for staff and 10 per page
+  for administrators. The record page shows
   the profile, application history, renewal history (with the ID each
   renewal renews), every document (status, verifier, remarks, view link),
   appointments (outcome or cancellation reason), decisions and the full
@@ -275,11 +450,13 @@ a raw `?id=`/`?user_id=` parameter for authorization.
   `admin/application_view.php` read-only detail): the same queue MSWD
   works from, but view-only — no status/document/interview/eligibility
   actions — reflecting that admin's role is oversight, not casework.
+  The list shows 10 applications per page, retains search and status/type
+  filters, and scrolls within a bounded list area.
 - **Manage Users** (`admin/users.php`, permission `users.manage`, admins
   only; `services/UserManagementService.php`): every account of the three
   roles — Administrator, MSWD Staff, Solo Parent — filtered by role, status
   (active, deactivated, locked out, temporary password) and name /
-  username / email / mobile, 25 per page, with last sign-in; plus a create
+  username / email / mobile, 10 per page, with last sign-in; plus a create
   form (validated name, email, unique username and mobile, password
   policy, optional "require a new password at first sign-in"). Each
   account's **manage page** (`admin/user_edit.php`) edits name / email /
@@ -294,6 +471,11 @@ a raw `?id=`/`?user_id=` parameter for authorization.
   active administrator always remains; an account with applications on
   file stays a Solo Parent account. Mobile numbers match in both 09… and
   +639… forms. All rules are enforced in the service, not just the form.
+  The compact account table has a fixed header, a visible record range,
+  explicit Edit and Delete actions, and stacked rows on small screens.
+  Contact details are available on the account's manage page. Buttons have
+  action icons, consistent sizing and keyboard focus indicators; destructive
+  actions retain their confirmation prompts.
 - **My Account** (`staff/account.php`): staff and administrators see their
   account details and change their own password (applicants do the same
   on My Profile).
@@ -315,8 +497,14 @@ a raw `?id=`/`?user_id=` parameter for authorization.
     table" view; colours are a validated colour-blind-safe pair. The page
     prints cleanly; detailed lists and CSV export are on Reports.
 - **SMS Notification Management** (`admin/sms.php`): sent/failed/logged-only
-  counts, a searchable/filterable log of every message, and an editor for
-  the `sms_templates` each notification is rendered from
+  counts and a searchable/filterable log of every message, 10 per page.
+  A compact table shows the recipient, reference, timestamp and status;
+  expand a message to see its text, provider details and errors. Test-mode
+  messages are labelled as not sent. Retry remains available only for failed
+  messages below the attempt limit, excluding password-reset messages.
+  Template editors collapse individually, with the editor reopened and
+  submitted text preserved after a validation error. They edit the
+  `sms_templates` each notification is rendered from
   (`{ref}`/`{status}`/`{remarks}`/`{when}`/`{location}` placeholders) —
   `SmsService` falls back to its built-in text if a template is emptied out.
 - **System Settings** (`admin/settings.php`, administrators only —
@@ -336,8 +524,9 @@ a raw `?id=`/`?user_id=` parameter for authorization.
   - **Appointments** — default location and slot capacity, the days and
     hours MSWD staff may open slots, how far ahead, the minimum notice to
     book/reschedule/cancel online, and the reminder window.
-  - **ID Validity & Renewal** — validity in years (IDs released from now
-    on) and the renewal reminder period (which is also when renewal opens).
+  - **ID Validity & Renewal** — fixed one-year validity from confirmed
+    release for new and renewed IDs, and the renewal reminder period (which
+    is also when renewal opens). Existing IDs keep their recorded expiry.
   - **Notification Settings** — SMS on/off, each SMS message on/off
     (`sms_templates.is_enabled`; the password-reset code is always sent),
     and in-app alerts to MSWD staff about new work. Applicants' in-app
@@ -372,7 +561,8 @@ a raw `?id=`/`?user_id=` parameter for authorization.
     once; the Expiring ID report opens on the renewal reminder window and
     shows days left and whether a renewal was filed.
 - **Manage FAQ** (`admin/faq.php`): create/edit/hide/delete the questions
-  and answers shown on the applicant's Chat Support page.
+  and answers shown on the applicant's Chat Support page. Entries use
+  expandable editors inside a bounded list; hidden entries remain labelled.
 - **Audit Log** (`admin/audit_log.php`, administrators only — `audit.view`;
   `services/AuditLogService.php`, `models/AuditLog.php`). Every entry
   records the **user**, their **role**, the **action**, the **target
@@ -400,7 +590,7 @@ a raw `?id=`/`?user_id=` parameter for authorization.
   - System: report/CSV/audit-log exports, backups, SMS retries/tests,
     scheduled job runs, QR verification.
 
-  The viewer shows 50 events per page with an accurate total, newest first;
+  The viewer shows 10 events per page with an accurate total, newest first;
   category tabs, action, role and date filters, a search over user, action
   and details, and a per-account view (click a user's name). Targets show
   as readable names linking to the record (e.g. the application reference
@@ -433,8 +623,8 @@ a raw `?id=`/`?user_id=` parameter for authorization.
 `database/seed.sql` the reference data (**do not** re-run `schema.sql`
 against a database with real data — it drops and recreates everything).
 
-The 16 core tables: `roles`, `users`, `applicants`, `applications`,
-`document_requirements`, `application_documents`,
+The 17 core tables: `roles`, `users`, `applicants`, `applications`,
+`document_requirements`, `application_documents`, `application_document_checklists`,
 `eligibility_assessments`, `appointments`, `application_status_history`,
 `application_decisions`, `qr_application_slips`, `notifications`,
 `sms_logs`, `chat_messages`, `audit_logs`, `system_settings`. Supporting
@@ -447,8 +637,8 @@ as an empty string.
 
 If you already have a live database from before the applicant/admin/MSWD
 dashboard features were added, run the additive migrations instead of
-re-importing `schema.sql` — they only do `ALTER TABLE`/`CREATE TABLE`, so
-existing rows are always untouched. Run them in order, once each:
+re-importing `schema.sql`. These migrations preserve existing application
+records; a few add or update reference data. Run them in order, once each:
 ```
 "C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_applicant_portal.sql
 "C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_admin_staff_dashboards.sql
@@ -475,6 +665,8 @@ existing rows are always untouched. Run them in order, once each:
 "C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_step30_mobile.sql
 "C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_step31_sms_events.sql
 "C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_step33_faqs.sql
+"C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_document_checklists.sql
+"C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\migrate_category_checklists.sql
 ```
 **Never** run `schema.sql` itself against a database with real data —
 it hardcodes `DROP DATABASE IF EXISTS virac_solo_parent`, so doing so
@@ -544,11 +736,13 @@ injection and malformed input, uploads, QR, secrets):
   ever reach their own records: documents, photo, slip, uploads,
   notifications and chat are all owner-checked, and "not yours" looks the
   same as "doesn't exist".
-- **Public status lookup.** Reference numbers are sequential, so the
-  "Check Status" tab needs the reference **and** the last 4 digits of the
-  mobile number on the application, and allows 10 failed lookups per IP per
-  15 minutes — the applicant list can't be walked through. It shows only
-  the masked name, submission date and status.
+- **Public status lookup.** The "Check Status" tab uses only the reference
+  number and allows 10 failed lookups per IP per 15 minutes. It shows the
+  masked name, application type, dates, status history, next steps, recorded
+  interview or ID release appointment, ID validity and office contacts.
+  Document instructions, decision details and private notes remain in the
+  signed-in applicant portal. Run `php database/test_public_tracking.php`
+  to check guidance, schedules, validity and public field filtering.
 - **Registration.** At most 10 new accounts per IP per hour.
 - **Rate limits** live in `rate_limit_hits` (`services/RateLimiter.php`),
   keyed by hashes, pruned after a day.
@@ -597,6 +791,65 @@ Apache so it doesn't advertise its version, and keep `APP_DEBUG` off.
 
 ## UI review notes
 
+### Recent updates and verification (October 13, 2026)
+
+Admin sidebar pages share `public/css/admin-management.css`, loaded only
+for the administrator portal. Buttons use consistent 44 px minimum targets,
+spacing and focus states. Wide tables scroll inside their own containers
+with fixed headers, and long lists use bounded scroll areas. Shared staff
+views receive these admin styles only when opened through the admin portal.
+
+| Area | Current layout |
+|---|---|
+| User Management | Compact account table, 10 per page, stacked mobile rows |
+| Applicant Records | 10 per page for admin; staff remains at 20 |
+| SMS Management | 10 logs per page, expandable message details and template editors |
+| Application Monitoring | 10 per page, filters retained, bounded list |
+| Public Announcements | Editor beside the list on desktop, 10 announcements per page |
+| Eligibility Logs | 10 checks per page with expandable details |
+| Audit Logs | 10 events per page with searchable, scrollable results |
+| System Settings and FAQ | Collapsible editors; settings links open their target section |
+| Notifications, appointments and monitoring | Bounded lists for long histories, schedules, table counts and backups |
+| Analytics, reports, dashboard and My Account | Shared button and table styling; Reports retains 50 rows per page |
+
+`public/js/admin-management.js` opens collapsed settings sections when a
+section link is followed, including an initial URL fragment or a repeated
+click on the current section. Settings validation errors open the affected
+section. Export and print workflows retain their existing scope; a shorter
+on-screen page does not truncate a report or audit-log export.
+
+Run the relevant regression checks from the project directory:
+
+```powershell
+php database/test_admin_management_layout.php
+php database/test_staff_review_workflow.php
+php database/test_public_announcements.php
+php database/test_eligibility_history.php
+```
+
+- `test_admin_management_layout.php` uses connection-local temporary tables
+  to check SMS and announcement pagination, search/status filters, page
+  boundaries, SMS retry restrictions, test-mode labels and populated/empty
+  SMS list rendering. It sends no SMS and leaves live records unchanged.
+- `test_staff_review_workflow.php` uses a disposable database to check the
+  review workflow, new staff access to shared records, preserved staff
+  history, one-year expiry for new and renewed IDs, matching QR expiry and
+  rejection of duplicate handover confirmation. The database account needs
+  permission to create and drop the disposable database.
+- The announcement and eligibility-history tests use transactions and roll
+  back their fixtures.
+
+These checks passed for the current update. All 17 admin sidebar pages were
+also rendered through their controllers without PHP warnings, with shared
+assets present and balanced form, details and table markup on the admin
+controller pages. PHP syntax, JavaScript syntax and whitespace checks passed.
+Visual browser verification of the latest layouts remains pending; it was
+unavailable in the current session. Manual follow-up should cover desktop
+and mobile widths, list scrolling, pagination, keyboard focus, expandable
+editors, settings section links and validation errors.
+
+### Earlier UI review (Step 28)
+
 UI review (Step 28): every page, for each role, at phone (360 px), tablet
 (768 px) and desktop (1280 px) widths with real device emulation, both with
 no records (empty states) and with realistic records — 306 page views. All
@@ -640,10 +893,9 @@ What changed:
   are now at least 32 px tall. Standalone text links ("← Back to…",
   "Forgot password?") stay as they are — they have space around them.
 
-Unchanged by design: pages keep their existing layouts, cards, buttons and
-colours; reversible actions (activate/deactivate, hide/show) don't ask for
-confirmation; empty states already said what will appear and offered the
-next step (e.g. "Apply Online Now").
+These Step 28 results describe that review pass. Later admin layout changes
+are described below; the earlier device-emulation results do not validate
+those later changes.
 
 ## End-to-end workflow check
 
@@ -702,7 +954,7 @@ regression run covers every listed suite.
 | Online renewal | Dashboard ID Renewal (`RenewalService`) | `s14renew` |
 | Automatic renewal reminder | `cron/renewal-reminders.php` (SMS + in-app, before and after expiry) | `s15remind` |
 | Appointment scheduling | Slots (`staff/appointment_slots.php`), applicant booking, staff outcomes, reminders | `s11appt`, `s15remind` |
-| Status tracking | Dashboard tracker, status timeline, public lookup (reference + last 4 digits of the mobile) | `s13tracker`, `s29flow` |
+| Status tracking | Dashboard tracker, status timeline, public lookup (reference number only) | `s13tracker`, `s29flow` |
 | MSWD dashboard | `staff/dashboard.php`, application review | `s5dash`, `s12process` |
 | QR slip | `slip.php`, `staff/qr_verify.php` | `s16slip`, `s17verify` |
 | Analytics | `admin/analytics.php` | `s24analytics` |
@@ -720,3 +972,57 @@ regression run covers every listed suite.
 - The Help Assistant is rule-based (keywords in English and common
   Filipino); it doesn't use an external AI service, so unusual phrasings
   fall back to the FAQ or to "Ask MSWDO staff".
+
+## Eligibility checker history and result views
+
+The public `eligibility.php` checker presents three questions with Back/Next
+navigation (the full form also works without JavaScript). ?I'm not sure?
+produces a guidance result, never an official approval or rejection.
+Results show the selected category's configured requirements and office
+contact details. Signed-in applicants can open their own latest 100 checks
+through **My eligibility history**.
+
+Each completed check creates a new `eligibility_assessments` row. Successful
+GET requests for a result append `eligibility_result_views` events; refreshes
+increase views but do not create new checks. Results are accessible only to
+the owning applicant or the anonymous session that completed them. Guest
+checks and their views are associated with the applicant on subsequent
+login/registration. Unclaimed guest checks and views are removed after 30
+days during the next check, consistent with the existing retention policy.
+No IP address or browser fingerprint is collected for this feature.
+
+**Admin ? Eligibility Logs** (`admin/eligibility_logs.php`) shows checks,
+answers, results, first/last viewed, total views and distinct account/session
+viewers, with date, result, situation and guest/registered filters. Staff
+and applicants cannot open this admin page. Historical results retained
+from before this upgrade have no view events; earlier overwritten results
+cannot be recovered from the old database.
+
+For another existing installation, back up first and import
+`database/migrate_eligibility_history.sql` into its configured database, then
+run `php database/sync_schema.php --check`. Fresh installs include the new
+structure in `database/schema.sql`.
+
+The pre-feature code/database backup and rollback instructions for this
+installation are in `storage/feature_backups/eligibility_20261011_223412/`.
+
+Regression checks: `php database/test_eligibility_history.php` exercises
+append-only check history, view counts, guest association, ownership and
+admin filtering inside a rolled-back transaction. Local HTTP and browser
+checks also verified cross-role access, refresh/HEAD behavior, CSRF,
+Next/Back answer retention, the mobile layout, and submission without JS.
+The rollback helper and database snapshot were both tested in isolated
+locations; the live system was not rolled back.
+
+
+### Public home navigation and announcements
+
+The home screen provides eligibility, application and tracking quick actions, guide section links, category-configured document requirements and Contact & Help. Public news is available through News & Announcements in the navigation menu. Requirements stay checkbox-based; staff verification remains separate. Office contact details and hours come from System Settings. Active FAQ entries are also shown publicly on Contact & Help; keep FAQ answers suitable for public visitors.
+
+Applicant sign-in accepts only named `next=apply`, `next=applications` or `next=track` destinations. The choice survives registration and mobile verification; arbitrary URLs and Staff/Admin destinations are rejected.
+
+Admins can open **Public Announcements** to create or edit plain-text news. Save as Draft to hide an item. Published items appear only after their publication date and before an optional expiry date; higher priority appears first. These public announcements are separate from account notification broadcasts. The existing five public announcements were retained during this workspace upgrade; review their dates/content and withdraw outdated items using Draft.
+
+For other existing installations, import `database/migrate_public_announcements.sql` before deploying the changed PHP files, or run `php database/sync_schema.php --apply`; both add the new table. The SQL migration also corrects the original upload-based correction FAQ when its answer has not been customized. Fresh installations use `database/schema.sql`. Public news starts empty on other installations until Admin publishes entries.
+
+Checks: `php database/test_public_announcements.php` (transactional), `php database/sync_schema.php --check`. Manually verify Home quick actions as guest and applicant, switch Log In/Create Account after choosing Apply, confirm the return to the application, check tracker labels/help, and publish/draft/expire a test announcement in Admin. Confirm Staff and Applicant cannot open the Admin editor.

@@ -11,11 +11,14 @@ require_once __DIR__ . '/../models/Notification.php';
 require_once __DIR__ . '/../services/QrSlipService.php';
 require_once __DIR__ . '/ApplicationController.php';
 require_once __DIR__ . '/../services/ApplicationTrackerService.php';
+require_once __DIR__ . '/../services/ApplicantAnalyticsService.php';
 require_once __DIR__ . '/DocumentController.php';
 require_once __DIR__ . '/AppointmentController.php';
 require_once __DIR__ . '/RenewalController.php';
 require_once __DIR__ . '/NotificationController.php';
 require_once __DIR__ . '/../services/HelpAssistantService.php';
+require_once __DIR__ . '/../services/RequirementGuideService.php';
+require_once __DIR__ . '/../services/IdReleaseService.php';
 
 /**
  * The applicant dashboard (applicant/dashboard.php?section=...). Owns the
@@ -28,14 +31,17 @@ class ApplicantController extends Controller
 {
     private const SECTION_TITLES = [
         'dashboard'     => 'Dashboard',
+        'analytics'     => 'Analytics',
         'apply'         => 'Apply for Solo Parent ID',
         'application'   => 'My Application',
+        'slip'          => 'Application Slip',
         'renewal'       => 'ID Renewal',
         'myid'          => 'My Solo Parent ID',
         'appointment'   => 'Appointment',
         'news'          => 'News & Announcements',
         'notifications' => 'Notifications',
-        'documents'     => 'Upload Documents',
+        'documents'     => 'Required Documents Checklist',
+        'requirements'  => 'Requirements Guide',
         'chat'          => 'Chat Support',
         'profile'       => 'My Profile',
         'help'          => 'Help & Support',
@@ -46,7 +52,11 @@ class ApplicantController extends Controller
 
     public function handle(): void
     {
-        $user = (new AuthService($this->pdo))->currentUser();
+        $auth = new AuthService($this->pdo);
+        if ($staff = $auth->currentStaff()) {
+            $this->redirectTo($staff['role'] === 'admin' ? 'admin/dashboard.php' : 'staff/dashboard.php');
+        }
+        $user = $auth->currentUser();
         if (!$user) {
             $this->redirectTo('portal.php?tab=login');
         }
@@ -75,6 +85,9 @@ class ApplicantController extends Controller
         $title = self::SECTION_TITLES[$section];
 
         switch ($section) {
+            case 'slip':
+                $result = (new ApplicationController($this->pdo))->applicantSlipSection($this->user);
+                break;
             case 'apply':
                 $result = (new ApplicationController($this->pdo))->applySection($this->user);
                 break;
@@ -84,12 +97,24 @@ class ApplicantController extends Controller
             case 'documents':
                 $result = (new DocumentController($this->pdo))->handle($this->user, $this->applications);
                 break;
+            case 'requirements':
+                $guides = RequirementGuideService::catalog($this->pdo);
+                $requested = is_string($_GET['doc'] ?? null) ? $_GET['doc'] : '';
+                $result = ['view' => 'requirements/index.php', 'data' => [
+                    'requirementGuides' => $guides,
+                    'selectedGuideKey' => isset($guides[$requested]) ? $requested : null,
+                    'guideNotFound' => $requested !== '' && !isset($guides[$requested]),
+                ]];
+                break;
             case 'appointment':
                 $result = (new AppointmentController($this->pdo))->handle($this->user, $this->applications);
                 break;
             case 'renewal':
                 $result = (new RenewalController($this->pdo))->handle($this->user, $this->applications);
                 $title = $result['title'];
+                break;
+            case 'analytics':
+                $result = $this->sectionAnalytics();
                 break;
             case 'news':
                 $result = $this->sectionNews();
@@ -117,7 +142,7 @@ class ApplicantController extends Controller
                 $result = $this->sectionDashboard();
         }
 
-        $this->renderLayout($section, $title, $result);
+        $this->renderLayout($section === 'slip' ? 'application' : $section, $title, $result);
     }
 
     private function renderLayout(string $section, string $title, array $result): void
@@ -158,6 +183,23 @@ class ApplicantController extends Controller
         ];
     }
 
+    /** Only the signed-in applicant's released or release-scheduled IDs can be viewed. */
+    private function viewableIdApplication(): ?array
+    {
+        $requestedRef = is_string($_GET['ref'] ?? null) ? trim($_GET['ref']) : '';
+        $releases = new IdReleaseService($this->pdo);
+        foreach ($this->applications as $app) {
+            if ($requestedRef !== '' && $app['reference_no'] !== $requestedRef) {
+                continue;
+            }
+            if ($app['status'] === 'ID Released'
+                || ($app['status'] === 'Approved' && $releases->scheduleFor((int) $app['id']))) {
+                return $app;
+            }
+        }
+        return null;
+    }
+
     // ---- Sections ----
 
     private function sectionDashboard(): array
@@ -169,17 +211,70 @@ class ApplicantController extends Controller
         $draft = (new ApplicationService($this->pdo))->draftSummary($this->user);
 
         return ['view' => 'dashboard.php', 'data' => [
+            'isFirstLogin' => (bool) ($_SESSION['applicant_first_login'] ?? false),
             'latestApplication' => $this->applications[0] ?? null,
             'latestTracker' => isset($this->applications[0]) ? (new ApplicationTrackerService($this->pdo))->track($this->applications[0]) : null,
             'idApplication' => $idApplication,
+            'viewableIdApplication' => $this->viewableIdApplication(),
             'idExpiryInfo' => $this->idExpiryInfo($idApplication),
             'renewal' => $renewal,
             'upcomingAppointment' => $upcoming,
+            'upcomingRequirements' => $upcoming ? (new Document($this->pdo))->checklistForReview((int) $upcoming['id'], $upcoming['category_id'] !== null ? (int) $upcoming['category_id'] : null, $upcoming['type'] === 'renewal') : [],
             'canBookAppointment' => AppointmentService::needsBooking($bookable),
             'recentNotifications' => (new Notification($this->pdo))->forUser((int) $this->user['id'], 3),
             'eligibilityCheck' => (new EligibilityService($this->pdo))->latestForUser((int) $this->user['id']),
             'quickActions' => $this->quickActions($renewal, $bookable, $draft),
             'applicationDraft' => $draft,
+        ]];
+    }
+
+    /**
+     * A summary of one of the applicant's own applications (the newest by
+     * default) with their documents, interview, currently held ID and recent
+     * activity. ?application_id= only picks among $this->applications, which
+     * were loaded by the session user's id; an id not in that list (another
+     * applicant's, or made up) falls back to the newest application.
+     */
+    private function sectionAnalytics(): array
+    {
+        $selected = $this->applications[0] ?? null;
+        $requested = is_string($_GET['application_id'] ?? null) ? (int) $_GET['application_id'] : 0;
+        foreach ($this->applications as $app) {
+            if ((int) $app['id'] === $requested) {
+                $selected = $app;
+                break;
+            }
+        }
+        $tracker = $selected ? (new ApplicationTrackerService($this->pdo))->track($selected) : null;
+
+        // The ID the applicant holds now, which may come from an older application than the one shown
+        // (e.g. while a renewal is being processed). Its release date is the first "ID Released" in its
+        // status history: taken from the tracker when it is the shown application, otherwise read once.
+        $idApplication = $this->idApplication();
+        $idReleasedAt = null;
+        if ($idApplication && $idApplication['status'] === 'ID Released') {
+            $history = $selected && (int) $idApplication['id'] === (int) $selected['id']
+                ? $tracker['history']
+                : array_reverse((new Application($this->pdo))->history((int) $idApplication['id']));
+            foreach ($history as $h) {
+                if ($h['status'] === 'ID Released') {
+                    $idReleasedAt = $h['changed_at'];
+                    break;
+                }
+            }
+        }
+
+        return ['view' => 'analytics.php', 'data' => [
+            'application' => $selected,
+            'applications' => $this->applications,
+            'tracker' => $tracker,
+            'documentCounts' => $tracker ? ApplicantAnalyticsService::documentCounts($tracker['checklist']) : null,
+            'activity' => $tracker ? (new ApplicantAnalyticsService($this->pdo))->timeline($selected, $tracker) : [],
+            'applicationDraft' => (new ApplicationService($this->pdo))->draftSummary($this->user),
+            'idApplication' => $idApplication,
+            'idReleasedAt' => $idReleasedAt,
+            'idExpiryInfo' => $this->idExpiryInfo($idApplication),
+            'renewal' => $this->renewalInfo($idApplication),
         ]];
     }
 
@@ -232,7 +327,7 @@ class ApplicantController extends Controller
             $actions[] = ['Fix My Documents', base_url('applicant/dashboard.php?section=documents'), 'documents'];
         }
         if (AppointmentService::needsBooking($bookable)) {
-            $actions[] = ['Book Appointment', base_url('applicant/dashboard.php?section=appointment'), 'calendar'];
+            $actions[] = ['View Interview Status', base_url('applicant/dashboard.php?section=appointment'), 'calendar'];
         }
         if (in_array($renewal['state'], ['due', 'expired'], true)) {
             $actions[] = ['Renew My ID', base_url('applicant/dashboard.php?section=renewal&type=new'), 'renew'];
@@ -266,7 +361,7 @@ class ApplicantController extends Controller
 
     private function sectionMyid(): array
     {
-        $idApplication = $this->idApplication();
+        $idApplication = $this->viewableIdApplication();
         // The same secure slip token as the application slip -- no reference number or personal data in the QR.
         $slip = $idApplication ? (new QrSlipService($this->pdo))->slipFor($idApplication) : null;
         return ['view' => 'qr/my-id.php', 'data' => [
@@ -274,6 +369,8 @@ class ApplicantController extends Controller
             'idExpiryInfo' => $this->idExpiryInfo($idApplication),
             'idQrUri' => $slip ? QrSlipService::qrImage($slip['token']) : null,
             'idSlipCode' => $slip ? QrSlipService::slipCode($slip['token']) : null,
+            'idReleaseSchedule' => $idApplication ? (new IdReleaseService($this->pdo))->scheduleFor((int) $idApplication['id']) : null,
+            'idChildren' => $idApplication ? (new Application($this->pdo))->children((int) $idApplication['id']) : [],
             'latestApplication' => $this->applications[0] ?? null,
         ]];
     }

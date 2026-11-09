@@ -21,14 +21,14 @@ class SMSService
     public const TEMPLATES = [
         'submitted' => ['Application Submitted', 'MSWDO Virac: Your Solo Parent ID application {ref} has been received and is Pending Review. We will text you when its status changes.'],
         'status_change' => ['Status Change (approval/rejection/correction/etc.)', 'MSWDO Virac: Application {ref} is now {status}. Note: {remarks}'],
-        'interview_scheduled' => ['Interview/Appointment Scheduled', 'MSWDO Virac: An interview for application {ref} has been scheduled on {when} at {location}. Please arrive on time and bring a valid ID.'],
+        'interview_scheduled' => ['Interview/Appointment Scheduled', 'Hello {name}, your Solo Parent ID application interview is scheduled on {when}. Location: {location}. Please arrive on time. For inquiries, contact the MSWDO Virac office.'],
         'renewal_submitted' => ['Renewal Submitted', 'MSWDO Virac: Your Solo Parent ID renewal request {ref} has been received and is Pending Review. We will text you when its status changes.'],
         'renewal_reminder' => ['Renewal Reminder (auto)', 'MSWDO Virac: Your Solo Parent ID ({ref}) expires on {when}. Please visit MSWDO or apply for renewal online soon to avoid interruption.'],
         'renewal_expired' => ['Renewal Reminder after Expiry (auto)', 'MSWDO Virac: Your Solo Parent ID ({ref}) expired on {when}. Please renew online or visit MSWDO to keep your benefits.'],
         'appointment_reminder' => ['Appointment Reminder (auto)', 'MSWDO Virac: Reminder -- your appointment for application {ref} is on {when} at {location}. Please arrive on time and bring a valid ID.'],
-        'appointment_cancelled' => ['Appointment Cancelled', 'MSWDO Virac: Your appointment for application {ref} on {when} was cancelled. Reason: {reason}. Please book a new appointment online.'],
-        'appointment_missed' => ['Appointment Missed', 'MSWDO Virac: You missed your appointment for application {ref} on {when}. Please log in and book a new appointment.'],
-        'document_correction' => ['Document Needs Correction', 'MSWDO Virac: Your document "{document}" for application {ref} needs to be re-uploaded. Reason: {remarks}. Please log in and upload a new file under Upload Documents.'],
+        'appointment_cancelled' => ['Appointment Cancelled', 'MSWDO Virac: Your appointment for application {ref} on {when} was cancelled. Reason: {reason}. Please contact MSWDO for a new schedule.'],
+        'appointment_missed' => ['Appointment Missed', 'MSWDO Virac: You missed your appointment for application {ref} on {when}. Please contact MSWDO for a new schedule.'],
+        'document_correction' => ['Document Checklist Needs Correction', 'MSWDO Virac: The requirement "{document}" for application {ref} needs correction. Reason: {remarks}. Please log in and update your Required Documents Checklist.'],
         'password_reset' => ['Password Reset Code', "MSWDO Virac: Your password reset code is {code}. It expires in {minutes} minutes. If you didn't request this, ignore this message."],
         'mobile_verification' => ['Mobile Number Verification Code', 'MSWDO Virac: Your e-SoloParentID verification code is {code}. It expires in {minutes} minutes. Do not share this code with anyone.'],
     ];
@@ -36,7 +36,7 @@ class SMSService
     public const PLACEHOLDERS = [
         'submitted' => ['{ref}'],
         'status_change' => ['{ref}', '{status}', '{remarks}'],
-        'interview_scheduled' => ['{ref}', '{when}', '{location}'],
+        'interview_scheduled' => ['{name}', '{ref}', '{when}', '{location}'],
         'renewal_submitted' => ['{ref}'],
         'renewal_reminder' => ['{ref}', '{when}'],
         'renewal_expired' => ['{ref}', '{when}'],
@@ -119,10 +119,16 @@ class SMSService
         if ($log['template_key'] === 'password_reset') {
             return ['Password reset codes cannot be re-sent from the log; the applicant should request a new code.', null];
         }
+        if (in_array($log['template_key'], ['interview_scheduled', 'interview_custom', 'id_release_scheduled', 'id_release_custom'], true) && !$this->templateEnabled('interview_scheduled')) {
+            return ['Appointment SMS notifications are disabled in Notification Settings.', null];
+        }
         $number = self::normalizeNumber($log['mobile']);
         $provider = self::provider();
-        $this->pdo->prepare("UPDATE sms_logs SET status = 'PENDING', attempts = attempts + 1, provider = ?, test_mode = ?, error = NULL WHERE id = ?")
-            ->execute([$provider, (int) ($provider === 'test'), $logId]);
+        $claim = $this->pdo->prepare("UPDATE sms_logs SET status = 'PENDING', attempts = attempts + 1, provider = ?, test_mode = ?, error = NULL WHERE id = ? AND status = 'FAILED' AND attempts < ?");
+        $claim->execute([$provider, (int) ($provider === 'test'), $logId, SMS_MAX_ATTEMPTS]);
+        if ($claim->rowCount() !== 1) {
+            return ['This SMS has already been retried or has reached its retry limit.', null];
+        }
         $result = $number === null
             ? ['ok' => false, 'provider_status' => 'not-sent', 'message_id' => null, 'error' => 'Invalid mobile number.']
             : $this->dispatch($provider, $number, $log['message']);
@@ -243,13 +249,65 @@ class SMSService
         return trim(strtr($body, $placeholders));
     }
 
-    private function sendTemplate(string $key, array $placeholders, ?int $applicationId, string $mobile): array
+    private function sendTemplate(string $key, array $placeholders, ?int $applicationId, string $mobile, string $preparation = ''): array
     {
         if (!$this->templateEnabled($key)) {
             // Switched off in Notification Settings: nothing is sent or logged.
             return ['id' => null, 'status' => 'DISABLED', 'test_mode' => false, 'error' => null];
         }
-        return $this->send($applicationId, $applicationId !== null ? $this->recipientFor($applicationId, $mobile) : $mobile, $this->render($key, $placeholders), $key);
+        $message = $this->render($key, $placeholders);
+        if (in_array($key, ['appointment_cancelled', 'appointment_missed'], true)) {
+            $message = str_replace(['Please book a new appointment online.', 'Please log in and book a new appointment.'], 'Please contact MSWDO for a new schedule.', $message);
+        }
+        if ($preparation !== '') {
+            // Keep preparation instructions even when an existing admin template is long.
+            $message = mb_substr($message, 0, 499 - mb_strlen($preparation)) . ' ' . $preparation;
+        }
+        return $this->send($applicationId, $applicationId !== null ? $this->recipientFor($applicationId, $mobile) : $mobile, $message, $key);
+    }
+
+    /** The current unchecked required documents, excluding accepted physical evidence. */
+    public function uncheckedRequirementLabels(int $applicationId): array
+    {
+        require_once __DIR__ . '/../models/Document.php';
+        $query = $this->pdo->prepare('SELECT id, category_id, type FROM applications WHERE id = ?');
+        $query->execute([$applicationId]);
+        $app = $query->fetch();
+        if (!$app) {
+            return [];
+        }
+        $interview = $this->pdo->prepare('SELECT id FROM appointments WHERE application_id = ? LIMIT 1');
+        $interview->execute([$applicationId]);
+        if ($interview->fetchColumn()) {
+            return array_column((new Document($this->pdo))->outstandingRequired($app), 'label');
+        }
+        $rows = (new Document($this->pdo))->checklistForReview($applicationId,
+            $app['category_id'] !== null ? (int) $app['category_id'] : null, $app['type'] === 'renewal');
+        return array_values(array_column(array_filter($rows, [Document::class, 'needsPreparation']), 'label'));
+    }
+
+    /** Include whole document names; explicitly point to the full checklist when the SMS limit is reached. */
+    public static function preparationText(array $labels, int $maxLength = 300): string
+    {
+        if (!$labels) {
+            return '';
+        }
+        $labels = array_values(array_map(fn($label) => trim(preg_replace('/\s+/u', ' ', $label)), $labels));
+        $prefix = 'After your interview, submit missing documents before ID release: ';
+        for ($count = count($labels); $count > 0; $count--) {
+            $remaining = count($labels) - $count;
+            $text = $prefix . implode('; ', array_slice($labels, 0, $count)) . '.'
+                . ($remaining ? ' Plus ' . $remaining . ' more; view your full checklist online.' : '');
+            if (mb_strlen($text) <= $maxLength) {
+                return $text;
+            }
+        }
+        return 'After your interview, submit ' . count($labels) . ' missing documents before ID release. View the full checklist online.';
+    }
+
+    public function preparationReminder(int $applicationId): string
+    {
+        return self::preparationText($this->uncheckedRequirementLabels($applicationId));
     }
 
     /**
@@ -292,7 +350,8 @@ class SMSService
 
     public function notifySubmitted(int $applicationId, string $mobile, string $refNumber): array
     {
-        return $this->sendTemplate('submitted', ['{ref}' => $refNumber], $applicationId, $mobile);
+        return $this->sendTemplate('submitted', ['{ref}' => $refNumber], $applicationId, $mobile,
+            trim('Await your MSWDO interview schedule. ' . $this->preparationReminder($applicationId)));
     }
 
     public function notifyStatusChange(int $applicationId, string $mobile, string $refNumber, string $status, string $remarks = ''): array
@@ -300,14 +359,54 @@ class SMSService
         return $this->sendTemplate('status_change', ['{ref}' => $refNumber, '{status}' => $status, '{remarks}' => $remarks], $applicationId, $mobile);
     }
 
-    public function notifyInterviewScheduled(int $applicationId, string $mobile, string $refNumber, string $scheduledAt, string $location): array
+    public function interviewScheduleMessage(string $applicantName, string $refNumber, string $scheduledAt, string $location, int $applicationId = 0): string
     {
-        return $this->sendTemplate('interview_scheduled', ['{ref}' => $refNumber, '{when}' => date('F j, Y g:i A', strtotime($scheduledAt)), '{location}' => $location], $applicationId, $mobile);
+        $date = date('F j, Y', strtotime($scheduledAt));
+        $time = date('g:i A', strtotime($scheduledAt));
+        $message = 'Hello ' . $applicantName . ', interview for ' . $refNumber . ': ' . $date . ' at ' . $time
+            . '. Location: ' . $location . '. Please arrive on time.';
+        $preparation = self::preparationText($this->uncheckedRequirementLabels($applicationId), 499 - mb_strlen($message));
+        return $message . ($preparation !== '' ? ' ' . $preparation : '');
+    }
+
+    public function notifyInterviewScheduled(int $applicationId, string $mobile, string $refNumber, string $scheduledAt, string $location, string $applicantName = '', ?string $customMessage = null): array
+    {
+        $custom = $customMessage !== null;
+        $message = $custom ? trim($customMessage) : $this->interviewScheduleMessage($applicantName, $refNumber, $scheduledAt, $location, $applicationId);
+        $key = $custom ? 'interview_custom' : 'interview_scheduled';
+        if (!$this->templateEnabled('interview_scheduled')) {
+            $recipient = $this->recipientFor($applicationId, $mobile);
+            $stmt = $this->pdo->prepare("INSERT INTO sms_logs (application_id, mobile, message, status, test_mode, template_key, provider, provider_status, error) VALUES (?, ?, ?, 'FAILED', 0, ?, ?, 'disabled', 'Interview SMS notifications are disabled in settings.')");
+            $stmt->execute([$applicationId, mb_substr($recipient, 0, 20), fit_text($message, 500), $key, self::provider()]);
+            return ['id' => (int) $this->pdo->lastInsertId(), 'status' => 'FAILED', 'test_mode' => false, 'error' => 'Interview SMS notifications are disabled in settings.', 'provider_status' => 'disabled'];
+        }
+        return $this->send($applicationId, $this->recipientFor($applicationId, $mobile), $message, $key);
+    }
+
+    /** Sends the selected custom release message to the applicant's current confirmed number (or application fallback). */
+    public function notifyIdReleaseScheduled(int $applicationId, string $mobile, string $message, bool $custom): array
+    {
+        $key = $custom ? 'id_release_custom' : 'id_release_scheduled';
+        if (!$this->templateEnabled('interview_scheduled')) {
+            $recipient = $this->recipientFor($applicationId, $mobile);
+            $stmt = $this->pdo->prepare("INSERT INTO sms_logs (application_id, mobile, message, status, test_mode, template_key, provider, provider_status, error) VALUES (?, ?, ?, 'FAILED', 0, ?, ?, 'disabled', 'Appointment SMS notifications are disabled in settings.')");
+            $stmt->execute([$applicationId, mb_substr($recipient, 0, 20), fit_text($message, 500), $key, self::provider()]);
+            return ['id' => (int) $this->pdo->lastInsertId(), 'status' => 'FAILED', 'test_mode' => false, 'error' => 'Appointment SMS notifications are disabled in settings.', 'provider_status' => 'disabled'];
+        }
+        return $this->send($applicationId, $this->recipientFor($applicationId, $mobile), $message, $key);
+    }
+
+    /** The latest interview scheduling notification attempt for an application. */
+    public function latestInterviewNotification(int $applicationId): ?array
+    {
+        $stmt = $this->pdo->prepare("SELECT * FROM sms_logs WHERE application_id = ? AND template_key IN ('interview_scheduled','interview_custom') ORDER BY id DESC LIMIT 1");
+        $stmt->execute([$applicationId]);
+        return $stmt->fetch() ?: null;
     }
 
     public function notifyRenewalSubmitted(int $applicationId, string $mobile, string $refNumber): array
     {
-        return $this->sendTemplate('renewal_submitted', ['{ref}' => $refNumber], $applicationId, $mobile);
+        return $this->sendTemplate('renewal_submitted', ['{ref}' => $refNumber], $applicationId, $mobile, $this->preparationReminder($applicationId));
     }
 
     public function notifyRenewalReminder(int $applicationId, string $mobile, string $refNumber, string $expiresAt): array
@@ -318,7 +417,8 @@ class SMSService
 
     public function notifyAppointmentReminder(int $applicationId, string $mobile, string $refNumber, string $scheduledAt, string $location): array
     {
-        return $this->sendTemplate('appointment_reminder', ['{ref}' => $refNumber, '{when}' => date('F j, Y g:i A', strtotime($scheduledAt)), '{location}' => $location], $applicationId, $mobile);
+        return $this->sendTemplate('appointment_reminder', ['{ref}' => $refNumber, '{when}' => date('F j, Y g:i A', strtotime($scheduledAt)), '{location}' => $location], $applicationId, $mobile,
+            trim('Please arrive on time. ' . $this->preparationReminder($applicationId)));
     }
 
     public function notifyAppointmentCancelled(int $applicationId, string $mobile, string $refNumber, string $scheduledAt, string $reason): array
@@ -331,10 +431,10 @@ class SMSService
         return $this->sendTemplate('appointment_missed', ['{ref}' => $refNumber, '{when}' => date('F j, Y g:i A', strtotime($scheduledAt))], $applicationId, $mobile);
     }
 
-    /** A document flagged by staff (needs correction or rejected) that the applicant must re-upload. */
+    /** Keep detailed physical-document corrections on the authenticated dashboard. */
     public function notifyDocumentCorrection(int $applicationId, string $mobile, string $refNumber, string $documentLabel, string $remarks): array
     {
-        return $this->sendTemplate('document_correction', ['{ref}' => $refNumber, '{document}' => $documentLabel, '{remarks}' => rtrim($remarks, ' .')], $applicationId, $mobile);
+        return $this->sendTemplate('document_correction', ['{ref}' => $refNumber, '{document}' => 'Physical requirements', '{remarks}' => 'Log in to view MSWDO instructions and prepare the requested documents'], $applicationId, $mobile);
     }
 
     /** The code is sent but never stored: the log keeps the text with the code masked. */

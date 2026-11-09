@@ -1,0 +1,81 @@
+/* Shared preference controls and accessible theme tokens. */
+.display-preferences { display: flex; align-items: center; gap: 6px; flex: none; }
+.preference-language, .preference-theme { min-height: 40px; border: 1px solid var(--input-border); border-radius: 8px; background: var(--theme-card, #fff); color: var(--ink); font: 600 12px var(--font-body); }
+.preference-language { max-width: 100px; padding: 8px 6px; }
+.preference-theme { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 10px; cursor: pointer; }
+[data-theme-icon] { font-size: 20px; line-height: 1; }
+.display-preferences :focus-visible { outline: 3px solid var(--link-blue); outline-offset: 2px; }
+.dash-topbar .display-preferences { margin-left: 0; }
+@media (max-width: 700px) {
+  .site-nav-inner { flex-wrap: wrap; }
+  .site-nav-left { flex-basis: 100%; }
+  .site-nav-right { width: 100%; justify-content: flex-end; flex-wrap: wrap; }
+  .site-nav-right .display-preferences { margin-right: auto; }
+  .dash-topbar { flex-wrap: wrap; }
+  .dash-topbar .display-preferences { flex-basis: 100%; justify-content: flex-end; }
+}
+@media screen {
+  html[data-theme="dark"] {
+    color-scheme: dark;
+    --theme-card: #1c2839;
+    --theme-page: #111a27;
+    --navy: #a9caff;
+    --red: #ffb1b1;
+    --ink: #edf2fa;
+    --body-text: #d3deed;
+    --muted: #b6c3d5;
+    --faint: #adbbce;
+    --border: #3c4b60;
+    --input-border: #53637a;
+    --surface: #172233;
+    --surface-alt: #131d2c;
+    --info: #223953;
+    --warn-bg: #3d321d;
+    --warn-text: #ffe0a0;
+    --error-bg: #42252e;
+    --error-text: #ffb9c2;
+    --success-bg: #1b3b30;
+    --success-bg2: #1b3b30;
+    --success-text: #ade3c0;
+    --success-text2: #ade3c0;
+    --link-blue: #a9caff;
+    --staff-border: #3c4b60;
+    --staff-muted: #b6c3d5;
+    --bs-body-color: #edf2fa;
+    --bs-body-bg: #1c2839;
+    --bs-border-color: #3c4b60;
+    --bs-secondary-color: #b6c3d5;
+  }
+  html[data-theme="dark"] body { background: var(--theme-page); color: var(--ink); }
+  html[data-theme="dark"] .site-footer { background: #172233 !important; color: #edf2fa; }
+  html[data-theme="dark"] :is(.footer-small, .footer-list a, .footer-contact, .footer-contact a) { color: #d3deed !important; }
+  html[data-theme="dark"] :is(.btn-navy, .btn-red) { background: #244f89 !important; color: #fff !important; }
+  html[data-theme="dark"] .btn-red { background: #9e303b !important; }
+  html[data-theme="dark"] :is(input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]), select, textarea) { background-color: var(--theme-card) !important; color: var(--ink) !important; border-color: var(--input-border) !important; }
+  html[data-theme="dark"] ::placeholder { color: var(--muted); opacity: 1; }
+  html[data-theme="dark"] .table { --bs-table-bg: var(--theme-card); --bs-table-color: var(--ink); --bs-table-border-color: var(--border); --bs-table-hover-bg: #26364c; --bs-table-hover-color: var(--ink); }
+  html[data-theme="dark"] .text-muted { color: var(--muted) !important; }
+  html[data-theme="dark"] .bg-white { background: var(--theme-card) !important; }
+  html[data-theme="dark"] .bg-light { background: var(--surface) !important; }
+  html[data-theme="dark"] :is(.slip-qr-frame, .applicant-id-qr) { background: #fff !important; }
+  html[data-theme="dark"] :is(.status-pill, .document-verification) { color: var(--ink); }
+  /* Transparent PNGs need a stable light backing, including QR quiet zones.
+     Theme only the surrounding UI; preserve the artwork's original colors. */
+  html[data-theme="dark"] :is(.site-nav-logo img, .nav-drawer-brand img, .footer-seal, .footer-bp, .slip-logo, .home-intro-illustration img, img.dash-user-avatar, .profile-photo-row img) {
+    color-scheme: light;
+    background-color: #fff;
+    opacity: 1;
+    mix-blend-mode: normal;
+  }
+  html[data-theme="dark"] :is(.site-nav-logo img, .nav-drawer-brand img, .footer-seal, .footer-bp) { border-radius: 6px; }
+  html[data-theme="dark"] :is(.slip-qr-frame, .applicant-id-qr, .verification-id-face) {
+    color-scheme: light;
+    background: #fff !important;
+    color: #152d4d;
+  }
+  html[data-theme="dark"] :is(.slip-qr-frame, .applicant-id-qr, .verification-id-face) img { opacity: 1; mix-blend-mode: normal; filter: none; }
+}
+@media print {
+  .display-preferences { display: none !important; }
+  html { color-scheme: light; }
+}

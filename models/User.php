@@ -54,6 +54,13 @@ class User extends Model
         return (bool) $stmt->fetch();
     }
 
+    public function emailExists(string $email): bool
+    {
+        $stmt = $this->pdo->prepare('SELECT id FROM users WHERE email = ?');
+        $stmt->execute([$email]);
+        return (bool) $stmt->fetch();
+    }
+
     public function createApplicant(string $fullName, string $email, string $username, string $passwordHash, string $mobile): int
     {
         return $this->createWithRole($fullName, $email, $username, $passwordHash, 'applicant', $mobile);
@@ -105,8 +112,9 @@ class User extends Model
             $where[] = $statusWhere[$status];
         }
         if ($q !== '') {
-            $where[] = '(username LIKE ? OR full_name LIKE ? OR email LIKE ? OR mobile LIKE ?)';
-            array_push($params, "%$q%", "%$q%", "%$q%", "%$q%");
+            // A full mobile number also matches its other stored form (09… / +639…), as the duplicate check does.
+            $where[] = '(username LIKE ? OR full_name LIKE ? OR email LIKE ? OR mobile LIKE ? OR mobile IN (?, ?))';
+            array_push($params, "%$q%", "%$q%", "%$q%", "%$q%", ...mobile_variants($q));
         }
         $sqlWhere = implode(' AND ', $where);
         $count = $this->pdo->prepare("SELECT COUNT(*) FROM users WHERE $sqlWhere");
@@ -155,6 +163,11 @@ class User extends Model
     public function setActive(int $userId, bool $active): void
     {
         $this->pdo->prepare('UPDATE users SET is_active = ? WHERE id = ?')->execute([$active ? 1 : 0, $userId]);
+    }
+
+    public function delete(int $userId): void
+    {
+        $this->pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$userId]);
     }
 
     public function setRole(int $userId, string $role): void

@@ -17,23 +17,28 @@ $reviewSections = [
         fn($c, $i) => ['k' => 'Child ' . ($i + 1), 'v' => ($c['name'] ?: '—') . ' · ' . format_date_long($c['birthdate'])],
         $draft['children'], array_keys($draft['children'])
     )],
-    ['title' => 'Documents', 'step' => 3, 'rows' => array_map(
-        fn($d) => ['k' => $d['label'], 'v' => isset($draft['documents'][$d['doc_key']]) ? $draft['documents'][$d['doc_key']]['original_name'] : ($d['is_required'] ? 'Not attached' : 'Not attached (optional)')],
+    ['title' => 'Required Documents Checklist', 'step' => 3, 'rows' => array_map(
+        fn($d) => ['k' => $d['label'], 'v' => !empty($draft['checkedDocuments'][$d['doc_key']]) ? 'Applicant indicated available' : (!empty($d['is_required']) ? 'Still needs preparation' : 'Optional; not selected')],
         $docDefs
     )],
 ];
 ?>
 
+<?php $preparationItems = array_map(fn($item) => $item + ['applicant_has' => !empty($draft['checkedDocuments'][$item['doc_key']])], $docDefs); require APP_ROOT . '/views/partials/requirements-preparation.php'; ?>
 <?php foreach ($reviewSections as $sec): ?>
   <div class="review-card">
     <div class="review-card-head">
       <div class="title"><?= e($sec['title']) ?></div>
+      <?php if (!empty($isApplicationWizard)): ?>
+        <button type="submit" form="application-step-form" name="goto_step" value="<?= (int) $sec['step'] ?>" formnovalidate class="wizard-review-edit" data-i18n>Edit</button>
+      <?php else: ?>
       <form method="post" class="m-0">
         <?= csrf_field() ?>
         <input type="hidden" name="action" value="goto">
         <input type="hidden" name="n" value="<?= (int) $sec['step'] ?>">
-        <button type="submit" formnovalidate style="border:none;background:none;color:var(--navy);font-weight:600;font-size:13px;cursor:pointer;padding:8px 4px;min-height:40px">Edit</button>
+        <button type="submit" formnovalidate style="border:none;background:none;color:var(--navy);font-weight:600;font-size:13px;cursor:pointer;padding:8px 4px;min-height:40px" data-i18n>Edit</button>
       </form>
+      <?php endif; ?>
     </div>
     <div class="review-grid">
       <?php foreach ($sec['rows'] as $r): ?>
@@ -46,17 +51,18 @@ $reviewSections = [
   </div>
 <?php endforeach; ?>
 
-<form method="post">
+<form method="post"<?= !empty($isApplicationWizard) ? ' id="application-step-form"' : '' ?> data-i18n>
   <?= csrf_field() ?>
+  <?php if (!empty($isApplicationWizard)): ?><input type="hidden" name="wizard_step" value="4"><?php endif; ?>
   <label class="d-flex gap-2 align-items-start" style="font-size:14px;color:var(--body-text);line-height:1.5;cursor:pointer;margin-bottom:6px">
     <input type="checkbox" id="consent-checkbox" name="consent" value="1" <?= !empty($draft['consent']) ? 'checked' : '' ?> style="width:20px;height:20px;margin:1px 0 0;flex:none">
-    <span>I certify that the information above is true and correct, and I consent to MSWDO Virac processing my data for this application.</span>
+    <span data-i18n>I certify that the information above is true and correct, and I consent to MSWDO Virac processing my data for this application.</span>
   </label>
-  <?php if (!empty($errors['consent'])): ?><div class="field-error mb-2"><?= e($errors['consent']) ?></div><?php endif; ?>
+  <?php if (!empty($errors['consent'])): ?><div class="field-error mb-2" data-i18n><?= e($errors['consent']) ?></div><?php endif; ?>
 
   <div class="form-nav-buttons">
-    <button type="submit" name="action" value="save_draft" formnovalidate class="btn-outline">Save &amp; finish later</button>
-    <button type="submit" name="action" value="back" formnovalidate class="btn-outline">Back</button>
-    <button type="submit" name="action" value="submit" id="submit-application-btn" class="btn-red"><?= e($submitLabel ?? 'Submit Application') ?></button>
+    <?php if (empty($isApplicationWizard)): ?><button type="submit" name="action" value="save_draft" formnovalidate class="btn-outline" data-i18n>Save &amp; finish later</button><?php endif; ?>
+    <button type="submit" name="action" value="back" formnovalidate class="btn-outline" data-i18n>Back</button>
+    <button type="submit" name="action" value="submit" id="submit-application-btn" class="btn-red" data-i18n><?= e($submitLabel ?? 'Submit Application') ?></button>
   </div>
 </form>

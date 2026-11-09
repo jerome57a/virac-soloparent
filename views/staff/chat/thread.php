@@ -9,7 +9,7 @@
  */
 ?>
 <div class="portal-container" style="max-width:860px">
-  <a href="<?= e(base_url('staff/chat.php')) ?>" style="font-size:13px">&larr; Back to Chat Support</a>
+  <a href="<?= e(base_url('staff/chat.php')) ?>" class="staff-back-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5m7-7-7 7 7 7"/></svg><span data-i18n>Back</span></a>
   <h1 class="font-heading mt-2 mb-1" style="font-size:24px"><?= e($applicant['full_name']) ?></h1>
   <div style="font-size:13px;color:var(--muted);margin-bottom:14px">
     @<?= e($applicant['username']) ?>

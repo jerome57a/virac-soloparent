@@ -26,9 +26,8 @@ require_once __DIR__ . '/../models/User.php';
 
 /**
  * System Administrator pages under admin/. No login goes to the staff
- * login; each action then requires its own permission (config/
- * permissions.php), so an MSWD social worker gets a 403 on admin-only
- * pages. Application decisions stay with MSWD staff (staff/), so the
+ * login; other roles return to their own dashboard. Each action also
+ * requires its own permission (config/permissions.php). Application decisions stay with MSWD staff (staff/), so the
  * application pages here are read-only monitoring.
  */
 class AdminController extends Controller
@@ -38,13 +37,49 @@ class AdminController extends Controller
     public function __construct(PDO $pdo)
     {
         parent::__construct($pdo);
-        $staff = (new AuthService($pdo))->currentStaff();
-        if (!$staff) {
-            $this->redirectTo('admin/login.php');
+        $auth = new AuthService($pdo);
+        if ($auth->currentUser()) {
+            $this->redirectTo('applicant/dashboard.php');
         }
-        // Which staff role may use which page is decided per action by authorize().
+        $staff = $auth->currentStaff();
+        if (!$staff) {
+            $this->redirectTo('mswd-login.php');
+        }
+        if ($staff['role'] !== 'admin') {
+            $this->redirectTo('staff/dashboard.php');
+        }
         $this->admin = $staff;
-        $this->requireOwnPassword($staff, 'staff/account.php', false);
+        $this->requireOwnPassword($staff, 'admin/account.php', false);
+    }
+
+    public function announcements(): void
+    {
+        $this->authorize($this->admin, 'content.manage');
+        require_once __DIR__ . '/../models/Announcement.php';
+        $model = new Announcement($this->pdo);
+        $error = '';
+        $editing = null;
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            csrf_require();
+            $id = filter_var($_POST['id'] ?? 0, FILTER_VALIDATE_INT);
+            if ($id === false || $id < 0) {
+                $error = 'Invalid announcement.';
+            } else {
+                $error = $model->save($this->admin, $id, $_POST);
+                if ($error === '') {
+                    flash('Announcement saved. Drafts, future publications and expired announcements are hidden from the public.');
+                    $this->redirectTo('admin/announcements.php');
+                }
+            }
+            $editing = $_POST;
+        } elseif (isset($_GET['edit'])) {
+            $editing = $model->find((int) $_GET['edit']);
+            if (!$editing) { $error = 'Announcement not found.'; }
+        }
+        $result = $model->page((int) ($_GET['page'] ?? 1));
+        $this->page('Public Announcements', 'announcements/index.php', [
+            'error' => $error, 'notice' => take_flash(), 'editing' => $editing, 'announcements' => $result['rows'], 'pager' => $result,
+        ]);
     }
 
     public function dashboard(): void
@@ -71,12 +106,14 @@ class AdminController extends Controller
         $typeFilter = (string) ($_GET['type'] ?? 'ALL');
         $q = trim((string) ($_GET['q'] ?? ''));
         $applications = new Application($this->pdo);
+        $result = $applications->search(['status' => $statusFilter, 'type' => $typeFilter, 'q' => $q], (int) ($_GET['page'] ?? 1), 10);
         $this->page('Application Monitoring', 'applications/index.php', [
             'statusFilter' => $statusFilter,
             'typeFilter' => $typeFilter,
             'q' => $q,
             'validStatuses' => Application::STATUSES,
-            'apps' => $applications->monitoringList($statusFilter, $typeFilter, $q),
+            'apps' => $result['rows'],
+            'pager' => $result,
             'stageCounts' => $applications->countsByStatus(),
         ]);
     }
@@ -95,7 +132,7 @@ class AdminController extends Controller
             'app' => $app,
             'interview' => (new Appointment($this->pdo))->interviewFor($id),
             'children' => $applications->children($id),
-            'docs' => (new Document($this->pdo))->forReview($id, $app['category_id'] !== null ? (int) $app['category_id'] : null),
+            'docs' => (new Document($this->pdo))->checklistForReview($id, $app['category_id'] !== null ? (int) $app['category_id'] : null, $app['type'] === 'renewal'),
             'docHistory' => (new Document($this->pdo))->statusHistoryFor($id),
             'decisions' => $applications->decisions($id),
             'renewalOf' => $this->renewalContext($app)[0],
@@ -124,6 +161,13 @@ class AdminController extends Controller
                     $this->redirectTo('admin/user_edit.php?id=' . $newId);
                 }
                 $form = array_intersect_key($_POST, array_flip(['fullName', 'email', 'username', 'mobile', 'role', 'mustChange']));
+            } elseif (($_POST['action'] ?? '') === 'delete') {
+                $target = $service->find((int) ($_POST['user_id'] ?? 0));
+                [$error, $success] = $target ? $service->delete($this->admin, $target) : ['Account not found.', ''];
+                if ($success) {
+                    flash($success);
+                    $this->redirectTo('admin/users.php' . (($_SERVER['QUERY_STRING'] ?? '') !== '' ? '?' . $_SERVER['QUERY_STRING'] : ''));
+                }
             }
         }
         $filters = [
@@ -366,6 +410,16 @@ class AdminController extends Controller
                     $categoryId = $str('category_id') !== '' ? (int) $str('category_id') : null;
                     [$error, $success] = $content->createRequirement($this->admin, $categoryId, $str('doc_key'), $label, $isRequired, $sortOrder);
                     break;
+                case 'save_renewal_requirement':
+                    require_once __DIR__ . '/../models/RenewalRequirement.php';
+                    $error = (new RenewalRequirement($this->pdo))->save($this->admin,$_POST) ?? '';
+                    $success = $error === '' ? 'Category renewal requirement saved. Existing submitted renewals keep their recorded checklist.' : '';
+                    break;
+                case 'delete_renewal_requirement':
+                    require_once __DIR__ . '/../models/RenewalRequirement.php';
+                    (new RenewalRequirement($this->pdo))->delete($this->admin,(int) $str('renewal_requirement_id'));
+                    $success = 'Renewal requirement removed for future requests. Existing submitted checklists are preserved.';
+                    break;
                 case 'update':
                     [$error, $success] = $content->updateRequirement($this->admin, $reqId, $label, $isRequired, $sortOrder);
                     break;
@@ -376,12 +430,16 @@ class AdminController extends Controller
         }
 
         $categories = get_categories($this->pdo);
+        $allCategories = $this->pdo->query('SELECT id, name FROM categories ORDER BY sort_order, id')->fetchAll();
+        require_once __DIR__ . '/../models/RenewalRequirement.php';
         $this->page('Application Requirements', 'settings/requirements.php', [
             'error' => $error,
             'success' => $success,
             'categories' => $categories,
-            'categoriesById' => array_column($categories, 'name', 'id'),
+            'categoriesById' => array_column($allCategories, 'name', 'id'),
             'requirements' => (new Document($this->pdo))->allRequirements(),
+            'renewalRequirements' => (new RenewalRequirement($this->pdo))->all(),
+            'renewalCategories' => $allCategories,
         ]);
     }
 
@@ -453,13 +511,16 @@ class AdminController extends Controller
         $statusFilter = is_string($_GET['status'] ?? null) ? $_GET['status'] : 'ALL';
         $q = is_string($_GET['q'] ?? null) ? trim($_GET['q']) : '';
         $sms = new SmsLog($this->pdo);
+        $result = $sms->page($statusFilter, $q, (int) ($_GET['page'] ?? 1));
         $this->page('SMS Notification Management', 'sms/index.php', [
             'error' => $error,
             'success' => $success,
             'statusFilter' => $statusFilter,
             'q' => $q,
             'templates' => $sms->templates(),
-            'logs' => $sms->search($statusFilter, $q),
+            'logs' => $result['rows'],
+            'pager' => $result,
+            'editedTemplate' => $error && ($_POST['action'] ?? '') === 'update_template' ? $post('template_key') : '',
             'totals' => [
                 'sent' => $sms->countByStatus('sent'),
                 'test' => $sms->countByStatus('test'),
@@ -492,6 +553,34 @@ class AdminController extends Controller
             'broadcasts' => $service->recentBroadcasts(),
             'canBroadcast' => can($this->admin, 'content.manage'),
         ]);
+    }
+
+    public function eligibilityLogs(): void
+    {
+        $this->authorize($this->admin, 'eligibility.logs');
+        require_once __DIR__ . '/../services/EligibilityService.php';
+        $filters = [];
+        foreach (['from', 'to', 'result', 'circ', 'audience'] as $key) {
+            $filters[$key] = is_string($_GET[$key] ?? null) ? trim($_GET[$key]) : '';
+        }
+        $error = '';
+        foreach (['from', 'to'] as $key) {
+            if ($filters[$key] !== '' && (!is_ymd($filters[$key]) || !DateTime::createFromFormat('!Y-m-d', $filters[$key]) || DateTime::createFromFormat('!Y-m-d', $filters[$key])->format('Y-m-d') !== $filters[$key])) {
+                $filters[$key] = ''; $error = 'Enter valid filter dates.';
+            }
+        }
+        if ($filters['from'] !== '' && $filters['to'] !== '' && $filters['from'] > $filters['to']) {
+            $error = 'The start date must be before the end date.';
+            $filters['from'] = $filters['to'] = '';
+        }
+        $results = ['LIKELY_ELIGIBLE', 'NOT_ELIGIBLE', 'NEEDS_GUIDANCE'];
+        $situations = (new EligibilityService())->circumstanceOptions();
+        if (!in_array($filters['result'], $results, true)) { $filters['result'] = ''; }
+        if (!in_array($filters['circ'], $situations, true)) { $filters['circ'] = ''; }
+        if (!in_array($filters['audience'], ['guest', 'registered'], true)) { $filters['audience'] = ''; }
+        $page = filter_var($_GET['page'] ?? 1, FILTER_VALIDATE_INT) ?: 1;
+        $data = (new EligibilityAssessment($this->pdo))->logPage($filters, $page);
+        $this->page('Eligibility Logs', 'eligibility/index.php', $data + compact('filters', 'results', 'situations', 'error'));
     }
 
     private function auditSystem(string $action, string $details): void

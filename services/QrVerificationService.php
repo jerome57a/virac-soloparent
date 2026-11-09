@@ -68,9 +68,12 @@ class QrVerificationService
         } elseif ($expiredOn = $this->expiredOn($slip, $app)) {
             $outcome = ['result' => 'EXPIRED', 'message' => 'This slip expired on ' . date('F j, Y', strtotime($expiredOn)) . '. The applicant needs to renew their Solo Parent ID.', 'app' => $app, 'slip' => $slip, 'via' => $via];
         } else {
+            $release = $app['id_release_schedule'] ?? null;
             $outcome = ['result' => 'VALID', 'message' => $app['status'] === 'ID Released'
                 ? 'Authentic Solo Parent ID slip, valid' . ($app['id_expires_at'] ? ' until ' . date('F j, Y', strtotime($app['id_expires_at'])) : '') . '.'
-                : 'Authentic MSWDO application slip. The application is ' . strtolower($app['status']) . '.', 'app' => $app, 'slip' => $slip, 'via' => $via];
+                : ($app['status'] === 'Approved' && $release
+                    ? 'Authentic Solo Parent ID record. Release is scheduled for ' . date('F j, Y g:i A', strtotime($release['scheduled_at'])) . ' at ' . $release['location'] . '. Physical handover has not yet been confirmed.'
+                    : 'Authentic MSWDO application slip. The application is ' . strtolower($app['status']) . '.'), 'app' => $app, 'slip' => $slip, 'via' => $via];
         }
         $this->log($staff, $outcome, $app, $input);
         return $outcome;
@@ -125,6 +128,9 @@ class QrVerificationService
         if ($app) {
             $appt = (new Appointment($this->pdo))->interviewFor($applicationId);
             $app['appointment'] = $appt && $appt['status'] === 'BOOKED' ? ['scheduled_at' => $appt['scheduled_at'], 'location' => $appt['location']] : null;
+            $release = $this->pdo->prepare('SELECT scheduled_at, location, released_at FROM id_release_schedules WHERE application_id = ?');
+            $release->execute([$applicationId]);
+            $app['id_release_schedule'] = $release->fetch() ?: null;
         }
         return $app;
     }

@@ -30,7 +30,7 @@ class RenewalController extends Controller
         return ['title' => self::TYPE_TITLES[$type]] + $this->wizard($user);
     }
 
-    /** The renewal wizard: shows the ID being renewed, then Details -> Children -> Documents -> Review. */
+    /** The short renewal form uses the current record and separate category requirements. */
     private function wizard(array $user): array
     {
         $service = new RenewalService($this->pdo);
@@ -42,7 +42,7 @@ class RenewalController extends Controller
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 csrf_require();
             }
-            return ['view' => 'renewal/index.php', 'data' => $data];
+            return ['view' => 'renewal/confirmation.php', 'data' => $data];
         }
 
         $draft = $service->getDraft($user, $source);
@@ -54,114 +54,52 @@ class RenewalController extends Controller
         }
         $saved = (new ApplicationDraft($this->pdo))->find((int) $user['id'], 'renewal');
 
-        return ['view' => 'renewal/index.php', 'data' => $data + [
+        return ['view' => 'renewal/confirmation.php', 'data' => $data + [
             'draft' => $draft,
             'errors' => $errors,
             'submitError' => $submitError,
             'step' => (int) $draft['step'],
             'stepMeta' => RenewalService::STEP_META,
-            'docDefs' => $service->documentRequirements(),
+            'docDefs' => $service->documentRequirements($source),
+            'renewalPlan' => (new RenewalRequirement($this->pdo))->plan($source),
             'changes' => $service->changes($source, $draft),
             'draftSavedAt' => $saved['updated_at'] ?? null,
             'flashMessage' => take_flash(),
         ]];
     }
 
-    /** @return array{0: array, 1: array, 2: ?string} [draft, errors, submitError] -- redirects after every action that succeeds. */
+    /** A single renewal confirmation form; prior identity and children stay on file. */
     private function handleAction(RenewalService $service, array $user, array $source, array $draft): array
     {
         $action = is_string($_POST['action'] ?? null) ? $_POST['action'] : '';
-        $step = (int) $draft['step'];
-
-        switch ($action) {
-            case 'continue':
-                $draft = $service->collectStepInput($step, $draft, $_POST, $source);
-                $errors = $service->validateStep($step, $draft);
-                if (!$errors) {
-                    $draft['step'] = min(4, $step + 1);
-                }
-                $service->saveDraft($user, $draft);
-                if ($errors) {
-                    return [$draft, $errors, null];
-                }
-                break;
-
-            case 'back':
-                $draft = $service->collectStepInput($step, $draft, $_POST, $source);
-                $draft['step'] = max(1, $step - 1);
-                break;
-
-            case 'goto':
-                $n = is_string($_POST['n'] ?? null) ? (int) $_POST['n'] : 0;
-                if ($n >= 1 && $n < $step) {
-                    $draft['step'] = $n;
-                }
-                break;
-
-            case 'add_child':
-                $draft = $service->collectStepInput(2, $draft, $_POST, $source);
-                if (count($draft['children']) < 20) {
-                    $draft['children'][] = ['name' => '', 'birthdate' => ''];
-                }
-                break;
-
-            case 'remove_child':
-                $draft = $service->collectStepInput(2, $draft, $_POST, $source);
-                $idx = is_string($_POST['idx'] ?? null) ? (int) $_POST['idx'] : -1;
-                if (count($draft['children']) > 1 && isset($draft['children'][$idx])) {
-                    array_splice($draft['children'], $idx, 1);
-                }
-                break;
-
-            case 'upload_doc':
-            case 'remove_doc':
-                $docKey = is_string($_POST['doc_key'] ?? null) ? $_POST['doc_key'] : '';
-                if (!in_array($docKey, array_column($service->documentRequirements(), 'doc_key'), true)) {
-                    break;
-                }
-                $draft = $action === 'upload_doc'
-                    ? $service->files()->attachToDraft($draft, $docKey, $_FILES['file'] ?? [], $service->draftDir((int) $user['id']))
-                    : $service->files()->detachFromDraft($draft, $docKey);
-                break;
-
-            case 'save_draft':
-                $service->saveDraft($user, $service->collectStepInput($step, $draft, $_POST, $source));
-                flash('Your renewal draft is saved. Continue it any time from ID Renewal.');
-                $this->redirectTo('applicant/dashboard.php?section=renewal&type=new');
-                return [$draft, [], null];
-
-            case 'discard_draft':
-                $service->clearDraft($user);
-                flash('Your renewal draft was discarded.');
-                $this->redirectTo(self::URL);
-                return [$draft, [], null];
-
-            case 'submit':
-                $draft = $service->collectStepInput(4, $draft, $_POST, $source);
-                $invalid = $service->firstInvalidStep($draft);
-                if ($invalid) {
-                    $draft['step'] = $invalid['step'];
-                    $service->saveDraft($user, $draft);
-                    return [$draft, $invalid['errors'], null];
-                }
-                try {
-                    $refNumber = $service->submit($user, $source, $draft);
-                    $this->redirectTo('slip.php?ref=' . urlencode($refNumber));
-                } catch (DomainException $e) {
-                    $this->redirectTo(self::URL);
-                } catch (Throwable $e) {
-                    error_log('Renewal submission failed: ' . $e->getMessage());
-                    $service->saveDraft($user, $draft);
-                    return [$draft, [], 'Something went wrong while submitting your renewal. Your draft is saved -- please try again.'];
-                }
-                return [$draft, [], null];
-
-            default:
-                return [$draft, [], null];
+        if ($action === 'discard_draft') {
+            $service->clearDraft($user);
+            flash('Your renewal draft was discarded.');
+            $this->redirectTo(self::URL);
         }
-
-        $service->saveDraft($user, $draft);
-        $this->redirectTo(self::URL);
-        return [$draft, [], null];
+        if (!in_array($action, ['save_draft','submit'], true)) {
+            return [$draft,['renewal'=>'Use Save draft or Submit Renewal on the renewal form.'],null];
+        }
+        $draft = $service->collectStepInput(1,$draft,$_POST,$source);
+        if ($action === 'save_draft') {
+            $service->saveDraft($user,$draft);
+            flash('Your renewal draft is saved.');
+            $this->redirectTo(self::URL);
+        }
+        $invalid = $service->firstInvalidStep($draft);
+        if ($invalid) {
+            $service->saveDraft($user,$draft);
+            return [$draft,$invalid['errors'],null];
+        }
+        try {
+            $ref = $service->submit($user,$source,$draft);
+            $this->redirectTo('slip.php?ref=' . urlencode($ref));
+        } catch (DomainException $e) {
+            return [$draft,[], $e->getMessage()];
+        } catch (Throwable $e) {
+            error_log('Renewal submission failed: ' . $e->getMessage());
+            $service->saveDraft($user,$draft);
+            return [$draft,[], 'Could not submit your renewal. Your draft is saved; please try again.'];
+        }
     }
 }

@@ -41,6 +41,7 @@ const ROLE_PERMISSIONS = [
         'content.manage',
         'sms.manage',
         'audit.view',
+        'eligibility.logs',
         'analytics.view',
         'data.export',
         'system.monitor',

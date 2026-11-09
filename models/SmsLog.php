@@ -13,8 +13,8 @@ class SmsLog extends Model
         'pending' => "s.status = 'PENDING'",
     ];
 
-    /** Latest 200 logs, optionally by filter key and reference/mobile/message search. Account-level SMS have a NULL reference_no. */
-    public function search(string $filter, string $q): array
+    /** Paginated logs, with account-level SMS retaining a NULL reference_no. */
+    public function page(string $filter, string $q, int $page, int $perPage = 10): array
     {
         $sql = 'SELECT s.*, a.reference_no FROM sms_logs s LEFT JOIN applications a ON a.id = s.application_id WHERE 1=1';
         $params = [];
@@ -25,9 +25,18 @@ class SmsLog extends Model
             $sql .= ' AND (a.reference_no LIKE ? OR s.mobile LIKE ? OR s.message LIKE ?)';
             $params = ["%$q%", "%$q%", "%$q%"];
         }
-        $stmt = $this->pdo->prepare($sql . ' ORDER BY s.sent_at DESC, s.id DESC LIMIT 200');
+        $count = $this->pdo->prepare(str_replace('SELECT s.*, a.reference_no', 'SELECT COUNT(*)', $sql));
+        $count->execute($params);
+        $pager = paginate((int) $count->fetchColumn(), $page, $perPage);
+        $stmt = $this->pdo->prepare($sql . " ORDER BY s.sent_at DESC, s.id DESC LIMIT {$pager['perPage']} OFFSET {$pager['offset']}");
         $stmt->execute($params);
-        return $stmt->fetchAll();
+        return ['rows' => $stmt->fetchAll()] + $pager;
+    }
+
+    /** Kept for callers that need the latest 200 logs. */
+    public function search(string $filter, string $q): array
+    {
+        return $this->page($filter, $q, 1, 200)['rows'];
     }
 
     /** How many logs match a filter key (sent / test / failed / pending). */

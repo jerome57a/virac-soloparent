@@ -17,34 +17,43 @@ $banners = [
     'UNKNOWN' => ['?', 'Unknown QR', 'qr-unknown'],
 ];
 ?>
+<link rel="stylesheet" href="<?= public_asset('css/verification-id.css') ?>">
 <div class="portal-container" style="max-width:600px">
-  <a href="<?= e($ownDashboard) ?>" style="font-size:13px">&larr; Back to dashboard</a>
-  <h1 class="font-heading mt-2 mb-3" style="font-size:26px">QR Verification</h1>
+  <?php require APP_ROOT . '/views/partials/staff-page-heading.php'; ?>
   <div style="font-size:13px;color:var(--muted);margin-bottom:20px">Scan the QR code on an applicant's slip or Solo Parent ID to confirm it is authentic, or type the slip code printed under the QR (or their reference number).</div>
 
   <?php if ($error): ?><div class="auth-error mb-3" role="alert"><?= e($error) ?></div><?php endif; ?>
 
   <?php if ($outcome): [$icon, $label, $class] = $banners[$outcome['result']]; $a = $outcome['app']; ?>
+    <?php
+    $releaseScheduled = $a && $a['status'] === 'Approved' && !empty($a['id_release_schedule']);
+    if ($outcome['result'] === 'VALID' && $a && $a['status'] !== 'ID Released') {
+        $label = $releaseScheduled ? 'Valid ID record - Release Scheduled' : 'Valid application slip';
+    }
+    ?>
     <div class="qr-result <?= $class ?>" role="status" aria-live="polite">
       <div class="qr-result-head"><span class="qr-result-icon" aria-hidden="true"><?= $icon ?></span> <?= e($label) ?></div>
       <div class="qr-result-msg"><?= e($outcome['message']) ?></div>
       <?php if ($a): $st = status_style($a['status']); ?>
-        <div class="review-grid qr-result-grid">
-          <div class="review-row"><div class="k">Name</div><div class="v"><?= e($a['full_name']) ?></div></div>
-          <div class="review-row"><div class="k">Reference</div><div class="v"><?= e($a['reference_no']) ?></div></div>
-          <div class="review-row"><div class="k">Type</div><div class="v"><?= $a['type'] === 'renewal' ? 'ID Renewal' : 'New Solo Parent ID' ?> · <?= e($a['category_name']) ?></div></div>
-          <div class="review-row"><div class="k">Status</div><div class="v"><span class="status-pill" style="background:<?= e($st['bg']) ?>;color:<?= e($st['color']) ?>"><?= e($a['status']) ?></span></div></div>
-          <?php if ($a['id_expires_at']): ?><div class="review-row"><div class="k">ID valid until</div><div class="v"><?= e(format_date_long($a['id_expires_at'])) ?></div></div><?php endif; ?>
-          <?php if ($a['appointment']): ?><div class="review-row"><div class="k">Appointment</div><div class="v"><?= e(date('M j, Y g:i A', strtotime($a['appointment']['scheduled_at']))) ?> · <?= e($a['appointment']['location']) ?></div></div><?php endif; ?>
-          <?php if ($outcome['slip']): ?><div class="review-row"><div class="k">Slip issued</div><div class="v"><?= e(date('M j, Y', strtotime($outcome['slip']['issued_at']))) ?> · code <?= e(QrSlipService::slipCode($outcome['slip']['token'])) ?></div></div><?php endif; ?>
-        </div>
+        <?php
+        if ($a['status'] === 'ID Released' || $releaseScheduled) {
+            require APP_ROOT . '/views/staff/qr/id-card.php';
+        } else {
+            require APP_ROOT . '/views/staff/qr/application-details.php';
+        }
+        ?>
+        <?php if ($releaseScheduled): ?>
+          <div class="info-box mt-3" style="max-width:none"><b>Release Scheduled</b><br><?= e(date('F j, Y g:i A', strtotime($a['id_release_schedule']['scheduled_at']))) ?> at <?= e($a['id_release_schedule']['location']) ?><br><span class="small">The ID is awaiting physical handover. Confirm release in the application record after the applicant receives it.</span></div>
+        <?php endif; ?>
         <div style="font-size:12px;color:var(--muted);margin-top:8px">Check the name against the applicant's valid government ID.</div>
         <a href="<?= application_url($staff, (int) $a['id']) ?>" class="btn-outline text-decoration-none mt-2" style="display:inline-block;padding:6px 14px;font-size:13px">Open full record</a>
       <?php endif; ?>
     </div>
   <?php endif; ?>
 
-  <div class="review-card">
+  <nav class="staff-section-links" aria-label="Verification methods" data-i18n-attrs="aria-label"><a href="#staff-qr-camera" data-i18n>Scan QR Code</a><a href="#staff-qr-manual" data-i18n>Enter a code</a></nav>
+  <div class="staff-qr-grid">
+  <div class="review-card" id="staff-qr-camera">
     <div class="review-card-head"><div class="title">Scan QR Code</div></div>
     <div id="qr-reader-wrap">
       <video id="qr-video" style="width:100%;max-width:400px;border-radius:8px;background:#000;display:none" muted></video>
@@ -54,15 +63,17 @@ $banners = [
     </div>
   </div>
 
-  <div class="review-card">
+  <div class="review-card" id="staff-qr-manual">
     <div class="review-card-head"><div class="title">Or Enter Slip Code / Reference Number</div></div>
     <form method="get" class="d-flex flex-wrap gap-2">
-      <input type="text" name="code" maxlength="300" autocomplete="off" placeholder="Slip code or reference no." title="e.g. CF4E-30DD-744D-3804 or VIRAC-SP-2026-0001" class="form-control" style="flex:1 1 240px;padding:10px;border:1px solid var(--input-border);border-radius:6px" required>
-      <button type="submit" class="btn-navy">Verify</button>
+      <label class="staff-code-field"><span data-i18n>Slip code or reference number</span><input type="text" name="code" maxlength="300" autocomplete="off" placeholder="Slip code or reference no." title="e.g. CF4E-30DD-744D-3804 or VIRAC-SP-2026-0001" class="form-control" style="flex:1 1 240px;padding:10px;border:1px solid var(--input-border);border-radius:6px" required></label>
+      <button type="submit" class="btn-navy" data-i18n>Verify</button>
     </form>
+  </div>
   </div>
 </div>
 
+<script src="<?= public_asset('js/verification-id.js') ?>"></script>
 <script src="<?= public_asset('js/jsQR.js') ?>"></script>
 <script>
 (function () {

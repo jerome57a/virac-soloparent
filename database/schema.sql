@@ -6,8 +6,26 @@
 --   "C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\seed.sql
 --
 -- WARNING: this DROPS and recreates virac_solo_parent, erasing all data.
--- Never run it against a database with real data -- existing databases are
--- upgraded with the additive database/migrate_*.sql files instead.
+-- Never run it against a database with real data. Use sync_schema.php for
+-- existing installations; historical migrate_*.sql files are only for the
+-- specific feature/version upgrades they describe, not a batch import.
+-- Current canonical structure: 33 tables. To compare/upgrade an existing
+-- configured database without rebuilding it, use:
+--   php database/sync_schema.php --check
+--   php database/sync_schema.php --apply
+-- The upgrade adds missing definitions and backs up before making changes;
+-- incompatible existing definitions require a reviewed migration.
+--
+-- Actor roles (reference rows are in seed.sql; permissions are in
+-- config/permissions.php):
+--   applicant          -- own profile, applications, appointments and renewals
+--   mswd_social_worker -- document reviews, assessments, decisions and ID release
+--   admin              -- read-only application monitoring and system administration
+--
+-- Includes eligibility history/result views, emergency contacts, document
+-- checklists, category-specific renewal policies, interview SMS tracking,
+-- separate ID handover schedules, and public announcements.
+-- The visual prototype uses fictional browser-only data and needs no tables.
 
 DROP DATABASE IF EXISTS virac_solo_parent;
 CREATE DATABASE virac_solo_parent
@@ -69,13 +87,15 @@ CREATE TABLE applicants (
 
 -- ---------------------------------------------------------------
 -- Solo parent categories (RA 8972 / RA 11861, Section 3) and the
--- documents each requires. category_id NULL = required for every category.
+-- category-specific initial requirements; category_id NULL retains legacy
+-- requirements. Simplified renewals use renewal_requirements below instead.
 -- ---------------------------------------------------------------
 CREATE TABLE categories (
   id          INT AUTO_INCREMENT PRIMARY KEY,
   name        VARCHAR(150) NOT NULL UNIQUE,
   description VARCHAR(500) DEFAULT NULL,
-  sort_order  INT NOT NULL DEFAULT 0
+  sort_order  INT NOT NULL DEFAULT 0,
+  is_active   TINYINT(1) NOT NULL DEFAULT 1
 ) ENGINE=InnoDB;
 
 CREATE TABLE document_requirements (
@@ -106,12 +126,17 @@ CREATE TABLE applications (
   birthdate     DATE NOT NULL,
   sex           ENUM('Male','Female') NOT NULL,
   civil_status  VARCHAR(30) NOT NULL,
+  emergency_contact_name VARCHAR(150) DEFAULT NULL,
+  emergency_contact_relation VARCHAR(80) DEFAULT NULL,
+  emergency_contact_phone VARCHAR(30) DEFAULT NULL,
+  emergency_contact_address VARCHAR(255) DEFAULT NULL,
   category_id   INT NOT NULL,
   reviewed_by   INT NULL,
   status        ENUM('Pending Review','Under Verification','For Revision','Interview Scheduled','Approved','ID Released','Rejected') NOT NULL DEFAULT 'Pending Review',
   eligibility_status  ENUM('Not Assessed','Eligible','Not Eligible') NOT NULL DEFAULT 'Not Assessed',
   eligibility_remarks VARCHAR(500) DEFAULT NULL,
-  id_expires_at DATE NULL,
+  id_expires_at DATE NULL,          -- one calendar year from confirmed ID release; not from approval/scheduling
+  renewal_simplified TINYINT(1) NOT NULL DEFAULT 0, -- 1 = contact/document confirmation without a new interview
   consent_at    DATETIME NOT NULL,
   submitted_at  DATETIME NOT NULL,
   updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -168,6 +193,41 @@ CREATE TABLE application_documents (
   CONSTRAINT fk_doc_verifier FOREIGN KEY (verified_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+-- Applicant availability declarations are separate from MSWD verification.
+-- Simplified renewals snapshot the requested labels/required flags and link
+-- retained evidence through source_checklist_id, preserving prior reviews.
+-- source_checklist_id is an informational provenance link, not a foreign key.
+CREATE TABLE application_document_checklists (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  application_id INT NOT NULL,
+  doc_key VARCHAR(50) NOT NULL,
+  applicant_has TINYINT(1) NOT NULL DEFAULT 0,
+  verification_status ENUM('Pending','Verified','Needs Correction') NOT NULL DEFAULT 'Pending',
+  staff_remarks VARCHAR(500) DEFAULT NULL,
+  reviewed_by INT DEFAULT NULL,
+  reviewed_at DATETIME DEFAULT NULL,
+  expires_at DATE DEFAULT NULL,
+  source_checklist_id INT DEFAULT NULL,
+  requirement_label VARCHAR(255) DEFAULT NULL,
+  required_snapshot TINYINT(1) DEFAULT NULL,
+  UNIQUE KEY uq_checklist_app_key (application_id, doc_key),
+  CONSTRAINT fk_checklist_app FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
+  CONSTRAINT fk_checklist_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- Office-configured renewal documents, independent of new application requirements.
+-- No default category rules are assumed; administrators must configure them.
+CREATE TABLE renewal_requirements (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  category_id INT NOT NULL,
+  doc_key VARCHAR(50) NOT NULL,
+  label VARCHAR(255) NOT NULL,
+  always_refresh TINYINT(1) NOT NULL DEFAULT 1,
+  sort_order INT NOT NULL DEFAULT 0,
+  UNIQUE KEY uq_renewal_requirement (category_id, doc_key),
+  CONSTRAINT fk_renewal_requirement_category FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- Every change to a document's status -- applicant (re)submissions and MSWD
 -- verdicts -- with who did it and when. application_documents only holds
 -- the latest state; this is the full trace. Actor name/role are snapshots
@@ -201,7 +261,7 @@ CREATE TABLE eligibility_assessments (
   application_id      INT DEFAULT NULL,
   assessment_type     ENUM('PRELIMINARY','MSWD') NOT NULL DEFAULT 'PRELIMINARY',
   answers             JSON NOT NULL,
-  preliminary_result  ENUM('LIKELY_ELIGIBLE','NOT_ELIGIBLE','ELIGIBLE') NOT NULL,
+  preliminary_result  ENUM('LIKELY_ELIGIBLE','NOT_ELIGIBLE','ELIGIBLE','NEEDS_GUIDANCE') NOT NULL,
   result_reason       VARCHAR(500) DEFAULT NULL,
   assessed_by         INT DEFAULT NULL,
   created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -209,6 +269,20 @@ CREATE TABLE eligibility_assessments (
   CONSTRAINT fk_elig_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT fk_elig_app FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
   CONSTRAINT fk_elig_assessor FOREIGN KEY (assessed_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- Every successful result-page request; refreshes are separate view events.
+CREATE TABLE eligibility_result_views (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  assessment_id INT NOT NULL,
+  viewer_user_id INT DEFAULT NULL,
+  visitor_token CHAR(64) NOT NULL,
+  viewed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_elig_view_assessment (assessment_id, viewed_at),
+  KEY idx_elig_view_visitor (visitor_token, viewed_at),
+  KEY idx_elig_view_user (viewer_user_id, viewed_at),
+  CONSTRAINT fk_elig_view_assessment FOREIGN KEY (assessment_id) REFERENCES eligibility_assessments(id) ON DELETE CASCADE,
+  CONSTRAINT fk_elig_view_user FOREIGN KEY (viewer_user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- changed_by is a name snapshot (stays accurate if the account is renamed
@@ -310,6 +384,7 @@ CREATE TABLE appointments (
   cancel_reason       VARCHAR(255) DEFAULT NULL,
   scheduled_by        INT NULL,
   reminder_sent_at    DATETIME DEFAULT NULL,
+  interview_sms_log_id INT NULL,
   created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_interview_app (application_id),
@@ -415,7 +490,32 @@ CREATE TABLE sms_logs (
   CONSTRAINT fk_sms_app FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
--- Admin-editable SMS text. Placeholders: {ref} {status} {remarks} {when} {location} {reason} {document} {code} {minutes}
+ALTER TABLE appointments
+  ADD KEY idx_appt_sms_log (interview_sms_log_id),
+  ADD CONSTRAINT fk_appt_sms_log FOREIGN KEY (interview_sms_log_id) REFERENCES sms_logs(id) ON DELETE SET NULL;
+
+-- ID release appointments are separate from actual ID handover. A single
+-- current schedule is retained per application; released_at/by record the
+-- one-time confirmation that the physical ID was handed to the applicant.
+CREATE TABLE id_release_schedules (
+  id             INT AUTO_INCREMENT PRIMARY KEY,
+  application_id INT NOT NULL UNIQUE,
+  scheduled_at   DATETIME NOT NULL,
+  location       VARCHAR(255) NOT NULL,
+  scheduled_by   INT DEFAULT NULL,
+  sms_message    VARCHAR(500) NOT NULL,
+  sms_log_id     INT DEFAULT NULL,
+  released_at    DATETIME DEFAULT NULL,
+  released_by    INT DEFAULT NULL,
+  created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_release_app FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
+  CONSTRAINT fk_release_scheduler FOREIGN KEY (scheduled_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_release_sms FOREIGN KEY (sms_log_id) REFERENCES sms_logs(id) ON DELETE SET NULL,
+  CONSTRAINT fk_release_confirmer FOREIGN KEY (released_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- Admin-editable SMS text. Placeholders: {name} {ref} {status} {remarks} {when} {location} {reason} {document} {code} {minutes}
 CREATE TABLE sms_templates (
   template_key VARCHAR(50) PRIMARY KEY,
   label        VARCHAR(150) NOT NULL,
@@ -513,3 +613,20 @@ CREATE TABLE rate_limit_hits (
   KEY idx_rate_bucket (bucket, hit_at),
   KEY idx_rate_hit_at (hit_at)
 ) ENGINE=InnoDB;
+
+-- Admin-managed public news.
+CREATE TABLE IF NOT EXISTS public_announcements (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(200) NOT NULL,
+  short_desc VARCHAR(500) NOT NULL,
+  category VARCHAR(80) NOT NULL,
+  details TEXT NOT NULL,
+  status ENUM('draft','published') NOT NULL DEFAULT 'draft',
+  published_at DATETIME NOT NULL,
+  expires_at DATETIME NULL,
+  priority INT NOT NULL DEFAULT 0,
+  image VARCHAR(255) NULL,
+  attachment VARCHAR(255) NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_public_announcements_visibility (status, published_at, expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

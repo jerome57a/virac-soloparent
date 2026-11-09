@@ -41,6 +41,24 @@ class Applicant extends User
             ->execute([$birthdate, $sex, $civilStatus, $barangay, $address, $userId]);
     }
 
+    /** Validated application fields only; omitted values preserve the profile. Mobile verification is untouched. */
+    public function updateApplicationDetails(int $userId, array $fields): void
+    {
+        foreach (['users' => ['full_name', 'email'], 'applicants' => ['birthdate', 'sex', 'civil_status', 'barangay', 'address']] as $table => $allowed) {
+            $updates = array_intersect_key($fields, array_flip($allowed));
+            if (!$updates) {
+                continue;
+            }
+            if ($table === 'applicants') {
+                $this->ensureApplicantProfile($userId);
+            }
+            $assignments = implode(', ', array_map(static fn($column) => $column . ' = ?', array_keys($updates)));
+            $where = $table === 'users' ? "id = ? AND role = 'applicant'" : 'user_id = ?';
+            $this->pdo->prepare('UPDATE ' . $table . ' SET ' . $assignments . ' WHERE ' . $where)
+                ->execute([...array_values($updates), $userId]);
+        }
+    }
+
     /** True if another account already uses this mobile number. */
 
     public function setProfilePhoto(int $userId, ?string $relativePath): void

@@ -3,6 +3,7 @@ require_once __DIR__ . '/../models/Application.php';
 require_once __DIR__ . '/../models/Appointment.php';
 require_once __DIR__ . '/SMSService.php';
 require_once __DIR__ . '/NotificationService.php';
+require_once __DIR__ . '/InterviewCalendarService.php';
 
 /**
  * Appointment slots and bookings.
@@ -39,13 +40,25 @@ class AppointmentService
 
     public function openSlots(): array
     {
-        return $this->appointments->openSlots($this->minNoticeHours());
+        $calendar = new InterviewCalendarService($this->pdo);
+        return array_values(array_filter($this->appointments->openSlots($this->minNoticeHours()),
+            fn($slot) => $calendar->timeError($slot['slot_date'], $slot['start_time'], $slot['end_time']) === null));
+    }
+
+    public function staffSlots(int $applicationId): array
+    {
+        $calendar = new InterviewCalendarService($this->pdo);
+        return array_values(array_filter($this->appointments->slotsForStaff($applicationId),
+            fn($slot) => (int) $slot['remaining'] > 0 && $calendar->timeError($slot['slot_date'], $slot['start_time'], $slot['end_time']) === null));
     }
 
     /** The first still-in-progress application an appointment applies to, if any. */
     public function findBookableApplication(array $applications): ?array
     {
         foreach ($applications as $app) {
+            if (!empty($app['renewal_simplified'])) {
+                continue;
+            }
             if (in_array($app['status'], self::BOOKABLE_STATUSES, true)) {
                 return $app;
             }
@@ -53,10 +66,10 @@ class AppointmentService
         return null;
     }
 
-    /** An in-progress application (row with interview_status) that has no booked or completed appointment -- none yet, or it was missed. */
+    /** An in-progress application waiting for staff to assign an initial/replacement interview. */
     public static function needsBooking(?array $application): bool
     {
-        return $application !== null && in_array($application['interview_status'] ?? null, [null, 'MISSED'], true);
+        return $application !== null && in_array($application['interview_status'] ?? null, [null, 'MISSED', 'CANCELLED'], true);
     }
 
     public function location(): string
@@ -85,8 +98,8 @@ class AppointmentService
         }
         $applicationId = (int) $application['id'];
         $current = $this->appointments->interviewFor($applicationId);
-        if ($current && $current['status'] === 'COMPLETED') {
-            return 'Your interview for this application has already been completed.';
+        if (!$current || $current['status'] !== 'BOOKED') {
+            return 'MSWDO staff will assign your interview schedule. Prepare your unchecked requirements while waiting.';
         }
         if ($current && $current['status'] === 'BOOKED') {
             if ((int) $current['slot_id'] === $slotId) {
@@ -100,6 +113,16 @@ class AppointmentService
         $location = $this->location();
         $this->pdo->beginTransaction();
         try {
+            $lock = $this->pdo->prepare('SELECT status FROM applications WHERE id = ? FOR UPDATE');
+            $lock->execute([$applicationId]);
+            $currentStatus = $lock->fetchColumn();
+            $current = $this->appointments->interviewFor($applicationId);
+            if (!$current || $current['status'] !== 'BOOKED'
+                || !in_array($currentStatus, self::BOOKABLE_STATUSES, true)
+                || !$this->changeableByApplicant($current['scheduled_at'])) {
+                $this->pdo->rollBack();
+                return 'This appointment can no longer be rescheduled online. Refresh the page or contact MSWDO.';
+            }
             $slot = $this->appointments->lockSlot($slotId);
             if (!$slot || $slot['status'] !== 'AVAILABLE' || !$this->changeableByApplicant($slot['slot_date'] . ' ' . $slot['start_time'])) {
                 $this->pdo->rollBack();
@@ -108,6 +131,10 @@ class AppointmentService
             if ($this->appointments->bookedCountExcluding($slotId, $applicationId) >= (int) $slot['capacity']) {
                 $this->pdo->rollBack();
                 return 'That appointment slot just filled up. Please pick another.';
+            }
+            if ($error = (new InterviewCalendarService($this->pdo))->timeError($slot['slot_date'], $slot['start_time'], $slot['end_time'])) {
+                $this->pdo->rollBack();
+                return $error;
             }
             $scheduledAt = $slot['slot_date'] . ' ' . $slot['start_time'];
             $when = date('M j, Y g:i A', strtotime($scheduledAt));
@@ -122,7 +149,10 @@ class AppointmentService
             throw $e;
         }
 
-        (new SMSService($this->pdo))->notifyInterviewScheduled($applicationId, $application['mobile'], $application['reference_no'], $scheduledAt, $location);
+        $smsResult = (new SMSService($this->pdo))->notifyInterviewScheduled($applicationId, $application['mobile'], $application['reference_no'], $scheduledAt, $location, $application['full_name']);
+        if (!empty($smsResult['id'])) {
+            $this->appointments->linkSmsLog($applicationId, (int) $smsResult['id']);
+        }
         create_notification(
             $this->pdo, (int) $user['id'], 'appointment_confirmation',
             'Your appointment for ' . $application['reference_no'] . ' is confirmed: ' . $when . ' at ' . $location . '.',
@@ -144,7 +174,9 @@ class AppointmentService
             return 'Your appointment is less than ' . $this->minNoticeHours() . ' hour(s) away and can no longer be cancelled online. Please contact the MSWDO office.';
         }
         $current += ['reference_no' => $application['reference_no'], 'user_id' => $user['id'], 'mobile' => $application['mobile'], 'application_status' => $application['status']];
-        $this->closeAppointment($user, $current, 'CANCELLED', 'Cancelled by the applicant', false);
+        if (!$this->closeAppointment($user, $current, 'CANCELLED', 'Cancelled by the applicant', false)) {
+            return 'This appointment changed. Refresh the page before cancelling.';
+        }
         (new NotificationService($this->pdo))->notifyStaff('appointment_update', $application['reference_no'] . ' (' . $user['full_name'] . ') cancelled their appointment on ' . date('M j, Y g:i A', strtotime($current['scheduled_at'])) . '.', (int) $application['id']);
         return null;
     }
@@ -180,7 +212,9 @@ class AppointmentService
         } else {
             return 'Choose a valid action.';
         }
-        $this->closeAppointment($staff, $appt, $outcome, $reason !== '' ? $reason : null, true);
+        if (!$this->closeAppointment($staff, $appt, $outcome, $reason !== '' ? $reason : null, true)) {
+            return 'This appointment changed. Refresh the page before recording its outcome.';
+        }
         return null;
     }
 
@@ -204,6 +238,9 @@ class AppointmentService
         $daysAhead = (int) setting('appointment_max_days_ahead');
         if ($date > date('Y-m-d', strtotime('+' . $daysAhead . ' days'))) {
             return 'Slots can be opened up to ' . $daysAhead . ' days ahead.';
+        }
+        if ($error = (new InterviewCalendarService($this->pdo))->timeError($date, $startTime, $endTime)) {
+            return $error;
         }
         $days = setting_list('appointment_days');
         if (!in_array($d->format('N'), $days, true)) {
@@ -247,14 +284,16 @@ class AppointmentService
         if ($reason === '' || mb_strlen($reason) > 255) {
             return ['Give a reason (up to 255 characters) -- it is sent to anyone booked in the slot.', 0];
         }
-        $booked = $this->appointments->bookedInSlot($slotId);
         $this->appointments->cancelSlot($slotId, $reason);
+        // Close the slot before reading its bookings so no new booking can slip into this list.
+        $booked = $this->appointments->bookedInSlot($slotId);
+        $cancelled = 0;
         foreach ($booked as $appt) {
-            $this->closeAppointment($staff, $appt, 'CANCELLED', $reason, true);
+            if ($this->closeAppointment($staff, $appt, 'CANCELLED', $reason, true)) { $cancelled++; }
         }
         audit_log($this->pdo, (int) $staff['id'], $staff['full_name'], $staff['role'], 'Appointment Slot Cancelled', 'appointment_slot', $slotId,
-            $slot['slot_date'] . ' ' . substr($slot['start_time'], 0, 5) . ' — ' . $reason . ' (' . count($booked) . ' booking(s) cancelled)');
-        return [null, count($booked)];
+            $slot['slot_date'] . ' ' . substr($slot['start_time'], 0, 5) . ' — ' . $reason . ' (' . $cancelled . ' booking(s) cancelled)');
+        return [null, $cancelled];
     }
 
     /** Staff: removes a slot that has never had any appointment (otherwise it must be cancelled, keeping its history). */
@@ -306,13 +345,21 @@ class AppointmentService
      * (so it can be booked again), and tells the applicant. $appt carries the
      * appointment row plus reference_no, user_id, mobile, application_status.
      */
-    private function closeAppointment(array $actor, array $appt, string $outcome, ?string $reason, bool $byStaff): void
+    private function closeAppointment(array $actor, array $appt, string $outcome, ?string $reason, bool $byStaff): bool
     {
         $applicationId = (int) $appt['application_id'];
         $when = date('M j, Y g:i A', strtotime($appt['scheduled_at']));
 
         $this->pdo->beginTransaction();
         try {
+            $lock = $this->pdo->prepare('SELECT id FROM applications WHERE id = ? FOR UPDATE');
+            $lock->execute([$applicationId]);
+            $current = $this->appointments->findWithApplication((int) $appt['id']);
+            if (!$current || $current['status'] !== 'BOOKED' || $current['scheduled_at'] !== $appt['scheduled_at'] || (int) $current['slot_id'] !== (int) $appt['slot_id']) {
+                $this->pdo->rollBack();
+                return false;
+            }
+            $appt = $current;
             if ($outcome === 'CANCELLED') {
                 $this->appointments->cancel((int) $appt['id'], (int) $actor['id'], (string) $reason);
             } else {
@@ -332,8 +379,8 @@ class AppointmentService
 
         if ($byStaff) {
             $message = $outcome === 'CANCELLED'
-                ? 'Your appointment for ' . $appt['reference_no'] . ' on ' . $when . ' was cancelled by MSWDO: ' . $reason . '. Please book a new appointment.'
-                : 'You missed your appointment for ' . $appt['reference_no'] . ' on ' . $when . '. Please book a new appointment.';
+                ? 'Your appointment for ' . $appt['reference_no'] . ' on ' . $when . ' was cancelled by MSWDO: ' . $reason . '. Please contact MSWDO for a new schedule.'
+                : 'You missed your appointment for ' . $appt['reference_no'] . ' on ' . $when . '. Please contact MSWDO for a new schedule.';
             create_notification($this->pdo, (int) $appt['user_id'], 'appointment_confirmation', $message, $applicationId);
             if ($outcome === 'CANCELLED') {
                 (new SMSService($this->pdo))->notifyAppointmentCancelled($applicationId, $appt['mobile'], $appt['reference_no'], $appt['scheduled_at'], (string) $reason);
@@ -344,5 +391,6 @@ class AppointmentService
         audit_log($this->pdo, (int) $actor['id'], $actor['full_name'], $actor['role'],
             $outcome === 'CANCELLED' ? 'Appointment Cancelled' : 'Appointment Missed', 'application', $applicationId,
             $appt['reference_no'] . ' · ' . $when . ($reason ? ' — ' . $reason : ''));
+        return true;
     }
 }

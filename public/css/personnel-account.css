@@ -1,0 +1,36 @@
+/* My Account content only. */
+.personnel-portal .personnel-account { max-width: 1120px; padding-bottom: 48px; color: var(--ink); }
+.personnel-account :is(h1, h2) { font-family: var(--font-body); }
+@media screen { html[data-theme="dark"] .personnel-account { --staff-muted: #b6c3d5; --staff-border: #3c4b60; } }
+.personnel-account .account-back { display: inline-flex; align-items: center; gap: 9px; min-height: 44px; padding: 10px 15px; margin-bottom: 22px; border: 1px solid var(--staff-border); border-radius: 10px; background: var(--theme-card, #fff); color: var(--navy); font-size: 13px; font-weight: 600; text-decoration: none; box-shadow: 0 2px 4px rgb(20 40 70 / 4%); }
+.personnel-account .account-back:hover { background: var(--info, #eaf1fa); border-color: var(--navy); }
+.personnel-account .account-back svg { flex-shrink: 0; }
+.personnel-account .account-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 26px; }
+.personnel-account .account-heading h1 { margin: 0 0 8px; font-size: clamp(26px, 3vw, 32px); font-weight: 700; }
+.personnel-account .account-heading p, .personnel-account .account-panel-heading p { color: var(--staff-muted); font-size: 14px; line-height: 1.7; margin: 0; }
+.personnel-account .account-role { display: inline-block; padding: 7px 13px; border: 1px solid var(--staff-border); background: var(--theme-card, #fff); border-radius: 8px; color: var(--navy); font-size: 12px; font-weight: 600; }
+.personnel-account .account-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.personnel-account .account-panel { min-width: 0; padding: 26px; border: 1px solid var(--staff-border); border-radius: 14px; background: var(--theme-card, #fff); box-shadow: 0 3px 16px rgb(27 58 107 / 4%); }
+.personnel-account .account-panel-heading { padding-bottom: 20px; margin-bottom: 20px; border-bottom: 1px solid var(--staff-border); }
+.personnel-account .account-panel-heading h2 { font-size: 18px; font-weight: 700; color: var(--navy); margin: 0 0 6px; }
+.personnel-account .account-details { margin: 0; }
+.personnel-account .account-details > div { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 16px; padding: 13px 0; border-bottom: 1px solid var(--staff-border); font-size: 14px; line-height: 1.6; }
+.personnel-account .account-details > div:first-child { padding-top: 0; }
+.personnel-account .account-details > div:last-child { border-bottom: 0; }
+.personnel-account .account-details dt { color: var(--staff-muted); font-weight: 400; }
+.personnel-account .account-details dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.personnel-account .account-note { margin: 18px 0 0; padding: 14px 16px; background: var(--surface, #f3f6fa); border-radius: 9px; color: var(--staff-muted); font-size: 13px; line-height: 1.7; }
+.personnel-account .account-password-form { display: flex; flex-direction: column; gap: 18px; }
+.personnel-account .account-password-form label { display: flex; flex-direction: column; gap: 8px; color: var(--ink); font-size: 13px; font-weight: 600; }
+.personnel-account .account-password-form input { min-height: 46px; width: 100%; }
+.personnel-account .account-password-help { margin: -10px 0 0; color: var(--staff-muted); font-size: 12px; line-height: 1.7; }
+.personnel-account .account-form-actions { border-top: 1px solid var(--staff-border); padding-top: 20px; margin-top: 2px; }
+.personnel-account .account-form-actions button { padding: 12px 22px; }
+.personnel-account .account-feedback { max-width: none; margin-bottom: 22px; }
+.personnel-account :is(a, input, button):focus-visible { outline: 3px solid var(--link-blue, #4074b5); outline-offset: 3px; }
+@media (max-width: 800px) { .personnel-account .account-columns { grid-template-columns: minmax(0, 1fr); gap: 20px; } }
+@media (max-width: 480px) {
+  .personnel-account .account-panel { padding: 20px; }
+  .personnel-account .account-details > div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .personnel-account .account-form-actions button { width: 100%; }
+}

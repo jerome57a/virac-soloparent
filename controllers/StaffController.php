@@ -6,11 +6,11 @@ require_once __DIR__ . '/../services/AppointmentService.php';
 require_once __DIR__ . '/../services/RenewalService.php';
 require_once __DIR__ . '/../services/QrSlipService.php';
 require_once __DIR__ . '/../services/QrVerificationService.php';
+require_once __DIR__ . '/../services/IdReleaseService.php';
 require_once __DIR__ . '/NotificationController.php';
 require_once __DIR__ . '/ReportController.php';
 require_once __DIR__ . '/../services/HelpAssistantService.php';
 require_once __DIR__ . '/../services/RecordService.php';
-require_once __DIR__ . '/../services/EligibilityService.php';
 require_once __DIR__ . '/../models/Applicant.php';
 require_once __DIR__ . '/../models/User.php';
 require_once __DIR__ . '/../models/Application.php';
@@ -18,8 +18,8 @@ require_once __DIR__ . '/../models/Document.php';
 require_once __DIR__ . '/../models/Appointment.php';
 
 /**
- * MSWD case-processing pages under staff/. Reachable by both staff roles
- * (MSWD social workers and admins); every action requires a staff login.
+ * MSWD pages under staff/ and shared management pages with admin/ entry points.
+ * Entry points check the portal role; every action also checks its permission.
  */
 class StaffController extends Controller
 {
@@ -27,20 +27,28 @@ class StaffController extends Controller
 
     private array $staff;
 
-    public function __construct(PDO $pdo)
+    public function __construct(PDO $pdo, bool $adminPortal = false)
     {
         parent::__construct($pdo);
-        $staff = (new AuthService($pdo))->currentStaff();
+        $auth = new AuthService($pdo);
+        if ($auth->currentUser()) {
+            $this->redirectTo('applicant/dashboard.php');
+        }
+        $staff = $auth->currentStaff();
         if (!$staff) {
             // Someone scanned a slip's QR while signed out: remember it, verify right after staff login.
             if (str_ends_with((string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH), '/staff/qr_verify.php')
                 && is_string($_GET['t'] ?? null) && preg_match('/^[0-9a-f]{64}$/i', $_GET['t'])) {
                 $_SESSION['pending_qr_token'] = strtolower($_GET['t']);
             }
-            $this->redirectTo('admin/login.php');
+            $this->redirectTo('mswd-login.php');
+        }
+        if ($staff['role'] !== ($adminPortal ? 'admin' : 'mswd_social_worker')) {
+            $this->redirectTo($staff['role'] === 'admin' ? 'admin/dashboard.php' : 'staff/dashboard.php');
         }
         $this->staff = $staff;
-        $this->requireOwnPassword($staff, 'staff/account.php', str_ends_with((string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH), '/staff/account.php'));
+        $accountPage = role_portal_path($staff, 'account.php');
+        $this->requireOwnPassword($staff, $accountPage, str_ends_with((string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH), '/' . $accountPage));
     }
 
     public function dashboard(): void
@@ -64,7 +72,7 @@ class StaffController extends Controller
             'verificationQueue' => $documents->verificationQueue(5),
             'todaysAppointments' => $todays,
             'upcomingInterviews' => $appointments->upcomingInterviews(5),
-            'recentlyProcessed' => $applications->recentlyReviewedBy((int) $this->staff['id']),
+            'recentlyProcessed' => $applications->recentlyReviewed(),
         ]);
     }
 
@@ -99,42 +107,56 @@ class StaffController extends Controller
             die('Application not found.');
         }
 
-        $errors = ['status' => '', 'interview' => '', 'eligibility' => '', 'note' => '', 'documents' => []];
+        $review = new ApplicationReviewService($this->pdo);
+        if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+            $review->startReviewOnOpen($this->staff, $app);
+            $app = $applications->findForReview($id);
+            $review->verifyAvailableChecklistOnOpen($this->staff, $app);
+        }
+        $errors = ['status' => '', 'interview' => '', 'assessment' => '', 'release' => '', 'note' => '', 'documents' => []];
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_require();
             $errors = $this->handleReviewAction($app) + $errors;
         }
-        $documents = new Document($this->pdo);
-        $review = new ApplicationReviewService($this->pdo);
         [$renewalOf, $renewalChanges] = $this->renewalContext($app);
+        $appointmentModel = new Appointment($this->pdo);
+        $currentInterview = $appointmentModel->interviewFor($id);
+        $interviewForm = ['slot_id' => (string) ($currentInterview['slot_id'] ?? ''), 'location' => $currentInterview['location'] ?? get_setting($this->pdo, 'appointment_location', AppointmentService::DEFAULT_LOCATION), 'sms_message_type' => 'automatic', 'custom_message' => ''];
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_action'] ?? '') === 'schedule_interview') {
+            foreach ($interviewForm as $key => $value) {
+                if (is_string($_POST[$key] ?? null)) { $interviewForm[$key] = $_POST[$key]; }
+            }
+        }
 
         $this->page('Application ' . $app['reference_no'], 'views/staff/applications/show.php', [
             'app' => $app,
             'statusError' => $errors['status'],
+            'assessmentError' => $errors['assessment'],
+            'releaseError' => $errors['release'],
+            'documentErrors' => $errors['documents'],
             'interviewError' => $errors['interview'],
-            'eligibilityError' => $errors['eligibility'],
             'noteError' => $errors['note'],
             'flashMessage' => take_flash(),
+            'reviewUndoToken' => $review->reviewUndoToken($id),
             'allowedTransitions' => Application::TRANSITIONS[$app['status']] ?? [],
             'approvalChecklist' => $review->approvalChecklist($app),
-            'verificationStatuses' => Document::VERIFICATION_STATUSES,
-            'documentErrors' => $errors['documents'],
-            'documentsEditable' => in_array($app['status'], Application::IN_PROGRESS_STATUSES, true),
-            'docHistory' => $documents->statusHistoryFor($id),
-            'interview' => (new Appointment($this->pdo))->interviewFor($id),
+            'interview' => $appointmentModel->interviewFor($id),
+            'interviewSms' => $appointmentModel->interviewSms($id),
+            'interviewSlots' => (new AppointmentService($this->pdo))->staffSlots($id),
+            'interviewForm' => $interviewForm,
+            'idReleaseSchedule' => (new IdReleaseService($this->pdo))->scheduleFor($id),
+            'defaultReleaseLocation' => get_setting($this->pdo, 'appointment_location', 'MSWDO Virac office'),
             'children' => $applications->children($id),
-            'docs' => $documents->forReview($id, $app['category_id'] !== null ? (int) $app['category_id'] : null),
+            'submittedChecklist' => (new Document($this->pdo))->checklistForReview($id, $app['category_id'] !== null ? (int) $app['category_id'] : null, ($app['type'] ?? '') === 'renewal'),
             'history' => $applications->history($id),
             'decisions' => $applications->decisions($id),
             'notes' => $applications->notes($id),
-            'mswdAssessments' => (new EligibilityAssessment($this->pdo))->mswdForApplication($id),
-            'selfCheck' => (new EligibilityService($this->pdo))->latestForUser((int) $app['user_id']),
             'renewalOf' => $renewalOf,
             'renewalChanges' => $renewalChanges,
         ]);
     }
 
-    /** Runs one review action; redirects back on success, else returns ['status'|'interview'|'eligibility'|'note' => error, 'documents' => [doc id => error]]. */
+    /** Runs one review action; redirects back on success, else returns an action-specific error. */
     private function handleReviewAction(array $app): array
     {
         $review = new ApplicationReviewService($this->pdo);
@@ -143,19 +165,124 @@ class StaffController extends Controller
         $back = 'staff/application.php?id=' . $id;
 
         switch ($post('form_action') ?: 'update_status') {
+            case 'confirm_all_required_documents':
+                if ($post('confirm_received') !== '1') {
+                    return ['documents' => ['checklist' => 'Confirm that all required physical documents have been received.']];
+                }
+                $error = $review->confirmAllRequiredDocuments($this->staff, $app);
+                if ($error) {
+                    return ['documents' => ['checklist' => $error]];
+                }
+                flash('All required documents confirmed.');
+                $back .= '#checklist';
+                break;
+            case 'receive_checklist_document':
+                if ($post('confirm_received') !== '1') {
+                    return ['documents' => ['checklist' => 'Confirm that the physical document was received.']];
+                }
+                $error = $review->receiveChecklistDocument($this->staff, $app, $post('doc_key'));
+                if ($error) {
+                    return ['documents' => ['checklist' => $error]];
+                }
+                flash('Document received. The checklist has been updated.');
+                $back .= '#checklist';
+                break;
+            case 'undo_review':
+                $section = $post('review_section');
+                $error = $review->undoReview($this->staff, $id, $section, $post('expected_review'));
+                if ($error) {
+                    return $section === 'verification' ? ['documents' => ['checklist' => $error]]
+                        : [$section === 'interview' ? 'interview' : 'assessment' => $error];
+                }
+                flash(ucfirst($section) . ' review undone. You can review it again.');
+                $back .= $section === 'verification' ? '#checklist' : '#decision';
+                break;
+            case 'schedule_id_release':
+                $error = (new IdReleaseService($this->pdo))->schedule($this->staff, $app, $post('release_date'), $post('release_time'), $post('release_location'), $post('sms_message_type') ?: 'automatic', $post('release_custom_message'));
+                if ($error) {
+                    return ['release' => $error];
+                }
+                $back .= '#id-release';
+                break;
+            case 'retry_id_release_sms':
+                $releaseService = new IdReleaseService($this->pdo);
+                $schedule = $releaseService->scheduleFor($id);
+                $logId = (int) $post('sms_log_id');
+                if ($app['status'] !== 'Approved' || !$schedule || (int) $schedule['sms_log_id'] !== $logId || $schedule['sms_status'] !== 'FAILED') {
+                    return ['release' => 'That failed SMS is no longer the current release notification. Refresh and review the latest schedule.'];
+                }
+                [$retryError, $retryResult] = (new SMSService($this->pdo))->retry($logId);
+                if ($retryError) {
+                    return ['release' => $retryError];
+                }
+                if ($retryResult['status'] === 'SENT' && !empty($retryResult['test_mode'])) {
+                    flash('SMS retry was logged in test mode and was not sent.');
+                } elseif ($retryResult['status'] === 'SENT') {
+                    flash('The SMS provider accepted the release notification; delivery is not confirmed here.');
+                } else {
+                    flash('SMS retry failed: ' . ($retryResult['error'] ?: 'provider error'));
+                }
+                $back .= '#id-release';
+                break;
+            case 'confirm_id_release':
+                if ($post('confirm_handover') !== '1') {
+                    return ['release' => 'Confirm that the physical ID was handed to the applicant before recording release.'];
+                }
+                $error = (new IdReleaseService($this->pdo))->confirmRelease($this->staff, $app);
+                if ($error) {
+                    return ['release' => $error];
+                }
+                $back .= '#id-release';
+                break;
             case 'schedule_interview':
-                $error = $review->scheduleInterview($this->staff, $app, $post('scheduled_at'), $post('location'), $post('notes'));
+                // Date/time come from the managed slot, never from editable browser fields.
+                $slotId = (int) $post('slot_id');
+                $slot = (new Appointment($this->pdo))->findSlot($slotId);
+                if (!$slot) { return ['interview' => 'Select an available interview slot.']; }
+                $scheduledAt = $slot['slot_date'] . 'T' . substr($slot['start_time'], 0, 5);
+                $error = $review->scheduleInterview($this->staff, $app, $scheduledAt, $post('location'), $post('notes'), $post('sms_message_type') ?: 'automatic', $post('custom_message'), $slotId);
                 if ($error) {
                     return ['interview' => $error];
                 }
                 $back .= '#interview';
                 break;
+            case 'retry_interview_sms':
+                $appointment = (new Appointment($this->pdo))->interviewFor($id);
+                $sms = new SMSService($this->pdo);
+                $latest = $appointment ? (new Appointment($this->pdo))->interviewSms($id) : null;
+                $logId = (int) $post('sms_log_id');
+                if (!$appointment || $appointment['status'] !== 'BOOKED' || !$latest || (int) $latest['id'] !== $logId || $latest['status'] !== 'FAILED') {
+                    return ['interview' => 'That failed SMS is no longer the current interview notification. Refresh the page and review the latest schedule.'];
+                }
+                if (!$sms->templateEnabled('interview_scheduled')) {
+                    return ['interview' => 'Interview SMS notifications are disabled. Enable them in Notification Settings before retrying.'];
+                }
+                [$retryError, $retryResult] = $sms->retry($logId);
+                if ($retryError) {
+                    return ['interview' => $retryError];
+                }
+                if ($retryResult['status'] === 'SENT') {
+                    flash(!empty($retryResult['test_mode']) ? 'SMS retry was logged in test mode and was not sent.' : 'Semaphore accepted the interview SMS retry.');
+                } else {
+                    flash('SMS retry failed: ' . ($retryResult['error'] ?: 'provider error'));
+                }
+                $back .= '#interview';
+                break;
             case 'record_result':
-                $error = $review->recordInterviewResult($this->staff, $id, $post('result'));
+                $error = $review->recordInterviewOutcome($this->staff, $id, $post('interview_outcome'), $post('interview_notes'));
                 if ($error) {
                     return ['interview' => $error];
                 }
                 $back .= '#interview';
+                break;
+            case 'assess_eligibility':
+            case 'update_eligibility':
+                $assessmentNotes = $post('assessment_remarks') ?: $post('eligibility_remarks');
+                $error = $review->assessEligibility($this->staff, $app, $post('eligibility_status'), $assessmentNotes);
+                if ($error) {
+                    return ['assessment' => $error];
+                }
+                $back .= '#decision';
                 break;
             case 'update_document_status':
                 $docId = (int) $post('doc_id');
@@ -165,13 +292,21 @@ class StaffController extends Controller
                 }
                 $back .= '#doc-' . $docId;
                 break;
-            case 'update_eligibility':
-                $error = $review->assessEligibility($this->staff, $app, $post('eligibility_status'), $post('eligibility_remarks'));
+            case 'verify_all_documents':
+                $error = $review->verifyAllChecklistItems($this->staff, $app);
                 if ($error) {
-                    return ['eligibility' => $error];
+                    return ['documents' => ['checklist' => $error]];
                 }
-                flash('Eligibility assessment saved.');
-                $back .= '#assessment';
+                flash('All documents verified successfully.');
+                $back .= '#checklist';
+                break;
+            case 'save_checklist_reviews':
+                $error = $review->reviewChecklistItems($this->staff, $app, $_POST['checklist_items'] ?? null);
+                if ($error) {
+                    return ['documents' => ['checklist' => $error]];
+                }
+                flash('Document verification saved successfully.');
+                $back .= '#checklist';
                 break;
             case 'add_note':
                 $error = $review->addNote($this->staff, $app, $post('note'));
@@ -198,7 +333,7 @@ class StaffController extends Controller
         $this->authorize($this->staff, 'applicants.view');
         $records = new RecordService($this->pdo);
         $filters = $records->filters($_GET);
-        $result = $records->search($filters, (int) ($_GET['page'] ?? 1));
+        $result = $records->search($filters, (int) ($_GET['page'] ?? 1), $this->staff['role'] === 'admin' ? 10 : RecordService::PER_PAGE);
         $this->page('Applicant Records', 'views/staff/applicants/index.php', [
             'filters' => $filters,
             'barangays' => $records->barangays(),
@@ -256,6 +391,7 @@ class StaffController extends Controller
             'flashMessage' => take_flash(),
             'canManage' => $canManage,
             'awaitingOutcome' => $appointments->awaitingOutcome(),
+            'awaitingSchedule' => $canManage ? $appointments->awaitingStaffSchedule() : [],
             // Past-but-still-booked ones are already listed under Needs Outcome.
             'todayAppointments' => array_values(array_filter($appointments->todaysInterviews(), fn($iv) => !($iv['status'] === 'BOOKED' && strtotime($iv['scheduled_at']) < time()))),
             'upcomingByDate' => $appointments->laterInterviewsByDate(),
@@ -292,6 +428,7 @@ class StaffController extends Controller
             'success' => $success,
             'slots' => (new Appointment($this->pdo))->upcomingSlotsWithBookings(),
             'defaultCapacity' => (int) get_setting($this->pdo, 'appointment_default_capacity', '10'),
+            'returnApplication' => can($this->staff, 'applications.process') ? (new Application($this->pdo))->findForReview((int) ($_GET['application_id'] ?? 0)) : null,
         ]);
     }
 
@@ -313,10 +450,19 @@ class StaffController extends Controller
                 $outcome = $service->verify($this->staff, $input);
             }
         }
+        $verificationCard = null;
+        if (!empty($outcome['app']) && can($this->staff, 'applicants.view')) {
+            $applications = new Application($this->pdo);
+            $verificationCard = $applications->findForReview((int) $outcome['app']['id']);
+            if ($verificationCard) {
+                $verificationCard['children'] = $applications->children((int) $outcome['app']['id']);
+            }
+        }
         $this->page('QR Verification', 'views/staff/qr/verify.php', [
             'error' => $error,
             'outcome' => $outcome,
             'input' => $input,
+            'verificationCard' => $verificationCard,
         ]);
     }
 
@@ -342,7 +488,7 @@ class StaffController extends Controller
             );
             if ($success) {
                 flash($success);
-                $this->redirectTo('staff/account.php');
+                $this->redirectTo(role_portal_path($this->staff, 'account.php'));
             }
         }
         $this->page('My Account', 'views/staff/account.php', [
@@ -392,6 +538,10 @@ class StaffController extends Controller
     public function reports(): void
     {
         $this->authorize($this->staff, 'reports.view');
+        if ($this->staff['role'] === 'admin') {
+            // Administrators use the same reports on their own page.
+            $this->redirectTo('admin/reports.php' . ($_GET ? '?' . http_build_query($_GET) : ''));
+        }
         $data = (new ReportController($this->pdo))->handle($this->staff, 'staff/reports.php');
         $this->page(Report::TYPES[$data['type']], 'views/reports/index.php', $data);
     }

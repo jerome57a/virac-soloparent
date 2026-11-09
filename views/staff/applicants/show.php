@@ -15,7 +15,7 @@
  * @var array  $decisions
  * @var array  $history           ['rows' => status changes, ...paginate() fields]
  */
-$recordUrl = fn(array $extra = []) => base_url('staff/applicant_view.php?' . http_build_query(['id' => (int) $applicant['id']] + $extra));
+$recordUrl = fn(array $extra = []) => base_url(role_portal_path($staff, 'applicant_view.php') . '?' . http_build_query(['id' => (int) $applicant['id']] + $extra));
 $scopeLabel = $selected ? 'for ' . $selected['reference_no'] : 'across all applications';
 $pill = function (string $status): string {
     $st = status_style($status);
@@ -35,13 +35,13 @@ $when = fn(?string $v, string $fmt = 'M j, Y g:i A') => $v ? date($fmt, strtotim
 $empty = fn(string $text) => '<div style="font-size:13px;color:var(--muted)">' . e($text) . '</div>';
 ?>
 <div class="portal-container">
-  <a href="<?= e(base_url('staff/applicants.php')) ?>" style="font-size:13px">&larr; Back to Applicant Records</a>
+  <a href="<?= e(base_url(role_portal_path($staff, 'applicants.php'))) ?>" class="staff-back-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5m7-7-7 7 7 7"/></svg><span data-i18n>Back</span></a>
   <h1 class="font-heading mt-2 mb-0" style="font-size:26px"><?= e($applicant['full_name']) ?></h1>
   <div style="font-size:13px;color:var(--muted)">Applicant record · @<?= e($applicant['username']) ?></div>
 
   <nav class="record-nav mt-3" aria-label="Record sections">
-    <a href="#profile">Profile</a><a href="#applications">Applications</a><a href="#renewals">Renewals</a><a href="#documents">Documents</a>
-    <a href="#appointments">Appointments</a><a href="#decisions">Decisions</a><a href="#history">Status history</a>
+    <a href="#profile">Profile</a><a href="#applications" data-i18n>Applications</a><a href="#renewals">Renewals</a><a href="#documents" data-i18n>Documents</a>
+    <a href="#appointments" data-i18n>Appointments</a><a href="#decisions">Decisions</a><a href="#history">Status history</a>
   </nav>
 
   <div class="review-card" id="profile">
@@ -58,7 +58,7 @@ $empty = fn(string $text) => '<div style="font-size:13px;color:var(--muted)">' .
       </div>
     </div>
     <div class="review-grid">
-      <div class="review-row"><div class="k">Email</div><div class="v"><?= e($applicant['email']) ?></div></div>
+      <div class="review-row"><div class="k" data-i18n>Email</div><div class="v"><?= e($applicant['email']) ?></div></div>
       <div class="review-row"><div class="k">Mobile</div><div class="v">
         <?php if (SMSService::confirmedNumber($applicant['mobile'], $applicant['mobile_verified_at']) !== null): ?>
           <?= e($applicant['mobile']) ?><span style="display:block;font-size:12px;color:var(--muted)">Confirmed · used for SMS about their applications</span>
@@ -66,12 +66,12 @@ $empty = fn(string $text) => '<div style="font-size:13px;color:var(--muted)">' .
           <?= e($applicant['mobile']) ?><span style="display:block;font-size:12px;color:var(--muted)">Not confirmed · SMS goes to the number on each application</span>
         <?php else: ?>—<?php endif; ?>
       </div></div>
-      <div class="review-row"><div class="k">Account status</div><div class="v"><span class="status-pill" style="background:<?= $applicant['is_active'] ? '#dcf3e2' : '#fde8e8' ?>;color:<?= $applicant['is_active'] ? '#1c7a3f' : '#a51c1c' ?>"><?= $applicant['is_active'] ? 'Active' : 'Deactivated' ?></span></div></div>
-      <div class="review-row"><div class="k">Birthdate</div><div class="v"><?= e($profile['birthdate'] ? format_date_long($profile['birthdate']) : '—') ?></div></div>
-      <div class="review-row"><div class="k">Sex</div><div class="v"><?= e($profile['sex'] ?: '—') ?></div></div>
-      <div class="review-row"><div class="k">Civil status</div><div class="v"><?= e($profile['civil_status'] ?: '—') ?></div></div>
-      <div class="review-row"><div class="k">Address</div><div class="v"><?= e(trim(($profile['address'] ?? '') . ($profile['barangay'] ? ', Brgy. ' . $profile['barangay'] : ''), ', ') ?: '—') ?></div></div>
-      <div class="review-row"><div class="k">Preliminary self-check</div><div class="v">
+      <div class="review-row"><div class="k">Account status</div><div class="v"><span class="status-pill" style="background:<?= $applicant['is_active'] ? '#dcf3e2' : '#fde8e8' ?>;color:<?= $applicant['is_active'] ? '#1c7a3f' : '#a51c1c' ?>" data-i18n><?= $applicant['is_active'] ? 'Active' : 'Deactivated' ?></span></div></div>
+      <div class="review-row"><div class="k" data-i18n>Birthdate</div><div class="v"><?= e($profile['birthdate'] ? format_date_long($profile['birthdate']) : '—') ?></div></div>
+      <div class="review-row"><div class="k" data-i18n>Sex</div><div class="v"><?= e($profile['sex'] ?: '—') ?></div></div>
+      <div class="review-row"><div class="k" data-i18n>Civil status</div><div class="v"><?= e($profile['civil_status'] ?: '—') ?></div></div>
+      <div class="review-row"><div class="k" data-i18n>Address</div><div class="v"><?= e(trim(($profile['address'] ?? '') . ($profile['barangay'] ? ', Brgy. ' . $profile['barangay'] : ''), ', ') ?: '—') ?></div></div>
+      <div class="review-row"><div class="k">Preliminary self-check</div><div class="v" data-i18n>
         <?php if ($eligibilityCheck): ?>
           <?= $eligibilityCheck['result']['eligible'] ? 'May be eligible' : 'May not meet criteria' ?>
           <span style="color:var(--faint)">(<?= e(date('M j, Y', strtotime($eligibilityCheck['checkedAt']))) ?>; not an MSWD decision)</span>
@@ -87,7 +87,7 @@ $empty = fn(string $text) => '<div style="font-size:13px;color:var(--muted)">' .
     <?php if (!$rows): ?><?= $empty($none) ?><?php else: ?>
     <div class="table-responsive">
       <table class="table table-sm record-table">
-        <thead><tr><th>Reference</th><?php if ($anchor === 'renewals'): ?><th>Renews</th><?php endif; ?><th>Category</th><th>Submitted</th><th>Status</th><th>Reviewed by</th><th>ID valid until</th><th></th></tr></thead>
+        <thead><tr><th data-i18n>Reference</th><?php if ($anchor === 'renewals'): ?><th>Renews</th><?php endif; ?><th data-i18n>Category</th><th data-i18n>Submitted</th><th data-i18n>Status</th><th>Reviewed by</th><th data-i18n>ID valid until</th><th></th></tr></thead>
         <tbody>
           <?php foreach ($rows as $app): ?>
             <tr<?= $selected && (int) $selected['id'] === (int) $app['id'] ? ' class="record-selected"' : '' ?>>
@@ -114,7 +114,7 @@ $empty = fn(string $text) => '<div style="font-size:13px;color:var(--muted)">' .
     <label for="scope-app" style="font-weight:700;font-size:14px">Show documents, appointments, decisions and history for</label>
     <select id="scope-app" name="app" style="padding:7px;border:1px solid var(--input-border);border-radius:6px" onchange="this.form.submit()">
       <option value="0">All applications (<?= count($applications) ?>)</option>
-      <?php foreach ($applications as $app): ?><option value="<?= (int) $app['id'] ?>" <?= $selected && (int) $selected['id'] === (int) $app['id'] ? 'selected' : '' ?>><?= e($app['reference_no']) ?> — <?= $app['type'] === 'renewal' ? 'Renewal' : 'New' ?>, <?= e($app['status']) ?></option><?php endforeach; ?>
+      <?php foreach ($applications as $app): ?><option value="<?= (int) $app['id'] ?>" <?= $selected && (int) $selected['id'] === (int) $app['id'] ? 'selected' : '' ?> data-i18n><?= e($app['reference_no']) ?> — <?= $app['type'] === 'renewal' ? 'Renewal' : 'New' ?>, <?= e($app['status']) ?></option><?php endforeach; ?>
     </select>
     <noscript><button type="submit" class="btn-outline">Show</button></noscript>
   </form>
@@ -125,7 +125,7 @@ $empty = fn(string $text) => '<div style="font-size:13px;color:var(--muted)">' .
     <?php if (!$documents): ?><?= $empty('No documents on file.') ?><?php else: ?>
     <div class="table-responsive">
       <table class="table table-sm record-table">
-        <thead><tr><th>Application</th><th>Document</th><th>Uploaded</th><th>Status</th><th>Verified</th><th>Remarks</th><th></th></tr></thead>
+        <thead><tr><th data-i18n>Application</th><th>Document</th><th>Uploaded</th><th data-i18n>Status</th><th data-i18n>Verified</th><th data-i18n>Remarks</th><th></th></tr></thead>
         <tbody>
           <?php foreach ($documents as $d): ?>
             <tr>
@@ -135,7 +135,7 @@ $empty = fn(string $text) => '<div style="font-size:13px;color:var(--muted)">' .
               <td><?= $docPill($d['verification_status']) ?></td>
               <td><?= $d['verified_at'] ? e($when($d['verified_at'])) . '<div style="font-size:11px;color:var(--faint)">' . e($d['verified_by_name'] ?: 'former staff member') . '</div>' : '—' ?></td>
               <td><?= e($d['staff_remarks'] ?: '—') ?></td>
-              <td><a href="<?= e(base_url('download.php?doc_id=' . (int) $d['id'])) ?>" target="_blank" rel="noopener">View</a></td>
+              <td><a href="<?= e(base_url('download.php?doc_id=' . (int) $d['id'])) ?>" target="_blank" rel="noopener" data-i18n>View</a></td>
             </tr>
           <?php endforeach; ?>
         </tbody>
@@ -149,7 +149,7 @@ $empty = fn(string $text) => '<div style="font-size:13px;color:var(--muted)">' .
     <?php if (!$appointments): ?><?= $empty('No appointments on file.') ?><?php else: ?>
     <div class="table-responsive">
       <table class="table table-sm record-table">
-        <thead><tr><th>Application</th><th>Date &amp; time</th><th>Location</th><th>Status</th><th>Outcome / notes</th></tr></thead>
+        <thead><tr><th data-i18n>Application</th><th>Date &amp; time</th><th data-i18n>Location</th><th data-i18n>Status</th><th>Outcome / notes</th></tr></thead>
         <tbody>
           <?php foreach ($appointments as $i): [$al, $abg, $afg] = $apptLabels[$i['status']]; ?>
             <tr>

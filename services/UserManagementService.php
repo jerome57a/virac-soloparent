@@ -20,7 +20,7 @@ require_once __DIR__ . '/AuthService.php';
  */
 class UserManagementService
 {
-    public const PER_PAGE = 25;
+    public const PER_PAGE = 10;
     public const ACTIVITY_PER_PAGE = 20;
     public const STATUS_FILTERS = ['active' => 'Active', 'inactive' => 'Deactivated', 'locked' => 'Locked out', 'temp_password' => 'Temporary password'];
     private const USERNAME_PATTERN = '/^[A-Za-z0-9._-]{3,50}$/';
@@ -51,12 +51,12 @@ class UserManagementService
     }
 
     /** Checks name, email and mobile (shared by create and edit). Returns an error or null. */
-    private function contactError(string $fullName, string $email, string $mobile, int $exceptUserId = 0): ?string
+    private function contactError(string $fullName, string $email, string $mobile, int $exceptUserId = 0, bool $optionalEmail = false): ?string
     {
         if (mb_strlen($fullName) < 2 || mb_strlen($fullName) > 150) {
             return 'Enter a full name (2 to 150 characters).';
         }
-        if (mb_strlen($email) > 150 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        if ((!$optionalEmail || $email !== '') && (mb_strlen($email) > 150 || !filter_var($email, FILTER_VALIDATE_EMAIL))) {
             return 'Enter a valid email address.';
         }
         if ($mobile !== '' && !is_valid_ph_mobile($mobile)) {
@@ -76,31 +76,51 @@ class UserManagementService
         $username = trim((string) ($in['username'] ?? ''));
         $mobile = trim((string) ($in['mobile'] ?? ''));
         $password = (string) ($in['password'] ?? '');
+        $confirmation = (string) ($in['password_confirm'] ?? '');
         $role = (string) ($in['role'] ?? '');
 
-        if ($error = $this->contactError($fullName, $email, $mobile)) {
-            return [$error, '', null];
-        }
-        if (!preg_match(self::USERNAME_PATTERN, $username)) {
-            return ['Username must be 3 to 50 characters: letters, numbers, dots, dashes or underscores.', '', null];
-        }
-        if ($this->users->usernameExists($username)) {
-            return ['That username is already taken.', '', null];
-        }
         if (!isset(User::ROLE_LABELS[$role])) {
             return ['Select a valid role.', '', null];
         }
-        if ($error = (new AuthService($this->pdo))->passwordPolicyError($password)) {
-            return [$error, '', null];
+        $auth = new AuthService($this->pdo);
+        if ($role === 'applicant') {
+            // Applicant signup uses mobile contact, without requiring an email address.
+            $email = '';
+            if ($error = $auth->applicantRegistrationError(compact('fullName', 'username', 'mobile'), $password, $confirmation)) {
+                return [$error, '', null];
+            }
+        } else {
+            // Personnel sign in with username/password; contact details are not creation fields.
+            $email = '';
+            $mobile = '';
+            if ($error = $this->contactError($fullName, $email, $mobile, 0, true)) {
+                return [$error, '', null];
+            }
+            if (!preg_match(self::USERNAME_PATTERN, $username)) {
+                return ['Username must be 3 to 50 characters: letters, numbers, dots, dashes or underscores.', '', null];
+            }
+            if ($this->users->usernameExists($username)) {
+                return ['That username is already taken.', '', null];
+            }
+            if ($error = $auth->passwordPolicyError($password, $confirmation)) {
+                return [$error, '', null];
+            }
         }
         $hash = password_hash($password, PASSWORD_DEFAULT);
         $newId = $this->users->createWithRole($fullName, $email, $username, $hash, $role, $mobile !== '' ? $mobile : null);
-        $mustChange = !empty($in['mustChange']);
+        $mustChange = $role !== 'applicant' && !empty($in['mustChange']);
         if ($mustChange) {
             $this->users->setTemporaryPassword($newId, $hash);
         }
         $this->audit($admin, 'User Creation', $newId, $username . ' (' . User::ROLE_LABELS[$role] . ')' . ($mustChange ? ', must change password at first sign-in' : ''));
-        return ['', 'Account created for ' . $username . '.', $newId];
+        $success = 'Account created for ' . $username . '.';
+        if ($role === 'mswd_social_worker') {
+            $success .= ' They can access and continue updating all existing applicant records when they sign in. Previous staff history is preserved.';
+        }
+        if ($role === 'applicant') {
+            $success .= ' They must confirm their mobile number when they sign in. This creates an account only; the Solo Parent application is completed separately.';
+        }
+        return ['', $success, $newId];
     }
 
     /** @return array{0: string, 1: string} */
@@ -109,7 +129,7 @@ class UserManagementService
         $fullName = trim((string) ($in['full_name'] ?? ''));
         $email = trim((string) ($in['email'] ?? ''));
         $mobile = trim((string) ($in['mobile'] ?? ''));
-        if ($error = $this->contactError($fullName, $email, $mobile, (int) $target['id'])) {
+        if ($error = $this->contactError($fullName, $email, $mobile, (int) $target['id'], true)) {
             return [$error, ''];
         }
         $changes = [];
@@ -138,6 +158,33 @@ class UserManagementService
         $this->users->setActive((int) $target['id'], $active);
         $this->audit($admin, $active ? 'Account Activated' : 'Account Deactivated', (int) $target['id'], $target['username']);
         return ['', $active ? 'Account activated. ' . $target['username'] . ' can sign in again.' : 'Account deactivated. ' . $target['username'] . ' is signed out and can no longer sign in.'];
+    }
+
+    /**
+     * Permanently removes an account. Accounts with applications on file, or
+     * still referenced by staff records (slots, interviews), must be
+     * deactivated instead so the history stays intact.
+     *
+     * @return array{0: string, 1: string}
+     */
+    public function delete(array $admin, array $target): array
+    {
+        if ((int) $target['id'] === (int) $admin['id']) {
+            return ['You cannot delete your own account.', ''];
+        }
+        if (($count = $this->users->applicationCount((int) $target['id'])) > 0) {
+            return ['This account has ' . $count . ' application(s) on file and cannot be deleted. Deactivate it instead.', ''];
+        }
+        try {
+            $this->users->delete((int) $target['id']);
+        } catch (PDOException $e) {
+            if ($e->getCode() === '23000') {
+                return ['This account is linked to records such as appointment slots or interviews and cannot be deleted. Deactivate it instead.', ''];
+            }
+            throw $e;
+        }
+        $this->audit($admin, 'User Deleted', (int) $target['id'], $target['username'] . ' (' . (User::ROLE_LABELS[$target['role']] ?? $target['role']) . ')');
+        return ['', 'Account ' . $target['username'] . ' deleted.'];
     }
 
     /** @return array{0: string, 1: string} */

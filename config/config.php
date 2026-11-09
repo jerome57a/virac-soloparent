@@ -50,12 +50,38 @@ if (PHP_SAPI !== 'cli') {
     header('Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=(), usb=()');
 }
 
+// Keep PHP sessions in the application's protected storage. The XAMPP
+// default C:\xampp\tmp can be unreadable to the web-server account, which
+// breaks CSRF validation and logout POSTs.
+$sessionPath = APP_ROOT . '/storage/sessions';
+if (!is_dir($sessionPath) && !@mkdir($sessionPath, 0700, true) && !is_dir($sessionPath)) {
+    throw new RuntimeException('Unable to create the application session directory.');
+}
+if (!is_writable($sessionPath) || session_save_path($sessionPath) === false) {
+    throw new RuntimeException('The application session directory is not writable.');
+}
+
+// Each actor has an independent cookie, so tabs can keep all three accounts signed in.
+// Folder routes select their own portal; only shared entry points accept a portal selector.
+$sessionScript = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
+$sessionFolder = basename(dirname($sessionScript));
+$sessionPortal = in_array($sessionFolder, ['admin', 'staff'], true) ? $sessionFolder : 'applicant';
+if (in_array(basename($sessionScript), ['mswd-login.php', 'forgot-password.php', 'reset-password.php', 'slip.php', 'download.php', 'avatar.php'], true)) {
+    $requestedPortal = $_GET['portal'] ?? '';
+    if (is_string($requestedPortal) && in_array($requestedPortal, ['admin', 'staff'], true)) {
+        $sessionPortal = $requestedPortal;
+    } elseif (basename($sessionScript) === 'mswd-login.php') {
+        $sessionPortal = 'staff';
+    }
+}
+define('AUTH_PORTAL', $sessionPortal);
+
 // 'secure' only when actually served over HTTPS -- forcing it on would
 // stop the session cookie being sent at all on a plain-HTTP dev install
 // (like this local XAMPP setup), silently breaking every login.
 session_set_cookie_params([
     'lifetime' => 0,
-    'path' => '/',
+    'path' => rtrim((string) parse_url(BASE_URL, PHP_URL_PATH), '/') . '/',
     'httponly' => true,
     'samesite' => 'Lax',
     'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
@@ -65,6 +91,6 @@ if (session_status() === PHP_SESSION_NONE) {
     // session fixation via a planted cookie); IDs only ever come from cookies.
     ini_set('session.use_strict_mode', '1');
     ini_set('session.use_only_cookies', '1');
-    session_name('ESPID_SESSION');
+    session_name('ESPID_' . strtoupper(AUTH_PORTAL) . '_SESSION');
     session_start();
 }

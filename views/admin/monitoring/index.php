@@ -11,14 +11,13 @@
  */
 ?>
 <div class="portal-container">
-  <a href="<?= base_url('admin/dashboard.php') ?>" style="font-size:13px">&larr; Back to dashboard</a>
-  <h1 class="font-heading mt-2 mb-4" style="font-size:26px">Database &amp; System Monitoring</h1>
+  <?php require APP_ROOT . '/views/partials/admin-page-heading.php'; ?>
 
-  <?php if ($error): ?><div class="auth-error mb-3"><?= e($error) ?></div><?php endif; ?>
-  <?php if ($success): ?><div class="info-box" style="max-width:none"><?= e($success) ?></div><?php endif; ?>
+  <?php if ($error): ?><div class="auth-error mb-3" role="alert"><?= e($error) ?></div><?php endif; ?>
+  <?php if ($success): ?><div class="info-box" style="max-width:none" role="status"><?= e($success) ?></div><?php endif; ?>
 
   <div class="dash-quick-grid" style="margin-bottom:24px">
-    <div class="dash-card" style="margin-bottom:0"><div class="dash-card-label">Database</div><div style="font-size:20px;font-weight:700;color:#1c7a3f">Connected</div></div>
+    <div class="dash-card" style="margin-bottom:0"><div class="dash-card-label">Database</div><div class="admin-db-status" data-i18n>Connected</div></div>
     <div class="dash-card" style="margin-bottom:0"><div class="dash-card-label">Documents Storage</div><div style="font-size:20px;font-weight:700;color:var(--ink)"><?= e(format_bytes($uploadsSize)) ?></div></div>
     <div class="dash-card" style="margin-bottom:0"><div class="dash-card-label">Backups Storage</div><div style="font-size:20px;font-weight:700;color:var(--ink)"><?= e(format_bytes($backupsSize)) ?></div></div>
     <div class="dash-card" style="margin-bottom:0"><div class="dash-card-label">Last System Activity</div><div style="font-size:14px;font-weight:700;color:var(--ink)"><?= $lastActivityAt ? e(date('M j, g:i A', strtotime($lastActivityAt))) : 'none yet' ?></div></div>
@@ -27,14 +26,16 @@
   <div class="row g-4">
     <div class="col-12 col-lg-6">
       <div class="review-card">
-        <div class="review-card-head"><div class="title">Table Row Counts</div></div>
+        <div class="review-card-head"><div class="title" id="admin-table-counts">Table Row Counts</div></div>
+        <div class="admin-list-scroll" role="region" aria-label="Database table counts" tabindex="0">
         <?php foreach ($tableCounts as $table => $count): ?>
           <div class="review-row"><div class="k"><?= e($table) ?></div><div class="v"><?= (int) $count ?></div></div>
         <?php endforeach; ?>
+        </div>
       </div>
 
       <div class="review-card">
-        <div class="review-card-head"><div class="title">Recent System Activity</div></div>
+        <div class="review-card-head"><div class="title" id="admin-system-activity">Recent System Activity</div></div>
         <?php foreach ($recentActivity as $log): ?>
           <div class="mb-2" style="font-size:13px">
             <b><?= e($log['action']) ?></b> by <?= e($log['actor_name']) ?> — <?= e(date('M j, Y g:i A', strtotime($log['created_at']))) ?>
@@ -47,7 +48,7 @@
 
     <div class="col-12 col-lg-6">
       <div class="review-card">
-        <div class="review-card-head"><div class="title">Database Backup</div></div>
+        <div class="review-card-head"><div class="title" id="admin-database-backups">Database Backup</div></div>
         <div style="font-size:13px;color:var(--muted);margin-bottom:14px">Creates a full structure + data export of the live database as a downloadable <code>.sql</code> file, stored outside public access.</div>
         <form method="post" class="mb-3">
           <?= csrf_field() ?>
@@ -58,6 +59,7 @@
         <?php if (!$backups): ?>
           <div style="font-size:13px;color:var(--muted)">No backups yet.</div>
         <?php endif; ?>
+        <?php if ($backups): ?><div class="admin-list-scroll" role="region" aria-label="Database backups" tabindex="0"><?php endif; ?>
         <?php foreach ($backups as $b): ?>
           <div class="app-card">
             <div>
@@ -65,16 +67,17 @@
               <div class="app-date"><?= e(format_bytes($b['size'])) ?> · <?= e(date('M j, Y g:i A', $b['created'])) ?></div>
             </div>
             <div class="d-flex gap-2">
-              <a href="<?= base_url('admin/download_backup.php?name=' . urlencode($b['name'])) ?>" class="btn-outline text-decoration-none" style="padding:6px 12px;font-size:12px">Download</a>
+              <a href="<?= base_url('admin/download_backup.php?name=' . urlencode($b['name'])) ?>" class="btn-outline text-decoration-none" style="padding:6px 12px;font-size:12px" data-i18n>Download</a>
               <form method="post" class="m-0" onsubmit="return confirm('Delete this backup file?');">
                 <?= csrf_field() ?>
                 <input type="hidden" name="action" value="delete_backup">
                 <input type="hidden" name="name" value="<?= e($b['name']) ?>">
-                <button type="submit" class="btn-outline" style="padding:6px 12px;font-size:12px;color:#a51c1c">Delete</button>
+                <button type="submit" class="btn-danger-outline btn-sm" data-i18n>Delete</button>
               </form>
             </div>
           </div>
         <?php endforeach; ?>
+        <?php if ($backups): ?></div><?php endif; ?>
       </div>
     </div>
   </div>

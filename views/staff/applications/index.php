@@ -7,49 +7,48 @@
  * @var array  $apps
  * @var array  $pager
  */
+$hasFilters = $filters['q'] !== '' || $filters['barangay'] !== '' || $filters['status'] !== 'ALL' || $filters['type'] !== 'ALL';
 ?>
 <div class="portal-container">
-  <a href="<?= e($ownDashboard) ?>" style="font-size:13px">&larr; Back to dashboard</a>
-  <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mt-2 mb-4">
-    <h1 class="font-heading m-0" style="font-size:26px">Applications</h1>
-    <div class="d-flex align-items-center gap-3">
-      <span style="font-size:14px">Signed in as <b><?= e($staff['full_name']) ?></b></span>
-      <form method="post" action="<?= base_url('admin/logout.php') ?>" class="m-0">
-        <?= csrf_field() ?>
-        <button type="submit" class="btn-outline" style="padding:6px 14px;font-size:13px">Log out</button>
-      </form>
-    </div>
-  </div>
+  <?php require APP_ROOT . '/views/partials/staff-page-heading.php'; ?>
 
-  <form method="get" class="d-flex flex-wrap gap-2 mb-4">
-    <input type="text" name="q" aria-label="Search by reference number or name" value="<?= e($filters['q']) ?>" placeholder="Search reference no. or name" class="form-control" style="max-width:280px;padding:10px;border:1px solid var(--input-border);border-radius:6px">
-    <input type="text" name="barangay" aria-label="Barangay" value="<?= e($filters['barangay']) ?>" placeholder="Barangay" class="form-control" style="max-width:160px;padding:10px;border:1px solid var(--input-border);border-radius:6px">
-    <select name="status" class="form-select" style="max-width:220px;padding:10px;border:1px solid var(--input-border);border-radius:6px">
+  <form method="get" class="filter-bar" role="search" aria-label="Search applications" data-i18n-attrs="aria-label">
+    <label><span data-i18n>Search</span><input type="search" name="q" <?= ($_GET['focus'] ?? '') === 'search' ? 'autofocus' : '' ?> aria-label="Search by reference number or name" value="<?= e($filters['q']) ?>" placeholder="Search reference no. or name" class="form-control filter-q"></label>
+    <label><span data-i18n>Barangay</span><input type="text" name="barangay" aria-label="Barangay" value="<?= e($filters['barangay']) ?>" placeholder="Barangay" class="form-control filter-sm" data-i18n-attrs="aria-label placeholder"></label>
+    <label><span data-i18n>Status</span><select name="status" class="form-select filter-sm" aria-label="Status" data-i18n-attrs="aria-label">
       <option value="ALL" <?= $filters['status'] === 'ALL' ? 'selected' : '' ?>>All statuses</option>
       <?php foreach ($statuses as $s): ?>
         <option value="<?= e($s) ?>" <?= $filters['status'] === $s ? 'selected' : '' ?>><?= e($s) ?></option>
       <?php endforeach; ?>
-    </select>
-    <select name="type" class="form-select" style="max-width:180px;padding:10px;border:1px solid var(--input-border);border-radius:6px">
+    </select></label>
+    <label><span data-i18n>Application type</span><select name="type" class="form-select filter-sm" aria-label="Application type" data-i18n-attrs="aria-label">
       <option value="ALL" <?= $filters['type'] === 'ALL' ? 'selected' : '' ?>>New + Renewals</option>
       <option value="new" <?= $filters['type'] === 'new' ? 'selected' : '' ?>>New Applications</option>
       <option value="renewal" <?= $filters['type'] === 'renewal' ? 'selected' : '' ?>>Renewals Only</option>
-    </select>
-    <button type="submit" class="btn-navy">Filter</button>
+    </select></label>
+    <button type="submit" class="btn-navy" data-i18n>Search</button>
   </form>
 
-  <?php if (!$apps): ?>
-    <div style="font-size:14px;color:var(--muted)">No applications match this filter.</div>
-  <?php endif; ?>
+  <div class="result-meta" role="status">
+    <span><b style="color:var(--ink)"><?= (int) $pager['total'] ?></b> application<?= (int) $pager['total'] === 1 ? '' : 's' ?><?= $hasFilters ? ' match your search' : ' in total' ?></span>
+    <?php if ($hasFilters): ?><a href="<?= base_url('staff/index.php') ?>">Clear search &amp; filters</a><?php endif; ?>
+  </div>
 
+  <?php if (!$apps): ?>
+    <div class="empty-state">
+      <div class="empty-state-title"><?= $hasFilters ? 'No applications match your search' : 'No applications yet' ?></div>
+      <?= $hasFilters ? 'Check the reference number or name spelling, or clear the filters to see every application.' : 'New applications will appear here as soon as applicants submit them.' ?>
+    </div>
+  <?php endif; ?>
   <?php foreach ($apps as $app): $st = status_style($app['status']); ?>
     <a href="<?= base_url('staff/application.php?id=' . (int) $app['id']) ?>" class="app-card text-decoration-none" style="color:inherit">
       <div>
-        <div class="app-ref"><?= e($app['reference_no']) ?><?php if ($app['type'] === 'renewal'): ?> <span class="doc-tag" style="vertical-align:middle">RENEWAL</span><?php endif; ?></div>
+        <div class="app-ref"><?= e($app['reference_no']) ?><?php if ($app['type'] === 'renewal'): ?> <span class="doc-tag" style="vertical-align:middle" data-i18n>RENEWAL</span><?php endif; ?></div>
         <div class="app-date"><?= e($app['full_name']) ?> · <?= e($app['category_name']) ?> · Brgy. <?= e($app['barangay']) ?></div>
-        <div class="app-date">Submitted <?= e(date('M j, Y', strtotime($app['submitted_at']))) ?></div>
+        <div class="app-date" data-i18n>Submitted <?= e(date('M j, Y', strtotime($app['submitted_at']))) ?></div>
       </div>
       <div class="status-pill" style="background:<?= e($st['bg']) ?>;color:<?= e($st['color']) ?>"><?= e($app['status']) ?></div>
+      <span class="staff-open-record"><span data-i18n>Open application</span> <span aria-hidden="true">&rarr;</span></span>
     </a>
   <?php endforeach; ?>
 

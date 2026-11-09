@@ -22,8 +22,17 @@ class AuthController extends Controller
      */
     public function handleApplicantAuth(string $defaultMode = 'login'): array
     {
-        if ($this->auth->currentUser()) {
-            $this->redirectTo('applicant/dashboard.php');
+        if (array_key_exists('next', $_GET)) {
+            unset($_SESSION['applicant_return']);
+            if (applicant_return_path($_GET['next'])) {
+                $_SESSION['applicant_return'] = $_GET['next'];
+            }
+        }
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' && ($staff = $this->auth->currentStaff())) {
+            $this->redirectTo($staff['role'] === 'admin' ? 'admin/dashboard.php' : 'staff/dashboard.php');
+        }
+        if ($existingUser = $this->auth->currentUser()) {
+            $this->redirectTo(!empty($existingUser['mobile_verified_at']) ? take_applicant_return_path() : 'verify-mobile.php');
         }
         $authMode = ($_GET['mode'] ?? $defaultMode) === 'signup' ? 'signup' : 'login';
         $authError = '';
@@ -43,13 +52,13 @@ class AuthController extends Controller
                     (new EligibilityService($this->pdo))->claimForUser((int) $account['id']);
                     audit_log($this->pdo, (int) $account['id'], $account['full_name'], $account['role'], 'Login', 'user', (int) $account['id'],
                         ctype_digit(ltrim($username, '+')) ? 'Applicant sign-in with mobile number' : 'Applicant sign-in');
-                    $this->redirectTo($account['mobile_verified_at'] ? 'applicant/dashboard.php' : 'verify-mobile.php');
+                    $this->redirectTo($account['mobile_verified_at'] ? take_applicant_return_path() : 'verify-mobile.php');
                 }
             } elseif ($action === 'signup') {
                 $authMode = 'signup';
                 $oldSignup = [
                     'fullName' => trim((string) ($_POST['fullName'] ?? '')),
-                    'email' => trim((string) ($_POST['email'] ?? '')),
+                    'email' => '', // Applicant registration uses mobile for contact and recovery.
                     'mobile' => trim((string) ($_POST['mobile'] ?? '')),
                     'username' => trim((string) ($_POST['username'] ?? '')),
                 ];
@@ -63,14 +72,15 @@ class AuthController extends Controller
                     $limiter->hit('register_ip', RateLimiter::clientIp());
                     ['fullName' => $fullName, 'email' => $email, 'mobile' => $mobile, 'username' => $username] = $oldSignup;
                     $newUserId = $this->auth->userModel()->createApplicant($fullName, $email, $username, password_hash($password, PASSWORD_DEFAULT), $mobile);
+                    // Mobile verification is temporarily skipped for self-registration. Mark the
+                    // supplied number usable so the normal applicant login and SMS paths continue.
+                    $this->auth->userModel()->markMobileVerified($newUserId);
                     $this->auth->loginUser(['id' => $newUserId]);
                     (new EligibilityService($this->pdo))->claimForUser($newUserId);
                     audit_log($this->pdo, $newUserId, $fullName, 'applicant', 'Registration', 'user', $newUserId, 'New applicant account @' . $username);
                     create_notification($this->pdo, $newUserId, 'registration', 'Welcome to e-SoloParentID! Your account has been created.');
-                    // The account is usable once the mobile number is confirmed with the texted code.
-                    $sendError = $this->auth->sendMobileCode($this->auth->userModel()->findById($newUserId));
-                    flash($sendError ?: 'We texted a 6-digit code to ' . $mobile . '. Enter it below to confirm your number.');
-                    $this->redirectTo('verify-mobile.php');
+                    flash('Your account has been created. You can now use your dashboard and apply online.');
+                    $this->redirectTo(take_applicant_return_path());
                 }
             }
         }
@@ -145,35 +155,7 @@ class AuthController extends Controller
     /** '' if the sign-up form is valid, otherwise the first problem found. */
     private function registrationError(array $form, string $password, string $confirmation): string
     {
-        if ($form['fullName'] === '' || $form['username'] === '' || $form['mobile'] === '' || $password === '') {
-            return 'Please fill in full name, mobile number, username, and password.';
-        }
-        if (mb_strlen($form['fullName']) > 150) {
-            return 'Full name is too long.';
-        }
-        if (!filter_var($form['email'], FILTER_VALIDATE_EMAIL) || strlen($form['email']) > 150) {
-            return 'Enter a valid email address.';
-        }
-        if (!is_valid_ph_mobile($form['mobile'])) {
-            return 'Enter a valid Philippine mobile number (e.g. 09171234567).';
-        }
-        if (!preg_match('/^[A-Za-z0-9._]{4,30}$/', $form['username'])) {
-            return 'Username must be 4 to 30 characters: letters, numbers, dots, or underscores only.';
-        }
-        if (ctype_digit($form['username'])) {
-            return 'Username must include at least one letter (a username of only numbers could be mistaken for a mobile number).';
-        }
-        $policyError = $this->auth->passwordPolicyError($password, $confirmation);
-        if ($policyError) {
-            return $policyError;
-        }
-        if ($this->auth->userModel()->usernameExists($form['username'])) {
-            return 'That username is already taken.';
-        }
-        if ($this->auth->userModel()->mobileExists($form['mobile'])) {
-            return 'That mobile number is already registered. Log in, or use Forgot password if you can\'t remember it.';
-        }
-        return '';
+        return $this->auth->applicantRegistrationError($form, $password, $confirmation);
     }
 
     /**
@@ -183,12 +165,15 @@ class AuthController extends Controller
      */
     public function verifyMobile(): array
     {
+        if ($staff = $this->auth->currentStaff()) {
+            $this->redirectTo($staff['role'] === 'admin' ? 'admin/dashboard.php' : 'staff/dashboard.php');
+        }
         $user = $this->auth->currentUser();
         if (!$user) {
             $this->redirectTo('login.php');
         }
         if (!empty($user['mobile_verified_at'])) {
-            $this->redirectTo('applicant/dashboard.php');
+            $this->redirectTo(take_applicant_return_path());
         }
         $error = '';
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -204,7 +189,7 @@ class AuthController extends Controller
                 if ($error === '') {
                     create_notification($this->pdo, (int) $user['id'], 'registration', 'Your mobile number ' . $user['mobile'] . ' is confirmed. SMS updates and password-reset codes will be sent there.');
                     flash('Your mobile number is confirmed. You can now use your dashboard and apply online.');
-                    $this->redirectTo('applicant/dashboard.php');
+                    $this->redirectTo(take_applicant_return_path());
                 }
             }
         }
@@ -223,9 +208,12 @@ class AuthController extends Controller
         return $this->auth->takeAuthNotice();
     }
 
-    /** MSWD staff + admin login (admin/login.php). Returns the error message to show, if any. */
+    /** MSWD staff + admin login (mswd-login.php). Returns the error message to show, if any. */
     public function handleStaffLogin(): string
     {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $this->auth->currentUser()) {
+            $this->redirectTo('applicant/dashboard.php');
+        }
         if ($existing = $this->auth->currentStaff()) {
             $this->redirectTo($existing['role'] === 'admin' ? 'admin/dashboard.php' : 'staff/dashboard.php');
         }
@@ -236,6 +224,10 @@ class AuthController extends Controller
         csrf_require();
         $username = trim((string) ($_POST['username'] ?? ''));
         $account = $this->auth->userModel()->findStaffByUsername($username);
+        $expectedRole = AUTH_PORTAL === 'admin' ? 'admin' : 'mswd_social_worker';
+        if ($account && $account['role'] !== $expectedRole) {
+            $account = null;
+        }
         $error = $this->attemptLogin($account, $username, (string) ($_POST['password'] ?? ''), 'Staff sign-in', 'Please contact your system administrator.');
         if ($error !== '') {
             return $error;
@@ -255,6 +247,9 @@ class AuthController extends Controller
 
     public function logoutApplicant(): void
     {
+        if ($staff = $this->auth->currentStaff()) {
+            $this->redirectTo($staff['role'] === 'admin' ? 'admin/dashboard.php' : 'staff/dashboard.php');
+        }
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_require();
             if ($user = $this->auth->currentUser()) {
@@ -262,11 +257,14 @@ class AuthController extends Controller
             }
             $this->auth->logoutUser();
         }
-        $this->redirectTo('index.php');
+        $this->redirectTo('login.php');
     }
 
     public function logoutStaff(): void
     {
+        if ($this->auth->currentUser()) {
+            $this->redirectTo('applicant/dashboard.php');
+        }
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_require();
             if ($staff = $this->auth->currentStaff()) {
@@ -274,7 +272,7 @@ class AuthController extends Controller
             }
             $this->auth->logoutStaff();
         }
-        $this->redirectTo('admin/login.php');
+        $this->redirectTo('mswd-login.php');
     }
 
     public function forgotPassword(): array
@@ -315,6 +313,7 @@ class AuthController extends Controller
     {
         $error = '';
         $success = '';
+        $loginUrl = 'login.php';
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_require();
@@ -347,9 +346,11 @@ class AuthController extends Controller
                 $this->auth->clearLockout((int) $account['id']);
                 audit_log($this->pdo, (int) $account['id'], $account['full_name'], $account['role'], 'Password Reset Completed', 'user', (int) $account['id'], 'New password set with an SMS reset code; lockout cleared');
                 $success = 'Your password has been reset. You can now log in with your new password.';
+                $loginUrl = $account['role'] === 'applicant' ? 'login.php'
+                    : 'mswd-login.php?portal=' . ($account['role'] === 'admin' ? 'admin' : 'staff');
             }
         }
 
-        return compact('error', 'success');
+        return compact('error', 'success', 'loginUrl');
     }
 }

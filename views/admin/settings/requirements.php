@@ -8,12 +8,34 @@
  */
 ?>
 <div class="portal-container">
-  <a href="<?= base_url('admin/settings.php') ?>" style="font-size:13px">&larr; Back to Settings</a>
+  <a href="<?= base_url('admin/settings.php') ?>" class="staff-back-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5m7-7-7 7 7 7"/></svg><span data-i18n>Back</span></a>
   <h1 class="font-heading mt-2 mb-4" style="font-size:26px">Application Requirements</h1>
-  <div style="font-size:13px;color:var(--muted);margin-bottom:20px;max-width:640px">Standard requirements (category = "All categories") apply to every application. Category-specific requirements only apply when that circumstance is selected.</div>
+  <div style="font-size:13px;color:var(--muted);margin-bottom:20px;max-width:640px">New applications use their own checklist. Configure renewal documents separately by category below; accepted unexpired documents are retained. No renewal requirements are assumed until the office configures them.</div>
 
-  <?php if ($error): ?><div class="auth-error mb-3"><?= e($error) ?></div><?php endif; ?>
-  <?php if ($success): ?><div class="info-box" style="max-width:none"><?= e($success) ?></div><?php endif; ?>
+  <?php if ($error): ?><div class="auth-error mb-3" role="alert"><?= e($error) ?></div><?php endif; ?>
+  <?php if ($success): ?><div class="info-box" style="max-width:none" role="status"><?= e($success) ?></div><?php endif; ?>
+
+  <details class="admin-editor" open>
+    <summary>Category renewal requirements</summary>
+    <div class="admin-editor-content">
+      <p>Enter the office-confirmed document list for each category. Use the same document key as an existing requirement if it may be reused. Require a fresh copy for documents that must be renewed, such as a barangay certificate when the office confirms that rule.</p>
+      <form method="post" class="d-flex flex-wrap gap-2 mb-3">
+        <?= csrf_field() ?><input type="hidden" name="action" value="save_renewal_requirement">
+        <select name="category_id" class="form-select" aria-label="Renewal category" required><option value="">Choose category</option><?php foreach ($renewalCategories as $category): ?><option value="<?= (int) $category['id'] ?>"><?= e($category['name']) ?></option><?php endforeach; ?></select>
+        <input class="form-control" name="doc_key" maxlength="50" pattern="[A-Za-z0-9_]+" placeholder="Document key" aria-label="Renewal document key" required>
+        <input class="form-control" name="label" maxlength="255" placeholder="Renewal document name" aria-label="Renewal document name" required>
+        <label><input type="checkbox" name="always_refresh" value="1" checked> Always require a fresh copy for this renewal</label>
+        <button class="btn-navy" type="submit">Save Renewal Requirement</button>
+      </form>
+      <p class="opt">Saving an existing category and document key updates its rule. Unchecked means reuse a verified document while unexpired; request a copy if none is accepted or it has expired.</p>
+      <?php if (!$renewalRequirements): ?><div class="info-box">Category renewal requirements have not been configured. Applicants will be directed to MSWDO instead of receiving the new-application checklist.</div><?php endif; ?>
+      <?php foreach ($renewalRequirements as $requirement): ?>
+        <div class="review-row"><div class="k"><?= e($requirement['category_name']) ?></div><div class="v"><?= e($requirement['label']) ?> (<?= e($requirement['doc_key']) ?>): <?= $requirement['always_refresh'] ? 'Fresh copy required' : 'Reuse accepted, unexpired record' ?></div>
+          <form method="post" class="mt-2" onsubmit="return confirm('Remove this renewal requirement for future requests? Existing submitted checklists are preserved.');"><?= csrf_field() ?><input type="hidden" name="action" value="delete_renewal_requirement"><input type="hidden" name="renewal_requirement_id" value="<?= (int) $requirement['id'] ?>"><button class="btn-danger-outline" type="submit">Remove Renewal Requirement</button></form>
+        </div>
+      <?php endforeach; ?>
+    </div>
+  </details>
 
   <div class="row g-4">
     <div class="col-12 col-lg-5">
@@ -23,7 +45,7 @@
           <?= csrf_field() ?>
           <input type="hidden" name="action" value="create">
           <select name="category_id" class="form-select" style="padding:10px;border:1px solid var(--input-border);border-radius:6px">
-            <option value="">All categories (standard requirement)</option>
+            <option value="">Legacy standard requirement</option>
             <?php foreach ($categories as $c): ?>
               <option value="<?= (int) $c['id'] ?>"><?= e($c['name']) ?></option>
             <?php endforeach; ?>
@@ -43,7 +65,7 @@
       <?php
       $lastCat = 'unset';
       foreach ($requirements as $r):
-          $catLabel = $r['category_id'] === null ? 'All categories (standard)' : ($categoriesById[$r['category_id']] ?? 'Unknown category');
+          $catLabel = $r['category_id'] === null ? 'Legacy standard (not new renewals)' : ($categoriesById[$r['category_id']] ?? 'Unknown category');
           if ($catLabel !== $lastCat): $lastCat = $catLabel; ?>
             <div style="font-weight:700;font-size:13px;color:var(--ink);margin:18px 0 8px"><?= e($catLabel) ?></div>
           <?php endif; ?>
@@ -54,17 +76,17 @@
             <input type="hidden" name="req_id" value="<?= (int) $r['id'] ?>">
             <span style="font-size:12px;color:var(--faint);min-width:100px"><?= e($r['doc_key']) ?></span>
             <input class="form-control" type="text" name="label" maxlength="255" required value="<?= e($r['label']) ?>" style="flex:1 1 200px;padding:8px;border:1px solid var(--input-border);border-radius:6px;font-size:13px">
-            <label class="d-flex align-items-center gap-1" style="font-size:12px">
-              <input type="checkbox" name="is_required" value="1" <?= $r['is_required'] ? 'checked' : '' ?>> Required
+            <label class="d-flex align-items-center gap-1" style="font-size:12px" data-i18n>
+              <input type="checkbox" name="is_required" value="1" <?= $r['is_required'] ? 'checked' : '' ?> data-i18n> Required
             </label>
             <input class="form-control" type="number" name="sort_order" min="0" max="9999" value="<?= (int) $r['sort_order'] ?>" style="width:70px;padding:8px;border:1px solid var(--input-border);border-radius:6px;font-size:13px">
-            <button type="submit" class="btn-outline" style="padding:6px 12px;font-size:12px">Save</button>
+            <button type="submit" class="btn-outline" style="padding:6px 12px;font-size:12px" data-i18n>Save</button>
           </form>
           <form method="post" class="mt-2" onsubmit="return confirm('Remove this requirement?');">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="delete">
             <input type="hidden" name="req_id" value="<?= (int) $r['id'] ?>">
-            <button type="submit" class="btn-outline" style="padding:6px 12px;font-size:12px;color:#a51c1c">Delete</button>
+            <button type="submit" class="btn-danger-outline btn-sm" data-i18n>Delete</button>
           </form>
         </div>
       <?php endforeach; ?>

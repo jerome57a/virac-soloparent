@@ -7,6 +7,7 @@ require_once __DIR__ . '/NotificationService.php';
 require_once __DIR__ . '/../models/Document.php';
 require_once __DIR__ . '/DocumentValidationService.php';
 require_once __DIR__ . '/SMSService.php';
+require_once __DIR__ . '/EmergencyContactService.php';
 
 /**
  * The 4-step Apply Online wizard. Progress is saved as the applicant's
@@ -21,7 +22,7 @@ class ApplicationService
     public const STEP_META = [
         1 => ['Personal Info', 'Tell us about yourself. Fields marked * are required.'],
         2 => ['Children', 'List each child in your sole care.'],
-        3 => ['Documents', 'Upload clear copies of your requirements.'],
+        3 => ['Documents', 'Review the documents required for your application.'],
         4 => ['Review', 'Check your details before submitting.'],
     ];
 
@@ -51,6 +52,7 @@ class ApplicationService
         $profile = (new Applicant($this->pdo))->profile((int) $user['id']);
         return [
             'step' => 1,
+            'highestStep' => 1,
             'fullName' => $user['full_name'] ?? '',
             'barangay' => (string) ($profile['barangay'] ?? ''),
             'address' => (string) ($profile['address'] ?? ''),
@@ -62,9 +64,10 @@ class ApplicationService
             'categoryId' => null,
             'children' => [['name' => '', 'birthdate' => '']],
             'documents' => [],
+            'checkedDocuments' => [],
             'docErrors' => [],
             'consent' => false,
-        ];
+        ] + EmergencyContactService::draftFields();
     }
 
     /** The applicant's saved draft, or a fresh one pre-filled from their profile. */
@@ -80,16 +83,87 @@ class ApplicationService
             $draft['documents'][$key]['path'] = $this->draftDir((int) $user['id']) . '/' . basename((string) ($meta['stored_name'] ?? ''));
         }
         $draft['step'] = min(4, max(1, (int) $draft['step']));
+        $draft['highestStep'] = self::furthestStep($draft);
         $draft['contact'] = (string) ($user['mobile'] ?? ''); // always the confirmed account number, see collectStepInput()
         return $draft;
     }
 
     /** Saves the draft; the first save is when the application is created (audit-logged). */
-    public function saveDraft(array $user, array $draft): void
+    public function saveDraft(array $user, array $draft, bool $syncProfile = false): void
     {
-        if ((new ApplicationDraft($this->pdo))->save((int) $user['id'], $draft)) {
-            audit_log($this->pdo, (int) $user['id'], $user['full_name'], $user['role'], 'Application Created', 'user', (int) $user['id'], 'New application draft started');
+        $draft['highestStep'] = self::furthestStep($draft);
+        $ownsTransaction = !$this->pdo->inTransaction();
+        if ($ownsTransaction) {
+            $this->pdo->beginTransaction();
         }
+        try {
+            if ((new ApplicationDraft($this->pdo))->save((int) $user['id'], $draft)) {
+                audit_log($this->pdo, (int) $user['id'], $user['full_name'], $user['role'], 'Application Created', 'user', (int) $user['id'], 'New application draft started');
+            }
+            if ($syncProfile) {
+                $this->syncProfileFromDraft($user, $draft);
+            }
+            if ($ownsTransaction) {
+                $this->pdo->commit();
+            }
+        } catch (Throwable $e) {
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    /** Save valid, nonblank shared fields; incomplete drafts must not erase existing details. */
+    private function syncProfileFromDraft(array $user, array $draft): void
+    {
+        if ($user['role'] !== 'applicant') {
+            return;
+        }
+        $errors = $this->validateStep(1, $draft);
+        $fields = [];
+        foreach (['fullName' => 'full_name', 'email' => 'email', 'birthdate' => 'birthdate', 'sex' => 'sex', 'civilStatus' => 'civil_status', 'barangay' => 'barangay', 'address' => 'address'] as $source => $target) {
+            $value = is_string($draft[$source] ?? null) ? trim($draft[$source]) : '';
+            if ($value !== '' && !isset($errors[$source]) && ($source !== 'birthdate' || $value >= '1900-01-01')) {
+                $fields[$target] = $value;
+            }
+        }
+        if (!$fields) {
+            return;
+        }
+        $applicants = new Applicant($this->pdo);
+        $account = $applicants->findApplicant((int) $user['id']);
+        if (!$account) {
+            return;
+        }
+        $before = $applicants->profile((int) $user['id']) + $account;
+        $changed = array_filter($fields, static fn($value, $key) => (string) ($before[$key] ?? '') !== $value, ARRAY_FILTER_USE_BOTH);
+        if (!$changed) {
+            return;
+        }
+        $applicants->updateApplicationDetails((int) $user['id'], $changed);
+        audit_log($this->pdo, (int) $user['id'], $fields['full_name'] ?? $account['full_name'], $user['role'], 'Profile Updated', 'user', (int) $user['id'], 'From application form: ' . implode(', ', array_keys($changed)));
+    }
+
+    /** Remember unlocked steps even when the applicant returns to an earlier one. */
+    public static function furthestStep(array $draft): int
+    {
+        return min(4, max(1, (int) ($draft['step'] ?? 1), (int) ($draft['highestStep'] ?? 1)));
+    }
+
+    /** A step click saves the displayed form and revisits an already unlocked step. */
+    public function navigateToStep(array $draft, int $target, array $post): array
+    {
+        $draft['highestStep'] = self::furthestStep($draft);
+        if ($target < 1 || $target > $draft['highestStep']) {
+            return $draft;
+        }
+        // Legacy standalone Edit forms have no current-step inputs to collect.
+        if ((int) ($post['wizard_step'] ?? 0) === (int) $draft['step']) {
+            $draft = $this->collectStepInput((int) $draft['step'], $draft, $post);
+        }
+        $draft['step'] = $target;
+        return $draft;
     }
 
     /** Deletes the draft and its uploaded files (after submission, or when the applicant discards it). */
@@ -139,6 +213,9 @@ class ApplicationService
             foreach (['fullName', 'barangay', 'address', 'email', 'birthdate', 'sex', 'civilStatus'] as $f) {
                 $draft[$f] = $str($post[$f] ?? '');
             }
+            foreach (EmergencyContactService::FIELD_MAP as $f => $_) {
+                $draft[$f] = '';
+            }
             $draft['categoryId'] = ctype_digit($str($post['categoryId'] ?? '')) ? (int) $post['categoryId'] : null;
         }
         if ($step === 2) {
@@ -153,6 +230,11 @@ class ApplicationService
                 ];
             }
             $draft['children'] = $children ?: [['name' => '', 'birthdate' => '']];
+        }
+        if ($step === 3) {
+            $allowed = array_column($this->documents->requirementsFor($draft['categoryId']), 'doc_key');
+            $selected = is_array($post['checklist'] ?? null) ? array_values(array_filter($post['checklist'], 'is_string')) : [];
+            $draft['checkedDocuments'] = array_fill_keys(array_values(array_intersect($allowed, $selected)), true);
         }
         if ($step === 4) {
             $draft['consent'] = !empty($post['consent']);
@@ -190,9 +272,7 @@ class ApplicationService
             } elseif (!is_valid_ph_mobile($phone)) {
                 $errors['contact'] = 'Use a valid PH mobile number, e.g. 09171234567.';
             }
-            if (trim($draft['email']) === '') {
-                $errors['email'] = 'Enter your email.';
-            } elseif (!filter_var(trim($draft['email']), FILTER_VALIDATE_EMAIL) || strlen($draft['email']) > 150) {
+            if (trim($draft['email']) !== '' && (!filter_var(trim($draft['email']), FILTER_VALIDATE_EMAIL) || strlen($draft['email']) > 150)) {
                 $errors['email'] = 'Enter a valid email address.';
             }
             if ($draft['birthdate'] === '') {
@@ -230,14 +310,6 @@ class ApplicationService
             }
         }
 
-        if ($step === 3) {
-            foreach ($this->documents->requirementsFor($draft['categoryId']) as $d) {
-                if ($d['is_required'] && empty($draft['documents'][$d['doc_key']])) {
-                    $errors['doc_' . $d['doc_key']] = 'This document is required.';
-                }
-            }
-        }
-
         if ($step === 4 && empty($draft['consent'])) {
             $errors['consent'] = 'Please confirm to submit.';
         }
@@ -259,7 +331,7 @@ class ApplicationService
 
     private function categoryExists(int $categoryId): bool
     {
-        $stmt = $this->pdo->prepare('SELECT id FROM categories WHERE id = ?');
+        $stmt = $this->pdo->prepare('SELECT id FROM categories WHERE id = ? AND is_active = 1');
         $stmt->execute([$categoryId]);
         return (bool) $stmt->fetch();
     }
@@ -300,7 +372,7 @@ class ApplicationService
         audit_log($this->pdo, (int) $user['id'], $user['full_name'], $user['role'], 'Application Submission', 'application', $applicationId, $refNumber);
         $this->auditDocuments($user, $applicationId, $draft['documents']);
         (new SMSService($this->pdo))->notifySubmitted($applicationId, $draft['contact'], $refNumber);
-        create_notification($this->pdo, (int) $user['id'], 'submission', 'Your application ' . $refNumber . ' has been received and is Pending Review.', $applicationId);
+        create_notification($this->pdo, (int) $user['id'], 'submission', 'Your application ' . $refNumber . ' has been received and is Pending Review. MSWDO staff will assign your interview schedule and notify you by SMS.', $applicationId);
         (new NotificationService($this->pdo))->notifyStaff('new_application', 'New application ' . $refNumber . ' from ' . $draft['fullName'] . ' is waiting for review.', $applicationId);
 
         return $refNumber;
@@ -325,11 +397,13 @@ class ApplicationService
                 'sex' => $draft['sex'],
                 'civil_status' => $draft['civilStatus'],
                 'category_id' => $draft['categoryId'],
-            ], date('Y-m-d H:i:s'));
+            ] + EmergencyContactService::applicationFields($draft), date('Y-m-d H:i:s'));
 
             foreach ($draft['children'] as $c) {
                 $this->applications->addChild($applicationId, $c['name'], $c['birthdate']);
             }
+            $this->saveChecklist($applicationId, $draft['checkedDocuments'] ?? [], $draft['categoryId']);
+            $this->syncProfileFromDraft($user, $draft);
             $this->storeDraftDocuments($applicationId, $draft['documents'], $user);
             $this->applications->addHistory($applicationId, 'Pending Review', 'Application submitted online.', $draft['fullName'], (int) $user['id']);
 
@@ -341,9 +415,25 @@ class ApplicationService
         }
     }
 
+    /** Checked declarations are automatically accepted for interview scheduling. */
+    public function saveChecklist(int $applicationId, array $selected, ?int $categoryId, bool $standardOnly = false): void
+    {
+        $requirements = $standardOnly ? $this->documents->standardRequirements() : $this->documents->requirementsFor($categoryId);
+        $allowed = array_column($requirements, 'doc_key');
+        $selectedKeys = array_flip(array_intersect($allowed, array_map('strval', array_keys($selected))));
+        $stmt = $this->pdo->prepare("INSERT INTO application_document_checklists (application_id, doc_key, applicant_has, verification_status, reviewed_at) VALUES (?, ?, ?, ?, ?)");
+        foreach ($allowed as $key) {
+            $checked = isset($selectedKeys[$key]);
+            $stmt->execute([$applicationId, $key, (int) $checked, $checked ? 'Verified' : 'Pending', $checked ? date('Y-m-d H:i:s') : null]);
+        }
+    }
+
     /** Moves a draft's tmp files into the application's permanent folder and records them. Call inside a transaction. */
     public function storeDraftDocuments(int $applicationId, array $documents, array $actor): void
     {
+        if (!$documents) {
+            return;
+        }
         $destDir = STORAGE_PATH . '/' . $applicationId;
         if (!is_dir($destDir) && !mkdir($destDir, 0750, true) && !is_dir($destDir)) {
             throw new RuntimeException('Could not create storage folder for uploaded documents.');

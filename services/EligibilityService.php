@@ -6,7 +6,7 @@ require_once __DIR__ . '/../models/EligibilityAssessment.php';
  * The result is only PRELIMINARY -- final eligibility is always decided by
  * the MSWD Social Worker during processing.
  *
- * The latest check is stored as a temporary assessment keyed by a random
+ * Each completed check is stored as an assessment keyed by a random
  * token kept in the visitor's session (the database only ever sees its
  * SHA-256 hash). Logging in or registering links it to the account.
  * Methods that store or load need the PDO; the rules themselves don't.
@@ -14,6 +14,7 @@ require_once __DIR__ . '/../models/EligibilityAssessment.php';
 class EligibilityService
 {
     public const NONE_OPTION = 'None of these apply to me';
+    public const UNSURE_OPTION = "I'm not sure";
     /** Anonymous (never-claimed) assessments are deleted after this many days. */
     private const UNCLAIMED_RETENTION_DAYS = 30;
 
@@ -30,15 +31,15 @@ class EligibilityService
         $result = $this->evaluate($answers);
         $model = new EligibilityAssessment($this->pdo);
         $model->purgeUnclaimed(self::UNCLAIMED_RETENTION_DAYS);
-        $model->savePreliminary($this->tokenHash(true), $userId, $answers, $result['eligible'] ? 'LIKELY_ELIGIBLE' : 'NOT_ELIGIBLE', $result['reason']);
-        return $result;
+        $id = $model->savePreliminary($this->tokenHash(true), $userId, $answers, $result['status'], $result['reason']);
+        return $result + ['id' => $id];
     }
 
     /** This visitor's latest stored check as ['answers', 'result', 'checkedAt'], or null if they haven't checked yet. */
     public function current(): ?array
     {
         $tokenHash = $this->tokenHash(false);
-        $row = $tokenHash ? (new EligibilityAssessment($this->pdo))->findByToken($tokenHash) : null;
+        $row = $tokenHash ? (new EligibilityAssessment($this->pdo))->findByToken($tokenHash, isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : null) : null;
         return $row ? $this->hydrate($row) : null;
     }
 
@@ -62,10 +63,27 @@ class EligibilityService
     {
         $answers = $this->normalizeAnswers(json_decode($row['answers'], true) ?: []);
         return [
+            'id' => (int) $row['id'],
             'answers' => $answers,
-            'result' => ['eligible' => $row['preliminary_result'] === 'LIKELY_ELIGIBLE', 'reason' => $row['result_reason']],
+            'result' => ['eligible' => $row['preliminary_result'] === 'LIKELY_ELIGIBLE', 'status' => $row['preliminary_result'], 'reason' => $row['result_reason']],
             'checkedAt' => $row['created_at'],
         ];
+    }
+
+    public function resultForViewer(int $id, ?int $userId): ?array
+    {
+        $row = (new EligibilityAssessment($this->pdo))->findForViewer($id, $this->tokenHash(false), $userId);
+        return $row ? $this->hydrate($row) : null;
+    }
+
+    public function recordView(int $id, ?int $userId): void
+    {
+        (new EligibilityAssessment($this->pdo))->recordView($id, $this->tokenHash(true), $userId);
+    }
+
+    public static function resultLabel(string $status): string
+    {
+        return ['LIKELY_ELIGIBLE' => 'May be eligible', 'NOT_ELIGIBLE' => 'May not meet criteria', 'NEEDS_GUIDANCE' => 'MSWDO guidance needed'][$status] ?? $status;
     }
 
     /** SHA-256 of this visitor's session token (created on first check), or null if none exists and $create is false. */
@@ -83,22 +101,22 @@ class EligibilityService
     public static function circumstances(): array
     {
         return [
-            ['title' => 'Deceased spouse', 'desc' => 'The other parent has passed away and you are solely responsible for your child/children.'],
-            ['title' => 'Abandoned or separated (6+ months)', 'desc' => 'Your spouse has been absent for at least six (6) months and you bear sole parental responsibility.'],
-            ['title' => 'Spouse detained or imprisoned (3+ months)', 'desc' => 'Your spouse is serving a sentence and you are the sole caregiver of your child/children.'],
-            ['title' => 'Spouse physically or mentally incapacitated', 'desc' => 'Your spouse is unable to fulfill parental responsibilities due to a certified medical condition.'],
-            ['title' => 'Legal separation, annulment, or nullity of marriage', 'desc' => 'As decreed by a court or church, with you entrusted with the custody of the child/children.'],
-            ['title' => 'Unwed parent', 'desc' => 'An unmarried mother or father who has chosen to keep and raise their child/children.'],
-            ['title' => 'Legal guardian', 'desc' => 'Any person who solely provides parental care and support to a minor child or children.'],
-            ['title' => 'Spouse is an OFW (RA 11861)', 'desc' => 'Spouse is a low-skilled or semi-skilled overseas Filipino worker who has been abroad for an uninterrupted period of 12 months or more.'],
-            ['title' => 'Victim of rape or crimes against chastity', 'desc' => 'A woman who gives birth as a result of rape or similar crimes and keeps and raises the child.'],
+            ['title' => 'Abandonment by the spouse', 'desc' => 'The spouse has abandoned the applicant and child/children.'],
+            ['title' => 'Declaration of nullity or annulment of marriage', 'desc' => 'A judicial declaration of nullity or annulment, including recognition of a foreign divorce.'],
+            ['title' => 'Legal guardian, adoptive parent, or foster parent', 'desc' => 'The applicant is the child’s legal guardian, adoptive parent, or foster parent.'],
+            ['title' => 'Unmarried father or mother who keeps and rears the child/children', 'desc' => 'An unmarried father or mother keeps and rears the child/children.'],
+            ['title' => 'Detention or imprisonment of the spouse', 'desc' => 'The spouse is detained or serving a sentence for at least three months.'],
+            ['title' => 'Child/children as a consequence of rape', 'desc' => 'The child/children were conceived as a consequence of rape.'],
+            ['title' => 'Death of the spouse', 'desc' => 'The applicant’s spouse has died.'],
+            ['title' => 'Legal or de facto separation of spouse for at least six months', 'desc' => 'The spouses have been legally or de facto separated for at least six months.'],
+            ['title' => 'Spouse or family member of an OFW', 'desc' => 'The applicant is the spouse or family member of an overseas Filipino worker.'],
         ];
     }
 
     /** Valid answers for the circumstance question: every listed title plus the "none" option. */
     public function circumstanceOptions(): array
     {
-        return array_merge(array_column(self::circumstances(), 'title'), [self::NONE_OPTION]);
+        return array_merge(array_column(self::circumstances(), 'title'), [self::NONE_OPTION, self::UNSURE_OPTION]);
     }
 
     /**
@@ -108,10 +126,10 @@ class EligibilityService
      */
     public function normalizeAnswers(array $input): array
     {
-        $yesNo = ['Yes', 'No'];
-        $resident = (string) ($input['resident'] ?? '');
-        $circ = (string) ($input['circ'] ?? '');
-        $child = (string) ($input['child'] ?? '');
+        $yesNo = ['Yes', 'No', self::UNSURE_OPTION];
+        $resident = is_string($input['resident'] ?? null) ? $input['resident'] : '';
+        $circ = is_string($input['circ'] ?? null) ? $input['circ'] : '';
+        $child = is_string($input['child'] ?? null) ? $input['child'] : '';
         return [
             'resident' => in_array($resident, $yesNo, true) ? $resident : '',
             'circ' => in_array($circ, $this->circumstanceOptions(), true) ? $circ : '',
@@ -131,15 +149,18 @@ class EligibilityService
      */
     public function evaluate(array $answers): array
     {
+        if (in_array(self::UNSURE_OPTION, $answers, true)) {
+            return ['eligible' => false, 'status' => 'NEEDS_GUIDANCE', 'reason' => 'Some answers need clarification. MSWDO can help you understand the questions and assess your situation.'];
+        }
         if ($answers['resident'] !== 'Yes') {
-            return ['eligible' => false, 'reason' => 'The Solo Parent ID from MSWDO Virac is for residents of Virac; apply at the MSWDO of your own municipality.'];
+            return ['eligible' => false, 'status' => 'NOT_ELIGIBLE', 'reason' => 'The Solo Parent ID from MSWDO Virac is for residents of Virac; apply at the MSWDO of your own municipality.'];
         }
         if ($answers['circ'] === self::NONE_OPTION) {
-            return ['eligible' => false, 'reason' => 'Your situation does not match the circumstances listed under RA 8972 / RA 11861.'];
+            return ['eligible' => false, 'status' => 'NOT_ELIGIBLE', 'reason' => 'Your situation does not match the circumstances listed under RA 8972 / RA 11861.'];
         }
         if ($answers['child'] !== 'Yes') {
-            return ['eligible' => false, 'reason' => 'The Solo Parent ID requires that you solely care for a qualifying child.'];
+            return ['eligible' => false, 'status' => 'NOT_ELIGIBLE', 'reason' => 'The Solo Parent ID requires that you solely care for a qualifying child.'];
         }
-        return ['eligible' => true, 'reason' => null];
+        return ['eligible' => true, 'status' => 'LIKELY_ELIGIBLE', 'reason' => null];
     }
 }

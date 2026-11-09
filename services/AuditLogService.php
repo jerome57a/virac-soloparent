@@ -8,7 +8,7 @@ require_once __DIR__ . '/../models/User.php';
  */
 class AuditLogService
 {
-    public const PER_PAGE = 50;
+    public const PER_PAGE = 10;
 
     /**
      * Event categories, checked in order: an action belongs to the first

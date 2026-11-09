@@ -69,15 +69,132 @@
         categoryBox.innerHTML = '';
         return;
       }
-      var items = docs.map(function (d) { return '<div>· ' + d + '</div>'; }).join('');
-      categoryBox.innerHTML =
-        '<div style="font-weight:700;margin-bottom:4px">Documents required for this category:</div>' +
-        items +
-        '<div style="color:#5a6472;margin-top:4px">Plus the standard requirements: Barangay Certificate, children\'s birth certificates, valid ID, and 2x2 photo.</div>';
+      categoryBox.textContent = '';
+      var heading = document.createElement('div');
+      heading.className = 'category-requirements-heading';
+      heading.setAttribute('data-i18n', '');
+      heading.textContent = 'Documents required for this category:';
+      categoryBox.appendChild(heading);
+      var list = document.createElement('ul');
+      list.className = 'category-requirements-list';
+      docs.forEach(function (doc) {
+        var item = document.createElement('li');
+        var label = typeof doc === 'string' ? doc : doc.label;
+        if (typeof doc === 'object' && doc.url) {
+          var link = document.createElement('a');
+          link.href = doc.url;
+          link.target = '_blank';
+          link.rel = 'noopener';
+          link.setAttribute('data-i18n', '');
+          link.textContent = label;
+          item.appendChild(link);
+        } else {
+          item.setAttribute('data-i18n', '');
+          item.textContent = label;
+        }
+        list.appendChild(item);
+      });
+      categoryBox.appendChild(list);
+      var note = document.createElement('p');
+      note.className = 'category-requirements-note';
+      note.setAttribute('data-i18n', '');
+      note.textContent = 'Select a requirement to read its guide, then return to your application.';
+      categoryBox.appendChild(note);
       categoryBox.style.display = 'block';
     }
     categorySelect.addEventListener('change', renderCategoryDocs);
     renderCategoryDocs();
+  }
+
+  // ---- Read requirements without leaving or resetting the application form ----
+  var requirementDialog = document.getElementById('application-requirement-dialog');
+  if (requirementDialog && typeof requirementDialog.showModal === 'function' && window.fetch && window.DOMParser) {
+    var requirementContent = document.getElementById('application-requirement-content');
+    var requirementBack = document.getElementById('application-requirement-back');
+    var requirementOrigin = null;
+    var requirementRequest = 0;
+    var requirementScroll = 0;
+
+    function loadRequirementGuide(url) {
+      var request = ++requirementRequest;
+      requirementContent.setAttribute('aria-busy', 'true');
+      requirementContent.textContent = '';
+      var status = document.createElement('p');
+      status.setAttribute('role', 'status');
+      status.setAttribute('data-i18n', '');
+      status.textContent = 'Loading requirement instructions…';
+      requirementContent.appendChild(status);
+      window.fetch(url, { credentials: 'same-origin' }).then(function (response) {
+        if (!response.ok) throw new Error('Guide unavailable');
+        return response.text();
+      }).then(function (html) {
+        if (request !== requirementRequest || !requirementDialog.open) return;
+        var page = new window.DOMParser().parseFromString(html, 'text/html');
+        var guide = page.querySelector('.requirements-guide');
+        if (!guide) throw new Error('Guide unavailable');
+        guide.querySelectorAll('a').forEach(function (link) {
+          var destination = new URL(link.getAttribute('href'), url);
+          link.href = destination.href;
+          // Support and official references stay separate from the unsaved form.
+          link.target = '_blank';
+          link.rel = 'noopener';
+        });
+        requirementContent.textContent = '';
+        requirementContent.appendChild(document.importNode(guide, true));
+      }).catch(function () {
+        if (request !== requirementRequest || !requirementDialog.open) return;
+        requirementContent.textContent = '';
+        var message = document.createElement('p');
+        message.setAttribute('role', 'alert');
+        message.setAttribute('data-i18n', '');
+        message.textContent = 'The guide could not load. Try opening it in a new tab, or return to your application.';
+        var fallback = document.createElement('a');
+        fallback.href = url;
+        fallback.target = '_blank';
+        fallback.rel = 'noopener';
+        fallback.setAttribute('data-i18n', '');
+        fallback.textContent = 'Open guide in a new tab';
+        requirementContent.appendChild(message);
+        requirementContent.appendChild(fallback);
+      }).finally(function () {
+        if (request === requirementRequest) requirementContent.setAttribute('aria-busy', 'false');
+      });
+    }
+
+    function openRequirementGuide(event) {
+      var link = event.target.closest('a');
+      if (!link || event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      var url = new URL(link.href, window.location.href);
+      if (url.origin !== window.location.origin || url.searchParams.get('section') !== 'requirements') return;
+      event.preventDefault();
+      requirementOrigin = link;
+      requirementScroll = window.scrollY;
+      requirementDialog.showModal();
+      document.body.classList.add('application-requirement-open');
+      loadRequirementGuide(url.href);
+    }
+
+    if (categoryBox) categoryBox.addEventListener('click', openRequirementGuide);
+    var allRequirementsLink = document.querySelector('.personal-requirements-guide-link');
+    if (allRequirementsLink) allRequirementsLink.addEventListener('click', openRequirementGuide);
+    requirementBack.addEventListener('click', function () { requirementDialog.close(); });
+    requirementDialog.addEventListener('close', function () {
+      ++requirementRequest;
+      document.body.classList.remove('application-requirement-open');
+      requirementContent.textContent = '';
+      requirementContent.setAttribute('aria-busy', 'false');
+      if (requirementOrigin && requirementOrigin.isConnected) requirementOrigin.focus({ preventScroll: true });
+      window.scrollTo(0, requirementScroll);
+    });
+    requirementContent.addEventListener('click', function (event) {
+      var link = event.target.closest('a');
+      if (!link || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      var url = new URL(link.href, window.location.href);
+      if (url.origin === window.location.origin && url.pathname === window.location.pathname && url.searchParams.get('section') === 'requirements') {
+        event.preventDefault();
+        loadRequirementGuide(url.href);
+      }
+    });
   }
 
   // ---- File input: show chosen filename immediately, basic client check ----
@@ -91,11 +208,12 @@
       var okType = /\.(jpe?g|png|pdf)$/i.test(file.name);
       var okSize = file.size <= 5 * 1024 * 1024;
       if (!okType || !okSize) {
-        nameEl.textContent = !okType ? 'File must be JPG, PNG, or PDF.' : 'File is larger than 5MB.';
+        nameEl.textContent = !okType ? 'This file type is not accepted. Please choose a JPG, PNG, or PDF file.' : 'This file is larger than 5MB. Please choose a smaller file or a lower-resolution scan.';
         nameEl.classList.remove('attached');
         return;
       }
-      nameEl.textContent = file.name + ' (not yet uploaded – click "Continue" to upload)';
+      // The upload form submits as soon as a file is chosen (see step-documents.php).
+      nameEl.textContent = file.name + ' — uploading, please wait…';
       nameEl.classList.add('attached');
     });
   });
@@ -155,6 +273,7 @@
       if (button.tagName === 'BUTTON' && button.textContent.trim() !== '') {
         entry.label = button.innerHTML;
         button.style.minWidth = button.offsetWidth + 'px';
+        button.setAttribute('data-i18n', '');
         button.textContent = 'Please wait…';
       }
     }
@@ -164,4 +283,48 @@
   });
   // Coming back with the browser's Back button restores the page as it was left.
   window.addEventListener('pageshow', function (e) { if (e.persisted) resetBusy(); });
+})();
+
+// Progressively enhance the public checker; the complete form works without JS.
+(function () {
+  'use strict';
+  var form = document.querySelector('[data-eligibility-wizard]');
+  if (!form) return;
+  var steps = Array.from(form.querySelectorAll('[data-eligibility-step]'));
+  var progress = form.querySelector('[data-eligibility-progress]');
+  var label = form.querySelector('[data-eligibility-step-label]');
+  var back = form.querySelector('[data-eligibility-back]');
+  var next = form.querySelector('[data-eligibility-next]');
+  var submit = form.querySelector('[data-eligibility-submit]');
+  var current = 0;
+  function show(index, focus) {
+    current = index;
+    steps.forEach(function (step, i) {
+      step.hidden = i !== index;
+      step.querySelectorAll('input[type="radio"]').forEach(function (input) { input.required = i === index; });
+    });
+    progress.hidden = false;
+    label.textContent = 'Question ' + (index + 1) + ' of ' + steps.length;
+    progress.querySelector('progress').value = index + 1;
+    back.hidden = index === 0;
+    next.hidden = index === steps.length - 1;
+    submit.hidden = index !== steps.length - 1;
+    if (focus) steps[index].focus();
+  }
+  function answered(index) { return !!steps[index].querySelector('input:checked'); }
+  function advance() {
+    if (!answered(current)) {
+      steps[current].querySelector('input').reportValidity();
+      return;
+    }
+    show(current + 1, true);
+  }
+  back.addEventListener('click', function () { show(current - 1, true); });
+  next.addEventListener('click', advance);
+  form.addEventListener('submit', function (event) {
+    if (current < steps.length - 1) { event.preventDefault(); advance(); return; }
+    var missing = steps.findIndex(function (step, i) { return !answered(i); });
+    if (missing !== -1) { event.preventDefault(); show(missing, true); steps[missing].querySelector('input').reportValidity(); }
+  });
+  show(0, false);
 })();

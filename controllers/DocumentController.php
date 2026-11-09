@@ -6,42 +6,49 @@ require_once __DIR__ . '/../services/DocumentValidationService.php';
 require_once __DIR__ . '/../services/NotificationService.php';
 require_once __DIR__ . '/../services/ApplicationReviewService.php';
 
-/** Dashboard "Upload Documents" section: view documents per application and (re)upload while still editable. */
+/** Applicant checklist status and review results for owned applications. */
 class DocumentController extends Controller
 {
     public function handle(array $user, array $applications): array
     {
         $documents = new Document($this->pdo);
 
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'upload_doc') {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_checklist') {
             csrf_require();
-            $error = $this->upload($user, $documents, $backInReview);
-            flash($error ?? ($backInReview
-                ? 'Document uploaded. All requested corrections are in -- your application is back with MSWD for review.'
-                : 'Document uploaded. MSWD will review it.'));
+            $id = is_string($_POST['application_id'] ?? null) ? (int) $_POST['application_id'] : 0;
+            $app = (new Application($this->pdo))->findOwned($id, (int) $user['id']);
+            if ($app && in_array($app['status'], Application::CHECKLIST_EDITABLE_STATUSES, true) && !(new Appointment($this->pdo))->interviewFor($id)) {
+                $requirements = $app['type'] === 'renewal' ? $documents->checklistForReview($id, (int) $app['category_id'], true) : $documents->requirementsFor((int) $app['category_id']);
+                $selected = is_array($_POST['checklist'] ?? null) ? array_values(array_filter($_POST['checklist'], 'is_string')) : [];
+                $documents->saveApplicantChecklist($id, $requirements, $selected);
+                flash('Your checklist was saved. After an interview is scheduled, staff must confirm receipt of missing documents before approval and ID release.');
+            } else {
+                flash('This application checklist can no longer be changed.');
+            }
             $this->redirectTo('applicant/dashboard.php?section=documents');
         }
 
         $requirementsByApp = [];
+        $checklistByApp = [];
+        $scheduledInterviewByApp = [];
         foreach ($applications as $app) {
-            $requirementsByApp[$app['id']] = $documents->requirementsFor((int) $app['category_id']);
+            $categoryId = $app['category_id'] !== null ? (int) $app['category_id'] : null;
+            $requirementsByApp[$app['id']] = $app['type'] === 'renewal' ? $documents->checklistForReview((int) $app['id'], $categoryId, true) : $documents->requirementsFor($categoryId);
+            $checklistByApp[$app['id']] = $documents->checklistForReview((int) $app['id'], $categoryId, $app['type'] === 'renewal');
+            $scheduledInterviewByApp[$app['id']] = (bool) (new Appointment($this->pdo))->interviewFor((int) $app['id']);
         }
 
         return ['view' => 'documents/index.php', 'data' => [
             'myApplications' => $applications,
-            'myDocumentsByApp' => $documents->forUserByReference((int) $user['id']),
             'requirementsByApp' => $requirementsByApp,
-            'editableStatuses' => Application::EDITABLE_STATUSES,
+            'checklistByApp' => $checklistByApp,
+            'scheduledInterviewByApp' => $scheduledInterviewByApp,
+            'editableStatuses' => Application::CHECKLIST_EDITABLE_STATUSES,
             'lockedStatuses' => Document::LOCKED_STATUSES,
         ]];
     }
 
-    /**
-     * Uploads or replaces one document on an application the user owns and
-     * that is still editable. Returns an error message, or null on success.
-     * $backInReview is set when this upload completed the requested
-     * corrections and the application went back to Under Verification.
-     */
+    /** Legacy upload handler retained for old routes and records. */
     private function upload(array $user, Document $documents, ?bool &$backInReview = false): ?string
     {
         $backInReview = false;

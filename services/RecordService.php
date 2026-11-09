@@ -50,13 +50,13 @@ class RecordService
     }
 
     /** One page of matching applicants, each with up to 3 (matching) applications under 'applications'. */
-    public function search(array $filters, int $page): array
+    public function search(array $filters, int $page, int $perPage = self::PER_PAGE): array
     {
         // "No application" can't be combined with an application type.
         if ($filters['status'] === 'NONE') {
             $filters['type'] = '';
         }
-        $result = $this->records->search($filters, $page, self::PER_PAGE);
+        $result = $this->records->search($filters, $page, $perPage);
         $apps = $this->records->applicationsFor(array_column($result['rows'], 'id'), $filters);
         foreach ($result['rows'] as &$row) {
             $row['applications'] = $apps[$row['id']] ?? [];

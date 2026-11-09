@@ -2,7 +2,7 @@
 require_once __DIR__ . '/../models/Application.php';
 require_once __DIR__ . '/../models/Document.php';
 require_once __DIR__ . '/../models/Appointment.php';
-require_once __DIR__ . '/../models/EligibilityAssessment.php';
+require_once __DIR__ . '/IdReleaseService.php';
 
 /**
  * Builds the applicant-facing progress tracker for one application
@@ -25,7 +25,6 @@ class ApplicationTrackerService
     private Application $applications;
     private Document $documents;
     private Appointment $appointments;
-    private EligibilityAssessment $assessments;
 
     public function __construct(PDO $pdo)
     {
@@ -33,16 +32,17 @@ class ApplicationTrackerService
         $this->applications = new Application($pdo);
         $this->documents = new Document($pdo);
         $this->appointments = new Appointment($pdo);
-        $this->assessments = new EligibilityAssessment($pdo);
     }
 
     /**
      * @return array{stages: array, current: string, rejected: ?array, correction: ?array, history: array}
-     *   stages: [key, label, state, date (Y-m-d H:i:s|null), detail]; history: status rows, oldest first.
+     *   stages: [key, label, state, date (Y-m-d H:i:s|null), detail]; history: status rows, oldest first;
+     *   documents: Document::forReview() rows; appointment: the appointment row (any status) or null.
      */
     public function track(array $app): array
     {
         $id = (int) $app['id'];
+        $idReleaseSchedule = (new IdReleaseService($this->pdo))->scheduleFor($id);
         $history = array_reverse($this->applications->history($id)); // oldest first
         $status = $app['status'];
 
@@ -76,62 +76,66 @@ class ApplicationTrackerService
 
         // --- 3. Document verification: the documents' actual states. ---
         $docs = $this->documents->forReview($id, $app['category_id'] !== null ? (int) $app['category_id'] : null);
-        $required = array_filter($docs, fn($d) => $d['is_required']);
-        $uploaded = array_filter($docs, fn($d) => $d['id'] !== null);
-        $missing = array_filter($required, fn($d) => $d['id'] === null);
-        $flagged = array_filter($uploaded, fn($d) => in_array($d['verification_status'], ['NEEDS_CORRECTION', 'REJECTED'], true));
-        $verified = array_filter($uploaded, fn($d) => $d['verification_status'] === 'VERIFIED');
-        $docsDone = !$missing && $uploaded && count($verified) === count($uploaded);
-        $docsDate = $docsDone ? max(array_map(fn($d) => (string) $d['verified_at'], $verified)) : null;
+        $checklist = $this->documents->checklistForReview($id, $app['category_id'] !== null ? (int) $app['category_id'] : null, $app['type'] === 'renewal');
+        $required = array_filter($checklist, fn($d) => $d['is_required']);
+        $missing = array_filter($required, [Document::class, 'needsPreparation']);
+        $flagged = array_filter($checklist, fn($d) => $d['verification_status'] === 'Needs Correction');
+        $verified = array_filter($required, fn($d) => $d['verification_status'] === 'Verified' && (empty($d['expires_at']) || $d['expires_at'] >= date('Y-m-d')));
+        $docsDone = count($verified) === count($required) && (count($required) > 0 || !empty($app['renewal_simplified']));
+        $reviewed = array_filter($required, fn($d) => $d['reviewed_at'] !== null);
+        $docsDate = $docsDone && $verified ? max(array_map(fn($d) => (string) $d['reviewed_at'], $verified)) : null;
         if ($docsDone) {
             $docState = 'done';
-            $docDetail = count($verified) . ' of ' . count($uploaded) . ' documents verified.';
+            $docDetail = count($verified) . ' of ' . count($required) . ' required documents verified.';
         } elseif ($flagged || $missing) {
             $docState = 'attention';
             $docDetail = ($flagged ? count($flagged) . ' document(s) need correction' : '') . ($flagged && $missing ? '; ' : '')
-                . ($missing ? count($missing) . ' required document(s) missing' : '') . '. See Upload Documents.';
+                . ($missing ? count($missing) . ' required document(s) still need preparation' : '') . '. See Required Documents Checklist.';
         } else {
-            $docState = $reviewed ? 'active' : 'pending';
-            $docDetail = count($verified) . ' of ' . count($uploaded) . ' documents verified so far.';
+            $docState = $reviewed ? 'active' : ($status === 'Pending Review' ? 'pending' : 'active');
+            $docDetail = count($verified) . ' of ' . count($required) . ' required documents verified so far.';
         }
         $stages[] = ['key' => 'documents', 'label' => 'Document Verification', 'state' => $docState, 'date' => $docsDate, 'detail' => $docDetail];
 
-        // --- 4. MSWD assessment: recorded assessments + the appointment. ---
-        $assessment = $this->assessments->mswdForApplication($id)[0] ?? null;
+        // --- 4. Interview outcome, or checklist readiness for a simplified renewal. ---
         $appt = $this->appointments->interviewFor($id);
         $apptPending = $appt && $appt['status'] === 'BOOKED';
-        $eligible = $app['eligibility_status'] === 'Eligible' && $assessment && $assessment['preliminary_result'] === 'ELIGIBLE';
-        if ($eligible && !$apptPending) {
-            $assessDate = $assessment['created_at'];
-            if ($appt && $appt['status'] === 'COMPLETED' && $appt['result_recorded_at'] > $assessDate) {
-                $assessDate = $appt['result_recorded_at'];
-            }
-            $stages[] = ['key' => 'assessment', 'label' => 'MSWD Assessment', 'state' => 'done', 'date' => $assessDate,
-                'detail' => $appt && $appt['status'] === 'COMPLETED' ? 'Interview completed; assessed eligible.' : 'Assessed eligible.'];
+        $simplifiedRenewal = !empty($app['renewal_simplified']);
+        $interviewDone = $simplifiedRenewal || Appointment::interviewSuccessful($appt);
+        if ($interviewDone && (!$simplifiedRenewal || $docsDone)) {
+            $assessDate = $simplifiedRenewal ? $docsDate : ($appt['result_recorded_at'] ?? null);
+            $stages[] = ['key' => 'assessment', 'label' => $simplifiedRenewal ? 'Renewal Review' : 'Interview', 'state' => 'done', 'date' => $assessDate,
+                'detail' => $simplifiedRenewal ? 'Renewal checklist complete; no new interview is required.' : 'Successful interview recorded.'];
         } else {
             if ($apptPending) {
                 $detail = 'Interview on ' . date('M j, Y g:i A', strtotime($appt['scheduled_at'])) . ' at ' . $appt['location'] . '.';
             } elseif ($appt && $appt['status'] === 'MISSED') {
-                $detail = 'You missed your appointment. Please book a new one.';
-            } elseif ($assessment && $assessment['preliminary_result'] === 'NOT_ELIGIBLE') {
-                $detail = 'MSWDO assessed you as not eligible' . ($assessment['result_reason'] ? ': ' . $assessment['result_reason'] : '') . '.';
+                $detail = 'You missed your appointment. Please contact MSWDO for a new schedule.';
+            } elseif (Appointment::interviewOutcome($appt) === 'Unsuccessful') {
+                $detail = 'The interview was unsuccessful. Please contact MSWDO for the next steps.';
+            } elseif ($simplifiedRenewal) {
+                $detail = 'MSWDO will review your renewal documents. A new interview is not required.';
             } else {
-                $detail = 'MSWDO will assess your eligibility' . ($appt ? '' : ' (an interview may be scheduled)') . '.';
+                $detail = 'Waiting for MSWDO to schedule your interview. Bring your physical documents to the interview.';
             }
-            $state = $appt && $appt['status'] === 'MISSED' ? 'attention' : ($reviewed ? 'active' : 'pending');
-            $stages[] = ['key' => 'assessment', 'label' => 'MSWD Assessment', 'state' => $state, 'date' => null, 'detail' => $detail];
+            $state = ($appt && $appt['status'] === 'MISSED') || Appointment::interviewOutcome($appt) === 'Unsuccessful' ? 'attention' : ($reviewed ? 'active' : 'pending');
+            $stages[] = ['key' => 'assessment', 'label' => $simplifiedRenewal ? 'Renewal Review' : 'Interview', 'state' => $state, 'date' => null, 'detail' => $detail];
         }
 
         // --- 5-7. Decision, approval, release: straight from the status history. ---
         $approvedAt = $firstAt(['Approved']);
-        $releasedAt = $firstAt(['ID Released']);
+        $releasedAt = $idReleaseSchedule['released_at'] ?? $firstAt(['ID Released']);
         $isReleased = $releasedAt !== null || $status === 'ID Released';
         $isApproved = $approvedAt !== null || $isReleased || $status === 'Approved';
+        $releasePending = $status === 'Approved' && $idReleaseSchedule && !$isReleased;
         $noDate = fn(?string $at) => $at ? '' : 'Date not recorded.';
         if ($isApproved) {
             // Approval is only possible once documents and assessment passed (see the approval checklist),
             // so an approved application's earlier stages are complete even if their records predate this.
             foreach ($stages as &$s) {
+                if ($s['key'] === 'assessment') {
+                    continue;
+                }
                 if ($s['state'] !== 'done') {
                     $s['state'] = 'done';
                     $s['detail'] = $noDate($s['date']);
@@ -139,13 +143,15 @@ class ApplicationTrackerService
             }
             unset($s);
         }
-        $readyForDecision = $docsDone && $eligible && !$apptPending;
+        $readyForDecision = $docsDone && $interviewDone;
         $stages[] = ['key' => 'decision', 'label' => 'For Approval', 'state' => $isApproved ? 'done' : ($readyForDecision ? 'active' : 'pending'),
             'date' => $approvedAt, 'detail' => $isApproved ? $noDate($approvedAt) : ($readyForDecision ? 'All checks complete. Waiting for the MSWDO decision.' : '')];
         $stages[] = ['key' => 'approved', 'label' => 'Approved', 'state' => $isApproved ? 'done' : 'pending', 'date' => $approvedAt,
-            'detail' => $isApproved ? trim($noDate($approvedAt) . ($isReleased ? '' : ' Your Solo Parent ID is being prepared.')) : ''];
-        $stages[] = ['key' => 'released', 'label' => 'ID Released', 'state' => $isReleased ? 'done' : 'pending', 'date' => $releasedAt,
-            'detail' => $isReleased ? trim($noDate($releasedAt) . ($app['id_expires_at'] ? ' Valid until ' . date('F j, Y', strtotime($app['id_expires_at'])) . '.' : '')) : ''];
+            'detail' => $isApproved ? trim($noDate($approvedAt) . ($isReleased || $releasePending ? '' : ' Your Solo Parent ID is being prepared.')) : ''];
+        $stages[] = ['key' => 'released', 'label' => $releasePending ? 'ID Release Scheduled' : 'ID Released',
+            'state' => $isReleased ? 'done' : ($releasePending ? 'active' : 'pending'), 'date' => $releasedAt,
+            'detail' => $isReleased ? trim($noDate($releasedAt) . ($app['id_expires_at'] ? ' Valid until ' . date('F j, Y', strtotime($app['id_expires_at'])) . '.' : ''))
+                : ($releasePending ? 'ID release on ' . date('F j, Y g:i A', strtotime($idReleaseSchedule['scheduled_at'])) . ' at ' . $idReleaseSchedule['location'] . '. Please bring your application slip and a valid ID.' : '')];
 
         // --- Rejected: stop every stage that wasn't reached. ---
         $rejected = null;
@@ -176,6 +182,7 @@ class ApplicationTrackerService
             }
         }
 
-        return ['stages' => $stages, 'current' => $current, 'rejected' => $rejected, 'correction' => $correction, 'history' => $history];
+        return ['stages' => $stages, 'current' => $current, 'rejected' => $rejected, 'correction' => $correction, 'history' => $history,
+            'documents' => $docs, 'checklist' => $checklist, 'appointment' => $appt, 'idReleaseSchedule' => $idReleaseSchedule, 'referenceNo' => $app['reference_no']];
     }
 }

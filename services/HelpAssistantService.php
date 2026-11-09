@@ -35,7 +35,7 @@ class HelpAssistantService
     /** Link keys the assistant may attach => [label, in-app path]. Replies store keys only, never URLs. */
     public const LINKS = [
         'status' => ['My Application & tracker', 'applicant/dashboard.php?section=application'],
-        'documents' => ['Upload Documents', 'applicant/dashboard.php?section=documents'],
+        'documents' => ['Required Documents Checklist', 'applicant/dashboard.php?section=documents'],
         'appointment' => ['Appointment', 'applicant/dashboard.php?section=appointment'],
         'renewal' => ['ID Renewal', 'applicant/dashboard.php?section=renewal'],
         'myid' => ['My Solo Parent ID', 'applicant/dashboard.php?section=myid'],
@@ -49,7 +49,7 @@ class HelpAssistantService
     public const SUGGESTIONS = [
         'status' => 'Where is my application?',
         'documents' => 'What documents do I need?',
-        'appointment' => 'How do I book an appointment?',
+        'appointment' => 'How is my interview scheduled?',
         'renewal' => 'How do I renew my ID?',
         'myid' => 'I lost my QR slip',
         'decision' => 'Am I eligible?',
@@ -292,8 +292,8 @@ class HelpAssistantService
     private function menuText(array $user): string
     {
         $first = trim(explode(' ', trim((string) $user['full_name']))[0] ?? '');
-        return 'Hi' . ($first !== '' ? ' ' . $first : '') . "! I'm the MSWDO Virac Help Assistant. I can explain how to apply, which documents to upload, "
-            . 'how to book an appointment, how renewal works, where your application is, and where to find things in this portal.';
+        return 'Hi' . ($first !== '' ? ' ' . $first : '') . "! I'm the MSWDO Virac Help Assistant. I can explain how to apply, which physical documents to prepare, "
+            . 'how interview scheduling works, how renewal works, where your application is, and where to find things in this portal.';
     }
 
     /** The applicant's application that is still being processed, else their latest one. */
@@ -376,7 +376,7 @@ class HelpAssistantService
                 $text .= ' MSWD staff are reviewing it. You will get a notification whenever the status changes.';
                 break;
             case 'For Revision':
-                $text .= ' MSWD asked for corrections' . (!empty($track['correction']['reason']) ? ': ' . self::quote($track['correction']['reason']) : '') . '. Please fix and re-upload the flagged documents.';
+                $text .= ' MSWD asked for corrections' . (!empty($track['correction']['reason']) ? ': ' . self::quote($track['correction']['reason']) : '') . '. Review your checklist and prepare the physical requirements requested by staff.';
                 $links[] = 'documents';
                 break;
             case 'Interview Scheduled':
@@ -411,7 +411,7 @@ class HelpAssistantService
         if (($app['interview_status'] ?? null) === 'COMPLETED') {
             return 'Your interview is done; MSWD staff will update your status.';
         }
-        return "You don't have an appointment booked yet -- pick an open slot on the Appointment page.";
+        return "MSWDO staff will assign your interview schedule. Prepare unchecked requirements while waiting.";
     }
 
     private function documentsAnswer(array $user, array $applications): array
@@ -419,6 +419,11 @@ class HelpAssistantService
         $documents = new Document($this->pdo);
         $app = $this->currentApplication($applications);
         $inProgress = $app && in_array($app['status'], Application::IN_PROGRESS_STATUSES, true);
+        if (!empty($app['renewal_simplified'])) {
+            $rows = $documents->checklistForReview((int) $app['id'], (int) $app['category_id'], true);
+            $needed = array_column(array_filter($rows,fn($row)=>!empty($row['is_required'])),'label');
+            return $this->reply('documents','Your renewal retains accepted, unexpired documents from your existing ID. Documents for this request: ' . ($needed ? implode(', ',$needed) : 'no fresh copies required on the recorded checklist') . '. Follow staff remarks in Required Documents Checklist; a new interview is not required.',['documents'],['renewal','status']);
+        }
         $requirements = $documents->requirementsFor($app ? (int) $app['category_id'] : null);
         $required = array_map(fn($r) => $r['label'], array_filter($requirements, fn($r) => (int) $r['is_required'] === 1));
         $optional = array_map(fn($r) => $r['label'], array_filter($requirements, fn($r) => (int) $r['is_required'] !== 1));
@@ -426,21 +431,10 @@ class HelpAssistantService
         $text = '';
         $links = ['documents'];
         if ($inProgress) {
-            $uploaded = $documents->forUserByReference((int) $user['id'])[$app['reference_no']] ?? [];
-            $fix = array_filter($uploaded, fn($d) => in_array($d['verification_status'], ['NEEDS_CORRECTION', 'REJECTED'], true));
-            $verified = count(array_filter($uploaded, fn($d) => $d['verification_status'] === 'VERIFIED'));
-            $text .= 'For ' . $app['reference_no'] . ': ' . count($uploaded) . ' document(s) uploaded, ' . $verified . ' verified by MSWD.';
-            if ($fix) {
-                $text .= ' These need your attention:';
-                foreach ($fix as $d) {
-                    $text .= "\n- " . $d['doc_label'] . ($d['verification_status'] === 'REJECTED' ? ' (rejected)' : ' (needs correction)')
-                        . (!empty($d['staff_remarks']) ? ': ' . self::quote(fit_text((string) $d['staff_remarks'], 150)) : '');
-                }
-                $text .= "\nUpload a corrected file for each on the Upload Documents page.";
-            } else {
-                $text .= ' Nothing needs correcting right now.';
-            }
-            $text .= "\n\n";
+            $rows = $documents->checklistForReview((int) $app['id'], $app['category_id'] !== null ? (int) $app['category_id'] : null, $app['type'] === 'renewal');
+            $missing = array_column(array_filter($rows, fn($row) => !empty($row['is_required']) && empty($row['applicant_has'])), 'label');
+            $text .= 'For ' . $app['reference_no'] . ': ' . ($missing ? "Documents you still need to prepare:\n- " . implode("\n- ", $missing) : 'All requirements declared available.')
+                . "\nChecking a box does not verify a document. Follow staff remarks and bring the physical requirements to MSWDO.\n\n";
         }
         $text .= ($app ? 'Requirements for ' . $app['category_name'] : 'Standard requirements') . ":\n- " . implode("\n- ", $required ?: ['(none listed)']);
         if ($optional) {
@@ -449,8 +443,7 @@ class HelpAssistantService
         if (!$app) {
             $text .= "\nThere may be one more document depending on your solo parent category; the application form shows the exact list.";
         }
-        $rules = document_rules();
-        $text .= "\n\nFiles must be " . $rules['label'] . ', up to ' . format_mb($rules['max_mb']) . ' each, clear and readable. MSWD staff verify every document.';
+        $text .= "\n\nNo document uploads are required. Mark what you have in the checklist and prepare unchecked required documents. MSWDO verifies physical documents.";
         if (!$inProgress) {
             $links[] = 'apply';
         }
@@ -462,17 +455,16 @@ class HelpAssistantService
         $service = new AppointmentService($this->pdo);
         $notice = $service->minNoticeHours();
         $app = $this->currentApplication($applications);
+        if (!empty($app['renewal_simplified'])) {
+            return $this->reply('appointment','Your renewal needs document review and approval only, with no new interview. Follow My Application for renewal progress and the ID claiming schedule after approval.',['status'],['renewal','documents']);
+        }
         if (!$app || !in_array($app['status'], Application::IN_PROGRESS_STATUSES, true)) {
             $text = 'Appointments (interviews with MSWD) are booked after you submit an application. '
-                . ($app ? 'You have no application in progress right now.' : 'Apply first; then choose an open slot on the Appointment page.');
+                . ($app ? 'You have no application in progress right now.' : 'Apply first; then await the interview schedule assigned by MSWDO staff.');
             return $this->reply('appointment', $text, $app ? ['appointment', 'status'] : ['apply'], ['application', 'documents']);
         }
         $text = 'For ' . $app['reference_no'] . ': ' . $this->interviewSentence($app);
-        if (AppointmentService::needsBooking($app)) {
-            $open = count((new Appointment($this->pdo))->openSlots($notice));
-            $text .= ' ' . ($open ? "There are $open open slot(s) right now." : 'There are no open slots at the moment; MSWD adds new ones regularly, so please check again later.');
-        }
-        $text .= "\n\nYou can book, reschedule or cancel online up to $notice hour(s) before the appointment. After that, please contact the MSWDO office. "
+        $text .= "\n\nStaff assigns your first interview. You can reschedule or cancel an existing appointment online up to $notice hour(s) before the appointment. After that, please contact the MSWDO office. "
             . 'Bring your original documents and a valid ID to the interview.';
         return $this->reply('appointment', $text, ['appointment'], ['status', 'documents']);
     }
@@ -500,8 +492,7 @@ class HelpAssistantService
             $text = 'Your ID ' . $source['reference_no'] . ' is valid until ' . self::date($window['expiresAt']) . '. Renewal opens on '
                 . self::date($window['opensOn']) . ' (' . $window['windowDays'] . ' days before it expires); you will get a reminder.';
         }
-        $text .= "\n\nThe renewal form has 4 steps and starts from your current ID's details. Your name, birthdate, sex and category can't be changed there -- contact MSWDO for that. "
-            . 'Update your address, contact details and children, upload the renewal documents, then review and submit.';
+        $text .= "\n\nRenewal uses your existing ID record and accepted documents. Confirm your contact details and provide only the office-configured documents for your category and replacements for expired records. No new interview is required for the simplified renewal. Contact MSWDO if your identity, category or children need changes.";
         return $this->reply('renewal', $text, ['renewal'], ['documents', 'status']);
     }
 
@@ -513,7 +504,7 @@ class HelpAssistantService
                 . ($blocking['status'] === 'ID Released' ? ' When your ID is close to expiring, renew it instead.' : ' You can follow it in My Application.');
             return $this->reply('application', $text, $blocking['status'] === 'ID Released' ? ['renewal', 'myid'] : ['status'], ['status', 'renewal']);
         }
-        $text = "Applying takes 4 steps:\n1. Personal information\n2. Your children\n3. Upload documents\n4. Review and submit\n"
+        $text = "Applying takes 4 steps:\n1. Personal information\n2. Your children\n3. Required Documents Checklist\n4. Review and submit\n"
             . 'Your progress is saved as a draft, so you can stop and continue later. After you submit you will get a reference number and a QR slip.';
         $draft = (new ApplicationDraft($this->pdo))->find((int) $user['id']);
         if ($draft) {
@@ -567,7 +558,7 @@ class HelpAssistantService
             return $this->reply('navigation', 'To log out, open the menu with your name at the top and choose Log out.', [], ['navigation']);
         }
         return $this->reply('navigation',
-            "Here's where things are (left menu):\n- Dashboard: summary and next steps\n- My Application: status tracker and QR slip\n- Upload Documents: add or correct files\n"
+            "Here's where things are (left menu):\n- Dashboard: summary and next steps\n- My Application: status tracker and QR slip\n- Required Documents Checklist: review your selections and staff results\n"
             . "- Appointment: book or change your interview\n- ID Renewal: renew an expiring ID\n- My Solo Parent ID: your digital ID\n- Notifications, News & Announcements\n- My Profile: contact details and password",
             ['status', 'documents', 'appointment', 'profile'], ['status', 'documents']);
     }

@@ -9,9 +9,24 @@
 /storage/avatars/*
 /storage/db_backups/*
 
+# Staff-uploaded or generated files; only the placeholder that keeps the folder is tracked.
+/storage/staff/*
+!/storage/staff/.gitkeep
+
 # Machine-specific settings (may hold real credentials) and runtime logs.
 /config/local.php
 /storage/logs/*
+/storage/sessions/*
 
 # Composer dependencies: recreate with "composer install" (versions pinned in composer.lock).
 /vendor/
+
+# Runtime data, generated screenshots, and local backups.
+/storage/*
+!/storage/.htaccess
+!/storage/staff/
+!/storage/staff/.gitkeep
+/.env
+/.env.*
+!/.env.example
+/node_modules/

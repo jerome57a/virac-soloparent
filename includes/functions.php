@@ -19,6 +19,18 @@ function redirect(string $path): void
 
 function base_url(string $path = ''): string
 {
+    // Shared private resources must use the session of the portal that linked to them.
+    $endpoint = parse_url($path, PHP_URL_PATH);
+    if (defined('AUTH_PORTAL') && in_array(AUTH_PORTAL, ['admin', 'staff'], true)
+        && in_array($endpoint, ['mswd-login.php', 'forgot-password.php', 'reset-password.php', 'slip.php', 'download.php', 'avatar.php'], true)) {
+        parse_str((string) parse_url($path, PHP_URL_QUERY), $parameters);
+        if (!isset($parameters['portal'])) {
+            $fragment = strpos($path, '#');
+            $suffix = $fragment === false ? '' : substr($path, $fragment);
+            $path = $fragment === false ? $path : substr($path, 0, $fragment);
+            $path .= (str_contains($path, '?') ? '&' : '?') . 'portal=' . AUTH_PORTAL . $suffix;
+        }
+    }
     return BASE_URL . '/' . ltrim($path, '/');
 }
 
@@ -39,6 +51,12 @@ function take_flash(): ?string
 function application_url(array $staff, int $applicationId): string
 {
     return base_url((can($staff, 'applications.process') ? 'staff/application.php?id=' : 'admin/application_view.php?id=') . $applicationId);
+}
+
+// Shared management pages have separate entry points for each role.
+function role_portal_path(array $account, string $page): string
+{
+    return ($account['role'] === 'admin' ? 'admin/' : 'staff/') . $page;
 }
 
 function asset(string $path): string
@@ -322,12 +340,19 @@ function generate_reference_no(PDO $pdo): string
 /** Fetch all categories ordered for display. */
 function get_categories(PDO $pdo): array
 {
-    return $pdo->query('SELECT * FROM categories ORDER BY sort_order, id')->fetchAll();
+    return $pdo->query('SELECT * FROM categories WHERE is_active = 1 ORDER BY sort_order, id')->fetchAll();
 }
 
 /** Standard (category_id IS NULL) + category-specific document requirements, in order. */
 function get_document_requirements(PDO $pdo, ?int $categoryId): array
 {
+    if ($categoryId !== null) {
+        $active = $pdo->prepare('SELECT is_active FROM categories WHERE id = ?');
+        $active->execute([$categoryId]);
+        if ((int) $active->fetchColumn() === 1) {
+            return get_category_only_requirements($pdo, $categoryId);
+        }
+    }
     $stmt = $pdo->prepare(
         'SELECT * FROM document_requirements
          WHERE category_id IS NULL OR category_id = ?
@@ -433,4 +458,21 @@ function audit_log(
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     $stmt->execute([$userId, $actorName, $actorRole, $action, $entityType, $entityId, $details, $_SERVER['REMOTE_ADDR'] ?? null, $userAgent]);
+}
+
+/** Fixed applicant destinations; arbitrary URLs are never accepted. */
+function applicant_return_path($key): ?string
+{
+    return is_string($key) ? ([
+        'apply' => 'applicant/dashboard.php?section=apply',
+        'applications' => 'applicant/dashboard.php?section=application',
+        'track' => 'portal.php?tab=status',
+    ][$key] ?? null) : null;
+}
+
+function take_applicant_return_path(): string
+{
+    $path = applicant_return_path($_SESSION['applicant_return'] ?? null);
+    unset($_SESSION['applicant_return']);
+    return $path ?? 'applicant/dashboard.php';
 }

@@ -5,6 +5,7 @@ require_once __DIR__ . '/Model.php';
 class Application extends Model
 {
     public const EDITABLE_STATUSES = ['Pending Review', 'Under Verification', 'For Revision'];
+    public const CHECKLIST_EDITABLE_STATUSES = ['Pending Review', 'Under Verification', 'For Revision', 'Interview Scheduled'];
     public const STATUSES = ['Pending Review', 'Under Verification', 'For Revision', 'Interview Scheduled', 'Approved', 'ID Released', 'Rejected'];
     public const ELIGIBILITY_STATUSES = ['Not Assessed', 'Eligible', 'Not Eligible'];
     /** Still being processed by MSWD -- documents can be verified. After a final decision they are frozen. */
@@ -22,7 +23,7 @@ class Application extends Model
         'Under Verification'  => ['For Revision', 'Approved', 'Rejected'],
         'For Revision'        => ['Under Verification', 'Rejected'],
         'Interview Scheduled' => ['Under Verification', 'For Revision', 'Approved', 'Rejected'],
-        'Approved'            => ['ID Released'],
+        'Approved'            => [],
         'ID Released'         => [],
         'Rejected'            => [],
     ];
@@ -30,11 +31,10 @@ class Application extends Model
     public const REASON_REQUIRED = ['For Revision', 'Rejected'];
     /** Button wording for each target status on the staff decision panel. */
     public const ACTION_LABELS = [
-        'Under Verification' => 'Start / Resume Review',
+        'Under Verification' => 'Start Review',
         'For Revision'       => 'Request Corrections',
         'Approved'           => 'Approve',
         'Rejected'           => 'Reject',
-        'ID Released'        => 'Mark ID Released',
     ];
 
     // ---- Staff queue / search ----
@@ -127,6 +127,17 @@ class Application extends Model
         return $stmt->fetchAll();
     }
 
+    /** Shared staff activity, including work done before a new staff account was created. */
+    public function recentlyReviewed(int $limit = 5): array
+    {
+        return $this->pdo->query(
+            'SELECT a.*, r.full_name AS reviewer_name FROM applications a
+             LEFT JOIN users r ON r.id = a.reviewed_by
+             WHERE a.reviewed_by IS NOT NULL
+             ORDER BY a.updated_at DESC, a.id DESC LIMIT ' . max(1, (int) $limit)
+        )->fetchAll();
+    }
+
     // ---- Single application (staff review) ----
 
     public function findForReview(int $id): ?array
@@ -166,11 +177,11 @@ class Application extends Model
         return $stmt->fetchAll();
     }
 
-    /** Sets status + reviewer; releasing an ID also stamps its expiry $validityYears from today. */
-    public function setReviewedStatus(int $applicationId, string $status, int $staffId, ?int $validityYears = null): void
+    /** Sets status + reviewer; new and renewed IDs expire one year after release. */
+    public function setReviewedStatus(int $applicationId, string $status, int $staffId): void
     {
-        if ($validityYears !== null) {
-            $this->pdo->prepare('UPDATE applications SET status = ?, reviewed_by = ?, id_expires_at = DATE_ADD(CURDATE(), INTERVAL ' . (int) $validityYears . ' YEAR) WHERE id = ?')
+        if ($status === 'ID Released') {
+            $this->pdo->prepare('UPDATE applications SET status = ?, reviewed_by = ?, id_expires_at = DATE_ADD(CURDATE(), INTERVAL 1 YEAR) WHERE id = ?')
                 ->execute([$status, $staffId, $applicationId]);
             return;
         }
@@ -247,6 +258,14 @@ class Application extends Model
         return $stmt->fetch() ?: null;
     }
 
+    /** Latest renewal filed for this particular ID, including its final outcome. */
+    public function latestRenewalFor(int $applicationId): ?array
+    {
+        $stmt = $this->pdo->prepare('SELECT reference_no, status FROM applications WHERE renewal_of_id = ? ORDER BY submitted_at DESC, id DESC LIMIT 1');
+        $stmt->execute([$applicationId]);
+        return $stmt->fetch() ?: null;
+    }
+
     public function findByReferenceWithCategory(string $ref): ?array
     {
         $stmt = $this->pdo->prepare('SELECT a.*, c.name AS category_name FROM applications a JOIN categories c ON c.id = a.category_id WHERE a.reference_no = ?');
@@ -272,12 +291,14 @@ class Application extends Model
     {
         $this->pdo->prepare(
             "INSERT INTO applications
-                (reference_no, user_id, type, renewal_of_id, full_name, barangay, address, mobile, email, birthdate, sex, civil_status, category_id, status, consent_at, submitted_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending Review', ?, ?)"
+                (reference_no, user_id, type, renewal_of_id, full_name, barangay, address, mobile, email, birthdate, sex, civil_status, category_id, emergency_contact_name, emergency_contact_relation, emergency_contact_phone, emergency_contact_address, status, consent_at, submitted_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending Review', ?, ?)"
         )->execute([
             $refNumber, $userId, $type, $renewalOfId, $fields['full_name'], $fields['barangay'], $fields['address'],
             $fields['mobile'], $fields['email'], $fields['birthdate'], $fields['sex'],
-            $fields['civil_status'], $fields['category_id'], $now, $now,
+            $fields['civil_status'], $fields['category_id'],
+            $fields['emergency_contact_name'] ?? null, $fields['emergency_contact_relation'] ?? null,
+            $fields['emergency_contact_phone'] ?? null, $fields['emergency_contact_address'] ?? null, $now, $now,
         ]);
         return (int) $this->pdo->lastInsertId();
     }

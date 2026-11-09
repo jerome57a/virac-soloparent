@@ -24,19 +24,9 @@ foreach (array_keys($monthly) as $ym) {
 $periodText = e($period['label']);
 ?>
 <div class="portal-container vz-root">
-  <a href="<?= base_url('admin/dashboard.php') ?>" style="font-size:13px" class="no-print">&larr; Back to dashboard</a>
-  <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mt-2 mb-3">
-    <div>
-      <h1 class="font-heading m-0" style="font-size:26px">Analytics</h1>
-      <div style="font-size:13px;color:var(--muted)">Period: <?= $periodText ?> · counted live from the database</div>
-    </div>
-    <div class="d-flex gap-2 no-print">
-      <button type="button" onclick="window.print()" class="btn-outline" style="padding:8px 16px;font-size:13px">Print</button>
-      <a href="<?= base_url('admin/reports.php') ?>" class="btn-navy text-decoration-none" style="padding:8px 16px;font-size:13px">Reports</a>
-    </div>
-  </div>
+  <?php require APP_ROOT . '/views/partials/admin-page-heading.php'; ?>
 
-  <form method="get" class="analytics-filters" aria-label="Analytics period">
+<div class="admin-page-actions no-print"><span class="admin-period-label">Period: <?= $periodText ?></span><button type="button" onclick="window.print()" class="btn-outline" data-i18n>Print</button><a href="<?= base_url('admin/reports.php') ?>" class="btn-navy" data-i18n>Reports</a></div>  <form method="get" class="analytics-filters" id="admin-analytics-period" aria-label="Analytics period">
     <label>Period
       <select name="period" onchange="document.getElementById('custom-range').hidden = this.value !== 'custom'">
         <?php foreach (AnalyticsService::PERIODS as $k => $label): ?><option value="<?= e($k) ?>" <?= $period['key'] === $k ? 'selected' : '' ?>><?= e($label) ?></option><?php endforeach; ?>
@@ -52,16 +42,16 @@ $periodText = e($period['label']);
 
   <div class="stat-tiles">
     <div class="stat-tile"><div class="stat-label">Total applicants</div><div class="stat-value"><?= chart_num($cards['applicants']) ?></div><div class="stat-sub">registered accounts · <?= chart_num($cards['applicantsWithApplication']) ?> have applied</div></div>
-    <div class="stat-tile"><div class="stat-label">New applications</div><div class="stat-value"><?= chart_num($cards['new']) ?></div><div class="stat-sub">submitted in period</div></div>
+    <div class="stat-tile"><div class="stat-label">New applications</div><div class="stat-value" data-i18n><?= chart_num($cards['new']) ?></div><div class="stat-sub">submitted in period</div></div>
     <div class="stat-tile"><div class="stat-label">Renewals</div><div class="stat-value"><?= chart_num($cards['renewals']) ?></div><div class="stat-sub">submitted in period</div></div>
-    <div class="stat-tile"><div class="stat-label">Approved</div><div class="stat-value"><?= chart_num($cards['approved']) ?></div><div class="stat-sub">approved in period</div></div>
-    <div class="stat-tile"><div class="stat-label">Rejected</div><div class="stat-value"><?= chart_num($cards['rejected']) ?></div><div class="stat-sub">rejected in period</div></div>
-    <div class="stat-tile"><div class="stat-label">Pending</div><div class="stat-value"><?= chart_num($cards['pending']) ?></div><div class="stat-sub">in progress now</div></div>
+    <div class="stat-tile"><div class="stat-label" data-i18n>Approved</div><div class="stat-value"><?= chart_num($cards['approved']) ?></div><div class="stat-sub">approved in period</div></div>
+    <div class="stat-tile"><div class="stat-label" data-i18n>Rejected</div><div class="stat-value"><?= chart_num($cards['rejected']) ?></div><div class="stat-sub">rejected in period</div></div>
+    <div class="stat-tile"><div class="stat-label" data-i18n>Pending</div><div class="stat-value"><?= chart_num($cards['pending']) ?></div><div class="stat-sub">in progress now</div></div>
     <div class="stat-tile"><div class="stat-label">Expiring IDs</div><div class="stat-value"><?= chart_num($cards['expiring']) ?></div><div class="stat-sub">within <?= (int) $cards['expiringWindow'] ?> days · <?= chart_num($cards['expired']) ?> expired, not renewed</div></div>
-    <div class="stat-tile"><div class="stat-label">Appointments</div><div class="stat-value"><?= chart_num($cards['appointments']) ?></div><div class="stat-sub">scheduled in period</div></div>
+    <div class="stat-tile"><div class="stat-label" data-i18n>Appointments</div><div class="stat-value"><?= chart_num($cards['appointments']) ?></div><div class="stat-sub">scheduled in period</div></div>
   </div>
 
-  <div class="review-card">
+  <div class="review-card" id="admin-analytics-monthly" data-i18n>
     <div class="review-card-head"><div class="title">Applications by month</div></div>
     <div class="settings-note mb-2">New applications and renewals by submission month<?= $monthlyTruncated ? ' — the last ' . AnalyticsService::MAX_MONTHS . ' months of the period' : '' ?>.</div>
     <?= chart_stacked_columns($months, ['new' => ['New applications', '--series-1'], 'renewal' => ['Renewals', '--series-2']], $monthly, 'Applications submitted per month, new and renewal, ' . $period['label']) ?>
@@ -115,20 +105,20 @@ $periodText = e($period['label']);
       <div style="font-size:13px;color:var(--muted)">No applications in this period.</div>
     <?php else: ?>
       <div class="row g-4">
-        <div class="col-12 col-md-6"><div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px">Sex</div><?= chart_bars(array_map(fn($r) => [$r['name'], $r['n']], $bySex), 'Applications by sex of the applicant, ' . $period['label'], '--series-1', 'applications') ?></div>
-        <div class="col-12 col-md-6"><div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px">Civil status</div><?= chart_bars(array_map(fn($r) => [$r['name'], $r['n']], $byCivilStatus), 'Applications by civil status, ' . $period['label'], '--series-1', 'applications') ?></div>
+        <div class="col-12 col-md-6"><div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px" data-i18n>Sex</div><?= chart_bars(array_map(fn($r) => [$r['name'], $r['n']], $bySex), 'Applications by sex of the applicant, ' . $period['label'], '--series-1', 'applications') ?></div>
+        <div class="col-12 col-md-6"><div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px" data-i18n>Civil status</div><?= chart_bars(array_map(fn($r) => [$r['name'], $r['n']], $byCivilStatus), 'Applications by civil status, ' . $period['label'], '--series-1', 'applications') ?></div>
       </div>
     <?php endif; ?>
   </div>
 
   <div class="review-card mt-3">
-    <div class="review-card-head"><div class="title">IDs expiring within <?= (int) $cards['expiringWindow'] ?> days (<?= count($expiringIds) ?>)</div></div>
+    <div class="review-card-head"><div class="title" id="admin-analytics-expiring">IDs expiring within <?= (int) $cards['expiringWindow'] ?> days (<?= count($expiringIds) ?>)</div></div>
     <div class="settings-note mb-2">Released IDs expiring from today through the renewal reminder period (System Settings). <?= chart_num($cards['expired']) ?> already expired without a renewal.</div>
     <?php if (!$expiringIds): ?>
       <div style="font-size:13px;color:var(--muted)">No IDs expire in the next <?= (int) $cards['expiringWindow'] ?> days.</div>
     <?php else: ?>
       <div class="table-responsive"><table class="table table-sm" style="font-size:13px">
-        <thead><tr><th>Reference</th><th>Name</th><th>Barangay</th><th>Expires</th><th>Days left</th><th>Renewal</th></tr></thead>
+        <thead><tr><th data-i18n>Reference</th><th data-i18n>Name</th><th data-i18n>Barangay</th><th data-i18n>Expires</th><th>Days left</th><th data-i18n>Renewal</th></tr></thead>
         <tbody>
           <?php foreach ($expiringIds as $x): $left = (int) floor((strtotime($x['id_expires_at']) - strtotime('today')) / 86400); ?>
             <tr>
@@ -137,7 +127,7 @@ $periodText = e($period['label']);
               <td><?= e($x['barangay']) ?></td>
               <td><?= e(date('M j, Y', strtotime($x['id_expires_at']))) ?></td>
               <td style="font-variant-numeric:tabular-nums"><?= $left === 0 ? 'today' : $left ?></td>
-              <td><?= $x['renewal_filed'] ? 'Filed' : 'Not yet' ?></td>
+              <td data-i18n><?= $x['renewal_filed'] ? 'Filed' : 'Not yet' ?></td>
             </tr>
           <?php endforeach; ?>
         </tbody>

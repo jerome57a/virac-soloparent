@@ -27,15 +27,15 @@ INSERT INTO users (full_name, email, username, password_hash, role) VALUES
 -- Solo parent categories (RA 8972 / RA 11861, Section 3)
 -- ---------------------------------------------------------------
 INSERT INTO categories (name, description, sort_order) VALUES
-('Deceased spouse', 'The other parent has passed away and you are solely responsible for your child/children.', 1),
-('Abandoned or separated (6+ months)', 'Your spouse has been absent for at least six (6) months and you bear sole parental responsibility.', 2),
-('Spouse detained or imprisoned (3+ months)', 'Your spouse is serving a sentence and you are the sole caregiver of your child/children.', 3),
-('Spouse physically or mentally incapacitated', 'Your spouse is unable to fulfill parental responsibilities due to a certified medical condition.', 4),
-('Legal separation, annulment, or nullity of marriage', 'As decreed by a court or church, with you entrusted with the custody of the child/children.', 5),
-('Unwed parent', 'An unmarried mother or father who has chosen to keep and raise their child/children.', 6),
-('Legal guardian', 'Any person who solely provides parental care and support to a minor child or children.', 7),
-('Spouse is an OFW (RA 11861)', 'Spouse is a low-skilled or semi-skilled overseas Filipino worker who has been abroad for an uninterrupted period of 12 months or more.', 8),
-('Victim of rape or crimes against chastity', 'A woman who gives birth as a result of rape or similar crimes and keeps and raises the child.', 9);
+('Abandonment by the spouse', 'The spouse has abandoned the applicant and child/children.', 1),
+('Declaration of nullity or annulment of marriage', 'A judicial declaration of nullity or annulment, including recognition of a foreign divorce.', 2),
+('Legal guardian, adoptive parent, or foster parent', 'The applicant is the child’s legal guardian, adoptive parent, or foster parent.', 3),
+('Unmarried father or mother who keeps and rears the child/children', 'An unmarried father or mother keeps and rears the child/children.', 4),
+('Detention or imprisonment of the spouse', 'The spouse is detained or serving a sentence for at least three months.', 5),
+('Child/children as a consequence of rape', 'The child/children were conceived as a consequence of rape.', 6),
+('Death of the spouse', 'The applicant’s spouse has died.', 7),
+('Legal or de facto separation of spouse for at least six months', 'The spouses have been legally or de facto separated for at least six months.', 8),
+('Spouse or family member of an OFW', 'The applicant is the spouse or family member of an overseas Filipino worker.', 9);
 
 -- ---------------------------------------------------------------
 -- Standard document requirements (category_id NULL = applies to all)
@@ -47,51 +47,71 @@ INSERT INTO document_requirements (category_id, doc_key, label, is_required, sor
 (NULL, 'photo',     '2x2 ID Photo', 1, 4);
 
 -- ---------------------------------------------------------------
--- Category-specific document requirements
+-- Category-specific document requirements for new applications
 -- ---------------------------------------------------------------
 INSERT INTO document_requirements (category_id, doc_key, label, is_required, sort_order)
-SELECT id, 'deathCert', 'PSA Death Certificate of Spouse', 1, 1 FROM categories WHERE name = 'Deceased spouse';
-INSERT INTO document_requirements (category_id, doc_key, label, is_required, sort_order)
-SELECT id, 'marriageCert', 'PSA Marriage Certificate', 1, 2 FROM categories WHERE name = 'Deceased spouse';
-
-INSERT INTO document_requirements (category_id, doc_key, label, is_required, sort_order)
-SELECT id, 'abandonCert', 'Barangay Certificate of Abandonment / De Facto Separation', 1, 1 FROM categories WHERE name = 'Abandoned or separated (6+ months)';
-INSERT INTO document_requirements (category_id, doc_key, label, is_required, sort_order)
-SELECT id, 'soloAffidavit', 'Notarized Affidavit of Solo Parent', 1, 2 FROM categories WHERE name = 'Abandoned or separated (6+ months)';
-
-INSERT INTO document_requirements (category_id, doc_key, label, is_required, sort_order)
-SELECT id, 'detentionCert', 'Certificate of Detention or Jail Records', 1, 1 FROM categories WHERE name = 'Spouse detained or imprisoned (3+ months)';
-
-INSERT INTO document_requirements (category_id, doc_key, label, is_required, sort_order)
-SELECT id, 'medCertSpouse', 'Medical Certificate of Spouse''s Incapacity (public physician)', 1, 1 FROM categories WHERE name = 'Spouse physically or mentally incapacitated';
-
-INSERT INTO document_requirements (category_id, doc_key, label, is_required, sort_order)
-SELECT id, 'courtDecree', 'Court or Church Decree of Legal Separation, Annulment, or Nullity', 1, 1 FROM categories WHERE name = 'Legal separation, annulment, or nullity of marriage';
-
-INSERT INTO document_requirements (category_id, doc_key, label, is_required, sort_order)
-SELECT id, 'cenomar', 'PSA CENOMAR (Certificate of No Marriage Record)', 1, 1 FROM categories WHERE name = 'Unwed parent';
-
-INSERT INTO document_requirements (category_id, doc_key, label, is_required, sort_order)
-SELECT id, 'guardianship', 'Court Order or Proof of Legal Guardianship', 1, 1 FROM categories WHERE name = 'Legal guardian';
-INSERT INTO document_requirements (category_id, doc_key, label, is_required, sort_order)
-SELECT id, 'soleCareCert', 'Barangay Certificate of Sole Care of the Child', 1, 2 FROM categories WHERE name = 'Legal guardian';
-
-INSERT INTO document_requirements (category_id, doc_key, label, is_required, sort_order)
-SELECT id, 'ofwContract', 'Spouse''s OFW Employment Contract or DMW (POEA) Certificate', 1, 1 FROM categories WHERE name = 'Spouse is an OFW (RA 11861)';
-INSERT INTO document_requirements (category_id, doc_key, label, is_required, sort_order)
-SELECT id, 'travelRecord', 'Proof Spouse Has Been Abroad 12+ Months (passport stamps or travel record)', 1, 2 FROM categories WHERE name = 'Spouse is an OFW (RA 11861)';
-
-INSERT INTO document_requirements (category_id, doc_key, label, is_required, sort_order)
-SELECT id, 'crimeRecord', 'Police Report, Medico-Legal Report, or Court Record', 1, 1 FROM categories WHERE name = 'Victim of rape or crimes against chastity';
+SELECT c.id, r.doc_key, r.label, 1, r.sort_order
+FROM categories c
+JOIN (
+  SELECT 'Abandonment by the spouse' category_name, 'photo1x1' doc_key, 'Two 1x1 ID pictures' label, 1 sort_order UNION ALL
+  SELECT 'Abandonment by the spouse', 'birthCert', 'Photocopy of the child''s/children''s birth certificate(s)', 2 UNION ALL
+  SELECT 'Abandonment by the spouse', 'marriageOrAffidavit', 'Marriage certificate or affidavit of the applicant', 3 UNION ALL
+  SELECT 'Abandonment by the spouse', 'witnessAffidavit', 'Affidavit of two disinterested persons attesting to abandonment', 4 UNION ALL
+  SELECT 'Abandonment by the spouse', 'abandonmentRecord', 'Police or barangay record of abandonment', 5 UNION ALL
+  SELECT 'Abandonment by the spouse', 'barangayCareAffidavit', 'Barangay official''s affidavit confirming residency and parental care/support', 6 UNION ALL
+  SELECT 'Abandonment by the spouse', 'soleCareAffidavit', 'Sworn affidavit declaring sole parental care/support and non-cohabitation with a partner or co-parent', 7 UNION ALL
+  SELECT 'Declaration of nullity or annulment of marriage', 'birthCert', 'Child''s/children''s birth certificate(s), photocopy', 1 UNION ALL
+  SELECT 'Declaration of nullity or annulment of marriage', 'marriageCert', 'Marriage certificate, certified true copy', 2 UNION ALL
+  SELECT 'Declaration of nullity or annulment of marriage', 'judicialDecree', 'Judicial decree of nullity/annulment or judicial recognition of foreign divorce', 3 UNION ALL
+  SELECT 'Declaration of nullity or annulment of marriage', 'soleCareAffidavit', 'Sworn affidavit declaring sole parental care/support and non-cohabitation', 4 UNION ALL
+  SELECT 'Legal guardian, adoptive parent, or foster parent', 'photo1x1', 'Two 1x1 ID pictures', 1 UNION ALL
+  SELECT 'Legal guardian, adoptive parent, or foster parent', 'birthCert', 'Child''s/children''s birth certificate(s)', 2 UNION ALL
+  SELECT 'Legal guardian, adoptive parent, or foster parent', 'guardianshipProof', 'Applicable proof of guardianship, adoption, or foster care', 3 UNION ALL
+  SELECT 'Legal guardian, adoptive parent, or foster parent', 'soleCareAffidavit', 'Sworn affidavit declaring sole parental care/support and non-cohabitation', 4 UNION ALL
+  SELECT 'Legal guardian, adoptive parent, or foster parent', 'barangayCareAffidavit', 'Barangay official''s affidavit confirming residency and parental care/support', 5 UNION ALL
+  SELECT 'Unmarried father or mother who keeps and rears the child/children', 'photo1x1', 'Two 1x1 ID pictures', 1 UNION ALL
+  SELECT 'Unmarried father or mother who keeps and rears the child/children', 'birthCert', 'Child''s/children''s birth certificate(s), photocopy', 2 UNION ALL
+  SELECT 'Unmarried father or mother who keeps and rears the child/children', 'cenomar', 'CENOMAR, certified true copy', 3 UNION ALL
+  SELECT 'Unmarried father or mother who keeps and rears the child/children', 'barangayCareAffidavit', 'Barangay official''s affidavit confirming residency and parental care/support', 4 UNION ALL
+  SELECT 'Unmarried father or mother who keeps and rears the child/children', 'soleCareAffidavit', 'Sworn affidavit declaring sole parental care/support and non-cohabitation', 5 UNION ALL
+  SELECT 'Detention or imprisonment of the spouse', 'photo1x1', 'Two 1x1 ID pictures', 1 UNION ALL
+  SELECT 'Detention or imprisonment of the spouse', 'birthCert', 'Child''s/children''s birth certificate(s)', 2 UNION ALL
+  SELECT 'Detention or imprisonment of the spouse', 'marriageOrCenomar', 'Marriage certificate or Certificate of No Marriage, as applicable', 3 UNION ALL
+  SELECT 'Detention or imprisonment of the spouse', 'detentionCertificate', 'Certificate of detention or certification that the spouse is serving a sentence for at least three months', 4 UNION ALL
+  SELECT 'Detention or imprisonment of the spouse', 'soleCareAffidavit', 'Sworn affidavit declaring sole parental care/support and non-cohabitation', 5 UNION ALL
+  SELECT 'Detention or imprisonment of the spouse', 'barangayCareAffidavit', 'Barangay official''s affidavit confirming residency and parental care/support', 6 UNION ALL
+  SELECT 'Child/children as a consequence of rape', 'birthCert', 'Child''s/children''s birth certificate(s), photocopy', 1 UNION ALL
+  SELECT 'Child/children as a consequence of rape', 'complaintAffidavit', 'Complaint affidavit', 2 UNION ALL
+  SELECT 'Child/children as a consequence of rape', 'incidentMedicalRecord', 'Medical record relating to the incident', 3 UNION ALL
+  SELECT 'Child/children as a consequence of rape', 'soleCareAffidavit', 'Sworn affidavit declaring sole parental care/support at the time of execution', 4 UNION ALL
+  SELECT 'Death of the spouse', 'photo1x1', 'Two 1x1 ID pictures', 1 UNION ALL
+  SELECT 'Death of the spouse', 'birthCert', 'Child''s/children''s birth certificate(s)', 2 UNION ALL
+  SELECT 'Death of the spouse', 'marriageCert', 'Marriage certificate, certified true copy', 3 UNION ALL
+  SELECT 'Death of the spouse', 'deathCert', 'Spouse''s death certificate, certified true copy', 4 UNION ALL
+  SELECT 'Death of the spouse', 'soleCareAffidavit', 'Sworn affidavit declaring sole parental care/support and non-cohabitation', 5 UNION ALL
+  SELECT 'Death of the spouse', 'barangayCareAffidavit', 'Barangay official''s affidavit confirming residency and parental care/support', 6 UNION ALL
+  SELECT 'Legal or de facto separation of spouse for at least six months', 'birthCert', 'Child''s/children''s birth certificate(s)', 1 UNION ALL
+  SELECT 'Legal or de facto separation of spouse for at least six months', 'marriageCert', 'Marriage certificate, certified true copy', 2 UNION ALL
+  SELECT 'Legal or de facto separation of spouse for at least six months', 'separationProof', 'Judicial decree of legal separation or affidavit of two disinterested persons attesting to de facto separation', 3 UNION ALL
+  SELECT 'Legal or de facto separation of spouse for at least six months', 'soleCareAffidavit', 'Sworn affidavit declaring sole parental care/support and non-cohabitation', 4 UNION ALL
+  SELECT 'Spouse or family member of an OFW', 'photo1x1', 'Two 1x1 ID pictures', 1 UNION ALL
+  SELECT 'Spouse or family member of an OFW', 'birthCert', 'Dependents'' birth certificate(s), photocopy', 2 UNION ALL
+  SELECT 'Spouse or family member of an OFW', 'ofwRelationshipProof', 'Marriage certificate for an OFW''s spouse, or birth certificate/competent proof of relationship for an OFW''s family member', 3 UNION ALL
+  SELECT 'Spouse or family member of an OFW', 'ofwEmploymentContract', 'POEA Standard Employment Contract or equivalent', 4 UNION ALL
+  SELECT 'Spouse or family member of an OFW', 'ofwPassportProof', 'Photocopy of the OFW''s passport showing continuous 12 months of overseas work, or Bureau of Immigration certification', 5 UNION ALL
+  SELECT 'Spouse or family member of an OFW', 'ofwIncomeProof', 'Proof of income of the OFW''s spouse or family member', 6 UNION ALL
+  SELECT 'Spouse or family member of an OFW', 'barangayCareAffidavit', 'Barangay official''s affidavit confirming residency and parental care/support', 7 UNION ALL
+  SELECT 'Spouse or family member of an OFW', 'soleCareAffidavit', 'Sworn affidavit declaring sole parental care/support and non-cohabitation', 8
+) r ON r.category_name = c.name;
 
 -- ---------------------------------------------------------------
 -- Chat Support FAQs
 -- ---------------------------------------------------------------
 INSERT INTO faqs (question, answer, sort_order) VALUES
 ('Who can apply for a Solo Parent ID?', 'Any solo parent residing in Virac, Catanduanes who solely provides parental care to a child (below 22, or of any age if the child has a disability) under one of the circumstances in RA 8972 / RA 11861 -- e.g. widowed, abandoned, separated, or an unwed parent. Not sure yet? Before you sign up, the Eligibility Checker on the public Home page gives a quick preliminary result. Once you are logged in you can apply directly -- there is no need to check again.', 1),
-('What documents do I need?', 'Standard requirements for everyone: Barangay Certificate of Residency and Solo Parent Status, PSA Birth Certificate(s) of your children, a valid government ID, and a 2x2 ID photo. Depending on your specific circumstance (e.g. death of spouse, annulment), one or two additional documents are required -- these are listed for you automatically once you select your category in the application form.', 2),
+('What documents do I need?', 'The Required Documents Checklist shows the documentary requirements for your selected category. Renewal applicants see the renewal checklist for their existing record.', 2),
 ('How long does processing take?', 'Once submitted, your application is Pending Review, then moves to Under Verification. If needed, MSWDO may schedule a short interview/assessment. Most applications are resolved within a few weeks, but this can vary depending on document completeness and MSWDO office workload.', 3),
-('What if my application needs correction?', 'If a document is unclear or a requirement is missing, your application status will show "For Revision" with the specific remarks from MSWDO staff. Go to My Application or Upload Documents to see what needs fixing and to re-upload the corrected file.', 4),
+('What if my application needs correction?', 'If information or a document requirement needs correction, your application status will show "For Revision" with remarks from MSWDO staff. Open My Applications or Document Checklist to review the remarks, update your information or checklist as requested, and prepare the documents for MSWDO review.', 4),
 ('How do I renew my Solo Parent ID?', 'Your Solo Parent ID is valid for one year. Once it is close to expiring (or already expired), go to ID Renewal in the menu -- your previous information is pre-filled, and you only need to reconfirm your standard documents and submit.', 5),
 ('How will I be notified of updates?', 'MSWDO sends an SMS to your registered mobile number whenever your application status changes, an interview is scheduled, or your ID is approved/released. You can also see the full history under Notifications.', 6),
 ('Where is the MSWDO office?', 'MSWDO Office, Municipal Building, Salvacion, Virac, Catanduanes. Office hours are Monday to Friday, 8:00 AM to 5:00 PM.', 7),
@@ -106,13 +126,13 @@ INSERT INTO faqs (question, answer, sort_order) VALUES
 INSERT INTO sms_templates (template_key, label, body) VALUES
 ('submitted', 'Application Submitted', 'MSWDO Virac: Your Solo Parent ID application {ref} has been received and is Pending Review. We will text you when its status changes.'),
 ('status_change', 'Status Change (approval/rejection/correction/etc.)', 'MSWDO Virac: Application {ref} is now {status}. Note: {remarks}'),
-('interview_scheduled', 'Interview/Appointment Scheduled', 'MSWDO Virac: An interview for application {ref} has been scheduled on {when} at {location}. Please arrive on time and bring a valid ID.'),
+('interview_scheduled', 'Interview/Appointment Scheduled', 'Hello {name}, your Solo Parent ID application interview is scheduled on {when}. Location: {location}. Please arrive on time. For inquiries, contact the MSWDO Virac office.'),
 ('renewal_submitted', 'Renewal Submitted', 'MSWDO Virac: Your Solo Parent ID renewal request {ref} has been received and is Pending Review. We will text you when its status changes.'),
 ('renewal_reminder', 'Renewal Reminder (auto)', 'MSWDO Virac: Your Solo Parent ID ({ref}) expires on {when}. Please visit MSWDO or apply for renewal online soon to avoid interruption.'),
 ('renewal_expired', 'Renewal Reminder after Expiry (auto)', 'MSWDO Virac: Your Solo Parent ID ({ref}) expired on {when}. Please renew online or visit MSWDO to keep your benefits.'),
 ('appointment_reminder', 'Appointment Reminder (auto)', 'MSWDO Virac: Reminder -- your appointment for application {ref} is on {when} at {location}. Please arrive on time and bring a valid ID.'),
-('appointment_cancelled', 'Appointment Cancelled', 'MSWDO Virac: Your appointment for application {ref} on {when} was cancelled. Reason: {reason}. Please book a new appointment online.'),
-('appointment_missed', 'Appointment Missed', 'MSWDO Virac: You missed your appointment for application {ref} on {when}. Please log in and book a new appointment.'),
-('document_correction', 'Document Needs Correction', 'MSWDO Virac: Your document "{document}" for application {ref} needs to be re-uploaded. Reason: {remarks}. Please log in and upload a new file under Upload Documents.'),
+('appointment_cancelled', 'Appointment Cancelled', 'MSWDO Virac: Your appointment for application {ref} on {when} was cancelled. Reason: {reason}. Please contact MSWDO for a new schedule.'),
+('appointment_missed', 'Appointment Missed', 'MSWDO Virac: You missed your appointment for application {ref} on {when}. Please contact MSWDO for a new schedule.'),
+('document_correction', 'Document Checklist Needs Correction', 'MSWDO Virac: The requirement "{document}" for application {ref} needs correction. Reason: {remarks}. Please log in and update your Required Documents Checklist.'),
 ('password_reset', 'Password Reset Code', 'MSWDO Virac: Your password reset code is {code}. It expires in {minutes} minutes. If you didn''t request this, ignore this message.'),
 ('mobile_verification', 'Mobile Number Verification Code', 'MSWDO Virac: Your e-SoloParentID verification code is {code}. It expires in {minutes} minutes. Do not share this code with anyone.');

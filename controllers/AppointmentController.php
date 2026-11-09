@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/Controller.php';
 require_once __DIR__ . '/../services/AppointmentService.php';
+require_once __DIR__ . '/../models/Document.php';
 
 /** Dashboard "Appointment" section: book, reschedule or cancel an appointment for the in-progress application. */
 class AppointmentController extends Controller
@@ -20,12 +21,12 @@ class AppointmentController extends Controller
                 $slotId = is_string($_POST['slot_id'] ?? null) ? (int) $_POST['slot_id'] : 0;
                 $appointmentError = $service->book($user, $bookableApp, $slotId) ?? '';
                 if ($appointmentError === '') {
-                    flash('Your appointment is booked. We sent the details to your phone.');
+                    flash('Your appointment is saved. Check your dashboard for details; SMS delivery depends on the notification settings and provider.');
                 }
             } elseif ($action === 'cancel_appointment') {
                 $appointmentError = $service->cancelByApplicant($user, $bookableApp) ?? '';
                 if ($appointmentError === '') {
-                    flash('Your appointment was cancelled. You can book a new one below.');
+                    flash('Your appointment was cancelled. Contact MSWDO for a new schedule.');
                 }
             }
             if ($appointmentError === '') {
@@ -38,6 +39,7 @@ class AppointmentController extends Controller
             'appointmentError' => $appointmentError,
             'bookableApp' => $bookableApp,
             'appointment' => $appointment,
+            'interviewRequirements' => $bookableApp ? (new Document($this->pdo))->checklistForReview((int) $bookableApp['id'], $bookableApp['category_id'] !== null ? (int) $bookableApp['category_id'] : null, $bookableApp['type'] === 'renewal') : [],
             'canChange' => $appointment && $appointment['status'] === 'BOOKED' && $service->changeableByApplicant($appointment['scheduled_at']),
             'minNoticeHours' => $service->minNoticeHours(),
             'openSlots' => $appointment && $appointment['status'] === 'COMPLETED' ? [] : $service->openSlots(),

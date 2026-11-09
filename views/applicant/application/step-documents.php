@@ -1,57 +1,41 @@
 <?php
-/** @var array $draft @var array $errors @var array $docDefs @var array $catOnlyKeys @var array $categoryMap */
-$categoryName = $draft['categoryId'] ? ($categoryMap[$draft['categoryId']] ?? '') : '';
+/** @var array $draft @var array $errors @var array $docDefs @var array $catOnlyKeys */
+$standardDocs = array_values(array_filter($docDefs, fn($d) => !in_array($d['doc_key'], $catOnlyKeys, true)));
+$categoryDocs = array_values(array_filter($docDefs, fn($d) => in_array($d['doc_key'], $catOnlyKeys, true)));
+$groups = [['title' => 'Standard requirements', 'items' => $standardDocs]];
+if ($categoryDocs) {
+    $groups[] = ['title' => 'Category-specific requirements', 'items' => $categoryDocs];
+}
 ?>
-
-<?php if ($categoryName): ?>
-  <div style="font-size:13px;color:var(--body-text);background:var(--surface-alt);border-radius:6px;padding:10px 14px;margin-bottom:12px">
-    Category: <b><?= e($categoryName) ?></b>
-  </div>
-<?php endif; ?>
-
-<?php $draftDocErrors = $draft['docErrors'] ?? []; // upload (validation) failures, as opposed to "required" errors
-foreach ($docDefs as $d):
-    $docKey = $d['doc_key'];
-    $meta = $draft['documents'][$docKey] ?? null;
-    $err = $draft['docErrors'][$docKey] ?? ($errors['doc_' . $docKey] ?? '');
-    $isCat = in_array($docKey, $catOnlyKeys, true);
-?>
-  <div class="doc-row <?= $err ? 'has-error' : '' ?>">
-    <div style="min-width:0;flex:1 1 200px">
-      <?php if ($isCat): ?><div class="doc-tag">CATEGORY REQUIREMENT</div><?php endif; ?>
-      <div class="doc-label"><?= e($d['label']) ?> <span class="req"><?= $d['is_required'] ? '*' : '(optional)' ?></span></div>
-      <div class="doc-filename <?= $meta ? 'attached' : '' ?>"><?= $meta ? e($meta['original_name']) . ' · ' . e(format_bytes((int) $meta['size'])) : 'No file selected' ?></div>
-      <?php if ($meta || !empty($draftDocErrors[$docKey])): ?><div class="mt-1"><?= document_status_pill($meta ? 'VALID' : 'INVALID', 'font-size:11px') ?></div><?php endif; ?>
-      <?php if ($err): ?><div class="doc-error"><?= e($err) ?></div><?php endif; ?>
-    </div>
-    <div class="doc-actions">
-      <?php if ($meta): ?>
-        <form method="post" class="m-0">
-          <?= csrf_field() ?>
-          <input type="hidden" name="action" value="remove_doc">
-          <input type="hidden" name="doc_key" value="<?= e($docKey) ?>">
-          <button type="submit" formnovalidate class="btn-doc-remove">Remove</button>
-        </form>
-      <?php endif; ?>
-      <form method="post" enctype="multipart/form-data" class="m-0">
-        <?= csrf_field() ?>
-        <input type="hidden" name="action" value="upload_doc">
-        <input type="hidden" name="doc_key" value="<?= e($docKey) ?>">
-        <label class="btn-doc-choose">
-          <?= $meta ? 'Replace' : 'Choose file' ?>
-          <input type="file" name="file" data-doc-input accept="<?= e(document_rules()['accept']) ?>" class="visually-hidden" onchange="this.form.requestSubmit ? this.form.requestSubmit() : this.form.submit()">
-        </label>
-      </form>
-    </div>
-  </div>
-<?php endforeach; ?>
-<div style="font-size:12px;color:var(--faint);margin-bottom:20px">Accepted: <?= e(document_rules()['label']) ?>, max <?= e(format_mb(document_rules()['max_mb'])) ?> each.</div>
-
-<form method="post">
+<form method="post" class="apply-step-form" data-preparation-form<?= !empty($isApplicationWizard) ? ' id="application-step-form"' : '' ?>>
   <?= csrf_field() ?>
+  <?php if (!empty($isApplicationWizard)): ?><input type="hidden" name="wizard_step" value="3"><?php endif; ?>
+  <div class="info-box apply-checklist-notice" role="note" data-i18n>Checked documents are automatically verified when you submit your application so staff can schedule your interview. Bring the physical documents to the interview.</div>
+  <section class="checklist-card" aria-labelledby="checklist-heading">
+    <header class="checklist-card-head">
+      <h3 id="checklist-heading" data-i18n>Required Documents Checklist</h3>
+      <p data-i18n>Select the documents you already have. Required documents may remain unchecked while you prepare them. You can still submit your application.</p>
+    </header>
+    <?php foreach ($groups as $group): if (!$group['items']) { continue; } ?>
+      <section class="checklist-group" aria-label="<?= e($group['title']) ?>">
+        <h4 data-i18n><?= e($group['title']) ?></h4>
+        <?php foreach ($group['items'] as $d): $key = $d['doc_key']; ?>
+          <label class="checklist-row">
+            <span class="checklist-row-label">
+              <span class="checklist-document-name" data-i18n><?= e($d['label']) ?></span>
+              <span class="checklist-requirement" data-i18n><?= !empty($d['is_required']) ? 'Required' : 'Optional' ?></span>
+            </span>
+            <input class="checklist-checkbox" type="checkbox" <?= !empty($d['is_required']) ? 'data-required-document="' . e($d['label']) . '" data-requirement-guide="' . e(base_url('applicant/dashboard.php?section=requirements&doc=' . rawurlencode($key))) . '"' : '' ?> name="checklist[]" value="<?= e($key) ?>" <?= !empty($draft['checkedDocuments'][$key]) ? 'checked' : '' ?> aria-label="I have <?= e($d['label']) ?>">
+          </label>
+        <?php endforeach; ?>
+      </section>
+    <?php endforeach; ?>
+  </section>
+  <?php $preparationItems = array_map(fn($item) => $item + ['applicant_has' => !empty($draft['checkedDocuments'][$item['doc_key']])], $docDefs); require APP_ROOT . '/views/partials/requirements-preparation.php'; ?>
   <div class="form-nav-buttons">
-    <button type="submit" name="action" value="save_draft" formnovalidate class="btn-outline">Save &amp; finish later</button>
-    <button type="submit" name="action" value="back" formnovalidate class="btn-outline">Back</button>
-    <button type="submit" name="action" value="continue" class="btn-navy">Continue</button>
+    <?php if (empty($isApplicationWizard)): ?><button type="submit" name="action" value="save_draft" formnovalidate class="btn-outline" data-i18n>Save &amp; finish later</button><?php endif; ?>
+    <button type="submit" name="action" value="back" formnovalidate class="btn-outline" data-i18n>&larr; Children</button>
+    <button type="submit" name="action" value="continue" class="btn-navy" data-i18n>Continue to Review &rarr;</button>
   </div>
 </form>
+<script src="<?= base_url('public/js/requirements-preparation.js') ?>" defer></script>

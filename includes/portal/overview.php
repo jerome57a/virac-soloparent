@@ -1,109 +1,100 @@
 <?php
 /** @var PDO $pdo */
-$applyUrl = base_url('portal.php?tab=apply');
+$applyUrl = base_url(!empty($user) ? 'applicant/dashboard.php?section=apply' : 'portal.php?tab=apply');
 $eligUrl = base_url('eligibility.php');
 ?>
-<div class="elig-cta" role="region" aria-label="Check your eligibility">
-  <div>
-    <div class="elig-cta-title">Are you a solo parent in Virac?</div>
-    <div class="elig-cta-text">Answer 3 quick questions to see if you may qualify for a Solo Parent ID — no account needed.</div>
+<nav class="home-actions" aria-label="Solo Parent services">
+  <a class="btn-navy text-decoration-none" href="<?= e($eligUrl) ?>" data-i18n>Check Eligibility</a>
+  <a class="btn-red text-decoration-none" data-i18n href="<?= e($applyUrl) ?>"><?= !empty($user) ? 'Continue Application' : 'Apply for Solo Parent ID' ?></a>
+  <a class="btn-outline text-decoration-none" data-i18n href="<?= base_url(!empty($user) ? 'applicant/dashboard.php?section=application' : 'portal.php?tab=status') ?>"><?= !empty($user) ? 'My Applications' : 'Track Application' ?></a>
+</nav>
+<nav class="home-jump-links" aria-label="Guide sections">
+  <a href="#benefits" data-i18n>Benefits</a><a href="#eligibility" data-i18n>Eligibility</a><a href="#requirements" data-i18n>Requirements</a><a href="#how-to-apply" data-i18n>How to Apply</a><a href="<?= base_url('portal.php?tab=help') ?>" data-i18n>Contact &amp; Help</a>
+</nav>
+<div style="font-size:15px;color:var(--muted);margin-bottom:28px" data-i18n>Everything you need to know before applying: eligibility, benefits, requirements, and how to apply online through e-SoloParentID.</div>
+
+<section class="home-intro" aria-labelledby="home-intro-heading">
+  <div class="home-intro-copy">
+    <h2 id="home-intro-heading" class="section-title" data-i18n>What is the Solo Parent ID?</h2>
+<div class="body-copy" data-i18n>The Solo Parent Identification Card (SPIC) is an official government-issued ID issued by the Municipal Social Welfare and Development Office (MSWDO) to qualified solo parents in the Municipality of Virac, Catanduanes, pursuant to Republic Act No. 8972 (Solo Parents' Welfare Act of 2000), as expanded by Republic Act No. 11861 (Expanded Solo Parents Welfare Act of 2022).</div>
+<div class="body-copy" data-i18n>Holding a Solo Parent ID grants access to a range of government benefits and privileges designed to assist solo parents in raising their children. The ID is valid for one year and must be renewed annually at the MSWDO.</div>
   </div>
-  <div class="elig-cta-actions">
-    <a href="<?= e($eligUrl) ?>" class="btn-red text-decoration-none">Check Eligibility</a>
+  <div class="home-intro-illustration">
+    <img src="<?= asset('images/solo-parent-benefits-hero.png') ?>"
+         alt="A solo parent and child, surrounded by Solo Parent ID benefit icons and a sample ID card">
   </div>
-</div>
+</section>
 
-<div style="font-size:15px;color:var(--muted);margin-bottom:28px;max-width:780px">Everything you need to know before applying: eligibility, benefits, requirements, and how to apply online through e-SoloParentID.</div>
+<div class="info-box" data-i18n>📱 New: Through the e-SoloParentID system, solo parents in Virac can complete the application form, tick available documents in the checklist, and track their application online. Follow MSWDO instructions for document review, interviews, and ID claiming.</div>
 
-<h2 class="section-title" style="font-family:var(--font-body);margin-top:0">What is the Solo Parent ID?</h2>
+<section class="home-benefits" aria-labelledby="benefits">
+  <h2 id="benefits" class="section-title" data-i18n>Benefits of Having a Solo Parent ID</h2>
+  <p class="section-sub" data-i18n>Having a Solo Parent ID provides access to various benefits and support, including:</p>
+  <div class="benefit-grid">
+    <?php foreach (benefit_cards() as $b): ?>
+      <article class="benefit-card">
+        <div class="benefit-icon"><?= benefit_icon_svg($b['icon']) ?></div>
+        <h3 class="title" data-i18n><?= e($b['title']) ?></h3>
+        <p class="desc" data-i18n><?= e($b['desc']) ?></p>
+      </article>
+    <?php endforeach; ?>
+  </div>
+</section>
 
-<div class="text-center" style="margin:0 0 24px">
-<img 
-    src="<?= asset('images/solo-parent-benefits-hero.png') ?>" 
-    alt="A solo parent and child, surrounded by Solo Parent ID benefit icons and a sample ID card"
-    style="
-        width: 100%;
-        max-width: 480px;
-        height: auto;
-        border-radius: 12px;
-        display: block;
-        margin: 15px 0 20px 0;
-    "
->
-</div>
-
-<div class="body-copy">The Solo Parent Identification Card (SPIC) is an official government-issued ID issued by the Municipal Social Welfare and Development Office (MSWDO) to qualified solo parents in the Municipality of Virac, Catanduanes, pursuant to Republic Act No. 8972 (Solo Parents' Welfare Act of 2000), as expanded by Republic Act No. 11861 (Expanded Solo Parents Welfare Act of 2022).</div>
-<div class="body-copy">Holding a Solo Parent ID grants access to a range of government benefits and privileges designed to assist solo parents in raising their children. The ID is valid for one year and must be renewed annually at the MSWDO.</div>
-<div class="info-box">📱 New: Through the e-SoloParentID system, qualified solo parents in Virac can now apply, submit documents, and track their application entirely online, without visiting the MSWDO office.</div>
-
-<div id="benefits" class="section-title" style="margin-bottom:4px">Benefits of Having a Solo Parent ID</div>
-<div class="section-sub">Having a Solo Parent ID provides access to various benefits and support, including:</div>
-
-<img
-    src="<?= asset('images/solo-parent01.png') ?>"
-    alt="Benefits of Having a Solo Parent ID"
-    class="img-fluid"
-    style="
-        width: 100%;
-        max-width: 480px;
-        height: auto;
-        border-radius: 12px;
-        display: block;
-        margin: 15px 0 20px 0;
-    "
->
-
-<div class="benefit-grid">
-  <?php foreach (benefit_cards() as $b): ?>
-      <div class="benefit-card">
-        <div class="icon"><?= $b['icon'] ?></div>
-        <div class="title"><?= e($b['title']) ?></div>
-        <div class="desc"><?= e($b['desc']) ?></div>
-      </div>
-  <?php endforeach; ?>
-</div>
-
-<div id="eligibility" class="section-title" style="margin-bottom:4px">Who is Eligible? (Section 3, RA 8972 / RA 11861)</div>
-<div class="section-sub">You may qualify as a solo parent under any of the following circumstances:</div>
+<div id="eligibility" class="section-title" style="margin-bottom:4px" data-i18n>Who is Eligible? (Section 3, RA 8972 / RA 11861)</div>
+<div class="section-sub" data-i18n>You may qualify as a solo parent under any of the following circumstances:</div>
 <div class="bullet-list" style="margin-bottom:16px">
   <?php foreach (eligibility_list() as $el): ?>
-    <div class="bullet-row"><div class="bullet-dot"></div><div><b><?= e($el['title']) ?></b>: <?= e($el['desc']) ?></div></div>
+    <div class="bullet-row"><div class="bullet-dot"></div><div data-i18n><b data-i18n><?= e($el['title']) ?></b>: <span data-i18n><?= e($el['desc']) ?></span></div></div>
   <?php endforeach; ?>
 </div>
-<div class="warn-box">💡 Not sure if you qualify? Use the Eligibility Checker below, or visit the MSWDO Office for a personal assessment.</div>
+<div class="warn-box" data-i18n>💡 Not sure if you qualify? Use the Eligibility Checker below, or visit the MSWDO Office for a personal assessment.</div>
 
-<div id="requirements" class="section-title" style="margin-bottom:4px">Required Documents</div>
-<div class="section-sub" style="max-width:780px">Prepare the following documents before applying. Bring both the original and photocopies when submitting. When applying through e-SoloParentID, upload clear digital copies (JPG, PNG, or PDF; max 5MB each).</div>
-<div class="doc-groups">
-  <?php foreach (required_doc_groups() as $g): ?>
-    <div class="doc-group-card">
-      <div class="title"><?= e($g['title']) ?></div>
-      <?php foreach ($g['items'] as $it): ?><div class="item">· <?= e($it) ?></div><?php endforeach; ?>
-    </div>
+<div id="requirements" class="section-title" style="margin-bottom:4px" data-i18n>Required Documents</div>
+<div class="section-sub" data-i18n>Open your category below to see the configured requirements used by the application checklist. Tick the documents you have available when applying; checking a box does not mean MSWDO has verified the document. Bring originals and photocopies as instructed for document review and your interview.</div>
+<div class="doc-groups home-requirements">
+  <?php foreach (required_doc_groups($pdo) as $g): ?>
+    <details class="doc-group-card">
+      <summary class="title">
+        <span data-i18n><?= e($g['title']) ?></span>
+        <svg class="requirement-chevron" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </summary>
+      <?php if ($g['items']): ?>
+        <ul class="home-requirement-list">
+          <?php foreach ($g['items'] as $it): ?>
+            <li>
+              <span class="home-requirement-label" data-i18n><?= e($it['label']) ?></span>
+              <span data-i18n class="home-requirement-badge<?= !empty($it['is_required']) ? ' is-required' : '' ?>"><?= !empty($it['is_required']) ? 'Required' : 'Optional' ?></span>
+            </li>
+          <?php endforeach; ?>
+        </ul>
+      <?php else: ?>
+        <div class="item" data-i18n>Contact MSWDO for the requirements for this category.</div>
+      <?php endif; ?>
+    </details>
   <?php endforeach; ?>
 </div>
 
-<div class="section-title" style="margin-bottom:16px">How to Apply via e-SoloParentID</div>
-<div class="section-sub" style="max-width:780px;margin-bottom:20px">Follow these steps to apply for your Solo Parent ID online through the MSWDO of Virac's e-SoloParentID system:</div>
-<div class="how-steps">
+<div id="how-to-apply" class="section-title" style="margin-bottom:16px" data-i18n>How to Apply via e-SoloParentID</div>
+<div class="section-sub" style="margin-bottom:20px" data-i18n>Follow these steps to apply for your Solo Parent ID online through the MSWDO of Virac's e-SoloParentID system:</div>
+<ol class="how-steps home-application-steps" aria-label="Application steps">
   <?php foreach (apply_steps_overview() as $st): ?>
-    <div class="text-center">
-      <div class="apply-step-circle"><?= (int) $st['n'] ?></div>
-      <div style="font-weight:700;font-size:14px;color:var(--ink);margin-bottom:4px"><?= e($st['title']) ?></div>
-      <div style="font-size:13px;color:var(--muted);line-height:1.5"><?= e($st['desc']) ?></div>
-    </div>
+    <li class="home-application-step">
+      <div class="apply-step-circle" aria-hidden="true"><?= (int) $st['n'] ?></div>
+      <div class="home-application-step-copy">
+        <h3 data-i18n><?= e($st['title']) ?></h3>
+        <p data-i18n><?= e($st['desc']) ?></p>
+      </div>
+    </li>
   <?php endforeach; ?>
-</div>
-<div style="font-size:13px;color:var(--muted);max-width:780px;margin-bottom:36px">You may also apply in person at the <?= e(setting('office_name')) ?> office, <?= e(setting('office_address')) ?>, during office hours (<?= e(setting('office_hours')) ?>). Bring original and photocopies of all required documents.</div>
+</ol>
+<div style="font-size:13px;color:var(--muted);margin-bottom:36px">You may also apply in person at the <?= e(setting('office_name')) ?> office, <?= e(setting('office_address')) ?>, during office hours (<?= e(setting('office_hours')) ?>). Bring original and photocopies of all required documents.</div>
 
-<div class="section-title" style="margin-bottom:14px">Important Reminders</div>
-<div class="bullet-list" style="margin-bottom:36px">
-  <?php foreach (important_reminders() as $r): ?>
-    <div class="bullet-row"><div class="bullet-dot red"></div><div><?= e($r) ?></div></div>
-  <?php endforeach; ?>
-</div>
-
-<div class="cta-row">
-  <a href="<?= e($eligUrl) ?>" class="btn-navy text-decoration-none">✦ Check Your Eligibility</a>
-  <a href="<?= e($applyUrl) ?>" class="btn-red text-decoration-none">✦ Apply Online Now</a>
-</div>
+<section class="home-reminders" aria-labelledby="home-reminders-heading">
+  <h2 id="home-reminders-heading" class="section-title" data-i18n>Important Reminders</h2>
+  <ul class="home-reminders-list">
+    <?php foreach (important_reminders() as $r): ?>
+      <li data-i18n><?= e($r) ?></li>
+    <?php endforeach; ?>
+  </ul>
+</section>

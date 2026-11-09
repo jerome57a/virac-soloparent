@@ -30,7 +30,7 @@ class ApplicantProfileService
 
     /**
      * Validates and saves the whole profile form. Personal/address fields
-     * may be left blank until the applicant applies; name, email and a
+     * may be left blank until the applicant applies; email is optional. Name and a
      * mobile number unique to this account are required.
      *
      * @return array{0: string, 1: string}
@@ -77,7 +77,7 @@ class ApplicantProfileService
         if ($f['full_name'] === '' || mb_strlen($f['full_name']) > 150) {
             return 'Enter your full name (up to 150 characters).';
         }
-        if (!filter_var($f['email'], FILTER_VALIDATE_EMAIL) || strlen($f['email']) > 150) {
+        if ($f['email'] !== '' && (!filter_var($f['email'], FILTER_VALIDATE_EMAIL) || strlen($f['email']) > 150)) {
             return 'Enter a valid email address.';
         }
         if (!is_valid_ph_mobile($f['mobile'])) {

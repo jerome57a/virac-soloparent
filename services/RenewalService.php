@@ -1,14 +1,15 @@
 <?php
 require_once __DIR__ . '/ApplicationService.php';
 require_once __DIR__ . '/../models/RenewalReminder.php';
+require_once __DIR__ . '/../models/RenewalRequirement.php';
 
 /**
- * ID Renewal: a 4-step wizard (Details -> Children -> Documents -> Review)
- * that starts from the applicant's current released ID. The draft is
+ * ID Renewal: a single confirmation form using the current released ID,
+ * category renewal requirements and accepted, unexpired documents. The draft is
  * pre-filled from that record and saved to the account (application_drafts,
  * kind 'renewal'), so it survives logout. Identity fields (name, birthdate,
- * sex, category) are locked to the previous record; contact details, civil
- * status and children may be updated. On submit it creates an applications
+ * sex, category), civil status, emergency contact and children are retained;
+ * contact details may be updated. On submit it creates an applications
  * row with type 'renewal' whose renewal_of_id points at the ID it renews.
  *
  * A renewal opens within the admin-configured window before expiry
@@ -17,10 +18,7 @@ require_once __DIR__ . '/../models/RenewalReminder.php';
 class RenewalService
 {
     public const STEP_META = [
-        1 => ['Details', 'Check your details from your current ID and update anything that changed.'],
-        2 => ['Children', 'Confirm the children in your sole care.'],
-        3 => ['Documents', 'Upload updated copies of the renewal requirements.'],
-        4 => ['Review', 'Check everything before submitting your renewal.'],
+        1 => ['Renew ID', 'Confirm your current record and provide only the category renewal documents or expired replacements.'],
     ];
     /** Fields that must stay as on the ID being renewed (a change of these needs a new application). */
     public const LOCKED_FIELDS = ['fullName', 'birthdate', 'sex', 'categoryId'];
@@ -97,9 +95,10 @@ class RenewalService
             'categoryId' => (int) $source['category_id'],
             'children' => $children ?: [['name' => '', 'birthdate' => '']],
             'documents' => [],
+            'checkedDocuments' => [],
             'docErrors' => [],
             'consent' => false,
-        ];
+        ] + EmergencyContactService::draftFields($source);
     }
 
     /** The saved renewal draft for this ID, or a fresh pre-filled one (a draft started for an older ID is discarded). */
@@ -116,7 +115,7 @@ class RenewalService
         foreach ($draft['documents'] as $key => $meta) {
             $draft['documents'][$key]['path'] = $this->draftDir((int) $user['id']) . '/' . basename((string) ($meta['stored_name'] ?? ''));
         }
-        $draft['step'] = min(4, max(1, (int) $draft['step']));
+        $draft['step'] = 1;
         $draft['contact'] = (string) ($user['mobile'] ?? ''); // the confirmed account number, never the form's
         return $this->lock($draft, $source);
     }
@@ -140,42 +139,71 @@ class RenewalService
         return STORAGE_PATH . '/drafts/renewal_' . $userId;
     }
 
-    /** Standard requirements only -- a renewal re-confirms residency, ID and children, not the original qualifying circumstance. */
-    public function documentRequirements(): array
+    /** Only category renewal documents and expired replacements; no full new-application checklist. */
+    public function documentRequirements(array $source): array
     {
-        return $this->documents->standardRequirements();
+        return (new RenewalRequirement($this->pdo))->plan($source)['fresh'];
     }
 
     /** Merges the step's permitted fields from $post into the draft; locked fields always stay as on the previous record. */
     public function collectStepInput(int $step, array $draft, array $post, array $source): array
     {
-        return $this->lock($this->applicationService->collectStepInput($step, $draft, $post), $source);
+        foreach (['barangay','address','email'] as $key) {
+            if (isset($post[$key])) {
+                $draft[$key] = is_string($post[$key]) ? mb_substr(trim($post[$key]),0,500) : '';
+            }
+        }
+        $draft['civilStatus'] = $source['civil_status'];
+        $draft = array_replace($draft,EmergencyContactService::draftFields($source));
+        {
+            $allowed = array_column($this->documentRequirements($source), 'doc_key');
+            $selected = is_array($post['checklist'] ?? null) ? array_values(array_filter($post['checklist'], 'is_string')) : [];
+            $draft['checkedDocuments'] = array_fill_keys(array_values(array_intersect($allowed, $selected)), true);
+            $draft['consent'] = !empty($post['consent']);
+            $draft['children'] = array_map(fn($child) => ['name'=>$child['full_name'],'birthdate'=>$child['birthdate']],$source['children']);
+            $draft['step'] = 1;
+        }
+        return $this->lock($draft, $source);
     }
 
     public function validateStep(int $step, array $draft): array
     {
-        if ($step === 3) {
-            $errors = [];
-            foreach ($this->documentRequirements() as $d) {
-                if ($d['is_required'] && empty($draft['documents'][$d['doc_key']])) {
-                    $errors['doc_' . $d['doc_key']] = 'This document is required.';
-                }
-            }
-            return $errors;
+        $errors = [];
+        $source = $this->applications->findWithChildren((int) ($draft['sourceId'] ?? 0));
+        if (!$source) {
+            return ['renewal'=>'The existing ID record was not found.'];
         }
-        return $this->applicationService->validateStep($step, $draft);
+        $plan = (new RenewalRequirement($this->pdo))->plan($source);
+        if (!$plan['configured']) {
+            $errors['requirements'] = 'Renewal requirements for your category are not configured yet. Contact MSWDO.';
+        }
+        foreach (['barangay'=>100,'address'=>255] as $key=>$max) {
+            if (trim((string) ($draft[$key] ?? '')) === '' || mb_strlen($draft[$key]) > $max) {
+                $errors[$key] = 'Enter a valid ' . $key . ' (up to ' . $max . ' characters).';
+            }
+        }
+        if (!is_valid_ph_mobile((string) ($draft['contact'] ?? ''))) {
+            $errors['contact'] = 'Confirm a valid mobile number on My Profile.';
+        }
+        if (!empty($draft['email']) && (!filter_var($draft['email'],FILTER_VALIDATE_EMAIL) || mb_strlen($draft['email']) > 150)) {
+            $errors['email'] = 'Enter a valid email address or leave it blank.';
+        }
+        foreach ($plan['fresh'] as $requirement) {
+            if (empty($draft['checkedDocuments'][$requirement['doc_key']])) {
+                $errors['documents'] = 'Confirm availability of each required renewal document.';
+            }
+        }
+        if (empty($draft['consent'])) {
+            $errors['consent'] = 'Confirm the renewal declaration before submitting.';
+        }
+        return $errors;
     }
 
     /** The first step (1-4) with errors, or null if the whole renewal is valid. */
     public function firstInvalidStep(array $draft): ?array
     {
-        for ($step = 1; $step <= 4; $step++) {
-            $errors = $this->validateStep($step, $draft);
-            if ($errors) {
-                return ['step' => $step, 'errors' => $errors];
-            }
-        }
-        return null;
+        $errors = $this->validateStep(1,$draft);
+        return $errors ? ['step'=>1,'errors'=>$errors] : null;
     }
 
     /** What the applicant changed compared with the ID being renewed: field label => [old, new]. */
@@ -219,22 +247,39 @@ class RenewalService
         }
         $draft = $this->lock($draft, $source);
         $draft['contact'] = (string) $user['mobile'];
+        $draft['children'] = array_map(fn($child) => ['name'=>$child['full_name'],'birthdate'=>$child['birthdate']],$source['children']);
+        if ($this->firstInvalidStep($draft)) {
+            throw new DomainException('Check the renewal details and required documents before submitting.');
+        }
         $fields = [
             'full_name' => $source['full_name'], 'birthdate' => $source['birthdate'], 'sex' => $source['sex'], 'category_id' => $source['category_id'],
             'barangay' => $draft['barangay'], 'address' => $draft['address'], 'mobile' => normalize_mobile($draft['contact']),
             'email' => $draft['email'], 'civil_status' => $draft['civilStatus'],
-        ];
-        $allowed = array_column($this->documentRequirements(), 'doc_key');
-        $documents = array_intersect_key($draft['documents'], array_flip($allowed));
+        ] + EmergencyContactService::applicationFields($draft);
+        $documents = [];
 
         $this->pdo->beginTransaction();
         try {
+            $owner = $this->pdo->prepare('SELECT id FROM users WHERE id=? FOR UPDATE');
+            $owner->execute([(int) $user['id']]);
+            if ((int) $source['user_id'] !== (int) $user['id'] || $source['status'] !== 'ID Released' || $this->renewalInProgress($user)) {
+                throw new DomainException('This ID cannot be renewed or a renewal is already in progress.');
+            }
+            $currentId = $this->applications->latestReleased((int) $user['id']);
+            if (!$currentId || (int) $currentId['id'] !== (int) $source['id']) {
+                throw new DomainException('Your current ID changed. Refresh the renewal page.');
+            }
+            $plan = (new RenewalRequirement($this->pdo))->plan($source);
+            if (!$plan['configured'] || array_filter($plan['fresh'], fn($row)=>empty($draft['checkedDocuments'][$row['doc_key']]))) {
+                throw new DomainException('Renewal requirements changed. Refresh and review them again.');
+            }
             $refNumber = generate_reference_no($this->pdo);
             $applicationId = $this->applications->create($refNumber, (int) $user['id'], 'renewal', $fields, date('Y-m-d H:i:s'), (int) $source['id']);
+            $this->pdo->prepare('UPDATE applications SET renewal_simplified=1 WHERE id=?')->execute([$applicationId]);
             foreach ($draft['children'] as $c) {
                 $this->applications->addChild($applicationId, $c['name'], $c['birthdate']);
             }
-            $this->applicationService->storeDraftDocuments($applicationId, $documents, $user);
+            (new RenewalRequirement($this->pdo))->snapshot($applicationId,$plan,$draft['checkedDocuments'] ?? []);
             $this->applications->addHistory($applicationId, 'Pending Review', 'Renewal of ' . $source['reference_no'] . ' submitted online.', $user['full_name'], (int) $user['id']);
             $this->pdo->commit();
         } catch (Throwable $e) {

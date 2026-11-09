@@ -20,38 +20,38 @@
 ?>
 <?php if (!$renewalSource): ?>
   <div class="dash-card">
-    <div class="dash-card-label">No Released ID Yet</div>
-    <div style="font-size:14px;color:var(--muted);margin:8px 0 14px">You can request a renewal once your Solo Parent ID has been approved and released by MSWDO. Check your application status in the meantime.</div>
-    <a href="?section=application" class="btn-outline text-decoration-none">View My Application</a>
+    <div class="dash-card-label" data-i18n>No Released ID Yet</div>
+    <div style="font-size:14px;color:var(--muted);margin:8px 0 14px" data-i18n>You can request a renewal once your Solo Parent ID has been approved and released by MSWDO. Check your application status in the meantime.</div>
+    <a href="?section=application" class="btn-outline text-decoration-none" data-i18n>View My Application</a>
   </div>
 <?php else: $w = $renewalWindow; ?>
   <div class="dash-card">
     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
-      <div class="dash-card-label">Your Current Solo Parent ID</div>
+      <div class="dash-card-label" data-i18n>Your Current Solo Parent ID</div>
       <?php if ($w['expiresAt']): ?>
-        <span class="status-pill" style="background:<?= $w['expired'] ? '#fde8e8' : ($w['open'] ? '#fdf1d6' : '#dcf3e2') ?>;color:<?= $w['expired'] ? '#a51c1c' : ($w['open'] ? '#8a6d1a' : '#1c7a3f') ?>"><?= $w['expired'] ? 'Expired' : ($w['open'] ? 'Due for renewal' : 'Valid') ?></span>
+        <span class="status-pill" style="background:<?= $w['expired'] ? '#fde8e8' : ($w['open'] ? '#fdf1d6' : '#dcf3e2') ?>;color:<?= $w['expired'] ? '#a51c1c' : ($w['open'] ? '#8a6d1a' : '#1c7a3f') ?>" data-i18n><?= $w['expired'] ? 'Expired' : ($w['open'] ? 'Due for renewal' : 'Valid') ?></span>
       <?php endif; ?>
     </div>
     <div class="review-grid mt-2">
-      <div class="review-row"><div class="k">Reference</div><div class="v"><?= e($renewalSource['reference_no']) ?><?= $renewalSource['type'] === 'renewal' ? ' (renewal)' : '' ?></div></div>
-      <div class="review-row"><div class="k">Issued to</div><div class="v"><?= e($renewalSource['full_name']) ?></div></div>
-      <div class="review-row"><div class="k">Category</div><div class="v"><?= e($renewalSource['category_name']) ?></div></div>
-      <div class="review-row"><div class="k">Expires</div><div class="v"><?= $w['expiresAt'] ? e(format_date_long($w['expiresAt'])) : 'Not recorded' ?></div></div>
-      <div class="review-row"><div class="k">Children</div><div class="v"><?= e(implode(', ', array_column($renewalSource['children'], 'full_name')) ?: '—') ?></div></div>
+      <div class="review-row"><div class="k" data-i18n>Reference</div><div class="v" data-i18n><?= e($renewalSource['reference_no']) ?><?= $renewalSource['type'] === 'renewal' ? ' (renewal)' : '' ?></div></div>
+      <div class="review-row"><div class="k" data-i18n>Issued to</div><div class="v"><?= e($renewalSource['full_name']) ?></div></div>
+      <div class="review-row"><div class="k" data-i18n>Category</div><div class="v"><?= e($renewalSource['category_name']) ?></div></div>
+      <div class="review-row"><div class="k" data-i18n>Expires</div><div class="v"><?= $w['expiresAt'] ? e(format_date_long($w['expiresAt'])) : 'Not recorded' ?></div></div>
+      <div class="review-row"><div class="k" data-i18n>Children</div><div class="v"><?= e(implode(', ', array_column($renewalSource['children'], 'full_name')) ?: '—') ?></div></div>
     </div>
-    <div style="margin-top:14px"><a href="?section=myid" class="btn-outline text-decoration-none" style="padding:6px 14px;font-size:13px;display:inline-block">View My Solo Parent ID</a></div>
+    <div style="margin-top:14px"><a href="?section=myid" class="btn-outline text-decoration-none" style="padding:6px 14px;font-size:13px;display:inline-block" data-i18n>View My Solo Parent ID</a></div>
   </div>
 
   <?php if ($renewalInProgress): ?>
     <div class="dash-card">
-      <div class="dash-card-label">Renewal Already in Progress</div>
-      <div style="font-size:14px;color:var(--muted);margin:8px 0 14px">Your renewal <b><?= e($renewalInProgress['reference_no']) ?></b> is being processed (<?= e($renewalInProgress['status']) ?>). You can request another renewal once this one is completed.</div>
-      <a href="?section=renewal&amp;type=status" class="btn-outline text-decoration-none">View Renewal Status</a>
+      <div class="dash-card-label" data-i18n>Renewal Already in Progress</div>
+      <div style="font-size:14px;color:var(--muted);margin:8px 0 14px" data-i18n>Your renewal <b><?= e($renewalInProgress['reference_no']) ?></b> is being processed (<?= e($renewalInProgress['status']) ?>). You can request another renewal once this one is completed.</div>
+      <a href="?section=renewal&amp;type=status" class="btn-outline text-decoration-none" data-i18n>View Renewal Status</a>
     </div>
   <?php elseif (!$w['open']): ?>
     <div class="dash-card">
-      <div class="dash-card-label">Not Due for Renewal Yet</div>
-      <div style="font-size:14px;color:var(--muted);margin:8px 0 0">Renewal opens on <b style="color:var(--ink)"><?= e(format_date_long($w['opensOn'])) ?></b>, <?= (int) $w['windowDays'] ?> days before your ID expires. We'll send you a reminder.</div>
+      <div class="dash-card-label" data-i18n>Not Due for Renewal Yet</div>
+      <div style="font-size:14px;color:var(--muted);margin:8px 0 0" data-i18n>Renewal opens on <b style="color:var(--ink)"><?= e(format_date_long($w['opensOn'])) ?></b>, <?= (int) $w['windowDays'] ?> days before your ID expires. We'll send you a reminder.</div>
     </div>
   <?php else:
       $stepViews = [1 => APP_ROOT . '/views/applicant/renewal/step-details.php', 2 => APP_ROOT . '/views/applicant/application/step-children.php',
@@ -61,14 +61,14 @@
       $catOnlyKeys = [];
       $submitLabel = 'Submit Renewal';
   ?>
-    <div style="max-width:720px">
+    <div class="dash-form-wrap">
       <?php if ($flashMessage): ?><div class="info-box" style="max-width:none" role="status"><?= e($flashMessage) ?></div><?php endif; ?>
       <div class="draft-meta">
         <span><?= $draftSavedAt ? 'Renewal draft saved to your account · last saved ' . e(date('M j, Y g:i A', strtotime($draftSavedAt))) : 'Your details below come from your current ID. Your progress is saved as you go.' ?></span>
         <?php if ($draftSavedAt): ?>
-          <form method="post" class="m-0" onsubmit="return confirm('Discard this renewal draft? Everything you changed and uploaded will be deleted.')">
+          <form method="post" class="m-0" onsubmit="return confirm('Discard this renewal draft? Everything you changed and selected will be deleted.')">
             <?= csrf_field() ?>
-            <button type="submit" name="action" value="discard_draft" formnovalidate class="draft-discard">Discard draft</button>
+            <button type="submit" name="action" value="discard_draft" formnovalidate class="draft-discard" data-i18n>Discard draft</button>
           </form>
         <?php endif; ?>
       </div>
@@ -103,13 +103,13 @@
 
       <?php if ($step === 4): ?>
         <div class="review-card">
-          <div class="review-card-head"><div class="title">Changes from your current ID</div></div>
+          <div class="review-card-head"><div class="title" data-i18n>Changes from your current ID</div></div>
           <?php if (!$changes): ?>
-            <div style="font-size:13px;color:var(--muted)">No changes — your renewal uses the same details as your current ID.</div>
+            <div style="font-size:13px;color:var(--muted)" data-i18n>No changes — your renewal uses the same details as your current ID.</div>
           <?php else: ?>
-            <div class="review-grid">
+            <div class="review-grid" data-i18n>
               <?php foreach ($changes as $label => [$old, $new]): ?>
-                <div class="review-row"><div class="k"><?= e($label) ?></div><div class="v"><span style="text-decoration:line-through;color:var(--muted)"><?= e($old ?: '—') ?></span> → <b><?= e($new ?: '—') ?></b></div></div>
+                <div class="review-row"><div class="k" data-i18n><?= e($label) ?></div><div class="v"><span style="text-decoration:line-through;color:var(--muted)"><?= e($old ?: '—') ?></span> → <b><?= e($new ?: '—') ?></b></div></div>
               <?php endforeach; ?>
             </div>
           <?php endif; ?>

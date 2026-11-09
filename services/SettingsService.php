@@ -122,6 +122,24 @@ class SettingsService
     /** [error or null, normalised value as stored]. */
     private function parse(string $key, array $def, mixed $raw): array
     {
+        if ($def['type'] === 'dates') {
+            if ($raw === null) {
+                return [null, get_setting($this->pdo, $key, '')];
+            }
+            if (!is_string($raw) || strlen($raw) > $def['max']) {
+                return ['enter dates as YYYY-MM-DD, separated by commas (up to ' . $def['max'] . ' characters).', ''];
+            }
+            $dates = InterviewCalendarService::dates($raw);
+            foreach ($dates as $date) {
+                $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+                if (!$parsed || $parsed->format('Y-m-d') !== $date) {
+                    return ['enter valid dates as YYYY-MM-DD, separated by commas.', ''];
+                }
+            }
+            $dates = array_values(array_unique($dates));
+            sort($dates);
+            return [null, implode(',', $dates)];
+        }
         if ($def['type'] === 'bool') {
             return [null, !empty($raw) ? '1' : '0'];
         }
@@ -198,6 +216,15 @@ class SettingsService
     private function crossCheck(string $section, array $new): ?string
     {
         if ($section === 'appointments') {
+            $blockedDates = array_unique(array_merge(InterviewCalendarService::dates($new['appointment_holiday_dates']), InterviewCalendarService::dates($new['appointment_closure_dates'])));
+            if ($blockedDates) {
+                $conflicts = $this->pdo->prepare("SELECT COUNT(*) FROM appointments WHERE status = 'BOOKED' AND scheduled_at >= NOW() AND DATE(scheduled_at) IN (" . implode(',', array_fill(0, count($blockedDates), '?')) . ')');
+                $conflicts->execute(array_values($blockedDates));
+                $count = (int) $conflicts->fetchColumn();
+                if ($count > 0) {
+                    return 'Cancel or reschedule ' . $count . ' booked interview(s) on the selected holiday or closure dates before saving. No settings were changed.';
+                }
+            }
             if ($new['appointment_day_end'] <= $new['appointment_day_start']) {
                 return 'The latest slot end must be after the earliest slot start.';
             }

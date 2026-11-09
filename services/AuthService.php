@@ -8,9 +8,9 @@ require_once __DIR__ . '/DocumentValidationService.php';
  * what includes/auth.php delegates to, so every existing caller shares one
  * implementation.
  *
- * Session rules: an applicant session ($_SESSION['user_id']) and a staff
- * session ($_SESSION['staff_id']) can coexist in one browser, but both end
- * together -- on logout, after SESSION_IDLE_MINUTES without activity, or
+ * Session rules: applicant, admin and staff portals each have their own cookie.
+ * Each portal stores one identity; logging out affects only that portal. Its session data ends
+ * on logout, after SESSION_IDLE_MINUTES without activity, or
  * SESSION_ABSOLUTE_HOURS after login. An account's sessions also end when
  * its password is changed, reset or replaced by an administrator
  * (users.auth_version moves on), except the session that changed it.
@@ -43,6 +43,9 @@ class AuthService
     /** The signed-in applicant, re-checked against the DB on every call so deactivation or a role change takes effect immediately. */
     public function currentUser(): ?array
     {
+        if (AUTH_PORTAL !== 'applicant') {
+            return null;
+        }
         if (empty($_SESSION['user_id']) || $this->sessionExpired()) {
             return null;
         }
@@ -62,13 +65,20 @@ class AuthService
 
     public function currentStaff(): ?array
     {
+        if (!in_array(AUTH_PORTAL, ['admin', 'staff'], true)) {
+            return null;
+        }
+        if (!empty($_SESSION['user_id'])) {
+            unset($_SESSION['staff_id'], $_SESSION['staff_auth_version']);
+            return null;
+        }
         if (empty($_SESSION['staff_id']) || $this->sessionExpired()) {
             return null;
         }
         $stmt = $this->pdo->prepare("SELECT id, full_name, email, username, mobile, role, must_change_password, last_login_at, auth_version FROM users WHERE id = ? AND role IN ('mswd_social_worker','admin') AND is_active = 1");
         $stmt->execute([$_SESSION['staff_id']]);
         $staff = $stmt->fetch();
-        if (!$staff) {
+        if (!$staff || $staff['role'] !== (AUTH_PORTAL === 'admin' ? 'admin' : 'mswd_social_worker')) {
             unset($_SESSION['staff_id']);
             return null;
         }
@@ -141,7 +151,13 @@ class AuthService
 
     public function loginUser(array $user): void
     {
+        // Capture the previous sign-in before recordLogin replaces its date.
+        // Registration passes only the new user's ID, so load it when needed.
+        $previousLogin = array_key_exists('last_login_at', $user)
+            ? $user['last_login_at']
+            : ($this->userModel->findById((int) $user['id'])['last_login_at'] ?? null);
         $this->startSession('user', (int) $user['id']);
+        $_SESSION['applicant_first_login'] = empty($previousLogin);
         $this->userModel->recordLogin((int) $user['id']);
     }
 
@@ -165,6 +181,12 @@ class AuthService
     private function startSession(string $kind, int $userId): void
     {
         $this->purgeAbandonedDrafts();
+        // Preserve only pre-login context, never another account's identity or data.
+        $context = array_intersect_key($_SESSION, array_flip(['eligibility_token', 'pending_qr_token', 'applicant_return']));
+        if ($kind !== 'user') {
+            unset($context['applicant_return']);
+        }
+        $_SESSION = $context;
         session_regenerate_id(true);
         $_SESSION[$kind . '_id'] = $userId;
         $_SESSION[$kind . '_auth_version'] = $this->userModel->authVersion($userId);
@@ -207,6 +229,33 @@ class AuthService
     // ---- Password policy ----
 
     /** Null if acceptable, otherwise the message to show. Pass $confirmation to also require the two entries to match. */
+    /** Registration rules shared by public signup and administrator-created Solo Parent accounts. */
+    public function applicantRegistrationError(array $form, string $password, string $confirmation): string
+    {
+        if ($form['fullName'] === '' || $form['username'] === '' || $form['mobile'] === '' || $password === '') {
+            return 'Please fill in full name, mobile number, username, and password.';
+        }
+        if (mb_strlen($form['fullName']) > 150) {
+            return 'Full name is too long.';
+        }
+        if (!is_valid_ph_mobile($form['mobile'])) {
+            return 'Enter a valid Philippine mobile number (e.g. 09171234567).';
+        }
+        if (!preg_match('/^[A-Za-z0-9._]{4,30}$/', $form['username']) || !preg_match('/[A-Za-z]/', $form['username'])) {
+            return 'Username must be 4 to 30 characters: letters, numbers, dots, or underscores, with at least one letter.';
+        }
+        if ($error = $this->passwordPolicyError($password, $confirmation)) {
+            return $error;
+        }
+        if ($this->userModel->usernameExists($form['username'])) {
+            return 'That username is already taken.';
+        }
+        if ($this->userModel->mobileExists($form['mobile'])) {
+            return 'That mobile number is already registered. Log in, or use Forgot password if you can\'t remember it.';
+        }
+        return '';
+    }
+
     public function passwordPolicyError(string $password, ?string $confirmation = null): ?string
     {
         if (strlen($password) < PASSWORD_MIN_LENGTH || !preg_match('/[A-Za-z]/', $password) || !preg_match('/\d/', $password)) {

@@ -92,7 +92,7 @@ if (!function_exists('chart_nice_max')) {
             }
             $rows .= (count($series) > 1 ? '<td>' . chart_num($sum) . '</td>' : '') . '</tr>';
         }
-        $head = '<th scope="col"></th>' . implode('', array_map(fn($s) => '<th scope="col">' . e($s[0]) . '</th>', $series)) . (count($series) > 1 ? '<th scope="col">Total</th>' : '');
+        $head = '<th scope="col"></th>' . implode('', array_map(fn($s) => '<th scope="col">' . e($s[0]) . '</th>', $series)) . (count($series) > 1 ? '<th scope="col" data-i18n>Total</th>' : '');
         return $html . chart_table($caption, $head, $rows);
     }
 
@@ -131,7 +131,7 @@ if (!function_exists('chart_nice_max')) {
 
     function chart_table(string $caption, string $headCells, string $bodyRows): string
     {
-        return '<details class="vz-table"><summary>Show as table</summary><div class="table-responsive"><table class="table table-sm">'
+        return '<details class="vz-table"><summary data-i18n>Show as table</summary><div class="table-responsive"><table class="table table-sm">'
             . '<caption>' . e($caption) . '</caption><thead><tr>' . $headCells . '</tr></thead><tbody>' . $bodyRows . '</tbody></table></div></details>';
     }
 }

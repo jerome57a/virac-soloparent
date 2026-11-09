@@ -4,6 +4,110 @@ require_once __DIR__ . '/Model.php';
 /** application_documents rows plus the document_requirements definitions they satisfy. */
 class Document extends Model
 {
+    public const CHECKLIST_STATUSES = ['Pending', 'Verified', 'Needs Correction'];
+
+    /** A staff-accepted physical document is already satisfied even if its declaration was unchecked. */
+    public static function needsPreparation(array $item): bool
+    {
+        $verified = ($item['verification_status'] ?? '') === 'Verified'
+            && (empty($item['expires_at']) || $item['expires_at'] >= date('Y-m-d'));
+        return !empty($item['is_required']) && empty($item['applicant_has']) && !$verified;
+    }
+
+    /** Requirements with applicant declarations and independent staff review. */
+    public function checklistForReview(int $applicationId, ?int $categoryId, bool $standardOnly = false): array
+    {
+        if ($standardOnly) {
+            $app = $this->pdo->prepare('SELECT renewal_simplified FROM applications WHERE id=?');
+            $app->execute([$applicationId]);
+            if ($app->fetchColumn()) {
+                $stmt = $this->pdo->prepare('SELECT c.*, COALESCE(c.requirement_label,c.doc_key) AS label, COALESCE(c.required_snapshot,0) AS is_required, 1 AS category_specific, u.full_name AS verifier_name FROM application_document_checklists c LEFT JOIN users u ON u.id=c.reviewed_by WHERE c.application_id=? ORDER BY c.required_snapshot DESC,c.id');
+                $stmt->execute([$applicationId]);
+                $rows = $stmt->fetchAll();
+                foreach ($rows as &$row) {
+                    if ($row['source_checklist_id'] && !empty($row['expires_at']) && $row['expires_at'] < date('Y-m-d')) {
+                        $row['is_required'] = 1;
+                        $row['verification_status'] = 'Pending';
+                    }
+                }
+                unset($row);
+                return $rows;
+            }
+        }
+        $requirements = $standardOnly ? $this->standardRequirements() : $this->requirementsFor($categoryId);
+        $stmt = $this->pdo->prepare('SELECT c.*, u.full_name AS verifier_name FROM application_document_checklists c LEFT JOIN users u ON u.id = c.reviewed_by WHERE c.application_id = ?');
+        $stmt->execute([$applicationId]);
+        $saved = array_column($stmt->fetchAll(), null, 'doc_key');
+        $rows = [];
+        foreach ($requirements as $r) {
+            $c = $saved[$r['doc_key']] ?? [];
+            $rows[] = $c + ['doc_key' => $r['doc_key'], 'applicant_has' => null, 'verification_status' => 'Pending', 'staff_remarks' => null,
+                'reviewed_by' => null, 'reviewed_at' => null, 'verifier_name' => null, 'label' => $r['label'],
+                'is_required' => (int) $r['is_required'], 'category_specific' => $r['category_id'] !== null];
+            unset($saved[$r['doc_key']]);
+        }
+        foreach ($saved as $c) {
+            $rows[] = $c + ['label' => $c['doc_key'], 'is_required' => 0, 'category_specific' => false];
+        }
+        return $rows;
+    }
+
+    public function updateChecklistReview(int $applicationId, string $docKey, string $status, ?string $remarks, int $staffId): bool
+    {
+        $stmt = $this->pdo->prepare("UPDATE application_document_checklists SET verification_status = ?, staff_remarks = ?, reviewed_by = ?, reviewed_at = NOW() WHERE application_id = ? AND doc_key = ?");
+        $stmt->execute([$status, $remarks, $staffId, $applicationId, $docKey]);
+        return $stmt->rowCount() > 0;
+    }
+
+    public function saveApplicantChecklist(int $applicationId, array $requirements, array $selected): void
+    {
+        $ownsTransaction = !$this->pdo->inTransaction();
+        if ($ownsTransaction) {
+            $this->pdo->beginTransaction();
+        }
+        try {
+            $lock = $this->pdo->prepare('SELECT id FROM applications WHERE id = ? FOR UPDATE');
+            $lock->execute([$applicationId]);
+            // Once an interview is scheduled, staff must confirm receipt of missing documents.
+            $appointment = $this->pdo->prepare('SELECT id FROM appointments WHERE application_id = ? LIMIT 1');
+            $appointment->execute([$applicationId]);
+            $receiptRequired = (bool) $appointment->fetchColumn();
+            if ($receiptRequired) {
+                if ($ownsTransaction) {
+                    $this->pdo->commit();
+                }
+                return;
+            }
+            $allowed = array_column($requirements, 'doc_key');
+            $selected = array_flip(array_intersect($allowed, array_map('strval', $selected)));
+            $stmt = $this->pdo->prepare("UPDATE application_document_checklists c JOIN applications a ON a.id = c.application_id SET c.applicant_has = ?, c.verification_status = ?, c.reviewed_at = ?, c.reviewed_by = NULL, c.staff_remarks = NULL WHERE c.application_id = ? AND c.doc_key = ? AND (c.verification_status <> 'Verified' OR (c.reviewed_by IS NULL AND c.source_checklist_id IS NULL)) AND a.status IN ('Pending Review','Under Verification','For Revision','Interview Scheduled')");
+            foreach ($requirements as $r) {
+                if (isset($r['required_snapshot']) && !$r['required_snapshot'] && empty($r['is_required'])) {
+                    continue;
+                }
+                $checked = isset($selected[$r['doc_key']]);
+                $stmt->execute([(int) $checked, $checked ? 'Verified' : 'Pending', $checked ? date('Y-m-d H:i:s') : null, $applicationId, $r['doc_key']]);
+            }
+            if ($ownsTransaction) {
+                $this->pdo->commit();
+            }
+        } catch (Throwable $e) {
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    /** Requirements that still block approval and ID handover, including expired evidence. */
+    public function outstandingRequired(array $app): array
+    {
+        return array_values(array_filter($this->checklistForReview((int) $app['id'],
+            $app['category_id'] !== null ? (int) $app['category_id'] : null, $app['type'] === 'renewal'),
+            fn($item) => !empty($item['is_required']) && ($item['verification_status'] !== 'Verified'
+                || (!empty($item['expires_at']) && $item['expires_at'] < date('Y-m-d')))));
+    }
+
     /** Standard (category_id IS NULL) + category-specific requirements, in display order. */
     public function requirementsFor(?int $categoryId): array
     {
@@ -199,9 +303,9 @@ class Document extends Model
     public function verificationQueue(int $limit): array
     {
         return $this->pdo->query(
-            "SELECT a.id, a.reference_no, a.full_name, a.status, COUNT(d.id) AS pending_docs, MIN(d.uploaded_at) AS oldest_upload
-             FROM applications a JOIN application_documents d ON d.application_id = a.id
-             WHERE d.verification_status = 'FOR_VERIFICATION'
+            "SELECT a.id, a.reference_no, a.full_name, a.status, COUNT(d.id) AS pending_docs, MIN(a.submitted_at) AS oldest_upload
+             FROM applications a JOIN application_document_checklists d ON d.application_id = a.id
+             WHERE d.verification_status = 'Pending'
                AND a.status IN ('Pending Review','Under Verification','For Revision','Interview Scheduled')
              GROUP BY a.id, a.reference_no, a.full_name, a.status
              ORDER BY oldest_upload
@@ -214,8 +318,8 @@ class Document extends Model
     {
         return $this->pdo->query(
             "SELECT COUNT(DISTINCT a.id) AS applications, COUNT(d.id) AS documents
-             FROM applications a JOIN application_documents d ON d.application_id = a.id
-             WHERE d.verification_status = 'FOR_VERIFICATION'
+             FROM applications a JOIN application_document_checklists d ON d.application_id = a.id
+             WHERE d.verification_status = 'Pending'
                AND a.status IN ('Pending Review','Under Verification','For Revision','Interview Scheduled')"
         )->fetch();
     }

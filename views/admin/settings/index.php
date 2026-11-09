@@ -34,11 +34,9 @@ $renewalDays = (int) $current['renewals']['renewal_reminder_days'];
 $apptHours = (int) $current['appointments']['appointment_reminder_hours'];
 ?>
 <div class="portal-container">
-  <a href="<?= base_url('admin/dashboard.php') ?>" style="font-size:13px">&larr; Back to dashboard</a>
-  <h1 class="font-heading mt-2 mb-2" style="font-size:26px">System Settings</h1>
-  <p style="font-size:13px;color:var(--muted);max-width:760px">Only administrators can change these settings. Each section is saved on its own, and every change is recorded in the audit log with its old and new value.</p>
+  <?php require APP_ROOT . '/views/partials/admin-page-heading.php'; ?>
 
-  <nav class="record-nav" aria-label="Settings sections">
+  <nav class="record-nav" aria-label="Settings sections" id="admin-settings-sections">
     <?php foreach (SETTINGS_REGISTRY as $sectionKey => $section): ?><a href="#<?= e($sectionKey) ?>"><?= e($section['title']) ?></a><?php endforeach; ?>
     <a href="#requirements">Application Requirements</a><a href="#jobs">Reminder Jobs</a><a href="#server">Server</a>
   </nav>
@@ -48,8 +46,9 @@ $apptHours = (int) $current['appointments']['appointment_reminder_hours'];
 
   <div class="settings-grid">
   <?php foreach (SETTINGS_REGISTRY as $sectionKey => $section): ?>
-    <div class="review-card settings-card" id="<?= e($sectionKey) ?>">
-      <div class="review-card-head"><div class="title"><?= e($section['title']) ?></div></div>
+    <details class="admin-editor settings-card" id="<?= e($sectionKey) ?>" <?= $sectionKey === 'general' || $errorSection === $sectionKey ? 'open' : '' ?>>
+      <summary><?= e($section['title']) ?></summary>
+      <div class="admin-editor-content">
       <div class="settings-note"><?= e($section['note']) ?></div>
       <?php if ($errorSection === $sectionKey): ?><div class="auth-error mb-2" role="alert"><?= e($error) ?> Nothing in this section was saved.</div><?php endif; ?>
       <form method="post" action="<?= e(base_url('admin/settings.php')) ?>#<?= e($sectionKey) ?>" class="d-flex flex-column gap-2">
@@ -68,6 +67,11 @@ $apptHours = (int) $current['appointments']['appointment_reminder_hours'];
                 <?php endforeach; ?>
               </div>
             </fieldset>
+          <?php elseif ($def['type'] === 'dates'): ?>
+            <label class="user-label" for="<?= e($id) ?>"><?= e($def['label']) ?>
+              <textarea class="form-control" id="<?= e($id) ?>" name="<?= e($key) ?>" rows="3" maxlength="<?= (int) $def['max'] ?>" placeholder="YYYY-MM-DD, YYYY-MM-DD"><?= e((string) $v) ?></textarea>
+              <span class="settings-note"><?= e($def['help']) ?></span>
+            </label>
           <?php else: ?>
             <label class="user-label" for="<?= e($id) ?>"><?= e($def['label']) ?>
               <?php
@@ -80,7 +84,7 @@ $apptHours = (int) $current['appointments']['appointment_reminder_hours'];
                     default => 'type="text" maxlength="' . $def['max'] . '"',
                 };
               ?>
-              <input class="form-control" id="<?= e($id) ?>" name="<?= e($key) ?>" value="<?= e((string) $v) ?>" <?= $attrs ?> required>
+              <input class="form-control" id="<?= e($id) ?>" name="<?= e($key) ?>" value="<?= e((string) (!empty($def['readonly']) ? $def['default'] : $v)) ?>" <?= $attrs ?> <?= !empty($def['readonly']) ? 'readonly' : '' ?> required>
             </label>
           <?php endif; ?>
         <?php endforeach; ?>
@@ -88,7 +92,7 @@ $apptHours = (int) $current['appointments']['appointment_reminder_hours'];
         <?php if ($sectionKey === 'documents'): ?>
           <div class="settings-note">This server accepts uploads up to <?= e(format_mb($serverUploadLimitMb)) ?> (PHP <code>upload_max_filesize</code> / <code>post_max_size</code>), so the maximum can't be set higher.</div>
         <?php elseif ($sectionKey === 'appointments'): ?>
-          <div class="settings-note">The days and hours apply when MSWD staff open new slots on <a href="<?= base_url('staff/appointment_slots.php') ?>">Appointment Slots</a>; slots already open are kept.</div>
+          <div class="settings-note">Weekends, holidays and listed office closures are excluded from interview scheduling, including slots that were opened earlier. Add closure dates here when an office closure is announced. Existing interviews must be cancelled or rescheduled first on <a href="<?= base_url('admin/appointment_slots.php') ?>" data-i18n>Appointment Slots</a>.</div>
         <?php elseif ($sectionKey === 'notifications'): ?>
           <fieldset class="user-label mt-1">
             <legend style="font-size:13px;font-weight:600;margin:0">SMS messages sent to applicants</legend>
@@ -99,14 +103,15 @@ $apptHours = (int) $current['appointments']['appointment_reminder_hours'];
           </fieldset>
           <div class="settings-note">These apply only while "Send SMS notifications" is on. Edit the wording on <a href="<?= base_url('admin/sms.php') ?>">SMS &amp; Notifications</a>. Administrators always receive security and scheduled-job alerts.</div>
         <?php endif; ?>
-        <button type="submit" class="btn-navy" style="align-self:flex-start">Save <?= e($section['title']) ?></button>
+        <button type="submit" class="btn-navy" style="align-self:flex-start" data-i18n>Save <?= e($section['title']) ?></button>
       </form>
-    </div>
+      </div>
+    </details>
   <?php endforeach; ?>
 
     <div class="review-card settings-card" id="requirements">
       <div class="review-card-head"><div class="title">Application Requirements</div></div>
-      <div class="settings-note">The documents applicants must upload — standard ones and those for each solo-parent category.</div>
+      <div class="settings-note">Manage document checklists for new applications and renewals: — standard ones and those for each solo-parent category.</div>
       <a href="<?= base_url('admin/requirements.php') ?>" class="btn-outline text-decoration-none" style="align-self:flex-start">Manage Requirements</a>
     </div>
   </div>

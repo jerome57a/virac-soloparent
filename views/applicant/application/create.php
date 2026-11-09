@@ -1,6 +1,6 @@
 <?php
 /**
- * Apply Online wizard shell: step bar, step heading, alerts, then the current step's view.
+ * Apply Online wizard shell: step bar, alerts, then the current step's view.
  *
  * @var array   $draft
  * @var array   $errors
@@ -8,53 +8,40 @@
  * @var int     $step
  * @var array   $stepMeta
  * @var string  $stepError
- * @var ?string $draftSavedAt  when the saved draft was last updated (null = nothing saved yet)
  * @var ?string $flashMessage
  */
 $stepViews = [1 => 'step-personal.php', 2 => 'step-children.php', 3 => 'step-documents.php', 4 => 'review.php'];
+$isApplicationWizard = true;
+$highestStep = ApplicationService::furthestStep($draft);
 ?>
-<div style="max-width:720px">
+<div class="dash-form-wrap apply-form application-wizard">
 
-<div class="step-bar">
-  <?php for ($n = 1; $n <= 4; $n++): $isActive = $step === $n; ?>
-    <?php if ($n < $step): ?>
-      <form method="post" class="step-item done">
-        <?= csrf_field() ?>
-        <input type="hidden" name="action" value="goto">
-        <input type="hidden" name="n" value="<?= $n ?>">
-        <button type="submit" style="border:none;background:none;padding:0;width:100%;font-family:inherit;cursor:pointer">
-          <div class="step-circle">✓</div>
-          <div class="step-label"><?= e($stepMeta[$n][0]) ?></div>
-          <div class="step-progress"></div>
+<nav class="wizard-progress" aria-label="Application steps">
+  <div class="wizard-progress-heading"><span data-i18n>Apply for Solo Parent ID</span><span class="wizard-step-badge" data-i18n>Step <?= (int) $step ?> of 4</span></div>
+  <ol class="wizard-step-list">
+  <?php for ($n = 1; $n <= 4; $n++): $isActive = $step === $n; $isComplete = !$isActive && $n <= $highestStep; ?>
+    <li class="wizard-step <?= $isComplete ? 'is-complete' : ($isActive ? 'is-current' : 'is-upcoming') ?>"<?= $isActive ? ' aria-current="step"' : '' ?>>
+    <?php if ($isComplete): ?>
+        <button type="submit" form="application-step-form" name="goto_step" value="<?= $n ?>" formnovalidate class="wizard-step-content" aria-label="Go to step <?= $n ?>, <?= e($stepMeta[$n][0]) ?>. Your changes will be saved.">
+          <span class="wizard-step-number" aria-hidden="true">&check;</span>
+          <span class="wizard-step-copy"><span class="wizard-step-label" data-i18n><?= e($stepMeta[$n][0]) ?></span><span class="wizard-step-status" data-i18n>Visited &middot; Open</span></span>
         </button>
-      </form>
     <?php else: ?>
-      <div class="step-item <?= $isActive ? 'active' : '' ?>">
-        <div class="step-circle"><?= $n ?></div>
-        <div class="step-label"><?= e($stepMeta[$n][0]) ?></div>
-        <div class="step-progress"></div>
+      <div class="wizard-step-content">
+        <span class="wizard-step-number" aria-hidden="true"><?= $n ?></span>
+        <span class="wizard-step-copy"><span class="wizard-step-label" data-i18n><?= e($stepMeta[$n][0]) ?></span><span class="wizard-step-status" data-i18n><?= $isActive ? 'In progress' : 'Up next' ?></span></span>
       </div>
     <?php endif; ?>
+    </li>
   <?php endfor; ?>
-</div>
-
-<div class="step-title"><?= e($stepMeta[$step][0]) ?></div>
-<div class="step-desc"><?= e($stepMeta[$step][1]) ?></div>
+  </ol>
+  <p class="wizard-navigation-hint" data-i18n>Your changes are saved when you move between steps. Click any visited step to return to it.</p>
+</nav>
 
 <?php if ($flashMessage): ?><div class="info-box" style="max-width:none" role="status"><?= e($flashMessage) ?></div><?php endif; ?>
 
-<div class="draft-meta">
-  <span><?= $draftSavedAt ? "Draft saved to your account · last saved " . e(date("M j, Y g:i A", strtotime($draftSavedAt))) : "Your progress is saved to your account as you go." ?></span>
-  <?php if ($draftSavedAt): ?>
-    <form method="post" class="m-0" onsubmit="return confirm('Discard this draft? Everything you entered and uploaded will be deleted.')">
-      <?= csrf_field() ?>
-      <button type="submit" name="action" value="discard_draft" formnovalidate class="draft-discard">Discard draft</button>
-    </form>
-  <?php endif; ?>
-</div>
-
-<?php if ($submitError): ?><div class="step-alert"><?= e($submitError) ?></div><?php endif; ?>
-<?php if ($stepError): ?><div class="step-alert"><?= e($stepError) ?></div><?php endif; ?>
+<?php if ($submitError): ?><div class="step-alert" role="alert"><?= e($submitError) ?></div><?php endif; ?>
+<?php if ($stepError): ?><div class="step-alert" role="alert"><?= e($stepError) ?></div><?php endif; ?>
 
 <?php require __DIR__ . '/' . $stepViews[$step]; ?>
 

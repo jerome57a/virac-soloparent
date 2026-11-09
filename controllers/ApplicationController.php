@@ -8,6 +8,7 @@ require_once __DIR__ . '/../models/Application.php';
 require_once __DIR__ . '/../models/Document.php';
 require_once __DIR__ . '/../services/QrSlipService.php';
 require_once __DIR__ . '/../models/Appointment.php';
+require_once __DIR__ . '/../services/PublicApplicationTrackingService.php';
 
 class ApplicationController extends Controller
 {
@@ -67,9 +68,18 @@ class ApplicationController extends Controller
         $documents = new Document($this->pdo);
         $categories = get_categories($this->pdo);
         $categoryMap = array_column($categories, 'name', 'id');
+        $legacyCategoryName = null;
+        if ($draft['categoryId'] && !isset($categoryMap[$draft['categoryId']])) {
+            $legacy = $this->pdo->prepare('SELECT name FROM categories WHERE id = ? AND is_active = 0');
+            $legacy->execute([(int) $draft['categoryId']]);
+            $legacyCategoryName = $legacy->fetchColumn() ?: null;
+        }
         $categoryDocs = [];
         foreach ($categories as $c) {
-            $categoryDocs[$c['id']] = array_column($documents->categoryOnlyRequirements((int) $c['id']), 'label');
+            $categoryDocs[$c['id']] = array_map(fn($requirement) => [
+                'label' => $requirement['label'],
+                'url' => base_url('applicant/dashboard.php?section=requirements&doc=' . rawurlencode($requirement['doc_key'])),
+            ], $documents->categoryOnlyRequirements((int) $c['id']));
         }
         $errCount = count($errors);
 
@@ -83,6 +93,7 @@ class ApplicationController extends Controller
                 : ($errCount > 1 ? "Please fix the $errCount highlighted fields before continuing." : ''),
             'categories' => $categories,
             'categoryMap' => $categoryMap,
+            'legacyCategoryName' => $legacyCategoryName,
             'categoryDocs' => $categoryDocs,
             'docDefs' => $documents->requirementsFor($draft['categoryId']),
             'catOnlyKeys' => array_column($documents->categoryOnlyRequirements($draft['categoryId']), 'doc_key'),
@@ -94,7 +105,7 @@ class ApplicationController extends Controller
     /** @return array{0: array, 1: array, 2: ?string} [draft, errors, submitError] -- redirects on every action that succeeds. */
     private function handleApplyAction(ApplicationService $service, array $user, array $draft): array
     {
-        $action = (string) ($_POST['action'] ?? '');
+        $action = isset($_POST['goto_step']) ? 'goto' : (string) ($_POST['action'] ?? '');
         $step = (int) $draft['step'];
         $applyUrl = self::APPLY_URL;
 
@@ -105,7 +116,7 @@ class ApplicationController extends Controller
                 if (!$errors) {
                     $draft['step'] = min(4, $step + 1);
                 }
-                $service->saveDraft($user, $draft);
+                $service->saveDraft($user, $draft, $step === 1);
                 if (!$errors) {
                     $this->redirectTo($applyUrl);
                 }
@@ -113,7 +124,7 @@ class ApplicationController extends Controller
 
             case 'save_draft':
                 // Keep what's on the current step as-is (no validation) and leave.
-                $service->saveDraft($user, $service->collectStepInput($step, $draft, $_POST));
+                $service->saveDraft($user, $service->collectStepInput($step, $draft, $_POST), $step === 1);
                 audit_log($this->pdo, (int) $user['id'], $user['full_name'], $user['role'], 'Application Draft Saved', 'user', (int) $user['id'], 'Step ' . $step);
                 flash('Your application draft is saved. Continue it any time from your dashboard or the Apply tab.');
                 $this->redirectTo('applicant/dashboard.php?section=application');
@@ -132,10 +143,8 @@ class ApplicationController extends Controller
                 break;
 
             case 'goto':
-                $n = (int) ($_POST['n'] ?? 0);
-                if ($n >= 1 && $n < $step) {
-                    $draft['step'] = $n;
-                }
+                $n = (int) ($_POST['goto_step'] ?? $_POST['n'] ?? 0);
+                $draft = $service->navigateToStep($draft, $n, $_POST);
                 break;
 
             case 'add_child':
@@ -149,19 +158,6 @@ class ApplicationController extends Controller
                 if (count($draft['children']) > 1 && isset($draft['children'][$idx])) {
                     array_splice($draft['children'], $idx, 1);
                 }
-                break;
-
-            case 'upload_doc':
-            case 'remove_doc':
-                // Only requirement keys that apply to the chosen category are accepted.
-                $docKey = is_string($_POST['doc_key'] ?? null) ? $_POST['doc_key'] : '';
-                $allowed = array_column((new Document($this->pdo))->requirementsFor($draft['categoryId']), 'doc_key');
-                if (!in_array($docKey, $allowed, true)) {
-                    break;
-                }
-                $draft = $action === 'upload_doc'
-                    ? $service->files()->attachToDraft($draft, $docKey, $_FILES['file'] ?? [], $service->draftDir((int) $user['id']))
-                    : $service->files()->detachFromDraft($draft, $docKey);
                 break;
 
             case 'submit':
@@ -188,7 +184,7 @@ class ApplicationController extends Controller
                 return [$draft, [], null];
         }
 
-        $service->saveDraft($user, $draft);
+        $service->saveDraft($user, $draft, $step === 1);
         $this->redirectTo($applyUrl);
         return [$draft, [], null];
     }
@@ -206,39 +202,62 @@ class ApplicationController extends Controller
     }
 
     /**
-     * Portal "Check Status" tab: public lookup, name masked. Reference
-     * numbers are sequential, so the last 4 digits of the mobile number on
-     * the application are required too, and failed lookups are limited per
-     * IP -- the list of applicants can't be walked through.
+     * Portal "Check Status" tab: reference-only public lookup, name masked.
+     * Failed lookups remain limited per IP.
      */
     public function publicStatus(): void
     {
         $query = is_string($_GET['ref'] ?? null) ? mb_substr(trim($_GET['ref']), 0, 40) : '';
-        $mobile4 = is_string($_GET['m4'] ?? null) ? trim($_GET['m4']) : '';
         $result = null;
         $error = '';
-        if ($query !== '' || $mobile4 !== '') {
+        if (array_key_exists('ref', $_GET)) {
             $limiter = new RateLimiter($this->pdo);
-            if (!preg_match('/^\d{4}$/', $mobile4) || $query === '') {
-                $error = 'Enter your reference number and the last 4 digits of the mobile number on your application.';
+            if ($query === '') {
+                $error = 'Enter your application reference number.';
             } elseif ($limiter->tooMany('status_ip', RateLimiter::clientIp())) {
                 $error = 'Too many unsuccessful lookups. Please try again in 15 minutes.';
             } else {
                 $app = (new Application($this->pdo))->findByReference($query);
-                if ($app && hash_equals(substr(preg_replace('/\D/', '', (string) $app['mobile']), -4), $mobile4)) {
-                    $result = $app;
+                if ($app) {
+                    $applicationId = (int) $app['id'];
+                    $result = PublicApplicationTrackingService::summarize($app,
+                        (new Application($this->pdo))->history($applicationId),
+                        (new Appointment($this->pdo))->interviewFor($applicationId),
+                        (new IdReleaseService($this->pdo))->scheduleFor($applicationId),
+                        $app['status'] === 'ID Released' ? (new Application($this->pdo))->latestRenewalFor($applicationId) : null,
+                        (int) setting('renewal_reminder_days'));
                 } else {
                     $limiter->hit('status_ip', RateLimiter::clientIp());
-                    $error = 'No application matches that reference number and mobile number.';
+                    $error = 'No application matches that reference number.';
                 }
             }
         }
         $this->render('views/home/status.php', [
+            'user' => (new AuthService($this->pdo))->currentUser(),
             'query' => $query,
-            'mobile4' => $mobile4,
             'result' => $result,
             'error' => $error,
         ]);
+    }
+
+    /** View/replace an owned slip inside the applicant dashboard. */
+    public function applicantSlipSection(array $user): array
+    {
+        $ref = is_string($_GET['ref'] ?? null) ? trim($_GET['ref']) : '';
+        $app = (new Application($this->pdo))->findByReferenceWithCategory($ref);
+        if (!$app || (int) $app['user_id'] !== (int) $user['id']) {
+            http_response_code(404);
+            return ['view' => 'qr/slip-not-found.php', 'data' => []];
+        }
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            csrf_require();
+            if (($_POST['action'] ?? '') === 'replace_slip' && $app['status'] !== 'Rejected') {
+                (new QrSlipService($this->pdo))->replace($app, $user);
+                flash('A new QR code was issued. The old slip no longer works — print or save this one.');
+            }
+            $this->redirectTo('applicant/dashboard.php?section=slip&ref=' . urlencode($app['reference_no']));
+        }
+        return ['view' => 'qr/application-slip.php', 'data' => $this->slipViewData($app, $user, null, true)];
     }
 
     /**
@@ -266,10 +285,10 @@ class ApplicationController extends Controller
         }
 
         $service = new QrSlipService($this->pdo);
-        $slipUrl = 'slip.php?ref=' . urlencode($app['reference_no']);
         // Replacing the QR invalidates the old slip: the owner may, and MSWD staff (application processing) may.
         // Administrators only monitor applications, so they can view and print but not replace.
         $isOwner = $user && (int) $user['id'] === (int) $app['user_id'];
+        $slipUrl = ($isOwner ? 'applicant/dashboard.php?section=slip&ref=' : 'slip.php?ref=') . urlencode($app['reference_no']);
         $canReplace = $isOwner || can($staff, 'applications.process');
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_require();
@@ -283,21 +302,34 @@ class ApplicationController extends Controller
             $this->redirectTo($slipUrl);
         }
 
-        $slip = $service->slipFor($app);
+        if ($isOwner) {
+            $this->redirectTo($slipUrl);
+            return;
+        }
+        $this->renderPage('Application Slip — ' . $app['reference_no'], 'views/applicant/qr/application-slip.php', $this->slipViewData($app, $user, $staff, $canReplace));
+    }
+
+    /** Shared slip data for applicant dashboard and staff standalone views. */
+    private function slipViewData(array $app, ?array $user, ?array $staff, bool $canReplace): array
+    {
+        $applications = new Application($this->pdo);
+        $slip = (new QrSlipService($this->pdo))->slipFor($app);
         $appointment = (new Appointment($this->pdo))->interviewFor((int) $app['id']);
+        $idReleaseSchedule = (new IdReleaseService($this->pdo))->scheduleFor((int) $app['id']);
         $renewalOf = $app['renewal_of_id'] ? $applications->findWithChildren((int) $app['renewal_of_id']) : null;
-        $this->renderPage('Application Slip — ' . $app['reference_no'], 'views/applicant/qr/application-slip.php', [
+        return [
             'app' => $app,
             'slip' => $slip,
             'qrUri' => $slip ? QrSlipService::qrImage($slip['token']) : null,
             'slipCode' => $slip ? QrSlipService::slipCode($slip['token']) : null,
             'appointment' => $appointment && $appointment['status'] === 'BOOKED' ? $appointment : null,
+            'idReleaseSchedule' => $app['status'] === 'Approved' && $idReleaseSchedule && !$idReleaseSchedule['released_at'] ? $idReleaseSchedule : null,
             'renewalOfRef' => $renewalOf['reference_no'] ?? null,
             'flashMessage' => take_flash(),
             'user' => $user,
             'staff' => $staff,
             'canReplace' => $canReplace,
-        ]);
+        ];
     }
     /** Full page wrapped in the site header/footer (the header reads $pageTitle/$user/$staff from scope). */
     private function renderPage(string $pageTitle, string $view, array $data = []): void
