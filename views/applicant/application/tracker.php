@@ -12,7 +12,7 @@ $n = 0;
 <?php if ($tracker['rejected']): ?>
   <div class="step-alert">❌ Not approved<?= $tracker['rejected']['date'] ? ' on ' . e(date('F j, Y', strtotime($tracker['rejected']['date']))) : '' ?><?= $tracker['rejected']['reason'] ? ': ' . e($tracker['rejected']['reason']) : '.' ?></div>
 <?php elseif ($tracker['correction']): ?>
-  <div class="step-alert">⚠️ MSWDO asked for corrections<?= $tracker['correction']['reason'] ? ': ' . e($tracker['correction']['reason']) : '.' ?> &mdash; <a href="?section=documents" data-i18n>review your Required Documents Checklist</a>.</div>
+  <div class="step-alert">⚠️ MSWDO asked for corrections<?= $tracker['correction']['reason'] ? ': ' . e($tracker['correction']['reason']) : '.' ?> &mdash; <a href="?section=documents" data-i18n>go to Documents to upload a replacement file</a>.</div>
 <?php endif; ?>
 
 <ol class="tracker" aria-label="Application progress">

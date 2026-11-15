@@ -28,7 +28,7 @@ class SMSService
         'appointment_reminder' => ['Appointment Reminder (auto)', 'MSWDO Virac: Reminder -- your appointment for application {ref} is on {when} at {location}. Please arrive on time and bring a valid ID.'],
         'appointment_cancelled' => ['Appointment Cancelled', 'MSWDO Virac: Your appointment for application {ref} on {when} was cancelled. Reason: {reason}. Please contact MSWDO for a new schedule.'],
         'appointment_missed' => ['Appointment Missed', 'MSWDO Virac: You missed your appointment for application {ref} on {when}. Please contact MSWDO for a new schedule.'],
-        'document_correction' => ['Document Checklist Needs Correction', 'MSWDO Virac: The requirement "{document}" for application {ref} needs correction. Reason: {remarks}. Please log in and update your Required Documents Checklist.'],
+        'document_correction' => ['Document Needs Correction', 'MSWDO Virac: The document "{document}" for application {ref} needs correction. Reason: {remarks}. Please log in and upload a replacement file under Documents.'],
         'password_reset' => ['Password Reset Code', "MSWDO Virac: Your password reset code is {code}. It expires in {minutes} minutes. If you didn't request this, ignore this message."],
     ];
     /** Placeholders each template can use (anything else would be sent literally); the first is required. */
@@ -284,7 +284,7 @@ class SMSService
         return array_values(array_column(array_filter($rows, [Document::class, 'needsPreparation']), 'label'));
     }
 
-    /** Include whole document names; explicitly point to the full checklist when the SMS limit is reached. */
+    /** Include whole document names; explicitly point to the full list of required uploads when the SMS limit is reached. */
     public static function preparationText(array $labels, int $maxLength = 300): string
     {
         if (!$labels) {
@@ -295,12 +295,12 @@ class SMSService
         for ($count = count($labels); $count > 0; $count--) {
             $remaining = count($labels) - $count;
             $text = $prefix . implode('; ', array_slice($labels, 0, $count)) . '.'
-                . ($remaining ? ' Plus ' . $remaining . ' more; view your full checklist online.' : '');
+                . ($remaining ? ' Plus ' . $remaining . ' more; see all required uploads online.' : '');
             if (mb_strlen($text) <= $maxLength) {
                 return $text;
             }
         }
-        return 'After your interview, submit ' . count($labels) . ' missing documents before ID release. View the full checklist online.';
+        return 'After your interview, submit ' . count($labels) . ' missing documents before ID release. See all required uploads online.';
     }
 
     public function preparationReminder(int $applicationId): string

@@ -296,8 +296,8 @@ function document_status_label(string $status): string
 {
     $labels = [
         'UPLOADED' => 'Uploaded', 'VALIDATING' => 'Validating', 'VALID' => 'Valid', 'INVALID' => 'Invalid',
-        'FOR_VERIFICATION' => 'For Verification', 'VERIFIED' => 'Verified',
-        'NEEDS_CORRECTION' => 'Needs Correction', 'REJECTED' => 'Rejected',
+        'FOR_VERIFICATION' => 'Pending', 'VERIFIED' => 'Verified',
+        'NEEDS_CORRECTION' => 'Needs Correction', 'REJECTED' => 'Rejected (legacy)',
     ];
     return $labels[$status] ?? $status;
 }

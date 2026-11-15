@@ -4,10 +4,13 @@ $links = [
     ['section=requirements', 'documents', 'Requirements guide', 'Find the issuing office, what to bring, and steps to get each document.'],
     [$hasApplication ? 'section=application' : 'section=apply', 'application', $hasApplication ? 'Track my application' : 'Apply online', $hasApplication ? 'See your progress, staff remarks, and the next action needed.' : 'Start your Solo Parent ID application and save your progress.'],
 ];
+if ($hasApplication) {
+    $links[] = ['section=documents', 'documents', 'Supporting documents', 'Upload required documents and replace files when MSWDO requests corrections.'];
+}
 $steps = [
-    ['Apply online', 'Fill in your details and complete the document checklist. Save your draft if you need to finish later.'],
-    ['Follow the review', 'MSWDO reviews your application and requirements. Check your tracker for corrections and instructions.'],
-    ['Attend your interview', 'When appointment booking becomes available, choose a slot and bring the requested original documents and your application slip.'],
+    ['Apply online', 'Fill in your details and submit your application. Then open Supporting Documents to upload the required files. Save your draft if you need to finish later.'],
+    ['Follow the review', 'Check My Application for status and staff remarks. If corrections are requested, open Supporting Documents, replace the flagged file, and submit it for review.'],
+    ['Attend your interview', 'MSWDO will text your interview date and time and show it under Appointment. Bring the requested original documents and your application reference.'],
     ['Claim your Solo Parent ID', 'After approval, follow your release appointment or MSWDO instructions. Your ID appears in My ID after it is released.'],
 ];
 $helpIcons = [

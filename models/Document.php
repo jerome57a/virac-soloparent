@@ -17,6 +17,7 @@ class Document extends Model
     /** Requirements with applicant declarations and independent staff review. */
     public function checklistForReview(int $applicationId, ?int $categoryId, bool $standardOnly = false): array
     {
+        $uploads = array_column($this->uploadedForApplication($applicationId), null, 'doc_key');
         if ($standardOnly) {
             $app = $this->pdo->prepare('SELECT renewal_simplified FROM applications WHERE id=?');
             $app->execute([$applicationId]);
@@ -29,9 +30,13 @@ class Document extends Model
                         $row['is_required'] = 1;
                         $row['verification_status'] = 'Pending';
                     }
+                    if (isset($uploads[$row['doc_key']])) {
+                        $this->mergeUploadStatus($row, $uploads[$row['doc_key']]);
+                        unset($uploads[$row['doc_key']]);
+                    }
                 }
                 unset($row);
-                return $rows;
+                return $this->appendUnlistedUploads($rows, $uploads);
             }
         }
         $requirements = $standardOnly ? $this->standardRequirements() : $this->requirementsFor($categoryId);
@@ -41,13 +46,50 @@ class Document extends Model
         $rows = [];
         foreach ($requirements as $r) {
             $c = $saved[$r['doc_key']] ?? [];
-            $rows[] = $c + ['doc_key' => $r['doc_key'], 'applicant_has' => null, 'verification_status' => 'Pending', 'staff_remarks' => null,
+            $row = $c + ['doc_key' => $r['doc_key'], 'applicant_has' => null, 'verification_status' => 'Pending', 'staff_remarks' => null,
                 'reviewed_by' => null, 'reviewed_at' => null, 'verifier_name' => null, 'label' => $r['label'],
                 'is_required' => (int) $r['is_required'], 'category_specific' => $r['category_id'] !== null];
+            if (isset($uploads[$r['doc_key']])) {
+                $this->mergeUploadStatus($row, $uploads[$r['doc_key']]);
+                unset($uploads[$r['doc_key']]);
+            }
+            $rows[] = $row;
             unset($saved[$r['doc_key']]);
         }
-        foreach ($saved as $c) {
-            $rows[] = $c + ['label' => $c['doc_key'], 'is_required' => 0, 'category_specific' => false];
+        foreach ($saved as $key => $c) {
+            $row = $c + ['label' => $c['doc_key'], 'is_required' => 0, 'category_specific' => false];
+            if (isset($uploads[$key])) {
+                $this->mergeUploadStatus($row, $uploads[$key]);
+                unset($uploads[$key]);
+            }
+            $rows[] = $row;
+        }
+        return $this->appendUnlistedUploads($rows, $uploads);
+    }
+
+    private function mergeUploadStatus(array &$row, array $upload): void
+    {
+        $row['applicant_has'] = 1;
+        $row['verification_status'] = match ($upload['verification_status']) {
+            'VERIFIED' => 'Verified',
+            'NEEDS_CORRECTION', 'REJECTED' => 'Needs Correction',
+            default => 'Pending',
+        };
+        $row['staff_remarks'] = $upload['staff_remarks'];
+        $row['reviewed_by'] = $upload['verified_by'];
+        $row['reviewed_at'] = $upload['verified_at'];
+        $row['verifier_name'] = $upload['verifier_name'] ?? null;
+        $row['uploaded_document'] = $upload;
+    }
+
+    private function appendUnlistedUploads(array $rows, array $uploads): array
+    {
+        foreach ($uploads as $upload) {
+            $row = ['doc_key' => $upload['doc_key'], 'label' => $upload['doc_key'], 'is_required' => 0,
+                'category_specific' => false, 'applicant_has' => 1, 'verification_status' => 'Pending',
+                'staff_remarks' => null, 'reviewed_by' => null, 'reviewed_at' => null, 'verifier_name' => null];
+            $this->mergeUploadStatus($row, $upload);
+            $rows[] = $row;
         }
         return $rows;
     }
@@ -57,46 +99,6 @@ class Document extends Model
         $stmt = $this->pdo->prepare("UPDATE application_document_checklists SET verification_status = ?, staff_remarks = ?, reviewed_by = ?, reviewed_at = NOW() WHERE application_id = ? AND doc_key = ?");
         $stmt->execute([$status, $remarks, $staffId, $applicationId, $docKey]);
         return $stmt->rowCount() > 0;
-    }
-
-    public function saveApplicantChecklist(int $applicationId, array $requirements, array $selected): void
-    {
-        $ownsTransaction = !$this->pdo->inTransaction();
-        if ($ownsTransaction) {
-            $this->pdo->beginTransaction();
-        }
-        try {
-            $lock = $this->pdo->prepare('SELECT id FROM applications WHERE id = ? FOR UPDATE');
-            $lock->execute([$applicationId]);
-            // Once an interview is scheduled, staff must confirm receipt of missing documents.
-            $appointment = $this->pdo->prepare('SELECT id FROM appointments WHERE application_id = ? LIMIT 1');
-            $appointment->execute([$applicationId]);
-            $receiptRequired = (bool) $appointment->fetchColumn();
-            if ($receiptRequired) {
-                if ($ownsTransaction) {
-                    $this->pdo->commit();
-                }
-                return;
-            }
-            $allowed = array_column($requirements, 'doc_key');
-            $selected = array_flip(array_intersect($allowed, array_map('strval', $selected)));
-            $stmt = $this->pdo->prepare("UPDATE application_document_checklists c JOIN applications a ON a.id = c.application_id SET c.applicant_has = ?, c.verification_status = ?, c.reviewed_at = ?, c.reviewed_by = NULL, c.staff_remarks = NULL WHERE c.application_id = ? AND c.doc_key = ? AND (c.verification_status <> 'Verified' OR (c.reviewed_by IS NULL AND c.source_checklist_id IS NULL)) AND a.status IN ('Pending Review','Under Verification','For Revision','Interview Scheduled')");
-            foreach ($requirements as $r) {
-                if (isset($r['required_snapshot']) && !$r['required_snapshot'] && empty($r['is_required'])) {
-                    continue;
-                }
-                $checked = isset($selected[$r['doc_key']]);
-                $stmt->execute([(int) $checked, $checked ? 'Verified' : 'Pending', $checked ? date('Y-m-d H:i:s') : null, $applicationId, $r['doc_key']]);
-            }
-            if ($ownsTransaction) {
-                $this->pdo->commit();
-            }
-        } catch (Throwable $e) {
-            if ($ownsTransaction && $this->pdo->inTransaction()) {
-                $this->pdo->rollBack();
-            }
-            throw $e;
-        }
     }
 
     /** Requirements that still block approval and ID handover, including expired evidence. */
@@ -218,8 +220,8 @@ class Document extends Model
      */
     public const STATUSES = ['UPLOADED', 'VALIDATING', 'VALID', 'INVALID', 'FOR_VERIFICATION', 'VERIFIED', 'NEEDS_CORRECTION', 'REJECTED'];
 
-    /** What MSWD staff can set (FOR_VERIFICATION undoes an earlier verdict). */
-    public const VERIFICATION_STATUSES = ['FOR_VERIFICATION', 'VERIFIED', 'NEEDS_CORRECTION', 'REJECTED'];
+    /** What MSWD staff can set (FOR_VERIFICATION undoes an earlier verdict). Legacy REJECTED stays readable but is no longer assignable. */
+    public const VERIFICATION_STATUSES = ['FOR_VERIFICATION', 'VERIFIED', 'NEEDS_CORRECTION'];
 
     /** Staff have accepted it -- the applicant can no longer replace it. */
     public const LOCKED_STATUSES = ['VERIFIED'];
@@ -300,13 +302,25 @@ class Document extends Model
      * verification, oldest upload first (the verification queue). Each row:
      * id, reference_no, full_name, status, pending_docs, oldest_upload.
      */
+    /**
+     * One row per document awaiting verification: an uploaded file still FOR_VERIFICATION,
+     * plus legacy checklist rows the applicant has but that were never uploaded as a file
+     * (the upload, when present, is authoritative). Both tables are unique per
+     * (application_id, doc_key), so the two halves never overlap and nothing counts twice.
+     */
+    private const PENDING_DOCUMENTS_SQL =
+        "SELECT d.application_id FROM application_documents d WHERE d.verification_status = 'FOR_VERIFICATION'
+         UNION ALL
+         SELECT c.application_id FROM application_document_checklists c
+         WHERE c.verification_status = 'Pending' AND c.applicant_has = 1
+           AND NOT EXISTS (SELECT 1 FROM application_documents u WHERE u.application_id = c.application_id AND u.doc_key = c.doc_key)";
+
     public function verificationQueue(int $limit): array
     {
         return $this->pdo->query(
-            "SELECT a.id, a.reference_no, a.full_name, a.status, COUNT(d.id) AS pending_docs, MIN(a.submitted_at) AS oldest_upload
-             FROM applications a JOIN application_document_checklists d ON d.application_id = a.id
-             WHERE d.verification_status = 'Pending'
-               AND a.status IN ('Pending Review','Under Verification','For Revision','Interview Scheduled')
+            "SELECT a.id, a.reference_no, a.full_name, a.status, COUNT(*) AS pending_docs, MIN(a.submitted_at) AS oldest_upload
+             FROM applications a JOIN (" . self::PENDING_DOCUMENTS_SQL . ") d ON d.application_id = a.id
+             WHERE a.status IN ('Pending Review','Under Verification','For Revision','Interview Scheduled')
              GROUP BY a.id, a.reference_no, a.full_name, a.status
              ORDER BY oldest_upload
              LIMIT " . (int) $limit
@@ -317,10 +331,9 @@ class Document extends Model
     public function verificationBacklog(): array
     {
         return $this->pdo->query(
-            "SELECT COUNT(DISTINCT a.id) AS applications, COUNT(d.id) AS documents
-             FROM applications a JOIN application_document_checklists d ON d.application_id = a.id
-             WHERE d.verification_status = 'Pending'
-               AND a.status IN ('Pending Review','Under Verification','For Revision','Interview Scheduled')"
+            "SELECT COUNT(DISTINCT a.id) AS applications, COUNT(*) AS documents
+             FROM applications a JOIN (" . self::PENDING_DOCUMENTS_SQL . ") d ON d.application_id = a.id
+             WHERE a.status IN ('Pending Review','Under Verification','For Revision','Interview Scheduled')"
         )->fetch();
     }
 
@@ -329,6 +342,14 @@ class Document extends Model
         $stmt = $this->pdo->prepare('SELECT id, doc_key, stored_path, verification_status FROM application_documents WHERE application_id = ? AND doc_key = ?');
         $stmt->execute([$applicationId, $docKey]);
         return $stmt->fetch() ?: null;
+    }
+
+    /** All files currently attached to one application, newest first. */
+    public function uploadedForApplication(int $applicationId): array
+    {
+        $stmt = $this->pdo->prepare('SELECT d.*, u.full_name AS verifier_name FROM application_documents d LEFT JOIN users u ON u.id = d.verified_by WHERE d.application_id = ? ORDER BY d.uploaded_at DESC, d.id DESC');
+        $stmt->execute([$applicationId]);
+        return $stmt->fetchAll();
     }
 
     /** Stores a submitted document (FOR_VERIFICATION) and starts its status trail with $actor (id, full_name, role). */

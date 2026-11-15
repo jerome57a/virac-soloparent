@@ -66,6 +66,11 @@ class RenewalRequirement extends Model
         audit_log($this->pdo,(int) $admin['id'],$admin['full_name'],$admin['role'],'Renewal Requirement Removed','category',(int) $row['category_id'],$row['doc_key']);
     }
 
+    /**
+     * Records the renewal's requirement snapshot. Retained rows keep their earlier staff-accepted
+     * verification; $selected holds the doc_keys that were uploaded as files with this renewal.
+     * An uploaded file is only Pending here: it is never treated as verified until staff review it.
+     */
     public function snapshot(int $applicationId, array $plan, array $selected): void
     {
         $insert = $this->pdo->prepare('INSERT INTO application_document_checklists (application_id,doc_key,applicant_has,verification_status,staff_remarks,reviewed_by,reviewed_at,expires_at,source_checklist_id,requirement_label,required_snapshot) VALUES (?,?,?,?,?,?,?,?,?,?,?)');
@@ -73,8 +78,8 @@ class RenewalRequirement extends Model
             $insert->execute([$applicationId,$row['doc_key'],1,'Verified',$row['staff_remarks'],$row['reviewed_by'],$row['reviewed_at'],$row['expires_at'] ?? null,$row['id'],$row['label'],0]);
         }
         foreach ($plan['fresh'] as $row) {
-            $checked = !empty($selected[$row['doc_key']]);
-            $insert->execute([$applicationId,$row['doc_key'],(int) $checked,$checked ? 'Verified' : 'Pending',null,null,$checked ? date('Y-m-d H:i:s') : null,null,$row['source_checklist_id'],$row['label'],1]);
+            $uploaded = !empty($selected[$row['doc_key']]);
+            $insert->execute([$applicationId,$row['doc_key'],(int) $uploaded,'Pending',null,null,null,null,$row['source_checklist_id'],$row['label'],1]);
         }
     }
 }

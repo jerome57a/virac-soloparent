@@ -3,10 +3,10 @@
 $query = is_string($_GET['q'] ?? null) ? mb_substr(trim($_GET['q']), 0, 100) : '';
 $entries = [
     ['title' => 'Eligibility Checker', 'description' => 'Preliminary solo parent eligibility assessment.', 'url' => base_url('eligibility.php')],
-    ['title' => 'Apply for Solo Parent ID', 'description' => 'Application form, registration and document checklist.', 'url' => base_url(!empty($user) ? 'applicant/dashboard.php?section=apply' : 'portal.php?tab=apply')],
+    ['title' => 'Apply for Solo Parent ID', 'description' => 'Application form, registration and supporting document upload.', 'url' => base_url(!empty($user) ? 'applicant/dashboard.php?section=apply' : 'portal.php?tab=apply')],
     ['title' => 'Track Application', 'description' => 'Application status, reference number and mobile verification.', 'url' => base_url(!empty($user) ? 'applicant/dashboard.php?section=application' : 'portal.php?tab=status')],
     ['title' => 'Benefits of Having a Solo Parent ID', 'description' => 'Work schedule, parental leave, education, discounts and cash subsidy.', 'url' => base_url('portal.php#benefits')],
-    ['title' => 'How to Apply', 'description' => 'Application steps, checklist, interview and ID claiming.', 'url' => base_url('portal.php#how-to-apply')],
+    ['title' => 'How to Apply', 'description' => 'Application steps, document upload, interview and ID claiming.', 'url' => base_url('portal.php#how-to-apply')],
     ['title' => 'Contact & Help', 'description' => 'MSWDO contact information, office hours and frequently asked questions.', 'url' => base_url('portal.php?tab=help')],
 ];
 foreach (required_doc_groups($pdo) as $group) {

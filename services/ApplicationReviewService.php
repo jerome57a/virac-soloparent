@@ -72,46 +72,6 @@ class ApplicationReviewService
         }
     }
 
-    /** Accept checked declarations on open; an explicit undo leaves review under manual control. */
-    public function verifyAvailableChecklistOnOpen(array $staff, array $app): void
-    {
-        if (!can($staff, 'applications.process')) {
-            return;
-        }
-        $id = (int) $app['id'];
-        $this->pdo->beginTransaction();
-        try {
-            $lock = $this->pdo->prepare('SELECT * FROM applications WHERE id = ? FOR UPDATE');
-            $lock->execute([$id]);
-            $current = $lock->fetch();
-            $undo = $this->pdo->prepare("SELECT id FROM application_status_history WHERE application_id = ? AND remarks = 'Verification review undone; ready for review again.' LIMIT 1");
-            $undo->execute([$id]);
-            if (!$current || !in_array($current['status'], Application::IN_PROGRESS_STATUSES, true) || $undo->fetchColumn()) {
-                $this->pdo->commit();
-                return;
-            }
-            $rows = $this->documents->checklistForReview($id, $current['category_id'] !== null ? (int) $current['category_id'] : null, $current['type'] === 'renewal');
-            $update = $this->pdo->prepare("UPDATE application_document_checklists SET verification_status = 'Verified', reviewed_by = ?, reviewed_at = NOW() WHERE id = ? AND application_id = ? AND applicant_has = 1 AND verification_status = 'Pending' AND reviewed_at IS NULL AND (staff_remarks IS NULL OR staff_remarks = '') AND (expires_at IS NULL OR expires_at >= CURDATE())");
-            foreach ($rows as $row) {
-                if (empty($row['id'])) {
-                    continue;
-                }
-                $update->execute([(int) $staff['id'], (int) $row['id'], $id]);
-                if ($update->rowCount() === 1) {
-                    $description = 'Automatically verified on staff open: ' . $row['label'] . ' (applicant checked available).';
-                    $this->applications->addHistory($id, $current['status'], mb_substr($description, 0, 500), $staff['full_name'], (int) $staff['id']);
-                    $this->audit($staff, 'Document Checklist Review', 'application', $id, $description);
-                }
-            }
-            $this->pdo->commit();
-        } catch (Throwable $e) {
-            if ($this->pdo->inTransaction()) {
-                $this->pdo->rollBack();
-            }
-            throw $e;
-        }
-    }
-
     /** Clear legacy automatic eligibility; physical verification never decides eligibility. */
     private function syncEligibilityFromChecklist(array $staff, array $app): void
     {
@@ -224,69 +184,161 @@ class ApplicationReviewService
     /** Verdicts the applicant must be told the reason for. */
     private const REMARKS_REQUIRED = ['NEEDS_CORRECTION', 'REJECTED'];
 
+    /** Every status application_documents can hold. Staff may only assign Document::VERIFICATION_STATUSES. */
+    public const STORED_STATUSES = ['UPLOADED', 'VALIDATING', 'VALID', 'INVALID', 'FOR_VERIFICATION', 'VERIFIED', 'NEEDS_CORRECTION', 'REJECTED'];
+
     /**
-     * Sets one document's verification status. Every change is recorded in
-     * the document's status trail (who, when, from -> to, remarks), stamps
-     * the verifier on the document, writes the audit log, and tells the
-     * applicant (in-app and by SMS) when a document needs correction or was
-     * rejected.
+     * Saves the verification of several documents of one application as ONE
+     * transaction: every edited document is re-read and locked, all edits are
+     * validated, and then statuses, status history, verifier and audit entries
+     * are written together. Any failure rolls the whole batch back.
+     * Notifications and SMS are sent only after a successful commit; a failed
+     * notification never undoes a committed verification.
      *
-     * $expectedStatus is the status the staff member saw when they chose the
-     * verdict; if someone else changed it meanwhile nothing is saved, so a
-     * verdict is never made on stale information.
+     * $rows maps document id => ['status', 'remarks', 'expected', 'expected_remarks']:
+     * the chosen verdict plus the status and remarks the staff member saw.
+     * A row equal to what was shown is untouched and ignored entirely. Every
+     * other row must carry the expected state, which must still match the
+     * database (otherwise someone else changed it and nothing is saved).
      *
-     * Returns an error message, or null on success (including "no change").
+     * @return array{errors: array<int|string,string>, changed: int, notify_failures: int}
      */
-    public function verifyDocument(array $staff, array $app, int $documentId, string $status, string $remarks, string $expectedStatus): ?string
+    public function saveVerification(array $staff, array $app, array $rows): array
     {
-        if (!in_array($status, Document::VERIFICATION_STATUSES, true)) {
-            return 'Choose a valid document status.';
+        if (!can($staff, 'applications.process')) {
+            return ['errors' => ['checklist' => 'You do not have permission to verify documents.'], 'changed' => 0, 'notify_failures' => 0];
         }
-        if (!in_array($app['status'], Application::IN_PROGRESS_STATUSES, true)) {
-            return 'Documents can no longer be changed: this application is ' . $app['status'] . '.';
+        $norm = static fn($v) => trim((string) ($v ?? ''));
+        $errors = [];
+        $edited = [];
+        foreach ($rows as $documentId => $row) {
+            $documentId = (int) $documentId;
+            $expected = (string) ($row['expected'] ?? '');
+            if (!in_array($expected, self::STORED_STATUSES, true) || !isset($row['expected_remarks']) || !is_string($row['expected_remarks'])) {
+                $errors[$documentId] = 'The original status of this document is missing or invalid. Reload the page and try again.';
+                continue;
+            }
+            $status = (string) ($row['status'] ?? '');
+            $remarks = $norm($row['remarks'] ?? '');
+            $expectedRemarks = $norm($row['expected_remarks']);
+            if ($status === $expected && $remarks === $expectedRemarks) {
+                continue; // untouched
+            }
+            $edited[$documentId] = ['status' => $status, 'remarks' => $remarks, 'expected' => $expected, 'expected_remarks' => $expectedRemarks];
         }
-        $doc = $this->documents->findInApplication($documentId, (int) $app['id']);
-        if (!$doc) {
-            return 'That document is not part of this application.';
-        }
-        $remarks = trim($remarks);
-        if (mb_strlen($remarks) > 500) {
-            return 'Remarks are too long (up to 500 characters).';
-        }
-        if ($remarks === '' && in_array($status, self::REMARKS_REQUIRED, true)) {
-            return 'Add a remark telling the applicant what is wrong with the document.';
-        }
-        if ($expectedStatus !== '' && $expectedStatus !== $doc['verification_status']) {
-            return 'This document was updated by someone else (now ' . document_status_label($doc['verification_status']) . '). Review it again before saving.';
-        }
-        $remarks = $remarks !== '' ? $remarks : null;
-        if ($status === $doc['verification_status'] && $remarks === $doc['staff_remarks']) {
-            return null;
+        ksort($edited); // fixed lock order
+
+        $applicationId = (int) $app['id'];
+        $labels = [];
+        $notify = [];
+        if ($edited) {
+            $this->pdo->beginTransaction();
+            try {
+                $lock = $this->pdo->prepare('SELECT status FROM applications WHERE id = ? FOR UPDATE');
+                $lock->execute([$applicationId]);
+                $currentStatus = $lock->fetchColumn();
+                $editable = $currentStatus !== false && in_array($currentStatus, Application::IN_PROGRESS_STATUSES, true);
+                $docLock = $this->pdo->prepare('SELECT * FROM application_documents WHERE id = ? AND application_id = ? FOR UPDATE');
+                $docs = [];
+                foreach ($edited as $documentId => $row) {
+                    $docLock->execute([$documentId, $applicationId]);
+                    $doc = $docLock->fetch();
+                    if (!$doc) {
+                        $errors[$documentId] = 'That document is not part of this application.';
+                        continue;
+                    }
+                    $docs[$documentId] = $doc;
+                    $labels[$documentId] = $this->documents->requirementLabel($doc['doc_key']) ?? $doc['doc_key'];
+                    if (!$editable) {
+                        $errors[$documentId] = 'Documents can no longer be changed: this application is ' . ($currentStatus !== false ? $currentStatus : 'unavailable') . '.';
+                    } elseif ($row['expected'] !== $doc['verification_status'] || $row['expected_remarks'] !== $norm($doc['staff_remarks'])) {
+                        $errors[$documentId] = 'This document was updated by someone else (now ' . document_status_label($doc['verification_status']) . '). Review it again before saving.';
+                    } elseif (!in_array($row['status'], Document::VERIFICATION_STATUSES, true)) {
+                        $errors[$documentId] = in_array($row['status'], self::STORED_STATUSES, true)
+                            ? 'This status cannot be assigned by staff (' . document_status_label($row['status']) . '). Choose Pending, Verified or Needs Correction.'
+                            : 'Choose a valid document status.';
+                    } elseif (mb_strlen($row['remarks']) > 500) {
+                        $errors[$documentId] = 'Remarks are too long (up to 500 characters).';
+                    } elseif ($row['remarks'] === '' && in_array($row['status'], self::REMARKS_REQUIRED, true)) {
+                        $errors[$documentId] = 'Add a remark telling the applicant what is wrong with the document.';
+                    }
+                }
+                if (!$errors) {
+                    $flagged = [];
+                    foreach ($edited as $documentId => $row) {
+                        $doc = $docs[$documentId];
+                        $remarks = $row['remarks'] !== '' ? $row['remarks'] : null;
+                        $this->documents->setVerification($documentId, $row['status'], $remarks, (int) $staff['id']);
+                        $this->documents->addStatusHistory($documentId, $applicationId, $doc['doc_key'], $doc['verification_status'], $row['status'], $remarks, $staff);
+                        $this->audit($staff, 'Document Verification', 'application_document', $documentId,
+                            $app['reference_no'] . ' · ' . $doc['doc_key'] . ': ' . $doc['verification_status'] . ' → ' . $row['status'] . ($remarks !== null ? ' (' . $remarks . ')' : ''));
+                        $label = $labels[$documentId];
+                        $verdict = $row['status'];
+                        $remarkText = $row['remarks'];
+                        if ($verdict === 'VERIFIED') {
+                            $notify[] = fn() => create_notification(
+                                $this->pdo, (int) $app['user_id'], 'status_change',
+                                'Your document "' . $label . '" for ' . $app['reference_no'] . ' has been verified by MSWDO.',
+                                $applicationId
+                            );
+                        } elseif (in_array($verdict, self::REMARKS_REQUIRED, true)) {
+                            $flagged[] = $label;
+                            $notify[] = fn() => create_notification(
+                                $this->pdo, (int) $app['user_id'], 'correction',
+                                'Your document "' . $label . '" for ' . $app['reference_no'] . ' ' . ($verdict === 'REJECTED' ? 'was rejected' : 'needs correction') . ': '
+                                    . rtrim($remarkText, ' .') . '. Please upload a new file under Upload Documents.',
+                                $applicationId
+                            );
+                        }
+                    }
+                    if ($flagged) {
+                        // One SMS per batch, however many documents were flagged.
+                        $notify[] = function () use ($app, $applicationId, $flagged) {
+                            $sms = (new SMSService($this->pdo))->notifyDocumentCorrection($applicationId, $app['mobile'], $app['reference_no'], implode(', ', $flagged), '');
+                            if (($sms['status'] ?? '') === 'FAILED') {
+                                throw new RuntimeException('Correction SMS failed: ' . ($sms['error'] ?? 'provider error'));
+                            }
+                        };
+                    }
+                    $this->pdo->commit();
+                } else {
+                    $this->pdo->rollBack();
+                }
+            } catch (Throwable $e) {
+                if ($this->pdo->inTransaction()) {
+                    $this->pdo->rollBack();
+                }
+                error_log('Save verification failed for application ' . $applicationId . ': ' . $e->getMessage());
+                return ['errors' => ['checklist' => 'Verification could not be saved because of a system error. No document was changed.'], 'changed' => 0, 'notify_failures' => 0];
+            }
         }
 
-        $this->pdo->beginTransaction();
-        try {
-            $this->documents->setVerification($documentId, $status, $remarks, (int) $staff['id']);
-            $this->documents->addStatusHistory($documentId, (int) $app['id'], $doc['doc_key'], $doc['verification_status'], $status, $remarks, $staff);
-            $this->pdo->commit();
-        } catch (Throwable $e) {
-            $this->pdo->rollBack();
-            throw $e;
+        if ($errors) {
+            $names = [];
+            foreach ($errors as $documentId => $unused) {
+                $names[] = $labels[$documentId] ?? $this->labelFor((int) $documentId, $applicationId);
+            }
+            $errors['checklist'] = 'Verification was not saved and no document was changed. Please review: ' . implode('; ', array_unique($names)) . '.';
+            return ['errors' => $errors, 'changed' => 0, 'notify_failures' => 0];
         }
 
-        $label = $this->documents->requirementLabel($doc['doc_key']) ?? $doc['doc_key'];
-        $this->audit($staff, 'Document Verification', 'application_document', $documentId,
-            $app['reference_no'] . ' · ' . $doc['doc_key'] . ': ' . $doc['verification_status'] . ' → ' . $status . ($remarks !== null ? ' (' . $remarks . ')' : ''));
-        if (in_array($status, self::REMARKS_REQUIRED, true)) {
-            create_notification(
-                $this->pdo, (int) $app['user_id'], 'correction',
-                'Your document "' . $label . '" for ' . $app['reference_no'] . ' ' . ($status === 'REJECTED' ? 'was rejected' : 'needs correction') . ': '
-                    . rtrim($remarks, " .") . '. Please upload a new file under Upload Documents.',
-                (int) $app['id']
-            );
-            (new SMSService($this->pdo))->notifyDocumentCorrection((int) $app['id'], $app['mobile'], $app['reference_no'], $label, (string) $remarks);
+        // Committed. Notification failures are reported, never rolled back.
+        $failures = 0;
+        foreach ($notify as $send) {
+            try {
+                $send();
+            } catch (Throwable $e) {
+                $failures++;
+                error_log('Verification notification failed for application ' . $applicationId . ': ' . $e->getMessage());
+            }
         }
-        return null;
+        return ['errors' => [], 'changed' => count($edited), 'notify_failures' => $failures];
+    }
+
+    private function labelFor(int $documentId, int $applicationId): string
+    {
+        $doc = $this->documents->findInApplication($documentId, $applicationId);
+        return $doc ? ($this->documents->requirementLabel($doc['doc_key']) ?? $doc['doc_key']) : 'Document #' . $documentId;
     }
 
     /** Record physical receipt of one outstanding required document. */
@@ -333,53 +385,6 @@ class ApplicationReviewService
             }
             throw $e;
         }
-    }
-
-    /** Save an independent checklist verdict for one applicable requirement. */
-    public function reviewChecklistItem(array $staff, array $app, string $docKey, string $status, string $remarks): ?string
-    {
-        if (!in_array($status, Document::CHECKLIST_STATUSES, true)) {
-            return 'Choose a valid checklist status.';
-        }
-        if (!in_array($app['status'], Application::IN_PROGRESS_STATUSES, true)) {
-            return 'Checklist review is closed for this application.';
-        }
-        $appId = (int) $app['id'];
-        $stmt = $this->pdo->prepare('SELECT applicant_has, verification_status, staff_remarks FROM application_document_checklists WHERE application_id = ? AND doc_key = ?');
-        $stmt->execute([$appId, $docKey]);
-        $saved = $stmt->fetch();
-        if (!$saved) {
-            return 'That requirement is not part of this application.';
-        }
-        $remarks = trim($remarks);
-        if (mb_strlen($remarks) > 500) {
-            return 'Remarks are too long (up to 500 characters).';
-        }
-        if ($status === 'Needs Correction' && $remarks === '') {
-            return 'Add a remark explaining what needs correction.';
-        }
-        $remarksValue = $remarks !== '' ? $remarks : null;
-        if ($saved['verification_status'] === $status && $saved['staff_remarks'] === $remarksValue) {
-            return null;
-        }
-        $label = $this->documents->requirementLabel($docKey) ?? $docKey;
-        $this->pdo->beginTransaction();
-        try {
-            $this->documents->updateChecklistReview($appId, $docKey, $status, $remarksValue, (int) $staff['id']);
-            $description = 'Document "' . $label . '": ' . $status . ($remarksValue ? ' — ' . mb_substr($remarksValue, 0, 400) : '.');
-            $this->applications->addHistory($appId, $app['status'], mb_substr($description, 0, 500), $staff['full_name'], (int) $staff['id']);
-            $this->syncEligibilityFromChecklist($staff, $app);
-            $this->pdo->commit();
-        } catch (Throwable $e) {
-            $this->pdo->rollBack();
-            throw $e;
-        }
-        audit_log($this->pdo, (int) $staff['id'], $staff['full_name'], $staff['role'], 'Document Checklist Review', 'application', $appId, $docKey . ': ' . $status);
-        if ($status === 'Needs Correction') {
-            create_notification($this->pdo, (int) $app['user_id'], 'correction', 'The checklist requirement "' . $label . '" for ' . $app['reference_no'] . ' needs correction: ' . rtrim($remarks, ' .'), $appId);
-            (new SMSService($this->pdo))->notifyDocumentCorrection($appId, $app['mobile'], $app['reference_no'], $label, $remarks);
-        }
-        return null;
     }
 
     /** Confirm all required physical documents after the interview without changing accepted records. */
@@ -591,7 +596,7 @@ class ApplicationReviewService
         $unverified = array_column($this->documents->outstandingRequired($app), 'label');
         $requirements = $this->documents->checklistForReview((int) $app['id'], $app['category_id'] !== null ? (int) $app['category_id'] : null, $app['type'] === 'renewal');
         $requiredCount = count(array_filter($requirements, fn($item) => !empty($item['is_required'])));
-        // Applicant selections count as complete; staff receipt also completes a previously unchecked item.
+        // Approval is blocked until each required upload or retained renewal record is verified.
         $missingCount = count(array_filter($requirements, [Document::class, 'needsPreparation']));
         $completeCount = $requiredCount - $missingCount;
         $documentSummary = $completeCount . ($completeCount === 1 ? ' document complete' : ' documents complete')

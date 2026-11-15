@@ -18,12 +18,12 @@
   <?php elseif (!$w['open']): ?>
     <div class="info-box" data-i18n>Renewal opens on <?= e(format_date_long($w['opensOn'])) ?>, <?= (int) $w['windowDays'] ?> days before expiry.</div>
   <?php elseif (empty($renewalPlan['configured'])): ?>
-    <div class="info-box" data-i18n>Renewal requirements for your category are not configured yet. <a href="?section=help" data-i18n>Contact MSWDO for the correct renewal documents</a>. You do not need to repeat the new-application checklist.</div>
+    <div class="info-box" data-i18n>Renewal requirements for your category are not configured yet. <a href="?section=help" data-i18n>Contact MSWDO for the correct renewal documents</a>. You do not need to repeat the new-application documents.</div>
   <?php else: ?>
     <?php if ($flashMessage): ?><div class="info-box" role="status"><?= e($flashMessage) ?></div><?php endif; ?>
     <?php if ($submitError): ?><div class="auth-error" role="alert"><?= e($submitError) ?></div><?php endif; ?>
     <?php foreach ($errors as $message): ?><div class="auth-error" role="alert"><?= e($message) ?></div><?php endforeach; ?>
-    <form method="post" class="review-card d-flex flex-column gap-3">
+    <form method="post" enctype="multipart/form-data" class="review-card d-flex flex-column gap-3">
       <?= csrf_field() ?>
       <h2 class="font-heading" style="font-size:20px" data-i18n>Confirm your contact details</h2>
       <div class="field-grid">
@@ -34,16 +34,24 @@
       </div>
       <input type="hidden" name="civilStatus" value="<?= e($draft['civilStatus']) ?>">
       <h2 class="font-heading" style="font-size:20px" data-i18n>Accepted documents retained</h2>
-      <?php if (!$renewalPlan['retained']): ?><p data-i18n>No accepted, unexpired checklist documents are recorded on the current ID.</p><?php endif; ?>
+      <?php if (!$renewalPlan['retained']): ?><p data-i18n>No accepted, unexpired documents are recorded on the current ID.</p><?php endif; ?>
       <?php foreach ($renewalPlan['retained'] as $item): ?>
         <div class="review-row"><div class="k" data-i18n><?= e($item['label']) ?></div><div class="v">Accepted on file; no resubmission. <?= !empty($item['expires_at']) ? 'Valid until ' . e(format_date_long($item['expires_at'])) : 'No expiry recorded.' ?></div></div>
       <?php endforeach; ?>
       <h2 class="font-heading" style="font-size:20px" data-i18n>Documents needed for this renewal</h2>
-      <?php if (!$docDefs): ?><p data-i18n>Your category requirements are already accepted and unexpired. No new document declarations are needed.</p><?php endif; ?>
-      <?php foreach ($docDefs as $item): ?>
-        <label class="user-label"><span data-i18n><input type="checkbox" name="checklist[]" value="<?= e($item['doc_key']) ?>" <?= !empty($draft['checkedDocuments'][$item['doc_key']]) ? 'checked' : '' ?> required> <?= e($item['label']) ?></span><span class="opt"><?= e($item['reason']) ?></span></label>
+      <?php if (!$docDefs): ?><p data-i18n>Your category requirements are already accepted and unexpired. No new document uploads are needed.</p><?php endif; ?>
+      <?php foreach ($docDefs as $item):
+        $uploaded = $draft['documents'][$item['doc_key']] ?? null;
+        $inputId = 'renewal-file-' . e($item['doc_key']);
+      ?>
+        <div class="user-label">
+          <label class="form-label" for="<?= $inputId ?>"><strong><?= e($item['label']) ?></strong> <span class="opt"><?= e($item['reason']) ?></span></label>
+          <?php if ($uploaded): ?><p class="small mb-1"><span data-i18n>Selected file:</span> <?= e($uploaded['original_name']) ?></p><?php endif; ?>
+          <input class="form-control" type="file" id="<?= $inputId ?>" name="renewal_file[<?= e($item['doc_key']) ?>]" accept=".jpg,.jpeg,.png,.pdf">
+          <span class="opt" data-i18n><?= $uploaded ? 'Choose another file only to replace it.' : 'Choose a file to upload.' ?> Accepted formats: JPG, PNG, PDF. Maximum size: <?= e((string) document_rules()['max_mb']) ?> MB.</span>
+        </div>
       <?php endforeach; ?>
-      <p class="opt" data-i18n>Confirm availability and bring requested documents as MSWDO instructs. Staff verify them separately. Document expiry uses recorded dates; no unrecorded expiry is assumed.</p>
+      <p class="opt" data-i18n>Each required document must be uploaded as a file before you can submit. Staff review the uploaded files and may ask you to replace one; an uploaded file is not verified until staff confirm it. Document expiry uses recorded dates; no unrecorded expiry is assumed.</p>
       <label data-i18n><input type="checkbox" name="consent" value="1" <?= !empty($draft['consent']) ? 'checked' : '' ?> required> My existing record remains correct and I consent to this renewal. Contact MSWDO if my identity, category or children need changes.</label>
       <div class="d-flex flex-wrap gap-2"><button type="submit" name="action" value="save_draft" formnovalidate class="btn-outline" data-i18n>Save draft</button><button type="submit" name="action" value="submit" class="btn-navy" data-i18n>Submit Renewal</button></div>
     </form>

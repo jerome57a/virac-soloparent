@@ -95,7 +95,6 @@ class RenewalService
             'categoryId' => (int) $source['category_id'],
             'children' => $children ?: [['name' => '', 'birthdate' => '']],
             'documents' => [],
-            'checkedDocuments' => [],
             'docErrors' => [],
             'consent' => false,
         ] + EmergencyContactService::draftFields($source);
@@ -113,7 +112,9 @@ class RenewalService
         }
         $draft = $saved['data'] + $this->freshDraft($source);
         foreach ($draft['documents'] as $key => $meta) {
-            $draft['documents'][$key]['path'] = $this->draftDir((int) $user['id']) . '/' . basename((string) ($meta['stored_name'] ?? ''));
+            $storedName = basename((string) ($meta['stored_name'] ?? ''));
+            $draft['documents'][$key]['stored_name'] = $storedName;
+            $draft['documents'][$key]['path'] = $this->draftDir((int) $user['id']) . '/' . $storedName;
         }
         $draft['step'] = 1;
         $draft['contact'] = (string) ($user['mobile'] ?? ''); // the confirmed account number, never the form's
@@ -156,14 +157,35 @@ class RenewalService
         $draft['civilStatus'] = $source['civil_status'];
         $draft = array_replace($draft,EmergencyContactService::draftFields($source));
         {
+            // Only documents this renewal actually requires stay in the draft; per-file upload errors are per request.
             $allowed = array_column($this->documentRequirements($source), 'doc_key');
-            $selected = is_array($post['checklist'] ?? null) ? array_values(array_filter($post['checklist'], 'is_string')) : [];
-            $draft['checkedDocuments'] = array_fill_keys(array_values(array_intersect($allowed, $selected)), true);
+            $draft['documents'] = array_intersect_key($draft['documents'] ?? [], array_flip($allowed));
+            $draft['docErrors'] = [];
             $draft['consent'] = !empty($post['consent']);
             $draft['children'] = array_map(fn($child) => ['name'=>$child['full_name'],'birthdate'=>$child['birthdate']],$source['children']);
             $draft['step'] = 1;
         }
         return $this->lock($draft, $source);
+    }
+
+    /**
+     * Validates one uploaded file with the same rules as every other applicant document
+     * (DocumentValidationService) and stages it in the renewal draft folder, replacing any
+     * earlier file for that requirement. A rejected file leaves the earlier one in place and
+     * records the reason in $draft['docErrors']. The file is not verified; staff review it after submission.
+     */
+    public function attachDocument(array $user, array $source, array $draft, string $docKey, array $file): array
+    {
+        $allowed = array_column($this->documentRequirements($source), 'doc_key');
+        if (!in_array($docKey, $allowed, true)) {
+            $draft['docErrors'][$docKey] = 'That document is not required for this renewal.';
+            return $draft;
+        }
+        $draft = $this->files()->attachToDraft($draft, $docKey, $file, $this->draftDir((int) $user['id']));
+        if (isset($draft['documents'][$docKey]['stored_name'])) {
+            $draft['documents'][$docKey]['path'] = $this->draftDir((int) $user['id']) . '/' . basename((string) $draft['documents'][$docKey]['stored_name']);
+        }
+        return $draft;
     }
 
     public function validateStep(int $step, array $draft): array
@@ -188,10 +210,19 @@ class RenewalService
         if (!empty($draft['email']) && (!filter_var($draft['email'],FILTER_VALIDATE_EMAIL) || mb_strlen($draft['email']) > 150)) {
             $errors['email'] = 'Enter a valid email address or leave it blank.';
         }
+        $labels = array_column($plan['fresh'], 'label', 'doc_key');
+        foreach (($draft['docErrors'] ?? []) as $key => $message) {
+            $errors['upload_' . $key] = ($labels[$key] ?? $key) . ': ' . $message;
+        }
+        $missing = [];
         foreach ($plan['fresh'] as $requirement) {
-            if (empty($draft['checkedDocuments'][$requirement['doc_key']])) {
-                $errors['documents'] = 'Confirm availability of each required renewal document.';
+            $meta = $draft['documents'][$requirement['doc_key']] ?? null;
+            if (!$meta || empty($meta['path']) || !is_file($meta['path'])) {
+                $missing[] = $requirement['label'];
             }
+        }
+        if ($missing) {
+            $errors['documents'] = 'Upload a file for each required renewal document. Still needed: ' . implode(', ', $missing) . '.';
         }
         if (empty($draft['consent'])) {
             $errors['consent'] = 'Confirm the renewal declaration before submitting.';
@@ -270,8 +301,12 @@ class RenewalService
                 throw new DomainException('Your current ID changed. Refresh the renewal page.');
             }
             $plan = (new RenewalRequirement($this->pdo))->plan($source);
-            if (!$plan['configured'] || array_filter($plan['fresh'], fn($row)=>empty($draft['checkedDocuments'][$row['doc_key']]))) {
-                throw new DomainException('Renewal requirements changed. Refresh and review them again.');
+            // Every document this renewal requires must have an uploaded file still present in the draft.
+            $fresh = array_column($plan['fresh'], 'doc_key');
+            $documents = array_intersect_key($draft['documents'] ?? [], array_flip($fresh));
+            if (!$plan['configured'] || count($documents) !== count($fresh)
+                || array_filter($documents, fn($meta) => empty($meta['path']) || !is_file($meta['path']))) {
+                throw new DomainException('Renewal requirements changed or a document file is missing. Refresh the page and upload the required documents again.');
             }
             $refNumber = generate_reference_no($this->pdo);
             $applicationId = $this->applications->create($refNumber, (int) $user['id'], 'renewal', $fields, date('Y-m-d H:i:s'), (int) $source['id']);
@@ -279,7 +314,9 @@ class RenewalService
             foreach ($draft['children'] as $c) {
                 $this->applications->addChild($applicationId, $c['name'], $c['birthdate']);
             }
-            (new RenewalRequirement($this->pdo))->snapshot($applicationId,$plan,$draft['checkedDocuments'] ?? []);
+            // Uploaded files are recorded as FOR_VERIFICATION and their snapshot rows stay Pending: staff verify them.
+            (new RenewalRequirement($this->pdo))->snapshot($applicationId,$plan,array_fill_keys(array_keys($documents),true));
+            $this->applicationService->storeDraftDocuments($applicationId, $documents, $user);
             $this->applications->addHistory($applicationId, 'Pending Review', 'Renewal of ' . $source['reference_no'] . ' submitted online.', $user['full_name'], (int) $user['id']);
             $this->pdo->commit();
         } catch (Throwable $e) {

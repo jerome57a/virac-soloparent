@@ -34,7 +34,7 @@ class ApplicantController extends Controller
         'myid'          => 'My Solo Parent ID',
         'appointment'   => 'Appointment',
         'notifications' => 'Notifications',
-        'documents'     => 'Required Documents Checklist',
+        'documents'     => 'Supporting Documents',
         'requirements'  => 'Requirements Guide',
         'profile'       => 'My Profile',
         'help'          => 'Help & Support',

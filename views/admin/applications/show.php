@@ -48,7 +48,7 @@ $st = status_style($app['status']);
         </div>
       </div>
 
-      <?php $canVerify = false; $documentsEditable = false; require APP_ROOT . '/views/partials/document-review.php'; ?>
+      <?php require APP_ROOT . '/views/partials/document-review.php'; ?>
     </div>
 
     <div class="col-12 col-lg-5">

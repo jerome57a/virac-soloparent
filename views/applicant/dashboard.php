@@ -93,7 +93,7 @@ $welcomeText = !empty($isFirstLogin) ? 'Welcome' : 'Welcome back';
       <?php elseif (!$applicationDraft): // a saved draft already has its own "Continue" card above ?>
         <div class="dash-card">
           <h2 class="dash-card-label" data-i18n>Get started with your application</h2>
-          <p class="dash-home-body" data-i18n>Complete your personal and family details, review the required documents, and submit your application for MSWDO review.</p>
+          <p class="dash-home-body" data-i18n>Complete your personal and family details and submit your application. Then upload the required documents from Documents.</p>
           <?php if ($eligibilityCheck): ?>
             <div style="font-size:14px;color:var(--ink);margin:8px 0 4px">
               Your preliminary eligibility check (<?= e(date('M j, Y', strtotime($eligibilityCheck['checkedAt']))) ?>):
@@ -127,7 +127,7 @@ $welcomeText = !empty($isFirstLogin) ? 'Welcome' : 'Welcome back';
             <?php $preparationItems = $upcomingRequirements ?? []; require APP_ROOT . '/views/partials/requirements-preparation.php'; ?>
             <a href="?section=appointment" class="btn-outline text-decoration-none dash-card-link" data-i18n>View or Reschedule</a>
           <?php elseif ($canBookAppointment): ?>
-            <p class="dash-home-body" data-i18n>MSWDO staff will assign your interview date and time and notify you by SMS. You can prepare any missing documents while waiting.</p>
+            <p class="dash-home-body" data-i18n>MSWDO staff will assign your interview date and time and notify you by SMS. Upload any missing documents from Documents while waiting.</p>
             <a href="?section=appointment" class="btn-navy text-decoration-none dash-card-link" data-i18n>View Interview Status</a>
           <?php else: ?>
             <div class="dash-home-empty"><h3 data-i18n>No upcoming appointment</h3><p data-i18n>MSWDO will notify you when your interview is scheduled.</p></div>

@@ -37,7 +37,7 @@ function eligibility_list(): array
     return EligibilityService::circumstances();
 }
 
-/** Home requirements use the same configured definitions as the application checklist. */
+/** Home requirements use the same configured definitions as the documents applicants upload. */
 function required_doc_groups(PDO $pdo): array
 {
     $groups = [];
@@ -56,7 +56,7 @@ function apply_steps_overview(): array
     return [
         ['n' => 1, 'title' => 'Check Eligibility', 'desc' => 'Get a preliminary result; final eligibility is assessed by MSWDO'],
         ['n' => 2, 'title' => 'Fill Application', 'desc' => 'Complete the online form with your personal information'],
-        ['n' => 3, 'title' => 'Complete the Checklist', 'desc' => 'Tick the documents you have available; MSWDO verifies them separately'],
+        ['n' => 3, 'title' => 'Upload Your Documents', 'desc' => 'Upload a file for each required document; MSWDO staff review each file and may ask you to replace it'],
         ['n' => 4, 'title' => 'Track & Claim', 'desc' => 'Track your application, attend the scheduled interview and document review, and claim your ID when notified'],
     ];
 }

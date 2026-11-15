@@ -90,7 +90,7 @@ class ApplicationTrackerService
         } elseif ($flagged || $missing) {
             $docState = 'attention';
             $docDetail = ($flagged ? count($flagged) . ' document(s) need correction' : '') . ($flagged && $missing ? '; ' : '')
-                . ($missing ? count($missing) . ' required document(s) still need preparation' : '') . '. See Required Documents Checklist.';
+                . ($missing ? count($missing) . ' required document(s) still need to be uploaded' : '') . '. Go to Documents to upload or replace files.';
         } else {
             $docState = $reviewed ? 'active' : ($status === 'Pending Review' ? 'pending' : 'active');
             $docDetail = count($verified) . ' of ' . count($required) . ' required documents verified so far.';
@@ -105,7 +105,7 @@ class ApplicationTrackerService
         if ($interviewDone && (!$simplifiedRenewal || $docsDone)) {
             $assessDate = $simplifiedRenewal ? $docsDate : ($appt['result_recorded_at'] ?? null);
             $stages[] = ['key' => 'assessment', 'label' => $simplifiedRenewal ? 'Renewal Review' : 'Interview', 'state' => 'done', 'date' => $assessDate,
-                'detail' => $simplifiedRenewal ? 'Renewal checklist complete; no new interview is required.' : 'Successful interview recorded.'];
+                'detail' => $simplifiedRenewal ? 'Renewal documents verified; no new interview is required.' : 'Successful interview recorded.'];
         } else {
             if ($apptPending) {
                 $detail = 'Interview on ' . date('M j, Y g:i A', strtotime($appt['scheduled_at'])) . ' at ' . $appt['location'] . '.';
@@ -151,7 +151,7 @@ class ApplicationTrackerService
         $stages[] = ['key' => 'released', 'label' => $releasePending ? 'ID Release Scheduled' : 'ID Released',
             'state' => $isReleased ? 'done' : ($releasePending ? 'active' : 'pending'), 'date' => $releasedAt,
             'detail' => $isReleased ? trim($noDate($releasedAt) . ($app['id_expires_at'] ? ' Valid until ' . date('F j, Y', strtotime($app['id_expires_at'])) . '.' : ''))
-                : ($releasePending ? 'ID release on ' . date('F j, Y g:i A', strtotime($idReleaseSchedule['scheduled_at'])) . ' at ' . $idReleaseSchedule['location'] . '. Please bring your application slip and a valid ID.' : '')];
+                : ($releasePending ? 'ID release on ' . date('F j, Y g:i A', strtotime($idReleaseSchedule['scheduled_at'])) . ' at ' . $idReleaseSchedule['location'] . '. Please bring your application reference and a valid ID.' : '')];
 
         // --- Rejected: stop every stage that wasn't reached. ---
         $rejected = null;

@@ -18,6 +18,7 @@ require_once __DIR__ . '/../includes/csrf.php';
 function renewal_assert(bool $ok,string $message): void { if (!$ok) { throw new RuntimeException($message); } }
 $live = $pdo;
 $created = false;
+$cleanupDirs = []; // Files this test stages or stores; removed in `finally`.
 $exitCode = 0;
 try {
     $live->exec('CREATE DATABASE `' . $testDb . '` CHARACTER SET utf8mb4');
@@ -28,10 +29,10 @@ try {
         $test->exec($live->query('SHOW CREATE TABLE `'.$table.'`')->fetch(PDO::FETCH_NUM)[1]);
     }
     $test->exec('SET FOREIGN_KEY_CHECKS=1');
-    foreach ($live->query('SELECT * FROM roles')->fetchAll() as $row) {
-        $columns = '`'.implode('`,`',array_keys($row)).'`';
-        $test->prepare('INSERT INTO roles ('.$columns.') VALUES ('.implode(',',array_fill(0,count($row),'?')).')')->execute(array_values($row));
-    }
+    // Uploaded files are stored under STORAGE_PATH/<application id>. Start ids far above any real application folder.
+    $test->exec('ALTER TABLE applications AUTO_INCREMENT = ' . (1900000000 + random_int(1,1000000)));
+    // Synthetic fixtures only: no rows are copied from any existing database.
+    $test->exec("INSERT INTO roles (id, role_key, code, name, description) VALUES (1,'admin','ADMINISTRATOR','Fixture Administrator','Fixture'),(2,'mswd_social_worker','MSWD_STAFF','Fixture Staff','Fixture'),(3,'applicant','SOLO_PARENT','Fixture Applicant','Fixture')");
     $pdo = $test; // Runtime settings and notifications stay in the disposable database.
     $GLOBALS['__settings_cache'] = ['sms_enabled'=>'0'];
     $applicantId = 1800000000 + random_int(1,10000);
@@ -67,16 +68,44 @@ try {
     $original = $test->query('SELECT * FROM application_document_checklists WHERE application_id='.$id.' ORDER BY id')->fetchAll();
     $draft = $service->freshDraft($source);
     $draft['contact'] = $user['mobile'];
-    $draft = $service->collectStepInput(1,$draft,['barangay'=>'Updated barangay','address'=>'Updated address','email'=>'','fullName'=>'Forged name','child_name'=>['Forged child'],'checklist'=>['barangayCert'],'consent'=>'1'],$source);
-    renewal_assert(isset($service->validateStep(1,$draft)['documents']),'Missing expired replacement passed validation.');
-    $draft = $service->collectStepInput(1,$draft,['checklist'=>['barangayCert','expiredMedical','unrelatedDocument'],'consent'=>'1'],$source);
-    renewal_assert(!$service->firstInvalidStep($draft),'Existing identity/children were revalidated as a new application.');
+    $draft = $service->collectStepInput(1,$draft,['barangay'=>'Updated barangay','address'=>'Updated address','email'=>'','fullName'=>'Forged name','child_name'=>['Forged child'],'checklist'=>['barangayCert','expiredMedical'],'consent'=>'1'],$source);
+    renewal_assert(isset($service->validateStep(1,$draft)['documents']),'Missing renewal document uploads passed validation (checkbox ticks must not count).');
+    // Stages a valid file the way DocumentValidationService::attachToDraft() does (move_uploaded_file cannot run on the CLI).
+    $cleanupDirs[] = $service->draftDir($applicantId);
+    $stage = static function (array $draft, string $key) use ($service,$applicantId): array {
+        $dir = $service->draftDir($applicantId);
+        if (!is_dir($dir)) { mkdir($dir,0750,true); }
+        $bytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
+        $stored = bin2hex(random_bytes(16)) . '.png';
+        file_put_contents($dir . '/' . $stored,$bytes);
+        $draft['documents'][$key] = ['original_name'=>$key . '.png','stored_name'=>$stored,'path'=>$dir . '/' . $stored,'mime'=>'image/png','size'=>strlen($bytes),'sha256'=>hash('sha256',$bytes),'status'=>'VALID'];
+        return $draft;
+    };
+    $draft = $stage($draft,'barangayCert');
+    $partial = $service->validateStep(1,$draft);
+    renewal_assert(isset($partial['documents']) && str_contains($partial['documents'],'Fixture expiredMedical') && !str_contains($partial['documents'],'Fixture fresh certificate'),'A partly uploaded renewal passed validation or named the wrong missing document.');
+    $noFile = ['name'=>'x.pdf','type'=>'application/pdf','tmp_name'=>'','error'=>UPLOAD_ERR_NO_FILE,'size'=>0];
+    $rejected = $service->attachDocument($user,$source,$draft,'expiredMedical',$noFile);
+    renewal_assert(!isset($rejected['documents']['expiredMedical']) && isset($rejected['docErrors']['expiredMedical']) && isset($service->validateStep(1,$rejected)['upload_expiredMedical']),'A rejected upload was staged or its error was hidden.');
+    $unrelated = $service->attachDocument($user,$source,$draft,'unrelatedDocument',$noFile);
+    renewal_assert(!isset($unrelated['documents']['unrelatedDocument']) && isset($unrelated['docErrors']['unrelatedDocument']),'An upload for a document this renewal does not require was accepted.');
+    $forged = $service->collectStepInput(1,$stage($draft,'unrelatedDocument'),['consent'=>'1'],$source);
+    renewal_assert(!isset($forged['documents']['unrelatedDocument']) && isset($forged['documents']['barangayCert']),'A forged document key was kept, or a valid staged file was dropped.');
+    $vanished = $draft; $vanished['documents']['barangayCert']['path'] .= '.missing';
+    renewal_assert(isset($service->validateStep(1,$vanished)['documents']),'A staged file that no longer exists passed validation.');
+    $draft = $stage($draft,'expiredMedical'); // replacing a staged file is the same call
+    $draft = $service->collectStepInput(1,$draft,['consent'=>'1'],$source);
+    renewal_assert(!$service->firstInvalidStep($draft),'Existing identity/children were revalidated as a new application, or complete uploads were refused.');
+    $incomplete = $draft; unset($incomplete['documents']['expiredMedical']);
+    $refused = false;
+    try { $service->submit($user,$source,$incomplete); } catch (DomainException $e) { $refused = true; }
+    renewal_assert($refused && (int) $test->query("SELECT COUNT(*) FROM applications WHERE type='renewal'")->fetchColumn()===0,'A renewal with a missing document upload was submitted.');
     $renderRenewal = static function (array $data): string {
         extract($data);
         ob_start(); require APP_ROOT . '/views/applicant/renewal/confirmation.php'; return ob_get_clean();
     };
     $html = $renderRenewal(['renewalSource'=>$source,'renewalWindow'=>$service->window($source),'renewalInProgress'=>null,'renewalPlan'=>$plan,'draft'=>$draft,'errors'=>[],'submitError'=>null,'flashMessage'=>null,'docDefs'=>$plan['fresh']]);
-    renewal_assert(str_contains($html,'name="checklist[]"') && !str_contains($html,'name="child_name') && !str_contains($html,'step-bar'),'Renewal form repeated new application steps.');
+    renewal_assert(str_contains($html,'name="renewal_file[barangayCert]"') && str_contains($html,'enctype="multipart/form-data"') && !str_contains($html,'name="checklist[]"') && !str_contains($html,'name="child_name') && !str_contains($html,'step-bar'),'Renewal form still uses checkboxes, lacks file inputs, or repeated new application steps.');
     $pendingPlan = $plan; $pendingPlan['configured']=false;
     $html = $renderRenewal(['renewalSource'=>$source,'renewalWindow'=>$service->window($source),'renewalInProgress'=>null,'renewalPlan'=>$pendingPlan]);
     renewal_assert(str_contains($html,'not configured yet') && !str_contains($html,'Submit Renewal'),'Unconfigured category offered an invented renewal checklist.');
@@ -84,21 +113,27 @@ try {
     $renewal = $applications->findByReference($ref);
     renewal_assert($renewal['renewal_simplified'] && (int) $renewal['renewal_of_id']===$id,'Renewal not linked to its existing ID.');
     renewal_assert($renewal['full_name']==='Fixture Applicant' && $applications->children((int) $renewal['id'])[0]['full_name']==='Existing Child','Identity or children changed from tampered input.');
+    $cleanupDirs[] = STORAGE_PATH . '/' . (int) $renewal['id'];
     $documents = new Document($test);
+    $uploadedRows = $documents->uploadedForApplication((int) $renewal['id']);
+    renewal_assert(count($uploadedRows)===2 && !array_filter($uploadedRows,fn($row)=>$row['verification_status']!=='FOR_VERIFICATION' || !is_file(STORAGE_PATH.'/'.$row['stored_path'])),'Uploaded renewal files were not stored and queued for staff verification.');
+    renewal_assert(!is_dir($service->draftDir($applicantId)),'Draft upload files remained after submission.');
     $rows = $documents->checklistForReview((int) $renewal['id'],$categoryA,true);
     renewal_assert(count(array_filter($rows,fn($row)=>$row['is_required']))===2,'Renewal repeated the new-application requirements.');
     $retained = array_values(array_filter($rows,fn($row)=>!$row['is_required']));
     renewal_assert(count($retained)===2 && $retained[0]['reviewed_at']==='2025-01-01 09:00:00','Original verification evidence was not retained.');
-    $documents->saveApplicantChecklist((int) $renewal['id'],$rows,['barangayCert','expiredMedical']);
-    renewal_assert($documents->checklistForReview((int) $renewal['id'],$categoryA,true)[2]['applicant_has']==1,'Applicant toggled an inherited record.');
+    $freshRows = array_values(array_filter($rows,fn($row)=>$row['is_required']));
+    renewal_assert(!array_filter($freshRows,fn($row)=>$row['applicant_has']!=1 || $row['verification_status']!=='Pending' || $row['reviewed_at']!==null),'An uploaded renewal document was treated as verified on submission.');
     renewal_assert((new AppointmentService($test))->findBookableApplication([$renewal])===null,'Renewal offered a new interview.');
     $review = new ApplicationReviewService($test);
     $review->startReviewOnOpen($staff,$renewal);
     $renewal = $applications->findForReview((int) $renewal['id']);
     renewal_assert($review->scheduleInterview($staff,$renewal,'2030-01-01T09:00','Fixture','')!==null,'Staff could schedule an unnecessary renewal interview.');
-    $submitted = [];
-    foreach ($rows as $row) { if ($row['is_required']) { $submitted[$row['id']]=['status'=>'Verified','remarks'=>'','expires_at'=>date('Y-m-d',strtotime('+1 year'))]; } }
-    renewal_assert($review->reviewChecklistItems($staff,$renewal,$submitted)===null,'Renewal document verification failed.');
+    renewal_assert(!array_column($review->approvalChecklist($renewal),null,'label')['Required documents']['ok'],'Uploaded but unverified renewal documents already satisfied approval.');
+    $verdicts = [];
+    foreach ($uploadedRows as $upload) { $verdicts[(int) $upload['id']] = ['status'=>'VERIFIED','remarks'=>'','expected'=>'FOR_VERIFICATION','expected_remarks'=>'']; }
+    $saved = $review->saveVerification($staff,$renewal,$verdicts);
+    renewal_assert(!$saved['errors'] && $saved['changed']===2,'Staff verification of the uploaded renewal documents failed.');
     $renewal = $applications->findForReview((int) $renewal['id']);
     renewal_assert($renewal['eligibility_status'] === 'Not Assessed', 'Renewal verification automatically decided eligibility.');
     renewal_assert(!array_filter($review->approvalChecklist($renewal),fn($row)=>!$row['ok']), 'Not assessed still blocks a complete renewal.');
@@ -116,7 +151,7 @@ try {
     renewal_assert(!str_contains($staffHtml,'id="interview"') && !str_contains($staffHtml,'id="interview-result-form"'),'Staff renewal screen still shows interview controls.');
     renewal_assert(str_contains($staffHtml,'name="remarks"'),'Renewal decision remarks are missing.');
     renewal_assert(!str_contains($staffHtml,'[expires_at]') && !str_contains($staffHtml,'Document expiry:') && !str_contains($staffHtml,'Document expires on'),'Staff review still shows document expiry.');
-    renewal_assert(!str_contains($staffHtml,'Undo Verification') && !str_contains($staffHtml,'>Verify All</button>') && !str_contains($staffHtml,'>Save Verification</button>'),'Automatic checklist still shows manual verification buttons.');
+    renewal_assert(!str_contains($staffHtml,'Undo Verification') && !str_contains($staffHtml,'>Verify All</button>'),'Legacy bulk verification buttons are still shown.');
     renewal_assert(!str_contains($staffHtml,'Undo Eligibility') && !str_contains($staffHtml,'name="eligibility_status"') && !str_contains($staffHtml,'Is the applicant eligible?'),'Staff page still shows the separate eligibility step.');
     renewal_assert($review->updateStatus($staff,$renewal,'Approved','',$renewal['status'])===null,'Document-only renewal approval failed.');
     $test->prepare("INSERT INTO id_release_schedules (application_id,scheduled_at,location,scheduled_by,sms_message) VALUES (?,NOW(),'Fixture',?,'Fixture')")->execute([$renewal['id'],$staff['id']]);
@@ -141,11 +176,15 @@ try {
     renewal_assert($review->assessEligibility($staff,$next,'Eligible','Existing documents and renewal reviewed.')===null,'All-reused renewal staff assessment failed.');
     $next=$applications->findForReview((int) $next['id']);
     renewal_assert(!array_filter($review->approvalChecklist($next),fn($row)=>!$row['ok']),'All-reused renewal cannot reach approval.');
-    echo "Simplified renewal passed: category-specific documents, expired replacements, retained history, no repeated form/interview, approval and one-year release.\n";
+    echo "Simplified renewal passed: required file uploads (no checkbox submission), staff verification of uploads, retained history, no repeated form/interview, approval and one-year release.\n";
 } catch (Throwable $e) {
     fwrite(STDERR,$e->getMessage().PHP_EOL); $exitCode=1;
 } finally {
     $pdo=$live;
+    foreach ($cleanupDirs as $dir) { // only folders staged or stored by this test
+        foreach (is_dir($dir) ? (glob($dir.'/*') ?: []) : [] as $file) { if (is_file($file)) { @unlink($file); } }
+        if (is_dir($dir)) { @rmdir($dir); }
+    }
     if ($created) { $live->exec('DROP DATABASE `'.$testDb.'`'); }
 }
 exit($exitCode);

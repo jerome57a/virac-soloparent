@@ -25,7 +25,7 @@ $eligUrl = base_url('eligibility.php');
   </div>
 </section>
 
-<div class="info-box" data-i18n>📱 New: Through the e-SoloParentID system, solo parents in Virac can complete the application form, tick available documents in the checklist, and track their application online. Follow MSWDO instructions for document review, interviews, and ID claiming.</div>
+<div class="info-box" data-i18n>📱 New: Through the e-SoloParentID system, solo parents in Virac can complete the application form, upload the required supporting documents, and track their application online. Follow MSWDO instructions for document review, interviews, and ID claiming.</div>
 
 <section class="home-benefits" aria-labelledby="benefits">
   <h2 id="benefits" class="section-title" data-i18n>Benefits of Having a Solo Parent ID</h2>
@@ -51,7 +51,7 @@ $eligUrl = base_url('eligibility.php');
 <div class="warn-box" data-i18n>💡 Not sure if you qualify? Use the Eligibility Checker below, or visit the MSWDO Office for a personal assessment.</div>
 
 <div id="requirements" class="section-title" style="margin-bottom:4px" data-i18n>Required Documents</div>
-<div class="section-sub" data-i18n>Open your category below to see the configured requirements used by the application checklist. Tick the documents you have available when applying; checking a box does not mean MSWDO has verified the document. Bring originals and photocopies as instructed for document review and your interview.</div>
+<div class="section-sub" data-i18n>Open your category below to see the configured requirements for that category. Upload a file for each required document after you submit your application; an uploaded file is not verified until MSWDO staff review it, and you may be asked to replace it. Bring originals and photocopies as instructed for document review and your interview.</div>
 <div class="doc-groups home-requirements">
   <?php foreach (required_doc_groups($pdo) as $g): ?>
     <details class="doc-group-card">

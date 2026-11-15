@@ -68,6 +68,32 @@ class RenewalController extends Controller
         ]];
     }
 
+    /**
+     * Stages each file chosen in renewal_file[<doc_key>] through the standard document validation
+     * (type, real content, size). Re-uploading a requirement replaces its earlier staged file.
+     */
+    private function attachUploads(RenewalService $service, array $user, array $source, array $draft): array
+    {
+        $files = $_FILES['renewal_file'] ?? null;
+        if (!is_array($files) || !is_array($files['name'] ?? null)) {
+            return $draft;
+        }
+        foreach ($files['name'] as $docKey => $name) {
+            $error = $files['error'][$docKey] ?? UPLOAD_ERR_NO_FILE;
+            if (!is_string($docKey) || $error === UPLOAD_ERR_NO_FILE) {
+                continue;
+            }
+            $draft = $service->attachDocument($user, $source, $draft, $docKey, [
+                'name' => $name,
+                'type' => $files['type'][$docKey] ?? '',
+                'tmp_name' => $files['tmp_name'][$docKey] ?? '',
+                'error' => $error,
+                'size' => $files['size'][$docKey] ?? 0,
+            ]);
+        }
+        return $draft;
+    }
+
     /** A single renewal confirmation form; prior identity and children stay on file. */
     private function handleAction(RenewalService $service, array $user, array $source, array $draft): array
     {
@@ -81,6 +107,7 @@ class RenewalController extends Controller
             return [$draft,['renewal'=>'Use Save draft or Submit Renewal on the renewal form.'],null];
         }
         $draft = $service->collectStepInput(1,$draft,$_POST,$source);
+        $draft = $this->attachUploads($service,$user,$source,$draft);
         if ($action === 'save_draft') {
             $service->saveDraft($user,$draft);
             flash('Your renewal draft is saved.');

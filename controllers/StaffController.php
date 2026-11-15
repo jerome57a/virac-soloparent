@@ -103,7 +103,6 @@ class StaffController extends Controller
         if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             $review->startReviewOnOpen($this->staff, $app);
             $app = $applications->findForReview($id);
-            $review->verifyAvailableChecklistOnOpen($this->staff, $app);
         }
         $errors = ['status' => '', 'interview' => '', 'assessment' => '', 'release' => '', 'note' => '', 'documents' => []];
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -129,6 +128,7 @@ class StaffController extends Controller
             'interviewError' => $errors['interview'],
             'noteError' => $errors['note'],
             'flashMessage' => take_flash(),
+            'verificationNotice' => (function () { $n = $_SESSION['verification_notice'] ?? null; unset($_SESSION['verification_notice']); return is_array($n) ? $n : null; })(),
             'reviewUndoToken' => $review->reviewUndoToken($id),
             'allowedTransitions' => Application::TRANSITIONS[$app['status']] ?? [],
             'approvalChecklist' => $review->approvalChecklist($app),
@@ -139,6 +139,7 @@ class StaffController extends Controller
             'defaultReleaseLocation' => get_setting($this->pdo, 'appointment_location', 'MSWDO Virac office'),
             'children' => $applications->children($id),
             'submittedChecklist' => (new Document($this->pdo))->checklistForReview($id, $app['category_id'] !== null ? (int) $app['category_id'] : null, ($app['type'] ?? '') === 'renewal'),
+            'documentHistory' => (new Document($this->pdo))->statusHistoryFor($id),
             'history' => $applications->history($id),
             'decisions' => $applications->decisions($id),
             'notes' => $applications->notes($id),
@@ -156,37 +157,17 @@ class StaffController extends Controller
         $back = 'staff/application.php?id=' . $id;
 
         switch ($post('form_action') ?: 'update_status') {
-            case 'confirm_all_required_documents':
-                if ($post('confirm_received') !== '1') {
-                    return ['documents' => ['checklist' => 'Confirm that all required physical documents have been received.']];
-                }
-                $error = $review->confirmAllRequiredDocuments($this->staff, $app);
-                if ($error) {
-                    return ['documents' => ['checklist' => $error]];
-                }
-                flash('All required documents confirmed.');
-                $back .= '#checklist';
-                break;
-            case 'receive_checklist_document':
-                if ($post('confirm_received') !== '1') {
-                    return ['documents' => ['checklist' => 'Confirm that the physical document was received.']];
-                }
-                $error = $review->receiveChecklistDocument($this->staff, $app, $post('doc_key'));
-                if ($error) {
-                    return ['documents' => ['checklist' => $error]];
-                }
-                flash('Document received. The checklist has been updated.');
-                $back .= '#checklist';
-                break;
             case 'undo_review':
                 $section = $post('review_section');
+                if (!in_array($section, ['eligibility', 'interview'], true)) {
+                    return ['assessment' => 'That review cannot be undone.'];
+                }
                 $error = $review->undoReview($this->staff, $id, $section, $post('expected_review'));
                 if ($error) {
-                    return $section === 'verification' ? ['documents' => ['checklist' => $error]]
-                        : [$section === 'interview' ? 'interview' : 'assessment' => $error];
+                    return [$section === 'interview' ? 'interview' : 'assessment' => $error];
                 }
                 flash(ucfirst($section) . ' review undone. You can review it again.');
-                $back .= $section === 'verification' ? '#checklist' : '#decision';
+                $back .= $section === 'interview' ? '#interview' : '#decision';
                 break;
             case 'schedule_id_release':
                 $error = (new IdReleaseService($this->pdo))->schedule($this->staff, $app, $post('release_date'), $post('release_time'), $post('release_location'), $post('sms_message_type') ?: 'automatic', $post('release_custom_message'));
@@ -274,28 +255,34 @@ class StaffController extends Controller
                 }
                 $back .= '#decision';
                 break;
-            case 'update_document_status':
-                $docId = (int) $post('doc_id');
-                $error = $review->verifyDocument($this->staff, $app, $docId, $post('verification_status'), $post('staff_remarks'), $post('expected_status'));
-                if ($error) {
-                    return ['documents' => [$docId => $error]];
+            case 'save_verification':
+                $rows = [];
+                $docs = $_POST['docs'] ?? [];
+                foreach (is_array($docs) ? $docs : [] as $docId => $row) {
+                    if (!is_array($row) || !ctype_digit((string) $docId)) {
+                        continue;
+                    }
+                    $rows[(int) $docId] = [
+                        'status' => is_string($row['status'] ?? null) ? trim($row['status']) : '',
+                        'remarks' => is_string($row['remarks'] ?? null) ? $row['remarks'] : '',
+                        'expected' => is_string($row['expected'] ?? null) ? trim($row['expected']) : '',
+                        'expected_remarks' => is_string($row['expected_remarks'] ?? null) ? $row['expected_remarks'] : null,
+                    ];
                 }
-                $back .= '#doc-' . $docId;
-                break;
-            case 'verify_all_documents':
-                $error = $review->verifyAllChecklistItems($this->staff, $app);
-                if ($error) {
-                    return ['documents' => ['checklist' => $error]];
+                if (!$rows) {
+                    return ['documents' => ['checklist' => 'There are no documents to save.']];
                 }
-                flash('All documents verified successfully.');
-                $back .= '#checklist';
-                break;
-            case 'save_checklist_reviews':
-                $error = $review->reviewChecklistItems($this->staff, $app, $_POST['checklist_items'] ?? null);
-                if ($error) {
-                    return ['documents' => ['checklist' => $error]];
+                $result = $review->saveVerification($this->staff, $app, $rows);
+                if ($result['errors']) {
+                    return ['documents' => $result['errors']];
                 }
-                flash('Document verification saved successfully.');
+                $notice = $result['changed'] > 0
+                    ? 'Verification saved: ' . $result['changed'] . ' document' . ($result['changed'] === 1 ? '' : 's') . ' updated.'
+                    : 'No changes to save. Verification is already up to date.';
+                if ($result['notify_failures'] > 0) {
+                    $notice .= ' The changes are saved, but ' . $result['notify_failures'] . ' applicant notification' . ($result['notify_failures'] === 1 ? '' : 's') . ' could not be sent. Check the SMS log.';
+                }
+                $_SESSION['verification_notice'] = ['text' => $notice, 'warning' => $result['notify_failures'] > 0];
                 $back .= '#checklist';
                 break;
             case 'add_note':

@@ -190,10 +190,13 @@ CREATE TABLE application_documents (
   CONSTRAINT fk_doc_verifier FOREIGN KEY (verified_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
--- Applicant availability declarations are separate from MSWD verification.
--- Simplified renewals snapshot the requested labels/required flags and link
--- retained evidence through source_checklist_id, preserving prior reviews.
--- source_checklist_id is an informational provenance link, not a foreign key.
+-- Legacy applicant declarations and retained renewal evidence. New supporting
+-- files and their verification status are stored in application_documents.
+-- Still read by Document::checklistForReview(), the verification queue and renewal
+-- planning, and still written by renewal snapshots and staff "undo verification";
+-- do not drop or archive it without the dependency review in docs/database-pruning-report.md.
+-- Simplified renewals snapshot requirement labels/flags and link accepted
+-- prior evidence through source_checklist_id (informational, not a foreign key).
 CREATE TABLE application_document_checklists (
   id INT AUTO_INCREMENT PRIMARY KEY,
   application_id INT NOT NULL,

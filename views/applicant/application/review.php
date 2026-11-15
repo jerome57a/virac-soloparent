@@ -17,14 +17,13 @@ $reviewSections = [
         fn($c, $i) => ['k' => 'Child ' . ($i + 1), 'v' => ($c['name'] ?: '—') . ' · ' . format_date_long($c['birthdate'])],
         $draft['children'], array_keys($draft['children'])
     )],
-    ['title' => 'Required Documents Checklist', 'step' => 3, 'rows' => array_map(
-        fn($d) => ['k' => $d['label'], 'v' => !empty($draft['checkedDocuments'][$d['doc_key']]) ? 'Applicant indicated available' : (!empty($d['is_required']) ? 'Still needs preparation' : 'Optional; not selected')],
+    ['title' => 'Supporting Documents', 'step' => 3, 'rows' => array_map(
+        fn($d) => ['k' => $d['label'], 'v' => !empty($d['is_required']) ? 'Required; upload after submitting' : 'Optional'],
         $docDefs
     )],
 ];
 ?>
 
-<?php $preparationItems = array_map(fn($item) => $item + ['applicant_has' => !empty($draft['checkedDocuments'][$item['doc_key']])], $docDefs); require APP_ROOT . '/views/partials/requirements-preparation.php'; ?>
 <?php foreach ($reviewSections as $sec): ?>
   <div class="review-card">
     <div class="review-card-head">

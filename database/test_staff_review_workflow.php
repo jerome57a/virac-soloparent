@@ -65,6 +65,11 @@ try {
     $test = new PDO('mysql:host=' . DB_HOST . ';dbname=' . $testDatabase . ';charset=utf8mb4', DB_USER, DB_PASS,
         [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
          PDO::ATTR_EMULATE_PREPARES => false]);
+    if ($test->query('SELECT DATABASE()')->fetchColumn() !== $testDatabase) {
+        throw new RuntimeException('Temporary test connection is not bound to the generated test database.');
+    }
+    $GLOBALS['pdo'] = $test;
+    $GLOBALS['__settings_cache'] = null;
     $test->exec('SET FOREIGN_KEY_CHECKS = 0');
     foreach ($source->query('SHOW FULL TABLES WHERE Table_type = \'BASE TABLE\'')->fetchAll(PDO::FETCH_NUM) as $table) {
         $name = str_replace('`', '``', $table[0]);
@@ -72,23 +77,21 @@ try {
         $test->exec($definition);
     }
     $test->exec('SET FOREIGN_KEY_CHECKS = 1');
-    foreach ($source->query('SELECT * FROM roles')->fetchAll() as $row) {
-        $columns = implode(',', array_map(fn($key) => '`' . $key . '`', array_keys($row)));
-        $test->prepare('INSERT INTO roles (' . $columns . ') VALUES (' . implode(',', array_fill(0, count($row), '?')) . ')')->execute(array_values($row));
-    }
+    // Synthetic fixtures only: no rows are copied from any existing database.
+    $test->exec("INSERT INTO roles (id, role_key, code, name, description) VALUES (1,'admin','ADMINISTRATOR','Fixture Administrator','Fixture'),(2,'mswd_social_worker','MSWD_STAFF','Fixture Staff','Fixture'),(3,'applicant','SOLO_PARENT','Fixture Applicant','Fixture')");
     $insertUser = $test->prepare('INSERT INTO users (full_name, email, username, password_hash, role) VALUES (?, ?, ?, ?, ?)');
     foreach (['applicant', 'mswd_social_worker', 'admin'] as $role) {
         $insertUser->execute([$role, $role . '@example.test', $role, password_hash('test fixture', PASSWORD_DEFAULT), $role]);
         $ids[$role] = (int) $test->lastInsertId();
     }
     $staff = ['id' => $ids['mswd_social_worker'], 'role' => 'mswd_social_worker', 'full_name' => 'Review fixture'];
-    // Copy only requirement definitions; no real accounts or applications enter this database.
-    foreach (['categories', 'document_requirements'] as $table) {
-        foreach ($source->query('SELECT * FROM ' . $table)->fetchAll() as $row) {
-            $columns = implode(',', array_map(fn($key) => '`' . $key . '`', array_keys($row)));
-            $test->prepare('INSERT INTO ' . $table . ' (' . $columns . ') VALUES (' . implode(',', array_fill(0, count($row), '?')) . ')')->execute(array_values($row));
-        }
+    $test->exec("INSERT INTO categories (name,description,sort_order) VALUES ('Fixture category','Fixture',1)");
+    $fixtureCategory = (int) $test->lastInsertId();
+    $fixtureRequirement = $test->prepare('INSERT INTO document_requirements (category_id,doc_key,label,is_required,sort_order) VALUES (?,?,?,1,?)');
+    foreach (['fixtureDocA', 'fixtureDocB'] as $order => $key) {
+        $fixtureRequirement->execute([$fixtureCategory, $key, 'Fixture ' . $key, $order + 1]);
     }
+    $fixtureRequirement->execute([null, 'fixtureStandard', 'Fixture standard document', 0]); // standard (all-category) requirement
     $category = $test->query('SELECT category_id FROM document_requirements WHERE is_required = 1 AND category_id IS NOT NULL LIMIT 1')->fetchColumn();
     review_assert($category !== false, 'A category with required documents is needed for this test.');
     $insert = $test->prepare("INSERT INTO applications (reference_no,user_id,type,full_name,barangay,address,mobile,email,birthdate,sex,civil_status,category_id,consent_at,submitted_at) VALUES (?,?,?,'Review fixture','Test','Test','09123456789','fixture@example.test','1990-01-01','Female','Single',?,NOW(),NOW())");
@@ -110,26 +113,6 @@ try {
         foreach ($requirements as $row) {
             $test->prepare('INSERT INTO application_document_checklists (application_id,doc_key,applicant_has) VALUES (?,?,1)')->execute([$id, $row['doc_key']]);
         }
-        $uncheckedKey = $requirements[0]['doc_key'];
-        $test->prepare('UPDATE application_document_checklists SET applicant_has = 0 WHERE application_id = ? AND doc_key = ?')->execute([$id, $uncheckedKey]);
-        $service->verifyAvailableChecklistOnOpen(['id' => $ids['admin'], 'role' => 'admin'], $app);
-        $rows = $documents->checklistForReview($id, (int) $category, $type === 'renewal');
-        review_assert(!array_filter($rows, fn($row) => $row['verification_status'] !== 'Pending'), 'Admin opening verified documents.');
-        $service->verifyAvailableChecklistOnOpen($staff, $app);
-        $rows = $documents->checklistForReview($id, (int) $category, $type === 'renewal');
-        foreach ($rows as $row) {
-            review_assert($row['verification_status'] === ($row['doc_key'] === $uncheckedKey ? 'Pending' : 'Verified'), 'Opening did not distinguish checked and unchecked documents.');
-            if ($row['doc_key'] !== $uncheckedKey) {
-                review_assert((int) $row['reviewed_by'] === $staff['id'] && $row['reviewed_at'] !== null, 'Automatic verification lacks staff attribution.');
-            }
-        }
-        $autoHistoryCount = count($applications->history($id));
-        $service->verifyAvailableChecklistOnOpen($staff, $app);
-        review_assert(count($applications->history($id)) === $autoHistoryCount, 'Repeated opening duplicated automatic verification history.');
-        $test->prepare("UPDATE application_document_checklists SET applicant_has = 1, verification_status = 'Needs Correction', staff_remarks = 'Bring an updated copy.', reviewed_by = ?, reviewed_at = NOW() WHERE application_id = ? AND doc_key = ?")->execute([$staff['id'], $id, $uncheckedKey]);
-        $service->verifyAvailableChecklistOnOpen($staff, $app);
-        $correctedRows = array_column($documents->checklistForReview($id, (int) $category, $type === 'renewal'), null, 'doc_key');
-        review_assert($correctedRows[$uncheckedKey]['verification_status'] === 'Needs Correction' && $correctedRows[$uncheckedKey]['staff_remarks'] === 'Bring an updated copy.', 'Opening overwrote a staff correction.');
         $test->prepare('UPDATE application_document_checklists SET applicant_has = 1 WHERE application_id = ?')->execute([$id]);
         $submitted = [];
         foreach ($documents->checklistForReview($id, (int) $category, $type === 'renewal') as $row) {
@@ -171,9 +154,9 @@ try {
         $appointments = new Appointment($test);
         $appointments->upsertStaffScheduled($id, '2020-01-01 09:00:00', 'Test office', null, $staff['id']);
         $test->prepare("UPDATE application_document_checklists SET verification_status = 'Pending', reviewed_at = NULL, reviewed_by = NULL, staff_remarks = NULL WHERE id = ?")->execute([$first]);
-        $service->verifyAvailableChecklistOnOpen($staff, $app);
+        review_assert($service->reviewChecklistItems($staff, $app, $submitted) === null, 'Staff re-verification after scheduling failed.');
         $checkedAfterScheduling = array_column($documents->checklistForReview($id, (int) $category, $type === 'renewal'), null, 'id');
-        review_assert($checkedAfterScheduling[$first]['verification_status'] === 'Verified', 'A checked requirement stayed pending because an interview was scheduled.');
+        review_assert($checkedAfterScheduling[$first]['verification_status'] === 'Verified', 'Re-verification after scheduling an interview was not saved.');
         $stages = array_column((new ApplicationTrackerService($test))->track($app)['stages'], null, 'key');
         review_assert($stages['assessment']['state'] !== 'done', 'A booked interview completed the MSWD assessment.');
         $assertDecisionsBlocked();
@@ -230,7 +213,6 @@ try {
         review_assert($service->undoReview($staff, $id, 'invalid', $undoToken) !== null, 'Unknown undo section was accepted.');
         review_assert($service->undoReview($staff, $id, 'verification', 'outdated-token') !== null, 'A stale page could undo verification.');
         review_assert($service->undoReview($staff, $id, 'verification', $undoToken) === null, 'Undo verification failed.');
-        $service->verifyAvailableChecklistOnOpen($staff, $app);
         $rows = $documents->checklistForReview($id, (int) $category, $type === 'renewal');
         review_assert(!array_filter($rows, fn($row) => $row['verification_status'] !== 'Pending' || $row['reviewed_at'] !== null), 'Undo did not reopen document verification.');
         $app = $applications->findForReview($id);
@@ -377,6 +359,12 @@ try {
     fwrite(STDERR, $e->getMessage() . PHP_EOL);
     $exitCode = 1;
 } finally {
+    $GLOBALS['pdo'] = $originalGlobalPdo;
+    if ($originalSettingsCacheSet) {
+        $GLOBALS['__settings_cache'] = $originalSettingsCache;
+    } else {
+        unset($GLOBALS['__settings_cache']);
+    }
     if ($created) {
         $source->exec('DROP DATABASE `' . $testDatabase . '`');
     }

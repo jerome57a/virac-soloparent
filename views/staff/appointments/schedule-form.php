@@ -42,7 +42,7 @@ $interviewForm = $interviewForm ?? ['interview_date' => '', 'interview_time' => 
               const custom = document.getElementById('custom-sms-message');
               const applicant = <?= json_encode($app['full_name'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
               const reference = <?= json_encode($app['reference_no'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-              const unchecked = <?= json_encode(array_values(array_column($uncheckedRequirements, 'label')), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+              const unchecked = <?= json_encode(array_values(array_column($outstandingRequirements, 'label')), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
               const textLength = text => Array.from(text).length;
               const preparation = maxLength => {
                 if (!unchecked.length) return '';
@@ -50,10 +50,10 @@ $interviewForm = $interviewForm ?? ['interview_date' => '', 'interview_time' => 
                 for (let count = labels.length; count > 0; count--) {
                   const remaining = labels.length - count;
                   const text = 'After your interview, submit missing documents before ID release: ' + labels.slice(0, count).join('; ') + '.'
-                    + (remaining ? ' Plus ' + remaining + ' more; view your full checklist online.' : '');
+                    + (remaining ? ' Plus ' + remaining + ' more; see all required uploads online.' : '');
                   if (textLength(text) <= maxLength) return text;
                 }
-                return 'After your interview, submit ' + labels.length + ' missing documents before ID release. View the full checklist online.';
+                return 'After your interview, submit ' + labels.length + ' missing documents before ID release. See all required uploads online.';
               };
               let customEdited = custom.value.trim() !== '';
               const update = () => {

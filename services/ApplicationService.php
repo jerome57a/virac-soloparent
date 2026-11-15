@@ -231,9 +231,7 @@ class ApplicationService
             $draft['children'] = $children ?: [['name' => '', 'birthdate' => '']];
         }
         if ($step === 3) {
-            $allowed = array_column($this->documents->requirementsFor($draft['categoryId']), 'doc_key');
-            $selected = is_array($post['checklist'] ?? null) ? array_values(array_filter($post['checklist'], 'is_string')) : [];
-            $draft['checkedDocuments'] = array_fill_keys(array_values(array_intersect($allowed, $selected)), true);
+            $draft['checkedDocuments'] = [];
         }
         if ($step === 4) {
             $draft['consent'] = !empty($post['consent']);
@@ -400,7 +398,6 @@ class ApplicationService
             foreach ($draft['children'] as $c) {
                 $this->applications->addChild($applicationId, $c['name'], $c['birthdate']);
             }
-            $this->saveChecklist($applicationId, $draft['checkedDocuments'] ?? [], $draft['categoryId']);
             $this->syncProfileFromDraft($user, $draft);
             $this->storeDraftDocuments($applicationId, $draft['documents'], $user);
             $this->applications->addHistory($applicationId, 'Pending Review', 'Application submitted online.', $draft['fullName'], (int) $user['id']);
@@ -410,19 +407,6 @@ class ApplicationService
         } catch (Throwable $e) {
             $this->pdo->rollBack();
             throw $e;
-        }
-    }
-
-    /** Checked declarations are automatically accepted for interview scheduling. */
-    public function saveChecklist(int $applicationId, array $selected, ?int $categoryId, bool $standardOnly = false): void
-    {
-        $requirements = $standardOnly ? $this->documents->standardRequirements() : $this->documents->requirementsFor($categoryId);
-        $allowed = array_column($requirements, 'doc_key');
-        $selectedKeys = array_flip(array_intersect($allowed, array_map('strval', array_keys($selected))));
-        $stmt = $this->pdo->prepare("INSERT INTO application_document_checklists (application_id, doc_key, applicant_has, verification_status, reviewed_at) VALUES (?, ?, ?, ?, ?)");
-        foreach ($allowed as $key) {
-            $checked = isset($selectedKeys[$key]);
-            $stmt->execute([$applicationId, $key, (int) $checked, $checked ? 'Verified' : 'Pending', $checked ? date('Y-m-d H:i:s') : null]);
         }
     }
 

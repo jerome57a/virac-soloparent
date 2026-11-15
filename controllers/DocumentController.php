@@ -6,61 +6,55 @@ require_once __DIR__ . '/../services/DocumentValidationService.php';
 require_once __DIR__ . '/../services/NotificationService.php';
 require_once __DIR__ . '/../services/ApplicationReviewService.php';
 
-/** Applicant checklist status and review results for owned applications. */
+/** Applicant document submission and review results for owned applications. */
 class DocumentController extends Controller
 {
     public function handle(array $user, array $applications): array
     {
         $documents = new Document($this->pdo);
 
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_checklist') {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'upload_document') {
             csrf_require();
-            $id = is_string($_POST['application_id'] ?? null) ? (int) $_POST['application_id'] : 0;
-            $app = (new Application($this->pdo))->findOwned($id, (int) $user['id']);
-            if ($app && in_array($app['status'], Application::CHECKLIST_EDITABLE_STATUSES, true) && !(new Appointment($this->pdo))->interviewFor($id)) {
-                $requirements = $app['type'] === 'renewal' ? $documents->checklistForReview($id, (int) $app['category_id'], true) : $documents->requirementsFor((int) $app['category_id']);
-                $selected = is_array($_POST['checklist'] ?? null) ? array_values(array_filter($_POST['checklist'], 'is_string')) : [];
-                $documents->saveApplicantChecklist($id, $requirements, $selected);
-                flash('Your checklist was saved. After an interview is scheduled, staff must confirm receipt of missing documents before approval and ID release.');
+            $backInReview = false;
+            $error = $this->upload($user, $documents, $backInReview);
+            if ($error !== null) {
+                flash($error);
             } else {
-                flash('This application checklist can no longer be changed.');
+                flash('Your document was uploaded and is waiting for staff review.');
             }
             $this->redirectTo('applicant/dashboard.php?section=documents');
         }
 
-        $requirementsByApp = [];
         $checklistByApp = [];
-        $scheduledInterviewByApp = [];
+        $uploadedByApp = [];
         foreach ($applications as $app) {
             $categoryId = $app['category_id'] !== null ? (int) $app['category_id'] : null;
-            $requirementsByApp[$app['id']] = $app['type'] === 'renewal' ? $documents->checklistForReview((int) $app['id'], $categoryId, true) : $documents->requirementsFor($categoryId);
             $checklistByApp[$app['id']] = $documents->checklistForReview((int) $app['id'], $categoryId, $app['type'] === 'renewal');
-            $scheduledInterviewByApp[$app['id']] = (bool) (new Appointment($this->pdo))->interviewFor((int) $app['id']);
+            $uploadedByApp[$app['id']] = array_column($documents->uploadedForApplication((int) $app['id']), null, 'doc_key');
         }
 
         return ['view' => 'documents/index.php', 'data' => [
             'myApplications' => $applications,
-            'requirementsByApp' => $requirementsByApp,
             'checklistByApp' => $checklistByApp,
-            'scheduledInterviewByApp' => $scheduledInterviewByApp,
-            'editableStatuses' => Application::CHECKLIST_EDITABLE_STATUSES,
-            'lockedStatuses' => Document::LOCKED_STATUSES,
+            'uploadedByApp' => $uploadedByApp,
+            'flashMessage' => take_flash(),
         ]];
     }
 
-    /** Legacy upload handler retained for old routes and records. */
+    /** Validates and saves one applicant document upload. */
     private function upload(array $user, Document $documents, ?bool &$backInReview = false): ?string
     {
         $backInReview = false;
         $applicationId = is_string($_POST['application_id'] ?? null) ? (int) $_POST['application_id'] : 0;
         $docKey = is_string($_POST['doc_key'] ?? null) ? $_POST['doc_key'] : '';
         $app = (new Application($this->pdo))->findOwned($applicationId, (int) $user['id']);
-        if (!$app || !in_array($app['status'], Application::EDITABLE_STATUSES, true)) {
+        if (!$app || !in_array($app['status'], Application::CHECKLIST_EDITABLE_STATUSES, true)) {
             return 'Documents for this application can no longer be changed.';
         }
         // Only a requirement of this application's category (or a standard one) can be uploaded.
         $categoryId = $app['category_id'] !== null ? (int) $app['category_id'] : null;
-        if (!in_array($docKey, array_column($documents->requirementsFor($categoryId), 'doc_key'), true)) {
+        $requirements = $documents->checklistForReview($applicationId, $categoryId, ($app['type'] ?? '') === 'renewal');
+        if (!in_array($docKey, array_column($requirements, 'doc_key'), true)) {
             return 'That document is not a requirement for this application.';
         }
         $existing = $documents->findForApplication($applicationId, $docKey);
@@ -77,10 +71,6 @@ class DocumentController extends Controller
         $existing = $documents->findForApplication($applicationId, $docKey);
         if ($existing) {
             $documents->replace($existing, $applicationId, $result['meta'], $relativePath, $user);
-            $oldPath = STORAGE_PATH . '/' . $existing['stored_path'];
-            if (is_file($oldPath)) {
-                @unlink($oldPath);
-            }
             audit_log($this->pdo, (int) $user['id'], $user['full_name'], $user['role'], 'Document Resubmission', 'application_document', (int) $existing['id'], $docKey);
         } else {
             $documents->create($applicationId, $docKey, $result['meta'], $relativePath, $user);

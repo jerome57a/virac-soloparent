@@ -12,8 +12,8 @@ class PublicApplicationTrackingService
         $guidance = [
             'Pending Review' => ['Waiting for review', 'MSWDO has received your application. Check here for updates while staff reviews it.'],
             'Under Verification' => ['Your application is being reviewed', 'MSWDO is checking your information and documents. Monitor your account for any requests.'],
-            'For Revision' => ['Corrections are needed', 'Log in to My Applications to read the requested corrections and update your information or document checklist.'],
-            'Interview Scheduled' => ['Prepare for your interview', 'Check your appointment below. Bring your application slip, a valid ID, and the documents requested by MSWDO.'],
+            'For Revision' => ['Corrections are needed', 'Log in to My Applications to read the requested corrections and update your information or upload replacement documents.'],
+            'Interview Scheduled' => ['Prepare for your interview', 'Check your appointment below. Bring your application reference, a valid ID, and the documents requested by MSWDO.'],
             'Approved' => ['Your application is approved', 'Your ID is being prepared. An ID release appointment has not been recorded yet. Wait for MSWDO claiming instructions before visiting to collect it.'],
             'ID Released' => ['Your ID has been released', 'Keep your Solo Parent ID safe and check its validity below. Log in to view your ID or check renewal options.'],
             'Rejected' => ['Review the application decision', 'Log in to read the decision and guidance from MSWDO. Contact the office if you need help with the next steps.'],

@@ -16,11 +16,9 @@
  */
 $st = status_style($app['status']);
 $interviewOutcome = Appointment::interviewOutcome($interview);
-$canReceiveDocuments = !empty($app['renewal_simplified']) || (($interview['status'] ?? '') === 'COMPLETED' && $interviewOutcome !== null);
 $canDecide = !empty($app['renewal_simplified']) || Appointment::interviewSuccessful($interview);
 $interviewNotes = (string) ($interview['result'] ?? '');
 $requiredChecklist = array_filter($submittedChecklist ?? [], fn($item) => !empty($item['is_required']));
-$uncheckedRequirements = array_filter($requiredChecklist, [Document::class, 'needsPreparation']);
 $outstandingRequirements = array_filter($requiredChecklist, fn($item) => $item['verification_status'] !== 'Verified' || (!empty($item['expires_at']) && $item['expires_at'] < date('Y-m-d')));
 $undoButton = function (string $section, string $label) use ($reviewUndoToken): void { ?>
   <form method="post" class="review-undo-form" onsubmit="return confirm('Undo this review and reopen its controls?');">
@@ -74,38 +72,54 @@ if ($interviewOutcome !== null) {
       </div>
 
       <div class="review-card" id="checklist">
-        <div class="review-card-head"><div class="title" data-i18n>Required Documents Checklist</div></div>
+        <div class="review-card-head"><div class="title" data-i18n>Supporting Documents</div></div>
+        <p class="small text-muted" data-i18n>Review each applicant-uploaded file. Record a status and explain any rejection or correction request.</p>
+        <?php if (!empty($verificationNotice)): ?><div class="<?= !empty($verificationNotice['warning']) ? 'auth-error' : 'info-box' ?>" style="max-width:none" role="status"><?= e($verificationNotice['text']) ?></div><?php endif; ?>
         <?php if (!empty($documentErrors['checklist'])): ?><div class="auth-error" role="alert"><?= e($documentErrors['checklist']) ?></div><?php endif; ?>
+        <?php $canVerifyDocs = in_array($app['status'], Application::IN_PROGRESS_STATUSES, true); ?>
+        <?php if ($canVerifyDocs && !empty($submittedChecklist)): ?><form method="post" id="verification-form"><?= csrf_field() ?><input type="hidden" name="form_action" value="save_verification"><?php endif; ?>
         <div class="staff-applicant-list">
           <?php if (empty($submittedChecklist)): ?>
-            <div class="text-muted small">No document checklist information is recorded for this application.</div>
-          <?php else: foreach ($submittedChecklist as $item): ?>
-            <?php $needsAttention = (!empty($item['is_required']) || empty($item['applicant_has'])) && ($item['verification_status'] !== 'Verified' || (!empty($item['expires_at']) && $item['expires_at'] < date('Y-m-d'))); ?>
-            <div class="review-row<?= $needsAttention ? ' checklist-needs-attention' : '' ?>" id="checklist-<?= e($item['doc_key']) ?>">
-              <?php if ($needsAttention && empty($item['applicant_has'])): ?>
-                <div class="checklist-missing-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10.3 3.9 1.8 18.6A2 2 0 0 0 3.5 21h17a2 2 0 0 0 1.7-2.4L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4m0 4h.01"/></svg>Not submitted</div>
-              <?php endif; ?>
-              <div class="k"><input type="checkbox" disabled <?= !empty($item['applicant_has']) || ($item['verification_status'] === 'Verified' && !$needsAttention) ? 'checked' : '' ?> aria-label="Document checklist: <?= e($item['label']) ?>"> <?= e($item['label']) ?><?= !empty($item['is_required']) ? ' *' : ' (optional)' ?></div>
-              <?php if ($canReceiveDocuments && $needsAttention && !empty($item['is_required']) && !empty($item['id']) && in_array($app['status'], Application::IN_PROGRESS_STATUSES, true)): ?>
-                <form method="post" class="mt-2" onsubmit="return confirm('Confirm that staff physically received this document?');">
-                  <?= csrf_field() ?>
-                  <input type="hidden" name="form_action" value="receive_checklist_document">
-                  <input type="hidden" name="doc_key" value="<?= e($item['doc_key']) ?>">
-                  <input type="hidden" name="confirm_received" value="1">
-                  <button type="submit" class="btn-outline">Document received</button>
-                </form>
+            <div class="text-muted small" data-i18n>No document requirements are configured for this application.</div>
+          <?php else: foreach ($submittedChecklist as $item): $file = $item['uploaded_document'] ?? null; ?>
+            <div class="review-row" id="<?= $file ? 'doc-' . (int) $file['id'] : 'checklist-' . e($item['doc_key']) ?>">
+              <div class="k"><?= e($item['label']) ?><?= !empty($item['is_required']) ? ' *' : ' (optional)' ?></div>
+              <?php if ($file): ?>
+                <div class="v"><a href="<?= base_url('download.php?doc_id=' . (int) $file['id']) ?>" target="_blank" rel="noopener"><?= e($file['original_name']) ?></a> - <a href="<?= base_url('download.php?doc_id=' . (int) $file['id'] . '&download=1') ?>" data-i18n>Download</a> - <?= e(date('M j, Y g:i A', strtotime($file['uploaded_at']))) ?></div>
+                <div class="small" data-i18n>Status: <strong><?= e(document_status_label($file['verification_status'])) ?></strong><?php if (!empty($file['verifier_name'])): ?> - <?= e($file['verifier_name']) ?><?php endif; ?><?php if (!empty($file['verified_at'])): ?> - <?= e(date('M j, Y g:i A', strtotime($file['verified_at']))) ?><?php endif; ?></div>
+                <?php if (!empty($documentErrors[$file['id']])): ?><div class="field-error" role="alert"><?= e($documentErrors[$file['id']]) ?></div><?php endif; ?>
+                <?php if (!empty($file['staff_remarks'])): ?><div class="field-error"><?= e($file['staff_remarks']) ?></div><?php endif; ?>
+                <?php if ($canVerifyDocs):
+                  $stored = (string) $file['verification_status'];
+                  $storedRemarks = (string) ($file['staff_remarks'] ?? '');
+                  $posted = $_POST['docs'][$file['id']] ?? null;
+                  // Keep the submitted values only for rows the staff member actually edited.
+                  $wasEdited = is_array($posted) && is_string($posted['status'] ?? null) && is_string($posted['remarks'] ?? null)
+                      && is_string($posted['expected'] ?? null) && is_string($posted['expected_remarks'] ?? null)
+                      && ($posted['status'] !== $posted['expected'] || trim($posted['remarks']) !== trim($posted['expected_remarks']));
+                  $curStatus = $wasEdited ? $posted['status'] : $stored;
+                  $curRemarks = $wasEdited ? $posted['remarks'] : $storedRemarks;
+                  $legacy = !in_array($stored, Document::VERIFICATION_STATUSES, true); ?>
+                  <div class="doc-verify-form mt-2">
+                    <input type="hidden" name="docs[<?= (int) $file['id'] ?>][expected]" value="<?= e($stored) ?>">
+                    <input type="hidden" name="docs[<?= (int) $file['id'] ?>][expected_remarks]" value="<?= e($storedRemarks) ?>">
+                    <select name="docs[<?= (int) $file['id'] ?>][status]" class="form-select" aria-label="Verification status for <?= e($item['label']) ?>">
+                      <?php if ($legacy): ?><option value="<?= e($stored) ?>" <?= $curStatus === $stored ? 'selected' : '' ?>><?= e(document_status_label($stored)) ?> (current status - choose a new status to change it)</option><?php endif; ?>
+                      <?php foreach (Document::VERIFICATION_STATUSES as $status): ?><option value="<?= e($status) ?>" <?= $curStatus === $status ? 'selected' : '' ?>><?= e(document_status_label($status)) ?></option><?php endforeach; ?>
+                    </select>
+                    <input type="text" name="docs[<?= (int) $file['id'] ?>][remarks]" maxlength="500" value="<?= e($curRemarks) ?>" placeholder="Remarks for rejection or correction" class="form-control" aria-label="Remarks for <?= e($item['label']) ?>">
+                  </div>
+                <?php endif; ?>
+                <?php foreach (($documentHistory[$file['id']] ?? []) as $event): ?><div class="small text-muted"><?= !empty($event['from_status']) ? e(document_status_label((string) $event['from_status'])) . ' to ' : '' ?><?= e(document_status_label((string) ($event['to_status'] ?? ''))) ?> - <?= e($event['actor_name']) ?> - <?= e(date('M j, Y g:i A', strtotime($event['created_at']))) ?><?= !empty($event['remarks']) ? ' - ' . e($event['remarks']) : '' ?></div><?php endforeach; ?>
+              <?php else: ?>
+                <div class="small text-muted" data-i18n><?= $item['verification_status'] === 'Verified' ? 'Previously accepted evidence is retained in the application record.' : 'No file uploaded yet.' ?></div>
               <?php endif; ?>
             </div>
           <?php endforeach; endif; ?>
         </div>
-        <?php if ($canReceiveDocuments && $outstandingRequirements && in_array($app['status'], Application::IN_PROGRESS_STATUSES, true)): ?>
-          <form method="post" class="mt-3" onsubmit="return confirm('Confirm that staff physically received ALL remaining required documents? Do not confirm while any required document is still missing.');">
-            <?= csrf_field() ?>
-            <input type="hidden" name="form_action" value="confirm_all_required_documents">
-            <input type="hidden" name="confirm_received" value="1">
-            <button type="submit" class="btn-navy">Confirm all required documents received</button>
-          </form>
-        <?php endif; ?>
+        <?php if ($canVerifyDocs && !empty($submittedChecklist)): ?>
+          <div class="mt-3"><?php if (!empty($documentErrors['checklist'])): ?><div class="field-error mb-2" role="alert"><?= e($documentErrors['checklist']) ?></div><?php endif; ?><button type="submit" class="btn-navy" data-i18n>Save Verification</button></div>
+        </form><?php endif; ?>
       </div>
       <div class="review-card">
         <div class="review-card-head"><div class="title">Applicant Declaration</div></div>
@@ -234,9 +248,9 @@ if ($interviewOutcome !== null) {
 
         <?php if ($inProgress && $ivStatus !== 'COMPLETED'): ?>
           <div class="info-box" style="max-width:none">
-            <b><?= $uncheckedRequirements ? 'Documents to complete before ID release' : 'All required documents checked' ?></b>
-            <?php if ($uncheckedRequirements): ?><ul><?php foreach ($uncheckedRequirements as $item): ?><li><?= e($item['label']) ?></li><?php endforeach; ?></ul><?php endif; ?>
-            Checked documents are automatically verified. You can schedule the interview even if some documents are missing. The applicant must submit the missing documents before ID release can be scheduled.
+            <b><?= $outstandingRequirements ? 'Required documents still need review' : 'All required documents are verified' ?></b>
+            <?php if ($outstandingRequirements): ?><ul><?php foreach ($outstandingRequirements as $item): ?><li><?= e($item['label']) ?><?= !empty($item['uploaded_document']) ? ' - ' . e(document_status_label($item['uploaded_document']['verification_status'])) : ' - no file uploaded' ?></li><?php endforeach; ?></ul><?php endif; ?>
+            You can schedule the interview while documents are outstanding. The applicant can upload missing files from Documents; staff must verify all required files before approval.
           </div>
           <?php require APP_ROOT . '/views/staff/appointments/schedule-form.php'; ?>
         <?php endif; ?>
