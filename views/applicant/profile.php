@@ -110,12 +110,12 @@ $missing = array_keys(array_filter(['birthdate' => 1, 'sex' => 1, 'civil_status'
               <input type="tel" name="mobile" value="<?= e($form['mobile']) ?>" placeholder="09XXXXXXXXX" inputmode="tel" autocomplete="tel" required>
             </label>
             <label class="field-label">
-              <span data-i18n>Barangay</span>
-              <input type="text" name="barangay" value="<?= e($form['barangay']) ?>" placeholder="e.g. Concepcion" maxlength="100" data-i18n-attrs="placeholder">
-            <label class="field-label">
               <span data-i18n>Current password</span>
               <input type="password" name="mobile_confirm_password" autocomplete="current-password" placeholder="Only needed to change your mobile number">
             </label>
+            <label class="field-label">
+              <span data-i18n>Barangay</span>
+              <input type="text" name="barangay" value="<?= e($form['barangay']) ?>" placeholder="e.g. Concepcion" maxlength="100" data-i18n-attrs="placeholder">
             </label>
             <label class="field-label">
               <span data-i18n>Complete address</span>

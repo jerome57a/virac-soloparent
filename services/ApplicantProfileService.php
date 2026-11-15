@@ -48,7 +48,6 @@ class ApplicantProfileService
             return [$error, ''];
         }
 
-        $before = $this->applicants->profile($userId) + ['full_name' => $user['full_name'], 'email' => $user['email'], 'mobile' => $user['mobile']];
         // A new mobile number is accepted without a texted code, but only after the applicant re-enters their current password.
         if (!in_array(normalize_mobile($f['mobile']), mobile_variants((string) ($user['mobile'] ?? '')), true)) {
             require_once __DIR__ . '/AuthService.php';
@@ -59,6 +58,7 @@ class ApplicantProfileService
             }
         }
 
+        $before = $this->applicants->profile($userId) + ['full_name' => $user['full_name'], 'email' => $user['email'], 'mobile' => $user['mobile']];
         $nullIfBlank = fn(string $v) => $v === '' ? null : $v;
         $this->applicants->updateContact($userId, $f['full_name'], $f['email'], $f['mobile']);
         $this->applicants->updatePersonal($userId, $nullIfBlank($f['birthdate']), $nullIfBlank($f['sex']), $nullIfBlank($f['civil_status']), $nullIfBlank($f['barangay']), $nullIfBlank($f['address']));

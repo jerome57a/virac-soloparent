@@ -2972,6 +2972,8 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
 // Public tracking guidance and shared help labels.
 Object.assign(window.ViracTranslations, {
   "Office hours:": "Oras ng tanggapan:",
+  "Does the Eligibility Checker approve my application?": "Inaaprubahan ba ng Eligibility Checker ang aking aplikasyon?",
+  "No. It gives a preliminary result only. MSWDO reviews your application and supporting documents before making a final decision.": "Hindi. Paunang resulta lamang ang ibinibigay nito. Sinusuri ng MSWDO ang iyong aplikasyon at mga sumusuportang dokumento bago gumawa ng pinal na desisyon.",
   "Monday to Friday, 8:00 AM to 5:00 PM": "Lunes hanggang Biyernes, 8:00 AM hanggang 5:00 PM",
   "Online Services — Solo Parent ID registration, and status tracking for residents of Virac, Catanduanes.": "Mga Serbisyo Online — Pagpaparehistro sa Solo Parent ID at pagsubaybay ng aplikasyon para sa mga residente ng Virac, Catanduanes.",
   "e-SoloParentID System — Municipal Social Welfare and Development Office (MSWDO), Virac, Catanduanes.": "Sistema ng e-SoloParentID — Tanggapan ng Kagalingang Panlipunan at Pagpapaunlad (MSWDO), Virac, Catanduanes.",
@@ -2997,8 +2999,6 @@ Object.assign(window.ViracTranslations, {
   "Log in to view your application details or contact MSWDO for assistance.": "Mag-log in upang tingnan ang detalye ng aplikasyon o humingi ng tulong sa MSWDO.",
   "ID release appointment": "Appointment sa pagkuha ng ID",
   "Interview appointment": "Appointment sa panayam",
-  "Does the Eligibility Checker approve my application?": "Inaaprubahan ba ng Eligibility Checker ang aking aplikasyon?",
-  "No. It gives a preliminary result only. MSWDO reviews your application and supporting documents before making a final decision.": "Hindi. Paunang resulta lamang ang ibinibigay nito. Sinusuri ng MSWDO ang iyong aplikasyon at mga sumusuportang dokumento bago gumawa ng pinal na desisyon.",
   "Your ID release is scheduled": "Nakatakda na ang pagkuha ng iyong ID",
   "Visit MSWDO at the date, time, and location below. Bring your application slip and a valid ID. Your status becomes ID Released after staff confirms handover.": "Pumunta sa MSWDO sa petsa, oras, at lugar sa ibaba. Dalhin ang slip ng aplikasyon at wastong ID. Mamamarkahang naibigay na ang ID kapag nakumpirma ng kawani ang pagtanggap mo.",
   "Arrange another interview": "Magpatakda ng panibagong panayam",

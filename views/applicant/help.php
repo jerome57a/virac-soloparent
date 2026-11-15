@@ -24,9 +24,6 @@ $helpIcons = [
           <?php foreach ($links as [$query, $icon, $label, $text]): ?><a href="?<?= e($query) ?>" class="help-resource-link"><span class="help-resource-symbol" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><?= $helpIcons[$icon] ?></svg></span><span class="help-resource-title" data-i18n><?= e($label) ?><span aria-hidden="true">&rarr;</span></span><span class="help-resource-text" data-i18n><?= e($text) ?></span></a><?php endforeach; ?>
         </div>
       </section>
-      <section class="help-process-card" aria-labelledby="help-process-heading"><div class="help-section-header"><div class="account-eyebrow" data-i18n>FROM APPLICATION TO RELEASE</div><h3 id="help-process-heading" data-i18n>How it works</h3><p data-i18n>Know what happens next at each stage.</p></div><ol class="help-process-steps" data-i18n>
-        <?php foreach ($steps as $i => [$title, $text]): ?><li><span class="help-step-number" aria-hidden="true"><?= str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT) ?></span><div><h4 data-i18n><?= e($title) ?></h4><p data-i18n><?= e($text) ?></p></div></li><?php endforeach; ?>
-      </ol></section>
       <section class="help-process-card" aria-labelledby="help-faq-heading">
         <div class="help-section-header"><h3 id="help-faq-heading" data-i18n>Frequently asked questions</h3><p data-i18n>Answers to common questions about Solo Parent ID services.</p></div>
         <?php if ($faqs): ?>
@@ -42,6 +39,9 @@ $helpIcons = [
           <p data-i18n>No FAQ entries are currently available. Contact MSWDO using the details on this page.</p>
         <?php endif; ?>
       </section>
+      <section class="help-process-card" aria-labelledby="help-process-heading"><div class="help-section-header"><div class="account-eyebrow" data-i18n>FROM APPLICATION TO RELEASE</div><h3 id="help-process-heading" data-i18n>How it works</h3><p data-i18n>Know what happens next at each stage.</p></div><ol class="help-process-steps" data-i18n>
+        <?php foreach ($steps as $i => [$title, $text]): ?><li><span class="help-step-number" aria-hidden="true"><?= str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT) ?></span><div><h4 data-i18n><?= e($title) ?></h4><p data-i18n><?= e($text) ?></p></div></li><?php endforeach; ?>
+      </ol></section>
     </div>
     <aside class="help-contact-card" id="help-contact" aria-labelledby="help-contact-heading"><div class="account-eyebrow" data-i18n>WE’RE HERE TO HELP</div><h3 id="help-contact-heading" data-i18n>Contact MSWDO</h3><p class="help-office-name"><?= e($office['name']) ?></p>
       <dl><div><dt data-i18n>Visit us</dt><dd><?= e($office['address']) ?></dd></div><div><dt data-i18n>Office hours</dt><dd><?= e($office['hours']) ?></dd></div>
