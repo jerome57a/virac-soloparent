@@ -14,8 +14,6 @@ const PASSWORD_RESET_CODE_MINUTES = 15;
 
 // Mobile number verification: how long a texted code stays valid, and how many
 // wrong entries void it (a new code must then be requested).
-const MOBILE_CODE_MINUTES = 10;
-const MOBILE_CODE_MAX_ATTEMPTS = 5;
 
 // Passwords: at least this long, containing at least one letter and one number,
 // and at most PASSWORD_MAX_BYTES (bcrypt ignores anything past 72 bytes, so a

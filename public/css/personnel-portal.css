@@ -21,7 +21,7 @@
 .personnel-portal :is(.page-title, h1.font-heading) { color: var(--navy); line-height: 1.25; letter-spacing: -.5px; overflow-wrap: anywhere; }
 .personnel-portal :is(.page-sub, .app-date) { color: var(--staff-muted); line-height: 1.6; }
 .personnel-portal .page-sub { margin-top: 6px; max-width: 640px; }
-.personnel-portal :is(.review-card, .dash-card, .chat-box) {
+.personnel-portal :is(.review-card, .dash-card) {
   background: #fff;
   border-color: var(--staff-border);
   border-radius: 14px;
@@ -53,13 +53,13 @@
 .personnel-portal .stat-label { color: var(--staff-muted); font-size: 11px; line-height: 1.5; }
 .personnel-portal .stat-sub { color: var(--staff-muted); line-height: 1.5; }
 .personnel-portal .dash-section-title { margin: 22px 0 14px; font-size: 14px; color: var(--navy); }
-.personnel-portal :is(a.stat-tile, a.app-card, .chat-inbox-row) { transition: border-color .18s ease, background-color .18s ease, box-shadow .18s ease; }
-.personnel-portal :is(a.stat-tile, a.app-card, .chat-inbox-row):hover {
+.personnel-portal :is(a.stat-tile, a.app-card) { transition: border-color .18s ease, background-color .18s ease, box-shadow .18s ease; }
+.personnel-portal :is(a.stat-tile, a.app-card):hover {
   background: #f8fafd;
   border-color: #9eb6d3;
   box-shadow: 0 4px 16px rgb(27 58 107 / 9%);
 }
-.personnel-portal :is(a.stat-tile, a.app-card, .chat-inbox-row):focus-visible { outline: 3px solid var(--navy); outline-offset: 3px; }
+.personnel-portal :is(a.stat-tile, a.app-card):focus-visible { outline: 3px solid var(--navy); outline-offset: 3px; }
 .personnel-portal .app-card {
   background: #fff;
   border-color: var(--staff-border);
@@ -106,7 +106,7 @@
 .personnel-portal :is(.btn-navy, .btn-outline, .btn-red, .btn-danger-outline) { min-height: 44px; border-radius: 10px; font-size: 13px; line-height: 1.4; }
 .personnel-portal .btn-sm { min-height: 36px; }
 .personnel-portal .result-meta { padding: 0 4px; margin-bottom: 18px; line-height: 1.6; }
-.personnel-portal :is(.info-box, .auth-error, .chat-disclaimer, .chat-waiting) { border-radius: 10px; padding: 14px 16px; line-height: 1.6; }
+.personnel-portal :is(.info-box, .auth-error) { border-radius: 10px; padding: 14px 16px; line-height: 1.6; }
 .personnel-portal .empty-state { border: 1px dashed #ccd7e5; background: #f8fafd; border-radius: 12px; padding: 24px; line-height: 1.6; }
 .personnel-portal .empty-state.compact { padding: 18px; }
 .personnel-portal .review-row { padding: 10px 0; }
@@ -158,11 +158,6 @@
 .personnel-portal .record-nav a { padding: 7px 12px; border-radius: 8px; text-decoration: none; color: var(--navy); }
 .personnel-portal .record-nav a:hover { background: #edf3fa; }
 .personnel-portal .record-chip { display: inline-block; border-color: #dbe4ef; border-radius: 8px; padding: 5px 9px; line-height: 1.6; }
-.personnel-portal .chat-box { max-width: 900px; }
-.personnel-portal .chat-thread { padding: 10px 6px 20px; gap: 18px; }
-.personnel-portal .chat-bubble { padding: 12px 16px; line-height: 1.65; }
-.personnel-portal .chat-inbox-row { border-color: var(--staff-border); border-radius: 12px; padding: 18px; margin-bottom: 12px; }
-.personnel-portal .chat-inbox-row > div { min-width: 0; overflow-wrap: anywhere; }
 .personnel-portal .notif-item { background: #fff; border-color: var(--staff-border); border-radius: 12px; padding: 18px; margin-bottom: 12px; box-shadow: var(--staff-shadow); }
 .personnel-portal .notif-item.unread { background: #edf3fa; border-left: 3px solid #6484b0; }
 .personnel-portal .notif-body { min-width: 0; }
@@ -170,7 +165,6 @@
 .personnel-portal .notif-actions { gap: 14px; }
 .personnel-portal .notif-actions :is(a, button) { display: inline-flex; align-items: center; min-height: 36px; }
 .personnel-portal .slot-cancel[open] { padding-top: 12px; }
-.personnel-portal .qr-result { border-radius: 14px; padding: 20px; box-shadow: var(--staff-shadow); }
 
 /* User management actions: consistent targets and a clear visual hierarchy. */
 .personnel-portal .user-management :is(.user-action, nav[aria-label="Pagination"] .btn-outline) {
@@ -256,7 +250,7 @@
   .personnel-portal .portal-container { padding: 20px 14px 40px; }
   .personnel-portal .portal-container > :is(.page-head, .d-flex:has(h1)),
 .personnel-portal .personnel-page-heading { padding: 18px; gap: 14px; border-radius: 12px; }
-  .personnel-portal :is(.review-card, .dash-card, .chat-box) { padding: 16px; border-radius: 12px; }
+  .personnel-portal :is(.review-card, .dash-card) { padding: 16px; border-radius: 12px; }
   .personnel-portal .review-card-head { margin-bottom: 14px; padding-bottom: 12px; }
   .personnel-portal .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .personnel-portal .stat-tile { padding: 14px 12px; }
@@ -267,14 +261,13 @@
   .personnel-portal .app-card > div:first-child { flex-basis: 100%; }
   .personnel-portal .review-grid { grid-template-columns: minmax(0, 1fr); }
   .personnel-portal .record-nav { gap: 4px; }
-  .personnel-portal .chat-msg { max-width: 95%; }
   .personnel-portal .notif-item { padding: 14px; gap: 10px; }
   .personnel-portal .notif-actions { flex-wrap: wrap; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .personnel-portal :is(a.stat-tile, a.app-card, .chat-inbox-row) { transition: none; }
+  .personnel-portal :is(a.stat-tile, a.app-card) { transition: none; }
 }
 @media print {
   .personnel-portal { background: #fff; }
-  .personnel-portal :is(.review-card, .dash-card, .app-card, .stat-tile, .chat-box, .notif-item) { box-shadow: none; }
+  .personnel-portal :is(.review-card, .dash-card, .app-card, .stat-tile, .notif-item) { box-shadow: none; }
 }

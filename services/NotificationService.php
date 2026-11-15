@@ -9,8 +9,7 @@ require_once __DIR__ . '/../models/Notification.php';
  * reminders, system announcements). MSWD staff hear about new work (new
  * applications and renewals, re-uploaded documents, appointments booked or
  * cancelled by applicants). Administrators hear about system problems
- * (failed scheduled jobs, locked accounts) and can broadcast a system
- * announcement to applicants, staff or everyone.
+ * (failed scheduled jobs, locked accounts).
  *
  * Each notification may carry an in-app link (validated: only paths inside
  * this app, never an external URL); opening a notification marks it read.
@@ -36,12 +35,9 @@ class NotificationService
         'appointment_update' => ['Appointment update', '📅'],
         'job_failed' => ['Scheduled job problem', '🛠️'],
         'security_alert' => ['Security alert', '🔒'],
-        'chat_request' => ['Chat: staff requested', '💬'],
-        'chat_reply' => ['Reply from MSWDO staff', '💬'],
     ];
-    public const AUDIENCES = ['applicants' => ['applicant'], 'staff' => ['mswd_social_worker', 'admin'], 'everyone' => ['applicant', 'mswd_social_worker', 'admin']];
     public const PER_PAGE = 20;
-    private const LINK_PREFIXES = ['applicant/', 'staff/', 'admin/', 'portal.php', 'slip.php'];
+    private const LINK_PREFIXES = ['applicant/', 'staff/', 'admin/', 'portal.php'];
 
     private PDO $pdo;
     private Notification $notifications;
@@ -81,44 +77,6 @@ class NotificationService
     public function notifyAdmins(string $type, string $message, string $link): int
     {
         return $this->notifyRoles(['admin'], $type, $message, null, $link);
-    }
-
-    /**
-     * An administrator's system announcement, sent as a notification to
-     * everyone in $audience. Returns [error or null, recipients].
-     */
-    public function broadcast(array $admin, string $message, string $audience): array
-    {
-        $message = trim($message);
-        if ($message === '') {
-            return ['Write the announcement first.', 0];
-        }
-        if (mb_strlen($message) > 500) {
-            return ['The announcement is too long (up to 500 characters).', 0];
-        }
-        if (!isset(self::AUDIENCES[$audience])) {
-            return ['Choose who should receive it.', 0];
-        }
-        $this->pdo->beginTransaction();
-        try {
-            $count = $this->notifyRoles(self::AUDIENCES[$audience], 'announcement', $message);
-            $this->pdo->prepare('INSERT INTO system_broadcasts (message, audience, recipients, sent_by) VALUES (?, ?, ?, ?)')
-                ->execute([$message, $audience, $count, (int) $admin['id']]);
-            $this->pdo->commit();
-        } catch (Throwable $e) {
-            $this->pdo->rollBack();
-            throw $e;
-        }
-        audit_log($this->pdo, (int) $admin['id'], $admin['full_name'], $admin['role'], 'System Announcement Sent', 'system', null, $audience . ' (' . $count . '): ' . $message);
-        return [null, $count];
-    }
-
-    public function recentBroadcasts(int $limit = 10): array
-    {
-        return $this->pdo->query(
-            'SELECT b.*, u.full_name AS sent_by_name FROM system_broadcasts b LEFT JOIN users u ON u.id = b.sent_by
-             ORDER BY b.sent_at DESC, b.id DESC LIMIT ' . (int) $limit
-        )->fetchAll();
     }
 
     /** A page of $userId's notifications (newest first), with the pager and unread count. */

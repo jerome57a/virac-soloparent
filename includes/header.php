@@ -6,7 +6,6 @@
  */
 $pageTitle = $pageTitle ?? setting('system_name');
 $isPersonnelPortal = in_array($staff['role'] ?? '', ['mswd_social_worker', 'admin'], true);
-$unreadAnnouncementCount = $unreadAnnouncementCount ?? 0;
 
 // Login establishes one identity; render the menu for that account's role.
 if (!empty($staff)) {
@@ -128,21 +127,9 @@ if (!empty($staff)) {
       </a>
       <?php endif; ?>
       <?php if (can($staff, 'appointments.view')): ?>
-      <a href="<?= base_url(role_portal_path($staff, 'appointments.php')) ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive('staff/appointments.php', 'staff/appointment_slots.php', 'admin/appointments.php', 'admin/appointment_slots.php') ?>">
+      <a href="<?= base_url(role_portal_path($staff, 'appointments.php')) ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive('staff/appointments.php', 'admin/appointments.php') ?>">
         <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        <span data-i18n>Appointment Management</span>
-      </a>
-      <?php endif; ?>
-      <?php if (can($staff, 'qr.verify')): ?>
-      <a href="<?= base_url('staff/qr_verify.php') ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive('staff/qr_verify.php') ?>">
-        <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><line x1="14" y1="14" x2="21" y2="14"/><line x1="14" y1="21" x2="21" y2="21"/><line x1="17.5" y1="14" x2="17.5" y2="21"/></svg>
-        <span data-i18n>QR Verification</span>
-      </a>
-      <?php endif; ?>
-      <?php if (can($staff, 'chat.respond')): ?>
-      <a href="<?= base_url('staff/chat.php') ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive('staff/chat.php') ?>">
-        <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        <span data-i18n>Chat Support</span>
+        <span data-i18n><?= $staff['role'] === 'admin' ? 'Appointment Overview' : 'Appointment Management' ?></span>
       </a>
       <?php endif; ?>
       <?php if (can($staff, 'reports.view')): ?>
@@ -154,10 +141,6 @@ if (!empty($staff)) {
 
       <?php if (can($staff, 'admin.dashboard')): ?>
         <div class="nav-drawer-section-label" data-i18n>Administration</div>
-        <a href="<?= base_url('admin/announcements.php') ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive('admin/announcements.php') ?>">
-      <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 14-5v14L3 14v-4Zm4 5 1 6h4l-2-5M21 9v6"/></svg>
-      <span data-i18n>Public Announcements</span>
-    </a>
         <a href="<?= base_url('admin/eligibility_logs.php') ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive('admin/eligibility_logs.php') ?>">
           <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18H6z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>
           <span data-i18n>Eligibility Logs</span>
@@ -170,10 +153,6 @@ if (!empty($staff)) {
           <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           <span data-i18n>User Management</span>
         </a>
-        <a href="<?= base_url('admin/analytics.php') ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive('admin/analytics.php') ?>">
-          <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-          <span data-i18n>Analytics</span>
-        </a>
         <a href="<?= base_url('admin/sms.php') ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive('admin/sms.php') ?>">
           <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           <span>SMS Management</span>
@@ -182,17 +161,9 @@ if (!empty($staff)) {
           <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           <span data-i18n>System Settings</span>
         </a>
-        <a href="<?= base_url('admin/monitoring.php') ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive('admin/monitoring.php') ?>">
-          <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
-          <span>DB &amp; System Monitoring</span>
-        </a>
         <a href="<?= base_url('admin/audit_log.php') ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive('admin/audit_log.php') ?>">
           <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12h6"/><path d="M9 16h6"/><path d="M13 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M13 3v5h5"/></svg>
           <span data-i18n>Audit Logs</span>
-        </a>
-        <a href="<?= base_url('admin/faq.php') ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive('admin/faq.php') ?>">
-          <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 2-3 4"/><line x1="12" y1="17" x2="12" y2="17.01"/></svg>
-          <span>Manage FAQ</span>
         </a>
       <?php endif; ?>
 
@@ -239,18 +210,6 @@ if (!empty($staff)) {
     </a>
 
     <div class="nav-drawer-section-label" data-i18n>Information</div>
-
-    <a href="<?= base_url(!empty($user) ? 'applicant/dashboard.php?section=news' : 'portal.php?tab=news') ?>" class="nav-drawer-link nav-drawer-link-icon <?= empty($user) && $navOnPortal && ($tab ?? '') === 'news' ? 'active" aria-current="page' : '' ?>">
-      <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M4 4h12v14a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2V4z"/>
-        <path d="M18 8h2a2 2 0 0 1 2 2v9a1 1 0 0 1-1 1H8"/>
-        <line x1="8" y1="8" x2="14" y2="8"/>
-        <line x1="8" y1="12" x2="14" y2="12"/>
-        <line x1="8" y1="15" x2="12" y2="15"/>
-      </svg>
-      <span data-i18n>News &amp; Announcements</span>
-      <?php if ($unreadAnnouncementCount > 0): ?><span class="nav-drawer-badge"><?= (int) $unreadAnnouncementCount ?></span><?php endif; ?>
-    </a>
 
     <a href="<?= base_url(!empty($user) ? 'applicant/dashboard.php?section=help' : 'portal.php?tab=help') ?>" class="nav-drawer-link nav-drawer-link-icon<?= empty($user) && ($tab ?? '') === 'help' ? ' active" aria-current="page' : '' ?>">
       <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4m0 3h.01"/></svg>

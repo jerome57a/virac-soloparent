@@ -22,7 +22,7 @@ function base_url(string $path = ''): string
     // Shared private resources must use the session of the portal that linked to them.
     $endpoint = parse_url($path, PHP_URL_PATH);
     if (defined('AUTH_PORTAL') && in_array(AUTH_PORTAL, ['admin', 'staff'], true)
-        && in_array($endpoint, ['mswd-login.php', 'forgot-password.php', 'reset-password.php', 'slip.php', 'download.php', 'avatar.php'], true)) {
+        && in_array($endpoint, ['mswd-login.php', 'forgot-password.php', 'reset-password.php', 'download.php', 'avatar.php'], true)) {
         parse_str((string) parse_url($path, PHP_URL_QUERY), $parameters);
         if (!isset($parameters['portal'])) {
             $fragment = strpos($path, '#');
@@ -181,7 +181,7 @@ function fit_text(string $text, int $max): string
     return mb_strlen($text) <= $max ? $text : rtrim(mb_substr($text, 0, $max - 1)) . '…';
 }
 
-/** Active FAQ entries for the applicant-facing Chat Support page, in display order. */
+/** Active FAQ entries for the applicant help page, in display order. */
 function get_faqs(PDO $pdo): array
 {
     return $pdo->query('SELECT * FROM faqs WHERE is_active = 1 ORDER BY sort_order, id')->fetchAll();
@@ -370,28 +370,6 @@ function get_category_only_requirements(PDO $pdo, ?int $categoryId): array
     $stmt = $pdo->prepare('SELECT * FROM document_requirements WHERE category_id = ? ORDER BY sort_order, id');
     $stmt->execute([$categoryId]);
     return $stmt->fetchAll();
-}
-
-/** Session-tracked read state for the News & Announcements tab (works for logged-in and anonymous visitors alike). */
-function is_announcement_unread(int $id): bool
-{
-    return empty($_SESSION['read_announcements'][$id]);
-}
-
-function mark_announcement_read(int $id): void
-{
-    $_SESSION['read_announcements'][$id] = true;
-}
-
-function count_unread_announcements(array $announcements): int
-{
-    $count = 0;
-    foreach ($announcements as $a) {
-        if (is_announcement_unread($a['id'])) {
-            $count++;
-        }
-    }
-    return $count;
 }
 
 /**

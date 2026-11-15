@@ -48,17 +48,10 @@ $idStatusLabel = $isExpired ? 'Expired' : ($isReleased ? 'ID Released' : 'Releas
             </div>
             <div class="applicant-id-location"><span data-i18n>Location</span><strong><?= e($idReleaseSchedule['location']) ?></strong></div>
           <?php endif; ?>
-          <p class="applicant-id-release-note"><?= $isReleased ? 'Staff has confirmed the physical release of your Solo Parent ID.' : 'Bring your application slip and a valid government ID. Staff will confirm physical release when you receive your card.' ?></p>
+          <p class="applicant-id-release-note"><?= $isReleased ? 'Staff has confirmed the physical release of your Solo Parent ID.' : 'Bring a valid government ID. Staff will confirm physical release when you receive your card.' ?></p>
           <?php if ($isExpired): ?><p class="applicant-id-expired-note" data-i18n>Your ID has expired. Check your renewal options to keep your details up to date.</p><a class="btn-outline applicant-id-link" href="<?= base_url('applicant/dashboard.php?section=renewal') ?>" data-i18n>View Renewal Options</a><?php endif; ?>
         </section>
 
-        <section class="applicant-id-panel applicant-id-qr-panel" aria-labelledby="id-verification-title">
-          <div class="applicant-id-panel-heading"><h2 id="id-verification-title" data-i18n>Verification QR</h2></div>
-          <?php if ($idQrUri): ?><div class="applicant-id-qr"><img src="<?= e($idQrUri) ?>" alt="QR code for MSWDO verification" width="180" height="180"></div><?php endif; ?>
-          <?php if ($idSlipCode): ?><div class="applicant-id-slip-code"><span data-i18n>Slip code</span><strong><?= e($idSlipCode) ?></strong></div><?php endif; ?>
-          <p data-i18n>Show this code to MSWDO staff when collecting or verifying your ID.</p>
-          <a href="<?= base_url('applicant/dashboard.php?section=slip&ref=' . urlencode($idApplication['reference_no'])) ?>" class="btn-navy applicant-id-link" data-i18n>View Application Slip <span aria-hidden="true">&rarr;</span></a>
-        </section>
       </aside>
     </div>
     <script src="<?= public_asset('js/verification-id.js') ?>" defer></script>

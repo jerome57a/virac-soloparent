@@ -76,10 +76,3 @@ function important_reminders(): array
 
 const CIVIL_STATUS_OPTIONS = ['Single', 'Married', 'Widowed', 'Separated', 'Annulled'];
 
-/** Only active, published news is shown on the public portal. */
-function announcements_list(?PDO $pdo = null): array
-{
-    $pdo = $pdo ?? ($GLOBALS['pdo'] ?? null);
-    require_once __DIR__ . '/../models/Announcement.php';
-    return $pdo instanceof PDO ? (new Announcement($pdo))->published() : [];
-}

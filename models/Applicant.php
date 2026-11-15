@@ -14,14 +14,15 @@ class Applicant extends User
     /** Contact details kept on the account (users): name, email, mobile. */
     public function updateContact(int $userId, string $fullName, string $email, string $mobile): void
     {
-        // A changed number is no longer confirmed (mobile_verified_at is assigned before mobile, so it compares with
-        // the old number; either stored form of the same number counts as unchanged).
+        // The caller (ApplicantProfileService) has already re-authenticated the applicant with their current password
+        // before a changed number reaches here, so the new number is accepted without a texted code. mobile_verified_at is
+        // assigned before mobile, so it compares with the old number; either stored form of the same number is unchanged.
         $mobile = normalize_mobile($mobile);
         [$as0, $as63] = mobile_variants($mobile);
         $this->pdo->prepare(
-            'UPDATE users SET full_name = ?, email = ?, mobile_verified_at = IF(mobile IN (?, ?), mobile_verified_at, NULL),
-                              mobile_code = IF(mobile IN (?, ?), mobile_code, NULL), mobile = ? WHERE id = ?'
-        )->execute([$fullName, $email, $as0, $as63, $as0, $as63, $mobile, $userId]);
+            'UPDATE users SET full_name = ?, email = ?, mobile_verified_at = IF(mobile IN (?, ?), mobile_verified_at, NOW()),
+                              mobile = ? WHERE id = ?'
+        )->execute([$fullName, $email, $as0, $as63, $mobile, $userId]);
     }
 
     /** The applicant's personal/address profile (applicants row), created empty on first use. */

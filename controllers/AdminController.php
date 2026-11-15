@@ -3,11 +3,9 @@ require_once __DIR__ . '/Controller.php';
 require_once __DIR__ . '/../services/AuthService.php';
 require_once __DIR__ . '/../services/UserManagementService.php';
 require_once __DIR__ . '/../services/SettingsService.php';
-require_once __DIR__ . '/../services/BackupService.php';
 require_once __DIR__ . '/../services/ContentService.php';
 require_once __DIR__ . '/../services/ReportService.php';
 require_once __DIR__ . '/../services/AuditLogService.php';
-require_once __DIR__ . '/../services/AnalyticsService.php';
 require_once __DIR__ . '/../services/RenewalService.php';
 require_once __DIR__ . '/../services/ScheduledJobService.php';
 require_once __DIR__ . '/../services/SMSService.php';
@@ -19,7 +17,6 @@ require_once __DIR__ . '/../models/EligibilityAssessment.php';
 require_once __DIR__ . '/../models/Appointment.php';
 require_once __DIR__ . '/../models/AuditLog.php';
 require_once __DIR__ . '/../models/Document.php';
-require_once __DIR__ . '/../models/Faq.php';
 require_once __DIR__ . '/../models/Report.php';
 require_once __DIR__ . '/../models/SmsLog.php';
 require_once __DIR__ . '/../models/User.php';
@@ -52,47 +49,15 @@ class AdminController extends Controller
         $this->requireOwnPassword($staff, 'admin/account.php', false);
     }
 
-    public function announcements(): void
-    {
-        $this->authorize($this->admin, 'content.manage');
-        require_once __DIR__ . '/../models/Announcement.php';
-        $model = new Announcement($this->pdo);
-        $error = '';
-        $editing = null;
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            csrf_require();
-            $id = filter_var($_POST['id'] ?? 0, FILTER_VALIDATE_INT);
-            if ($id === false || $id < 0) {
-                $error = 'Invalid announcement.';
-            } else {
-                $error = $model->save($this->admin, $id, $_POST);
-                if ($error === '') {
-                    flash('Announcement saved. Drafts, future publications and expired announcements are hidden from the public.');
-                    $this->redirectTo('admin/announcements.php');
-                }
-            }
-            $editing = $_POST;
-        } elseif (isset($_GET['edit'])) {
-            $editing = $model->find((int) $_GET['edit']);
-            if (!$editing) { $error = 'Announcement not found.'; }
-        }
-        $result = $model->page((int) ($_GET['page'] ?? 1));
-        $this->page('Public Announcements', 'announcements/index.php', [
-            'error' => $error, 'notice' => take_flash(), 'editing' => $editing, 'announcements' => $result['rows'], 'pager' => $result,
-        ]);
-    }
-
     public function dashboard(): void
     {
         $this->authorize($this->admin, 'admin.dashboard', 'staff/dashboard.php');
         $reports = new ReportService($this->pdo);
-        $backups = (new BackupService($this->pdo))->all();
         $this->page('Administrator Dashboard', 'dashboard.php', [
             'stats' => $reports->dashboardStats(),
             'userStats' => $reports->userStats(),
             'auditStats' => $reports->auditStats(),
             'summary' => $reports->analyticsSummary(),
-            'lastBackupAt' => $backups[0]['created'] ?? null,
             'recentActivity' => (new AuditLog($this->pdo))->recent(8),
         ]);
     }
@@ -255,14 +220,6 @@ class AdminController extends Controller
         ]);
     }
 
-    public function analytics(): void
-    {
-        $this->authorize($this->admin, 'analytics.view');
-        $analytics = new AnalyticsService($this->pdo);
-        $period = $analytics->period($_GET);
-        $this->page('Analytics', 'analytics/index.php', $analytics->build($period) + ['period' => $period]);
-    }
-
     /** admin/reports.php: the eight reports (shared with MSWD staff on staff/reports.php). */
     public function reports(): void
     {
@@ -286,69 +243,6 @@ class AdminController extends Controller
         }
         audit_log($this->pdo, (int) $this->admin['id'], $this->admin['full_name'], $this->admin['role'], 'CSV Export', 'report', null, ucfirst($type) . ' export');
         $service->streamCsv($type . '-' . date('Y-m-d') . '.csv', $export[0], $export[1]);
-    }
-
-    // ---- System ----
-
-    public function monitoring(): void
-    {
-        $this->authorize($this->admin, 'system.monitor');
-        $backups = new BackupService($this->pdo);
-        [$error, $success] = ['', ''];
-
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            csrf_require();
-            $action = (string) ($_POST['action'] ?? '');
-            if ($action === 'create_backup') {
-                try {
-                    $filename = $backups->create();
-                    $this->auditSystem('Database Backup Created', $filename);
-                    $success = 'Backup created: ' . $filename;
-                } catch (Throwable $e) {
-                    $error = 'Backup failed: ' . $e->getMessage();
-                }
-            } elseif ($action === 'delete_backup') {
-                $name = basename((string) ($_POST['name'] ?? ''));
-                if ($backups->delete($name)) {
-                    $this->auditSystem('Database Backup Deleted', $name);
-                    $success = 'Backup deleted.';
-                }
-            }
-        }
-
-        $recentActivity = (new AuditLog($this->pdo))->recent(10);
-        $this->page('Database & System Monitoring', 'monitoring/index.php', [
-            'error' => $error,
-            'success' => $success,
-            'tableCounts' => (new Report($this->pdo))->tableRowCounts(),
-            'uploadsSize' => BackupService::folderSize(STORAGE_PATH),
-            'backupsSize' => BackupService::folderSize($backups->directory()),
-            'backups' => $backups->all(),
-            'recentActivity' => $recentActivity,
-            'lastActivityAt' => $recentActivity[0]['created_at'] ?? null,
-        ]);
-    }
-
-    public function downloadBackup(): void
-    {
-        $this->authorize($this->admin, 'system.monitor');
-        $backups = new BackupService($this->pdo);
-        $name = basename((string) ($_GET['name'] ?? ''));
-        if (!$backups->isValidName($name)) {
-            http_response_code(400);
-            die('Invalid backup filename.');
-        }
-        $path = $backups->pathFor($name);
-        if (!$path) {
-            http_response_code(404);
-            die('Backup not found.');
-        }
-        $this->auditSystem('Database Backup Downloaded', $name);
-        header('Content-Type: application/sql');
-        header('Content-Length: ' . filesize($path));
-        header('Content-Disposition: attachment; filename="' . $name . '"');
-        header('X-Content-Type-Options: nosniff');
-        readfile($path);
     }
 
     public function settings(): void
@@ -443,40 +337,6 @@ class AdminController extends Controller
         ]);
     }
 
-    public function faq(): void
-    {
-        $this->authorize($this->admin, 'content.manage');
-        [$error, $success] = ['', ''];
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            csrf_require();
-            $content = new ContentService($this->pdo);
-            $faqId = (int) ($_POST['faq_id'] ?? 0);
-            $question = trim((string) ($_POST['question'] ?? ''));
-            $answer = trim((string) ($_POST['answer'] ?? ''));
-            $sortOrder = (int) ($_POST['sort_order'] ?? 0);
-            switch ((string) ($_POST['action'] ?? '')) {
-                case 'create':
-                    [$error, $success] = $content->saveFaq($this->admin, null, $question, $answer, $sortOrder);
-                    break;
-                case 'update':
-                    [$error, $success] = $content->saveFaq($this->admin, $faqId, $question, $answer, $sortOrder);
-                    break;
-                case 'toggle_active':
-                    [$error, $success] = $content->toggleFaq($this->admin, $faqId);
-                    break;
-                case 'delete':
-                    [$error, $success] = $content->deleteFaq($this->admin, $faqId);
-                    break;
-            }
-        }
-
-        $this->page('Manage FAQ (Chat Support)', 'settings/faq.php', [
-            'error' => $error,
-            'success' => $success,
-            'faqs' => (new Faq($this->pdo))->all(),
-        ]);
-    }
-
     public function sms(): void
     {
         $this->authorize($this->admin, 'sms.manage');
@@ -530,28 +390,13 @@ class AdminController extends Controller
         ]);
     }
 
-    /** admin/notifications.php: the administrator's own notifications, and sending system announcements. */
+    /** admin/notifications.php: the administrator's own notifications. */
     public function notifications(): void
     {
         $this->authorize($this->admin, 'admin.dashboard', 'staff/notifications.php');
-        $service = new NotificationService($this->pdo);
-        $broadcastError = '';
-        $isBroadcast = $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'broadcast';
-        if ($isBroadcast) {
-            csrf_require();
-            $this->authorize($this->admin, 'content.manage', 'admin/notifications.php');
-            [$broadcastError, $count] = $service->broadcast($this->admin, is_string($_POST['message'] ?? null) ? $_POST['message'] : '', is_string($_POST['audience'] ?? null) ? $_POST['audience'] : '');
-            if (!$broadcastError) {
-                flash("Announcement sent to $count " . ($count === 1 ? 'person' : 'people') . '.');
-                $this->redirectTo('admin/notifications.php');
-            }
-        }
-        $data = (new NotificationController($this->pdo))->handle($this->admin, 'admin/notifications.php', !$isBroadcast);
+        $data = (new NotificationController($this->pdo))->handle($this->admin, 'admin/notifications.php');
         $this->page('Notifications', 'notifications/index.php', $data + [
             'ownDashboard' => base_url('admin/dashboard.php'),
-            'broadcastError' => $broadcastError,
-            'broadcasts' => $service->recentBroadcasts(),
-            'canBroadcast' => can($this->admin, 'content.manage'),
         ]);
     }
 

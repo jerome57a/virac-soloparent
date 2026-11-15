@@ -9,7 +9,7 @@
 ?>
 <div class="public-track" data-i18n>
   <div style="font-size:14px;color:var(--muted);margin-bottom:14px" data-i18n>Enter your application reference number to check your status. No login required.</div>
-  <p data-i18n>Your reference number is on your submitted application and application slip. <a href="<?= base_url('login.php?next=applications') ?>" data-i18n>Log In to My Applications</a> to find it, or <a href="<?= base_url('portal.php?tab=help') ?>" data-i18n>contact MSWDO for help</a>.</p>
+  <p data-i18n>Your reference number is available under My Application after you sign in. <a href="<?= base_url('login.php?next=applications') ?>" data-i18n>Log In to My Applications</a> to find it, or <a href="<?= base_url('portal.php?tab=help') ?>" data-i18n>contact MSWDO for help</a>.</p>
   <?php if (!empty($user)): ?><p><a class="btn-outline text-decoration-none" href="<?= base_url('applicant/dashboard.php?section=application') ?>" data-i18n>View My Applications</a></p><?php endif; ?>
   <form method="get" class="d-flex flex-wrap gap-2 mb-4">
     <input type="hidden" name="tab" value="status">

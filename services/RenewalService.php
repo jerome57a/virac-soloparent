@@ -288,7 +288,6 @@ class RenewalService
         }
 
         $this->clearDraft($user);
-        (new QrSlipService($this->pdo))->issue(['id' => $applicationId, 'status' => 'Pending Review', 'id_expires_at' => null], (int) $user['id']);
         audit_log($this->pdo, (int) $user['id'], $user['full_name'], $user['role'], 'Renewal Submission', 'application', $applicationId, $refNumber . ' (renews ' . $source['reference_no'] . ')');
         $this->applicationService->auditDocuments($user, $applicationId, $documents);
         (new SMSService($this->pdo))->notifyRenewalSubmitted($applicationId, $fields['mobile'], $refNumber);

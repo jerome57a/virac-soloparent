@@ -147,7 +147,6 @@
   <div class="d-flex flex-wrap gap-2" style="margin-top:8px">
     <a href="<?= base_url('staff/index.php') ?>" class="btn-navy text-decoration-none">View All Applications</a>
     <a href="<?= base_url('staff/appointments.php') ?>" class="btn-outline text-decoration-none" data-i18n>Appointment Management</a>
-    <a href="<?= base_url('staff/qr_verify.php') ?>" class="btn-outline text-decoration-none" data-i18n>QR Verification</a>
     <a href="<?= base_url('staff/applicants.php') ?>" class="btn-outline text-decoration-none" data-i18n>Applicant Records</a>
     <a href="<?= base_url('staff/reports.php') ?>" class="btn-outline text-decoration-none" data-i18n>Reports</a>
   </div>

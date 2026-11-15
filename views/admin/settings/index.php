@@ -92,7 +92,7 @@ $apptHours = (int) $current['appointments']['appointment_reminder_hours'];
         <?php if ($sectionKey === 'documents'): ?>
           <div class="settings-note">This server accepts uploads up to <?= e(format_mb($serverUploadLimitMb)) ?> (PHP <code>upload_max_filesize</code> / <code>post_max_size</code>), so the maximum can't be set higher.</div>
         <?php elseif ($sectionKey === 'appointments'): ?>
-          <div class="settings-note">Weekends, holidays and listed office closures are excluded from interview scheduling, including slots that were opened earlier. Add closure dates here when an office closure is announced. Existing interviews must be cancelled or rescheduled first on <a href="<?= base_url('admin/appointment_slots.php') ?>" data-i18n>Appointment Slots</a>.</div>
+          <div class="settings-note">Weekends, holidays and listed office closures are excluded from interview scheduling. Add closure dates here when an office closure is announced. Existing interviews must be cancelled or rescheduled first on the Appointment pages.</div>
         <?php elseif ($sectionKey === 'notifications'): ?>
           <fieldset class="user-label mt-1">
             <legend style="font-size:13px;font-weight:600;margin:0">SMS messages sent to applicants</legend>

@@ -30,19 +30,12 @@
 .applicant-id-appointment strong { display: block; font-size: 15px; margin: 4px 0; }
 .applicant-id-appointment span { font-size: 13px; color: var(--muted, #68778a); }
 .applicant-id-location { margin: 0 22px 18px; }
-.applicant-id-location > span, .applicant-id-slip-code > span { display: block; font-size: 11px; color: var(--muted, #68778a); margin-bottom: 5px; }
+.applicant-id-location > span { display: block; font-size: 11px; color: var(--muted, #68778a); margin-bottom: 5px; }
 .applicant-id-location strong { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
 .applicant-id-release-note { font-size: 12px; line-height: 1.7; background: #f5f8fc; border-top: 1px solid #e8eef5; padding: 16px 22px; margin: 0; color: #52677e; }
 .applicant-id-expired-note { margin: 18px 22px 12px; font-size: 12px; color: #a3323a; }
 .applicant-id-release > .applicant-id-link { margin: 0 22px 20px; }
-.applicant-id-qr-panel { padding-bottom: 22px; }
-.applicant-id-qr { width: fit-content; padding: 10px; margin: 0 auto 16px; border: 1px solid #e4eaf1; border-radius: 12px; background: #fff; }
-.applicant-id-qr img { display: block; width: 166px; height: 166px; }
-.applicant-id-slip-code { text-align: center; margin: 0 22px; }
-.applicant-id-slip-code strong { font-size: 14px; letter-spacing: .08em; overflow-wrap: anywhere; }
-.applicant-id-qr-panel > p { font-size: 12px; line-height: 1.6; text-align: center; margin: 14px 22px 18px; color: var(--muted, #68778a); }
 .applicant-id-link { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 44px; text-decoration: none; border-radius: 9px; font-size: 12px; text-align: center; white-space: normal; }
-.applicant-id-qr-panel > .applicant-id-link { margin: 0 22px; }
 .applicant-id-empty { max-width: 620px; margin: 36px auto; padding: 42px 30px; text-align: center; background: #fff; border: 1px solid #dfe6ee; border-radius: 18px; }
 .applicant-id-empty-icon { display: grid; place-items: center; width: 76px; height: 76px; margin: 0 auto 22px; border-radius: 22px; background: #eaf1fa; color: #234776; }
 .applicant-id-empty p { color: var(--muted, #68778a); line-height: 1.7; font-size: 14px; margin: 14px 0 24px; }

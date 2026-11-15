@@ -2,18 +2,13 @@
 require_once __DIR__ . '/Model.php';
 
 /**
- * appointment_slots + the appointments (interviews) booked against them.
- *
- * Slot status: AVAILABLE or CANCELLED. Appointment status: BOOKED ->
- * COMPLETED | MISSED | CANCELLED. Only BOOKED and COMPLETED appointments
- * hold a seat, so capacity is always counted over those two.
+ * The appointments (interviews) staff schedule. Status: BOOKED -> COMPLETED |
+ * MISSED | CANCELLED. Older rows may still carry a slot_id; new schedules are
+ * saved without one (slot_id NULL).
  */
 class Appointment extends Model
 {
     public const STATUSES = ['BOOKED', 'COMPLETED', 'CANCELLED', 'MISSED'];
-    public const SEAT_HOLDING = "('BOOKED','COMPLETED')";
-    // Preserve older staff appointments without rewriting them: count their occupied time too.
-    private const SLOT_MATCH = '(i.slot_id = s.id OR (i.slot_id IS NULL AND i.scheduled_at >= TIMESTAMP(s.slot_date,s.start_time) AND i.scheduled_at < TIMESTAMP(s.slot_date,s.end_time)))';
 
     /** New results start with an explicit outcome; earlier free-text results remain readable. */
     public static function interviewOutcome(?array $appointment): ?string
@@ -34,60 +29,7 @@ class Appointment extends Model
             && self::interviewOutcome($appointment) !== 'Unsuccessful';
     }
 
-    /**
-     * Slots an applicant can book: AVAILABLE, starting at least $minNoticeHours
-     * from now, with seats left. Soonest first.
-     */
-    public function openSlots(int $minNoticeHours): array
-    {
-        $stmt = $this->pdo->prepare(
-            "SELECT s.*, (s.capacity - (SELECT COUNT(*) FROM appointments i WHERE " . self::SLOT_MATCH . " AND i.status IN " . self::SEAT_HOLDING . ")) AS remaining
-             FROM appointment_slots s
-             WHERE s.status = 'AVAILABLE' AND TIMESTAMP(s.slot_date, s.start_time) >= DATE_ADD(NOW(), INTERVAL ? HOUR)
-             HAVING remaining > 0
-             ORDER BY s.slot_date, s.start_time"
-        );
-        $stmt->execute([$minNoticeHours]);
-        return $stmt->fetchAll();
-    }
-
-    /** The slot row, locked until the surrounding transaction ends -- serialises bookings for the same slot. */
-    public function lockSlot(int $slotId): ?array
-    {
-        $stmt = $this->pdo->prepare('SELECT * FROM appointment_slots WHERE id = ? FOR UPDATE');
-        $stmt->execute([$slotId]);
-        return $stmt->fetch() ?: null;
-    }
-
-    public function findSlot(int $slotId): ?array
-    {
-        $stmt = $this->pdo->prepare('SELECT * FROM appointment_slots WHERE id = ?');
-        $stmt->execute([$slotId]);
-        return $stmt->fetch() ?: null;
-    }
-
-    /** Seat-holding bookings on a slot, not counting the given application's own (so moving within a slot isn't blocked by itself). */
-    public function bookedCountExcluding(int $slotId, int $applicationId): int
-    {
-        // A locking read must see bookings committed while this request waited for the slot lock.
-        $stmt = $this->pdo->prepare('SELECT i.id FROM appointment_slots s JOIN appointments i ON ' . self::SLOT_MATCH . ' WHERE s.id = ? AND i.application_id != ? AND i.status IN ' . self::SEAT_HOLDING . ($this->pdo->inTransaction() ? ' FOR UPDATE' : ''));
-        $stmt->execute([$slotId, $applicationId]);
-        return count($stmt->fetchAll(PDO::FETCH_COLUMN));
-    }
-
-    /** Creates or reschedules the application's appointment into a slot; clears any old result/reminder/cancellation. */
-    public function upsertSelfBooked(int $applicationId, int $slotId, string $scheduledAt, string $location, bool $automatic = false): void
-    {
-        $this->pdo->prepare(
-            'INSERT INTO appointments (application_id, slot_id, scheduled_at, location, notes, scheduled_by, reminder_sent_at)
-             VALUES (?, ?, ?, ?, ?, NULL, NULL)
-             ON DUPLICATE KEY UPDATE slot_id = VALUES(slot_id), scheduled_at = VALUES(scheduled_at),
-                 location = VALUES(location), notes = VALUES(notes), status = \'BOOKED\', scheduled_by = NULL, result = NULL, result_recorded_at = NULL,
-                 reminder_sent_at = NULL, interview_sms_log_id = NULL, cancelled_at = NULL, cancelled_by = NULL, cancel_reason = NULL'
-        )->execute([$applicationId, $slotId, $scheduledAt, $location, $automatic ? 'Interview automatically scheduled on application submission.' : null]);
-    }
-
-    /** Staff (re)schedules an interview directly, not tied to a slot; clears any old result/reminder/cancellation. */
+    /** Staff (re)schedule an interview directly (no slot); clears any old result/reminder/cancellation. */
     public function upsertStaffScheduled(int $applicationId, string $scheduledAt, string $location, ?string $notes, int $staffId): void
     {
         $this->pdo->prepare(
@@ -148,13 +90,13 @@ class Appointment extends Model
         return $stmt->fetch() ?: null;
     }
 
-    /** Next $limit booked appointments from now, with applicant reference and name. */
+    /** Next $limit booked interviews after today; today's day sheet is listed separately. */
     public function upcomingInterviews(int $limit): array
     {
         return $this->pdo->query(
             "SELECT i.*, a.reference_no, a.full_name FROM appointments i
              JOIN applications a ON a.id = i.application_id
-             WHERE i.scheduled_at >= NOW() AND i.status = 'BOOKED' ORDER BY i.scheduled_at ASC LIMIT " . (int) $limit
+             WHERE i.scheduled_at >= DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND i.status = 'BOOKED' ORDER BY i.scheduled_at ASC LIMIT " . (int) $limit
         )->fetchAll();
     }
 
@@ -194,26 +136,6 @@ class Appointment extends Model
         )->fetchAll();
     }
 
-    /** Today-or-later slots (any status) with their seat-holding booked count and total appointments ever made in them, soonest first. */
-    public function upcomingSlotsWithBookings(?int $limit = null): array
-    {
-        return $this->pdo->query(
-            'SELECT s.*, (SELECT COUNT(*) FROM appointments i WHERE ' . self::SLOT_MATCH . ' AND i.status IN ' . self::SEAT_HOLDING . ') AS booked,
-                    (SELECT COUNT(*) FROM appointments i WHERE ' . self::SLOT_MATCH . ') AS ever_used
-             FROM appointment_slots s
-             WHERE s.slot_date >= CURDATE()
-             ORDER BY s.slot_date, s.start_time' . ($limit ? ' LIMIT ' . (int) $limit : '')
-        )->fetchAll();
-    }
-
-    /** Staff may use imminent slots; keep the current application's own seat available to itself. */
-    public function slotsForStaff(int $applicationId): array
-    {
-        $stmt = $this->pdo->prepare('SELECT s.*, s.capacity - (SELECT COUNT(*) FROM appointments i WHERE ' . self::SLOT_MATCH . ' AND i.application_id <> ? AND i.status IN ' . self::SEAT_HOLDING . ") AS remaining FROM appointment_slots s WHERE s.status = 'AVAILABLE' AND TIMESTAMP(s.slot_date,s.start_time) > NOW() ORDER BY s.slot_date,s.start_time");
-        $stmt->execute([$applicationId]);
-        return $stmt->fetchAll();
-    }
-
     /** Includes cancelled/no-show applicants so replacement scheduling has a visible next step. */
     public function awaitingStaffSchedule(): array
     {
@@ -222,68 +144,6 @@ class Appointment extends Model
             WHERE a.status IN ('Pending Review','Under Verification','For Revision','Interview Scheduled')
               AND a.renewal_simplified = 0 AND (i.id IS NULL OR i.status IN ('MISSED','CANCELLED'))
             ORDER BY a.submitted_at,a.id LIMIT 100")->fetchAll();
-    }
-
-    /** The slot at exactly this date/start time (any status), if one exists. */
-    public function slotAt(string $date, string $startTime): ?array
-    {
-        $stmt = $this->pdo->prepare('SELECT * FROM appointment_slots WHERE slot_date = ? AND start_time = ?');
-        $stmt->execute([$date, $startTime]);
-        return $stmt->fetch() ?: null;
-    }
-
-    /** An AVAILABLE slot on $date whose time range overlaps [$start, $end), other than $exceptId. */
-    public function overlappingSlot(string $date, string $start, string $end, int $exceptId = 0): ?array
-    {
-        $stmt = $this->pdo->prepare(
-            "SELECT * FROM appointment_slots WHERE slot_date = ? AND status = 'AVAILABLE' AND start_time < ? AND end_time > ? AND id <> ? LIMIT 1"
-        );
-        $stmt->execute([$date, $end, $start, $exceptId]);
-        return $stmt->fetch() ?: null;
-    }
-
-    public function createSlot(string $date, string $startTime, string $endTime, int $capacity, int $staffId): int
-    {
-        $this->pdo->prepare('INSERT INTO appointment_slots (slot_date, start_time, end_time, capacity, created_by) VALUES (?, ?, ?, ?, ?)')
-            ->execute([$date, $startTime, $endTime, $capacity, $staffId]);
-        return (int) $this->pdo->lastInsertId();
-    }
-
-    /** Re-opens a cancelled slot at the same date/start time with new details. */
-    public function reopenSlot(int $slotId, string $endTime, int $capacity): void
-    {
-        $this->pdo->prepare("UPDATE appointment_slots SET status = 'AVAILABLE', cancel_reason = NULL, end_time = ?, capacity = ? WHERE id = ?")
-            ->execute([$endTime, $capacity, $slotId]);
-    }
-
-    public function cancelSlot(int $slotId, string $reason): void
-    {
-        $this->pdo->prepare("UPDATE appointment_slots SET status = 'CANCELLED', cancel_reason = ? WHERE id = ?")->execute([$reason, $slotId]);
-    }
-
-    /** BOOKED appointments in a slot, with the details needed to notify each applicant. */
-    public function bookedInSlot(int $slotId): array
-    {
-        $stmt = $this->pdo->prepare(
-            "SELECT i.*, a.reference_no, a.full_name, a.user_id, a.mobile, a.status AS application_status
-             FROM appointments i JOIN applications a ON a.id = i.application_id
-             JOIN appointment_slots s ON s.id = ? WHERE " . self::SLOT_MATCH . " AND i.status = 'BOOKED'"
-        );
-        $stmt->execute([$slotId]);
-        return $stmt->fetchAll();
-    }
-
-    /** Every appointment ever attached to the slot (any status) -- a slot with history is cancelled, not deleted. */
-    public function anyAppointmentsInSlot(int $slotId): int
-    {
-        $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM appointment_slots s JOIN appointments i ON ' . self::SLOT_MATCH . ' WHERE s.id = ?');
-        $stmt->execute([$slotId]);
-        return (int) $stmt->fetchColumn();
-    }
-
-    public function deleteSlot(int $slotId): void
-    {
-        $this->pdo->prepare('DELETE FROM appointment_slots WHERE id = ?')->execute([$slotId]);
     }
 
     /** BOOKED appointments within the next $hours that haven't been reminded yet. */

@@ -2,7 +2,6 @@
 require_once __DIR__ . '/../models/Application.php';
 require_once __DIR__ . '/../models/Document.php';
 require_once __DIR__ . '/SMSService.php';
-require_once __DIR__ . '/QrSlipService.php';
 
 /** ID release appointment and handover workflow for one approved application. */
 class IdReleaseService
@@ -136,7 +135,6 @@ class IdReleaseService
             $this->applications->addHistory($id, 'ID Released', 'Staff confirmed the Solo Parent ID was handed to the applicant on ' . date('F j, Y g:i A', strtotime($releasedAt)) . '.', $staff['full_name'], (int) $staff['id']);
             $expires = $this->pdo->prepare('SELECT id_expires_at FROM applications WHERE id = ?');
             $expires->execute([$id]);
-            (new QrSlipService($this->pdo))->onStatusChange($app, 'ID Released', $expires->fetchColumn() ?: null);
             $this->pdo->commit();
         } catch (Throwable $e) {
             if ($this->pdo->inTransaction()) {

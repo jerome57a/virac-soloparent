@@ -52,10 +52,7 @@ CREATE TABLE users (
   username      VARCHAR(50)  NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   mobile        VARCHAR(20)  DEFAULT NULL,
-  mobile_verified_at DATETIME DEFAULT NULL,      -- NULL = number not confirmed by SMS code (yet, or since it changed)
-  mobile_code   VARCHAR(255) DEFAULT NULL,       -- bcrypt hash of the texted verification code, never the code itself
-  mobile_code_expires_at DATETIME DEFAULT NULL,
-  mobile_code_attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  mobile_verified_at DATETIME DEFAULT NULL,      -- NULL = number not confirmed. Set at registration or by an administrator/applicant confirmation; no SMS code is sent
   role          VARCHAR(30)  NOT NULL DEFAULT 'applicant',
   is_active     TINYINT(1) NOT NULL DEFAULT 1,
   failed_login_attempts INT NOT NULL DEFAULT 0,
@@ -327,11 +324,8 @@ CREATE TABLE application_decisions (
   CONSTRAINT fk_decision_staff FOREIGN KEY (decided_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
--- QR application slips. Each slip carries a random 256-bit token (64 hex
--- chars) -- the only thing its QR code encodes, so no personal data is in
--- the QR. An application has one active slip (revoked_at IS NULL); a lost
--- slip is replaced by revoking it and issuing a new token. The token expires
--- with the ID once released and is revoked if the application is rejected.
+-- Legacy QR slip storage retained for existing installations and records.
+-- The application no longer creates, reads, updates, or deletes these rows.
 CREATE TABLE qr_application_slips (
   id              INT AUTO_INCREMENT PRIMARY KEY,
   application_id  INT NOT NULL,
@@ -347,9 +341,10 @@ CREATE TABLE qr_application_slips (
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------
--- Appointments: slots MSWD opens for self-booking, and the bookings.
--- A booking can also be made by staff with no slot (slot_id NULL).
--- AVAILABLE is a property of a slot with remaining capacity.
+-- Appointments: staff enter the interview date, time and location directly;
+-- new rows always have slot_id NULL. appointment_slots (self-booking slots) and
+-- any appointments.slot_id values are HISTORICAL and kept for existing records;
+-- the application no longer creates or reads slots.
 -- ---------------------------------------------------------------
 CREATE TABLE appointment_slots (
   id          INT AUTO_INCREMENT PRIMARY KEY,
@@ -357,7 +352,7 @@ CREATE TABLE appointment_slots (
   start_time  TIME NOT NULL,
   end_time    TIME NOT NULL,
   capacity    INT NOT NULL DEFAULT 10,
-  -- AVAILABLE (bookable while upcoming, not full, outside the minimum notice) or CANCELLED by staff.
+  -- Historical: slots staff once opened for applicant self-booking (retired); no longer created or used.
   status      ENUM('AVAILABLE','CANCELLED') NOT NULL DEFAULT 'AVAILABLE',
   cancel_reason VARCHAR(255) DEFAULT NULL,
   created_by  INT NOT NULL,
@@ -374,7 +369,7 @@ CREATE TABLE appointments (
   slot_id             INT NULL,
   scheduled_at        DATETIME NOT NULL,
   location            VARCHAR(255) NOT NULL,
-  -- BOOKED -> COMPLETED (result recorded) | MISSED (no-show) | CANCELLED (applicant or staff). BOOKED/COMPLETED hold a seat.
+  -- BOOKED -> COMPLETED (result recorded) | MISSED (no-show) | CANCELLED (by staff, with a reason). One interview per application.
   status              ENUM('BOOKED','COMPLETED','CANCELLED','MISSED') NOT NULL DEFAULT 'BOOKED',
   notes               VARCHAR(500) DEFAULT NULL,
   result              VARCHAR(500) DEFAULT NULL,
@@ -515,17 +510,18 @@ CREATE TABLE id_release_schedules (
   CONSTRAINT fk_release_confirmer FOREIGN KEY (released_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
--- Admin-editable SMS text. Placeholders: {name} {ref} {status} {remarks} {when} {location} {reason} {document} {code} {minutes}
+-- Admin-editable SMS text (see SMSService::TEMPLATES for the active keys). Placeholders: {name} {ref} {status} {remarks} {when} {location} {reason} {document} {code} {minutes}
+-- Rows for retired keys (for example mobile_verification) may remain in existing databases and are ignored.
 CREATE TABLE sms_templates (
   template_key VARCHAR(50) PRIMARY KEY,
   label        VARCHAR(150) NOT NULL,
   body         VARCHAR(500) NOT NULL,
-  is_enabled   TINYINT(1) NOT NULL DEFAULT 1,  -- 0 = this SMS is not sent (Notification Settings; password_reset and mobile_verification are always sent)
+  is_enabled   TINYINT(1) NOT NULL DEFAULT 1,  -- 0 = this SMS is not sent (Notification Settings; password_reset is always sent)
   updated_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
--- Chat Support: one conversation per applicant (user_id) with the Help Assistant and, when the
--- applicant asks for it (handoff = 1), MSWDO staff. The assistant never decides eligibility/approval.
+-- Historical: the retired Chat Support feature (applicant conversations with the Help Assistant
+-- and MSWDO staff). The application no longer reads or writes this table; rows are kept.
 CREATE TABLE chat_messages (
   id             INT AUTO_INCREMENT PRIMARY KEY,
   user_id        INT NOT NULL,
@@ -542,7 +538,8 @@ CREATE TABLE chat_messages (
   CONSTRAINT fk_chat_staff FOREIGN KEY (staff_user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
--- Admin-managed self-service answers shown on Chat Support.
+-- Applicant Help answers (get_faqs(): Help page and portal search). Active rows only;
+-- there is no admin editor any more, so wording changes are made by a reviewed migration.
 CREATE TABLE faqs (
   id          INT AUTO_INCREMENT PRIMARY KEY,
   question    VARCHAR(255) NOT NULL,

@@ -1,11 +1,10 @@
 <?php
 require_once __DIR__ . '/SMSService.php';
-require_once __DIR__ . '/../models/Faq.php';
 require_once __DIR__ . '/../models/Document.php';
 require_once __DIR__ . '/../models/SmsLog.php';
 
 /**
- * Admin-managed content applicants see: Chat Support FAQs, document
+ * Admin-managed content applicants see: FAQs, document
  * requirements per category, and SMS notification templates. Each method
  * validates, writes, audits, and returns [error, success] (one is '').
  */
@@ -21,44 +20,6 @@ class ContentService
     // ---- FAQ ----
 
     /** @return array{0: string, 1: string} */
-    public function saveFaq(array $admin, ?int $id, string $question, string $answer, int $sortOrder): array
-    {
-        if ($question === '' || $answer === '') {
-            return ['Enter both a question and an answer.', ''];
-        }
-        $faqs = new Faq($this->pdo);
-        if ($id === null) {
-            $this->audit($admin, 'FAQ Created', 'faq', $faqs->create($question, $answer, $sortOrder), $question);
-            return ['', 'FAQ added.'];
-        }
-        $faqs->update($id, $question, $answer, $sortOrder);
-        $this->audit($admin, 'FAQ Updated', 'faq', $id, $question);
-        return ['', 'FAQ updated.'];
-    }
-
-    /** @return array{0: string, 1: string} */
-    public function toggleFaq(array $admin, int $id): array
-    {
-        $faqs = new Faq($this->pdo);
-        $faqs->toggleActive($id);
-        $faq = $faqs->find($id);
-        $this->audit($admin, 'FAQ Visibility Toggled', 'faq', $id, $faq ? ($faq['is_active'] ? 'Shown: ' : 'Hidden: ') . $faq['question'] : null);
-        return ['', 'FAQ visibility updated.'];
-    }
-
-    /** @return array{0: string, 1: string} */
-    public function deleteFaq(array $admin, int $id): array
-    {
-        $faqs = new Faq($this->pdo);
-        $faq = $faqs->find($id);
-        $faqs->delete($id);
-        $this->audit($admin, 'FAQ Deleted', 'faq', $id, $faq['question'] ?? null);
-        return ['', 'FAQ deleted.'];
-    }
-
-    // ---- Document requirements ----
-
-    /** $categoryId null = standard requirement for every category. @return array{0: string, 1: string} */
     public function createRequirement(array $admin, ?int $categoryId, string $docKey, string $label, bool $isRequired, int $sortOrder): array
     {
         if (!preg_match('/^[a-zA-Z0-9_]{1,50}$/', $docKey)) {

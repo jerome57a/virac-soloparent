@@ -49,6 +49,16 @@ class ApplicantProfileService
         }
 
         $before = $this->applicants->profile($userId) + ['full_name' => $user['full_name'], 'email' => $user['email'], 'mobile' => $user['mobile']];
+        // A new mobile number is accepted without a texted code, but only after the applicant re-enters their current password.
+        if (!in_array(normalize_mobile($f['mobile']), mobile_variants((string) ($user['mobile'] ?? '')), true)) {
+            require_once __DIR__ . '/AuthService.php';
+            $given = is_string($input['mobile_confirm_password'] ?? null) ? $input['mobile_confirm_password'] : '';
+            if (!(new AuthService($this->pdo))->passwordMatches($user, $given)) {
+                audit_log($this->pdo, $userId, $user['full_name'], $user['role'], 'Mobile Change Refused', 'user', $userId, 'Current password not confirmed');
+                return ['Enter your current password to change your mobile number.', ''];
+            }
+        }
+
         $nullIfBlank = fn(string $v) => $v === '' ? null : $v;
         $this->applicants->updateContact($userId, $f['full_name'], $f['email'], $f['mobile']);
         $this->applicants->updatePersonal($userId, $nullIfBlank($f['birthdate']), $nullIfBlank($f['sex']), $nullIfBlank($f['civil_status']), $nullIfBlank($f['barangay']), $nullIfBlank($f['address']));
@@ -64,11 +74,6 @@ class ApplicantProfileService
         }
         // Field names only -- the audit trail records what changed, not the personal values themselves.
         audit_log($this->pdo, $userId, $f['full_name'], $user['role'], 'Profile Updated', 'user', $userId, 'Changed: ' . implode(', ', $changed));
-        if (!in_array($f['mobile'], mobile_variants((string) $before['mobile']), true)) {
-            require_once __DIR__ . '/AuthService.php';
-            $sendError = (new AuthService($this->pdo))->sendMobileCode(['mobile' => $f['mobile'], 'full_name' => $f['full_name']] + $user);
-            return ['', 'Your profile has been updated. ' . ($sendError ?: 'We texted a 6-digit code to ' . $f['mobile'] . ' -- enter it to confirm your new number.')];
-        }
         return ['', 'Your profile has been updated.'];
     }
 

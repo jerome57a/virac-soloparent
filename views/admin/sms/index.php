@@ -102,7 +102,7 @@ $actionIcon = require APP_ROOT . '/includes/user-management-icons.php';
         <div class="review-card-head"><div class="title" id="admin-sms-templates">Notification Templates</div></div>
         <div style="font-size:12px;color:var(--faint);margin-bottom:14px">Each template lists the placeholders it can use; the first one is required. Max 500 characters (a standard SMS is 160).</div>
         <div class="sms-template-list">
-        <?php foreach ($templates as $t): $ph = SMSService::PLACEHOLDERS[$t['template_key']] ?? []; $isEditing = ($editedTemplate ?? '') === $t['template_key']; ?>
+        <?php foreach ($templates as $t): if (!isset(SMSService::TEMPLATES[$t['template_key']])) { continue; /* retired template: row kept in the database, no longer managed */ } $ph = SMSService::PLACEHOLDERS[$t['template_key']] ?? []; $isEditing = ($editedTemplate ?? '') === $t['template_key']; ?>
           <details class="admin-editor" <?= $isEditing ? 'open' : '' ?>>
           <summary><?= e($t['label']) ?></summary>
           <form method="post" class="admin-editor-content d-flex flex-column gap-2">

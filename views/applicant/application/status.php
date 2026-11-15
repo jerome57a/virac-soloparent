@@ -33,7 +33,6 @@
             <?php endif; ?>
 
             <div class="d-flex gap-2 flex-wrap mt-2">
-              <a href="<?= base_url('applicant/dashboard.php?section=slip&ref=' . urlencode($app['reference_no'])) ?>" class="btn-outline text-decoration-none" style="padding:8px 16px;font-size:13px" data-i18n>View Slip</a>
             </div>
           </div>
         <?php endforeach; ?>

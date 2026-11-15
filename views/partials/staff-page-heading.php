@@ -4,9 +4,7 @@ $staffHeadingPages = [
   'notifications.php' => ['Notifications', 'Read updates about applications, appointments and your account.'],
   'index.php' => ['Applications', 'Search, review and process Solo Parent ID applications and renewals.'],
   'applicants.php' => ['Applicant Records', 'Find a Solo Parent and open their account and application records.'],
-  'appointments.php' => ['Appointment Management', 'Check schedules, record interview outcomes and manage available slots.'],
-  'qr_verify.php' => ['QR Verification', 'Scan a QR code or enter a slip code or reference number to verify a record.'],
-  'chat.php' => ['Chat Support', 'Open an applicant conversation to read their question and reply.'],
+  'appointments.php' => ['Appointment Management', 'Check schedules, record interview outcomes and see who still needs a schedule.'],
   'reports.php' => ['Reports', 'Choose a report, filter its records, then print or download the results.'],
 ];
 $staffHeading = $staffHeadingPages[basename($_SERVER['SCRIPT_NAME'] ?? '')] ?? null;

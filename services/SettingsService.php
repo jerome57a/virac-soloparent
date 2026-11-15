@@ -16,7 +16,7 @@ require_once __DIR__ . '/SMSService.php';
 class SettingsService
 {
     /** The password reset code can never be switched off -- applicants would be locked out. */
-    public const ALWAYS_ON_TEMPLATES = ['password_reset', 'mobile_verification'];
+    public const ALWAYS_ON_TEMPLATES = ['password_reset'];
 
     private PDO $pdo;
 
@@ -226,10 +226,7 @@ class SettingsService
                 }
             }
             if ($new['appointment_day_end'] <= $new['appointment_day_start']) {
-                return 'The latest slot end must be after the earliest slot start.';
-            }
-            if ($new['appointment_min_notice_hours'] >= (int) $new['appointment_max_days_ahead'] * 24) {
-                return 'The minimum booking notice must be shorter than the booking window.';
+                return 'The latest interview end must be after the earliest interview start.';
             }
         }
         if ($section === 'renewals' && (int) $new['renewal_reminder_days'] >= (int) $new['id_validity_years'] * 365) {

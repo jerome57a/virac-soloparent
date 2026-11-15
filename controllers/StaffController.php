@@ -4,12 +4,9 @@ require_once __DIR__ . '/../services/AuthService.php';
 require_once __DIR__ . '/../services/ApplicationReviewService.php';
 require_once __DIR__ . '/../services/AppointmentService.php';
 require_once __DIR__ . '/../services/RenewalService.php';
-require_once __DIR__ . '/../services/QrSlipService.php';
-require_once __DIR__ . '/../services/QrVerificationService.php';
 require_once __DIR__ . '/../services/IdReleaseService.php';
 require_once __DIR__ . '/NotificationController.php';
 require_once __DIR__ . '/ReportController.php';
-require_once __DIR__ . '/../services/HelpAssistantService.php';
 require_once __DIR__ . '/../services/RecordService.php';
 require_once __DIR__ . '/../models/Applicant.php';
 require_once __DIR__ . '/../models/User.php';
@@ -36,11 +33,6 @@ class StaffController extends Controller
         }
         $staff = $auth->currentStaff();
         if (!$staff) {
-            // Someone scanned a slip's QR while signed out: remember it, verify right after staff login.
-            if (str_ends_with((string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH), '/staff/qr_verify.php')
-                && is_string($_GET['t'] ?? null) && preg_match('/^[0-9a-f]{64}$/i', $_GET['t'])) {
-                $_SESSION['pending_qr_token'] = strtolower($_GET['t']);
-            }
             $this->redirectTo('mswd-login.php');
         }
         if ($staff['role'] !== ($adminPortal ? 'admin' : 'mswd_social_worker')) {
@@ -121,7 +113,7 @@ class StaffController extends Controller
         [$renewalOf, $renewalChanges] = $this->renewalContext($app);
         $appointmentModel = new Appointment($this->pdo);
         $currentInterview = $appointmentModel->interviewFor($id);
-        $interviewForm = ['slot_id' => (string) ($currentInterview['slot_id'] ?? ''), 'location' => $currentInterview['location'] ?? get_setting($this->pdo, 'appointment_location', AppointmentService::DEFAULT_LOCATION), 'sms_message_type' => 'automatic', 'custom_message' => ''];
+        $interviewForm = ['interview_date' => $currentInterview ? date('Y-m-d', strtotime($currentInterview['scheduled_at'])) : '', 'interview_time' => $currentInterview ? date('H:i', strtotime($currentInterview['scheduled_at'])) : '', 'location' => $currentInterview['location'] ?? get_setting($this->pdo, 'appointment_location', AppointmentService::DEFAULT_LOCATION), 'sms_message_type' => 'automatic', 'custom_message' => ''];
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_action'] ?? '') === 'schedule_interview') {
             foreach ($interviewForm as $key => $value) {
                 if (is_string($_POST[$key] ?? null)) { $interviewForm[$key] = $_POST[$key]; }
@@ -142,7 +134,6 @@ class StaffController extends Controller
             'approvalChecklist' => $review->approvalChecklist($app),
             'interview' => $appointmentModel->interviewFor($id),
             'interviewSms' => $appointmentModel->interviewSms($id),
-            'interviewSlots' => (new AppointmentService($this->pdo))->staffSlots($id),
             'interviewForm' => $interviewForm,
             'idReleaseSchedule' => (new IdReleaseService($this->pdo))->scheduleFor($id),
             'defaultReleaseLocation' => get_setting($this->pdo, 'appointment_location', 'MSWDO Virac office'),
@@ -235,12 +226,11 @@ class StaffController extends Controller
                 $back .= '#id-release';
                 break;
             case 'schedule_interview':
-                // Date/time come from the managed slot, never from editable browser fields.
-                $slotId = (int) $post('slot_id');
-                $slot = (new Appointment($this->pdo))->findSlot($slotId);
-                if (!$slot) { return ['interview' => 'Select an available interview slot.']; }
-                $scheduledAt = $slot['slot_date'] . 'T' . substr($slot['start_time'], 0, 5);
-                $error = $review->scheduleInterview($this->staff, $app, $scheduledAt, $post('location'), $post('notes'), $post('sms_message_type') ?: 'automatic', $post('custom_message'), $slotId);
+                // Staff pick the interview date and time directly; ApplicationReviewService validates them (future, office day and hours).
+                $date = $post('interview_date');
+                $time = substr($post('interview_time'), 0, 5);
+                $scheduledAt = $date . 'T' . $time;
+                $error = $review->scheduleInterview($this->staff, $app, $scheduledAt, $post('location'), $post('notes'), $post('sms_message_type') ?: 'automatic', $post('custom_message'));
                 if ($error) {
                     return ['interview' => $error];
                 }
@@ -360,8 +350,7 @@ class StaffController extends Controller
     }
 
     /**
-     * staff/appointments.php: the schedule (needs-outcome, today, upcoming,
-     * slots). MSWD staff can also cancel an appointment or mark a no-show;
+     * staff/appointments.php: the schedule (needs-outcome, today, upcoming). MSWD staff can also cancel an appointment or mark a no-show;
      * administrators see the schedule read-only.
      */
     public function appointments(): void
@@ -382,11 +371,7 @@ class StaffController extends Controller
         }
 
         $appointments = new Appointment($this->pdo);
-        $slotsByDate = [];
-        foreach ($appointments->upcomingSlotsWithBookings(100) as $s) {
-            $slotsByDate[$s['slot_date']][] = $s;
-        }
-        $this->page('Appointment Management', 'views/staff/appointments/index.php', [
+        $this->page($this->staff['role'] === 'admin' ? 'Appointment Overview' : 'Appointment Management', 'views/staff/appointments/index.php', [
             'error' => $error,
             'flashMessage' => take_flash(),
             'canManage' => $canManage,
@@ -395,74 +380,6 @@ class StaffController extends Controller
             // Past-but-still-booked ones are already listed under Needs Outcome.
             'todayAppointments' => array_values(array_filter($appointments->todaysInterviews(), fn($iv) => !($iv['status'] === 'BOOKED' && strtotime($iv['scheduled_at']) < time()))),
             'upcomingByDate' => $appointments->laterInterviewsByDate(),
-            'slotsByDate' => $slotsByDate,
-        ]);
-    }
-
-    public function appointmentSlots(): void
-    {
-        $this->authorize($this->staff, 'appointments.slots');
-        $service = new AppointmentService($this->pdo);
-        $error = '';
-        $success = '';
-
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            csrf_require();
-            $post = fn(string $key) => is_string($_POST[$key] ?? null) ? trim($_POST[$key]) : '';
-            $action = $post('action');
-            if ($action === 'create') {
-                $error = $service->createSlot($this->staff, $post('slot_date'), $post('start_time'), $post('end_time'), (int) $post('capacity')) ?? '';
-                $success = $error === '' ? 'Slot added.' : '';
-            } elseif ($action === 'cancel') {
-                [$cancelError, $cancelled] = $service->cancelSlot($this->staff, (int) $post('slot_id'), $post('reason'));
-                $error = $cancelError ?? '';
-                $success = $error === '' ? 'Slot cancelled' . ($cancelled ? " and $cancelled booking(s) cancelled — those applicants were notified." : '.') : '';
-            } elseif ($action === 'delete') {
-                $error = $service->deleteSlot($this->staff, (int) $post('slot_id')) ?? '';
-                $success = $error === '' ? 'Slot removed.' : '';
-            }
-        }
-
-        $this->page('Appointment Slots', 'views/staff/appointments/slots.php', [
-            'error' => $error,
-            'success' => $success,
-            'slots' => (new Appointment($this->pdo))->upcomingSlotsWithBookings(),
-            'defaultCapacity' => (int) get_setting($this->pdo, 'appointment_default_capacity', '10'),
-            'returnApplication' => can($this->staff, 'applications.process') ? (new Application($this->pdo))->findForReview((int) ($_GET['application_id'] ?? 0)) : null,
-        ]);
-    }
-
-    /** staff/qr_verify.php: jump to an application by scanned QR (a status URL) or typed reference number. */
-    public function qrVerify(): void
-    {
-        $this->authorize($this->staff, 'qr.verify');
-        // ?t= comes from a phone camera opening the slip's QR link; ?code= from the in-page scanner or the manual field.
-        $get = fn(string $k) => is_string($_GET[$k] ?? null) ? trim($_GET[$k]) : '';
-        $input = $get('t') !== '' ? $get('t') : ($get('code') !== '' ? $get('code') : $get('ref'));
-        $service = new QrVerificationService($this->pdo);
-        $outcome = null;
-        $error = '';
-        if ($input !== '') {
-            if ($service->throttled()) {
-                $error = 'Too many unrecognised codes in a short time. Please wait a few minutes before trying again.';
-                audit_log($this->pdo, (int) $this->staff['id'], $this->staff['full_name'], $this->staff['role'], 'QR Verification Throttled', 'qr_slip', null, 'Blocked after too many unrecognised codes; tried: ' . mb_substr(preg_replace('/\s+/', ' ', $input), 0, 60));
-            } else {
-                $outcome = $service->verify($this->staff, $input);
-            }
-        }
-        $verificationCard = null;
-        if (!empty($outcome['app']) && can($this->staff, 'applicants.view')) {
-            $applications = new Application($this->pdo);
-            $verificationCard = $applications->findForReview((int) $outcome['app']['id']);
-            if ($verificationCard) {
-                $verificationCard['children'] = $applications->children((int) $outcome['app']['id']);
-            }
-        }
-        $this->page('QR Verification', 'views/staff/qr/verify.php', [
-            'error' => $error,
-            'outcome' => $outcome,
-            'input' => $input,
-            'verificationCard' => $verificationCard,
         ]);
     }
 
@@ -495,43 +412,6 @@ class StaffController extends Controller
             'error' => $error,
             'success' => (string) take_flash(),
             'roleLabels' => User::ROLE_LABELS,
-        ]);
-    }
-
-    /** staff/chat.php: Chat Support conversations in which applicants asked for MSWDO staff, and replying to them. */
-    public function chat(): void
-    {
-        $this->authorize($this->staff, 'chat.respond');
-        $assistant = new HelpAssistantService($this->pdo);
-        $applicantId = (int) ($_GET['user'] ?? 0);
-        if (!$applicantId) {
-            $this->page('Chat Support', 'views/staff/chat/index.php', ['inbox' => $assistant->inbox(), 'waiting' => $assistant->waitingCount(), 'flashMessage' => take_flash()]);
-            return;
-        }
-        $applicant = (new Applicant($this->pdo))->findApplicant($applicantId);
-        $thread = $applicant ? $assistant->staffThread($applicantId) : null;
-        if (!$applicant || $thread === null) {
-            flash('That conversation was not found.');
-            $this->redirectTo('staff/chat.php');
-        }
-        $error = null;
-        $typed = '';
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            csrf_require();
-            $typed = is_string($_POST['reply'] ?? null) ? $_POST['reply'] : '';
-            $error = $assistant->staffReply($this->staff, $applicant, $typed);
-            if (!$error) {
-                flash('Reply sent. The applicant has been notified.');
-                $this->redirectTo('staff/chat.php?user=' . $applicantId . '#chat-latest');
-            }
-        }
-        $this->page('Chat with ' . $applicant['full_name'], 'views/staff/chat/thread.php', [
-            'applicant' => $applicant,
-            'thread' => $thread,
-            'applications' => (new Application($this->pdo))->forUser($applicantId),
-            'error' => $error,
-            'typed' => $error ? $typed : '',
-            'flashMessage' => take_flash(),
         ]);
     }
 

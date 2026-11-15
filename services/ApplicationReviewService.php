@@ -3,7 +3,6 @@ require_once __DIR__ . '/../models/Application.php';
 require_once __DIR__ . '/../models/Document.php';
 require_once __DIR__ . '/../models/Appointment.php';
 require_once __DIR__ . '/../models/EligibilityAssessment.php';
-require_once __DIR__ . '/QrSlipService.php';
 require_once __DIR__ . '/SMSService.php';
 require_once __DIR__ . '/NotificationService.php';
 require_once __DIR__ . '/InterviewCalendarService.php';
@@ -204,10 +203,8 @@ class ApplicationReviewService
             if ($newStatus === 'Rejected' && $appt && $appt['status'] === 'BOOKED') {
                 $this->appointments->cancel((int) $appt['id'], (int) $staff['id'], 'Application rejected');
             }
-            // The QR slip follows the decision: it expires with the released ID, and a rejection revokes it.
             $expires = $this->pdo->prepare('SELECT id_expires_at FROM applications WHERE id = ?');
             $expires->execute([$id]);
-            (new QrSlipService($this->pdo))->onStatusChange($app, $newStatus, $expires->fetchColumn() ?: null);
             $this->pdo->commit();
         } catch (Throwable $e) {
             $this->pdo->rollBack();
@@ -672,7 +669,7 @@ class ApplicationReviewService
     }
 
     /** $scheduledAt is the raw datetime-local value (Y-m-d\TH:i). */
-    public function scheduleInterview(array $staff, array $app, string $scheduledAt, string $location, string $notes, string $messageType = 'automatic', string $customMessage = '', int $slotId = 0): ?string
+    public function scheduleInterview(array $staff, array $app, string $scheduledAt, string $location, string $notes, string $messageType = 'automatic', string $customMessage = ''): ?string
     {
         if (!empty($app['renewal_simplified'])) {
             return 'This renewal uses document review and approval; a new interview is not required.';
@@ -689,9 +686,6 @@ class ApplicationReviewService
         }
         if ($error = (new InterviewCalendarService($this->pdo))->timeError($dt->format('Y-m-d'), $dt->format('H:i'))) {
             return $error;
-        }
-        if ($slotId < 1) {
-            return 'Select an available interview slot. Add a slot in Appointment Management if none are available.';
         }
         if ($location === '') {
             return 'Enter an interview location.';
@@ -738,22 +732,8 @@ class ApplicationReviewService
                 $this->pdo->rollBack();
                 return 'The interview for this application is already completed.';
             }
-            if ($slotId > 0) {
-                $slot = $this->appointments->lockSlot($slotId);
-                if (!$slot || $slot['status'] !== 'AVAILABLE'
-                    || $slot['slot_date'] . ' ' . $slot['start_time'] !== $scheduledAtSql
-                    || (new InterviewCalendarService($this->pdo))->timeError($slot['slot_date'], $slot['start_time'], $slot['end_time']) !== null) {
-                    $this->pdo->rollBack();
-                    return 'Select an available MSWDO slot matching the interview date and time.';
-                }
-                if ($this->appointments->bookedCountExcluding($slotId, $id) >= (int) $slot['capacity']) {
-                    $this->pdo->rollBack();
-                    return 'That interview slot is full. Select another available slot.';
-                }
-            }
             $sameSchedule = $existing && $existing['status'] === 'BOOKED'
                 && $existing['scheduled_at'] === $scheduledAtSql && $existing['location'] === $location
-                && (int) ($existing['slot_id'] ?? 0) === $slotId
                 && (string) ($existing['notes'] ?? '') === ($notes !== '' ? $notes : '');
             $latestSms = $this->appointments->interviewSms($id);
             // The application row lock makes repeated/concurrent clicks serialize here.
@@ -770,9 +750,6 @@ class ApplicationReviewService
             }
 
             $this->appointments->upsertStaffScheduled($id, $scheduledAtSql, $location, $notes !== '' ? $notes : null, (int) $staff['id']);
-            if ($slotId > 0) {
-                $this->pdo->prepare('UPDATE appointments SET slot_id = ? WHERE application_id = ?')->execute([$slotId, $id]);
-            }
             $this->applications->setReviewedStatus($id, 'Interview Scheduled', (int) $staff['id']);
             $this->applications->addHistory($id, 'Interview Scheduled', 'Interview at ' . $location . ' on ' . $when, $staff['full_name'], (int) $staff['id']);
             $smsResult = $sms->notifyInterviewScheduled($id, $app['mobile'], $app['reference_no'], $scheduledAtSql, $location, $app['full_name'], $message);

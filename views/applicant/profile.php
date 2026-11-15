@@ -112,13 +112,17 @@ $missing = array_keys(array_filter(['birthdate' => 1, 'sex' => 1, 'civil_status'
             <label class="field-label">
               <span data-i18n>Barangay</span>
               <input type="text" name="barangay" value="<?= e($form['barangay']) ?>" placeholder="e.g. Concepcion" maxlength="100" data-i18n-attrs="placeholder">
+            <label class="field-label">
+              <span data-i18n>Current password</span>
+              <input type="password" name="mobile_confirm_password" autocomplete="current-password" placeholder="Only needed to change your mobile number">
+            </label>
             </label>
             <label class="field-label">
               <span data-i18n>Complete address</span>
               <input type="text" name="address" value="<?= e($form['address']) ?>" placeholder="House no., street, purok" maxlength="255" autocomplete="street-address" data-i18n-attrs="placeholder">
             </label>
           </div>
-          <div style="font-size:12px;color:var(--faint);margin-top:4px" data-i18n>Your mobile number receives SMS updates and password-reset codes, and you can sign in with it. It must be unique to your account; a new number is confirmed with a texted code.</div>
+          <div style="font-size:12px;color:var(--faint);margin-top:4px" data-i18n>Your mobile number receives SMS updates and password-reset codes, and you can sign in with it. It must be unique to your account; changing it asks for your current password.</div>
         </div>
 
         <div class="profile-save-row">

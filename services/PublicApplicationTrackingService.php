@@ -29,7 +29,7 @@ class PublicApplicationTrackingService
             ];
             if ($releasePending) {
                 $title = 'Your ID release is scheduled';
-                $instruction = 'Visit MSWDO at the date, time, and location below. Bring your application slip and a valid ID. Your status becomes ID Released after staff confirms handover.';
+                $instruction = 'Visit MSWDO at the date, time, and location below. Bring your application reference and a valid ID. Your status becomes ID Released after staff confirms handover.';
             }
         } elseif ($interview && in_array($interview['status'], ['MISSED', 'CANCELLED'], true) && !in_array($status, ['Approved', 'ID Released', 'Rejected'], true)) {
             $title = 'Arrange another interview';
@@ -87,7 +87,7 @@ class PublicApplicationTrackingService
                 $instruction = 'Keep your ID safe. You can apply for renewal starting ' . date('F j, Y', strtotime($renewalOpens)) . '.';
             }
         }
-        // Allowlist public fields: no mobile, address, assessment, staff notes, SMS, or QR token.
+        // Allowlist public fields: no mobile, address, assessment, staff notes, or SMS data.
         return [
             'reference_no' => $app['reference_no'], 'masked_name' => mask_name($app['full_name']),
             'status' => $status, 'type' => $app['type'], 'submitted_at' => $app['submitted_at'],

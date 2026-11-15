@@ -18,7 +18,6 @@ class Report extends Model
         'approval'    => 'Approval Report',
         'rejection'   => 'Rejection Report',
         'renewal'     => 'Renewal Report',
-        'barangay'    => 'Barangay Distribution',
         'appointment' => 'Appointment Report',
         'expiring'    => 'Expiring ID Report',
     ];
@@ -28,7 +27,6 @@ class Report extends Model
         'approval'    => 'Each time an application was approved, with who approved it. Dates filter on the decision.',
         'rejection'   => 'Each time an application was rejected, with the reason given. Dates filter on the decision.',
         'renewal'     => 'Renewal requests by submission date, with the ID each one renews.',
-        'barangay'    => 'Applications per barangay (spellings merged), by submission date.',
         'appointment' => 'Appointments by scheduled date, with their outcome.',
         'expiring'    => 'Released IDs by expiry date, with days left and whether a renewal was filed.',
     ];
@@ -186,25 +184,6 @@ class Report extends Model
                     'columns' => ['reference_no' => ['Reference No', 'text'], 'full_name' => ['Full Name', 'text'], 'barangay' => ['Barangay', 'text'], 'category_name' => ['Category', 'text'],
                         'renews' => ['Renews ID', 'text'], 'old_expiry' => ['Old ID Expiry', 'date'], 'status' => ['Status', 'text'], 'submitted_at' => ['Submitted', 'datetime']],
                 ];
-            case 'barangay':
-                return [
-                    'select' => "SELECT MIN(TRIM(REGEXP_REPLACE(a.barangay, '[[:space:]]+', ' '))) AS barangay,
-                                   COUNT(DISTINCT a.user_id) AS applicants,
-                                   COUNT(*) AS total,
-                                   SUM(a.type = 'new') AS new_count,
-                                   SUM(a.type = 'renewal') AS renewal_count,
-                                   SUM(a.status IN ('Pending Review','Under Verification','For Revision','Interview Scheduled')) AS pending_count,
-                                   SUM(a.status IN ('Approved','ID Released')) AS approved_count,
-                                   SUM(a.status = 'Rejected') AS rejected_count
-                                 FROM applications a",
-                    'dateColumn' => 'a.submitted_at', 'dateLabel' => 'Submitted',
-                    'search' => ['a.barangay'],
-                    'groupBy' => " GROUP BY $barangayKey",
-                    'orderBy' => 'total DESC, barangay',
-                    'totals' => ['applicants', 'total', 'new_count', 'renewal_count', 'pending_count', 'approved_count', 'rejected_count'],
-                    'columns' => ['barangay' => ['Barangay', 'text'], 'applicants' => ['Applicants', 'int'], 'total' => ['Applications', 'int'], 'new_count' => ['New', 'int'],
-                        'renewal_count' => ['Renewal', 'int'], 'pending_count' => ['Pending', 'int'], 'approved_count' => ['Approved / Released', 'int'], 'rejected_count' => ['Rejected', 'int']],
-                ];
             case 'appointment':
                 return [
                     'select' => "SELECT a.reference_no, a.full_name, a.mobile, i.scheduled_at, i.location,
@@ -249,15 +228,4 @@ class Report extends Model
         }
     }
 
-    // ---- System monitoring ----
-
-    /** table name => row count, for every table in the database. */
-    public function tableRowCounts(): array
-    {
-        $counts = [];
-        foreach ($this->pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN) as $table) {
-            $counts[$table] = (int) $this->pdo->query('SELECT COUNT(*) FROM `' . $table . '`')->fetchColumn();
-        }
-        return $counts;
-    }
 }

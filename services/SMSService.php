@@ -30,7 +30,6 @@ class SMSService
         'appointment_missed' => ['Appointment Missed', 'MSWDO Virac: You missed your appointment for application {ref} on {when}. Please contact MSWDO for a new schedule.'],
         'document_correction' => ['Document Checklist Needs Correction', 'MSWDO Virac: The requirement "{document}" for application {ref} needs correction. Reason: {remarks}. Please log in and update your Required Documents Checklist.'],
         'password_reset' => ['Password Reset Code', "MSWDO Virac: Your password reset code is {code}. It expires in {minutes} minutes. If you didn't request this, ignore this message."],
-        'mobile_verification' => ['Mobile Number Verification Code', 'MSWDO Virac: Your e-SoloParentID verification code is {code}. It expires in {minutes} minutes. Do not share this code with anyone.'],
     ];
     /** Placeholders each template can use (anything else would be sent literally); the first is required. */
     public const PLACEHOLDERS = [
@@ -45,7 +44,6 @@ class SMSService
         'appointment_missed' => ['{ref}', '{when}'],
         'document_correction' => ['{ref}', '{document}', '{remarks}'],
         'password_reset' => ['{code}', '{minutes}'],
-        'mobile_verification' => ['{code}', '{minutes}'],
     ];
     public const PROVIDERS = ['test', 'semaphore'];
 
@@ -443,13 +441,5 @@ class SMSService
         $vars = ['{minutes}' => (string) PASSWORD_RESET_CODE_MINUTES];
         return $this->send(null, $mobile, $this->render('password_reset', $vars + ['{code}' => $code]), 'password_reset',
             $this->render('password_reset', $vars + ['{code}' => '******']));
-    }
-
-    /** Confirms a mobile number belongs to the account holder. Always sent; the log keeps the text with the code masked. */
-    public function notifyMobileVerification(string $mobile, string $code): array
-    {
-        $vars = ['{minutes}' => (string) MOBILE_CODE_MINUTES];
-        return $this->send(null, $mobile, $this->render('mobile_verification', $vars + ['{code}' => $code]), 'mobile_verification',
-            $this->render('mobile_verification', $vars + ['{code}' => '******']));
     }
 }

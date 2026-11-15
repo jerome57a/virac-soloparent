@@ -187,8 +187,8 @@ class User extends Model
         [$as0, $as63] = mobile_variants((string) $mobile);
         $this->pdo->prepare(
             'UPDATE users SET full_name = ?, email = ?, mobile_verified_at = IF(mobile IN (?, ?), mobile_verified_at, NULL),
-                              mobile_code = IF(mobile IN (?, ?), mobile_code, NULL), mobile = ? WHERE id = ?'
-        )->execute([$fullName, $email, $as0, $as63, $as0, $as63, $mobile, $userId]);
+                              mobile = ? WHERE id = ?'
+        )->execute([$fullName, $email, $as0, $as63, $mobile, $userId]);
     }
 
     public function recordLogin(int $userId): void
@@ -248,25 +248,9 @@ class User extends Model
             ->execute([$codeHash, $expiresAt, $userId]);
     }
 
-    /** A fresh mobile verification code (hash only); any earlier code and its wrong attempts are void. */
-    public function setMobileCode(int $userId, string $codeHash, string $expiresAt): void
-    {
-        $this->pdo->prepare('UPDATE users SET mobile_code = ?, mobile_code_expires_at = ?, mobile_code_attempts = 0 WHERE id = ?')
-            ->execute([$codeHash, $expiresAt, $userId]);
-    }
-
-    /** Counts a wrong code; the code is voided once MOBILE_CODE_MAX_ATTEMPTS is reached. */
-    public function recordMobileCodeFailure(int $userId): void
-    {
-        $this->pdo->prepare(
-            'UPDATE users SET mobile_code_attempts = mobile_code_attempts + 1,
-                              mobile_code = IF(mobile_code_attempts >= ?, NULL, mobile_code) WHERE id = ?'
-        )->execute([MOBILE_CODE_MAX_ATTEMPTS, $userId]);
-    }
-
     public function markMobileVerified(int $userId): void
     {
-        $this->pdo->prepare('UPDATE users SET mobile_verified_at = NOW(), mobile_code = NULL, mobile_code_expires_at = NULL, mobile_code_attempts = 0 WHERE id = ?')
+        $this->pdo->prepare('UPDATE users SET mobile_verified_at = NOW() WHERE id = ?')
             ->execute([$userId]);
     }
 

@@ -1,10 +1,8 @@
 <?php
-/** @var array $office @var bool $hasApplication */
+/** @var array $office @var bool $hasApplication @var array $faqs */
 $links = [
-    ['section=chat', 'chat', 'Chat Support', 'Ask the Help Assistant or send your question to an MSWDO social worker.'],
     ['section=requirements', 'documents', 'Requirements guide', 'Find the issuing office, what to bring, and steps to get each document.'],
     [$hasApplication ? 'section=application' : 'section=apply', 'application', $hasApplication ? 'Track my application' : 'Apply online', $hasApplication ? 'See your progress, staff remarks, and the next action needed.' : 'Start your Solo Parent ID application and save your progress.'],
-    ['section=news', 'news', 'News & announcements', 'Check office schedules and the latest program updates.'],
 ];
 $steps = [
     ['Apply online', 'Fill in your details and complete the document checklist. Save your draft if you need to finish later.'],
@@ -13,10 +11,8 @@ $steps = [
     ['Claim your Solo Parent ID', 'After approval, follow your release appointment or MSWDO instructions. Your ID appears in My ID after it is released.'],
 ];
 $helpIcons = [
-    'chat' => '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
     'documents' => '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>',
     'application' => '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M8 13h8m-8 4h5"/>',
-    'news' => '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 7h10M7 11h10m-10 4h5"/>',
 ];
 ?>
 <link rel="stylesheet" href="<?= public_asset('css/applicant-account.css') ?>">
@@ -31,13 +27,40 @@ $helpIcons = [
       <section class="help-process-card" aria-labelledby="help-process-heading"><div class="help-section-header"><div class="account-eyebrow" data-i18n>FROM APPLICATION TO RELEASE</div><h3 id="help-process-heading" data-i18n>How it works</h3><p data-i18n>Know what happens next at each stage.</p></div><ol class="help-process-steps" data-i18n>
         <?php foreach ($steps as $i => [$title, $text]): ?><li><span class="help-step-number" aria-hidden="true"><?= str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT) ?></span><div><h4 data-i18n><?= e($title) ?></h4><p data-i18n><?= e($text) ?></p></div></li><?php endforeach; ?>
       </ol></section>
+      <section class="help-process-card" aria-labelledby="help-faq-heading">
+        <div class="help-section-header"><h3 id="help-faq-heading" data-i18n>Frequently asked questions</h3><p data-i18n>Answers to common questions about Solo Parent ID services.</p></div>
+        <?php if ($faqs): ?>
+          <label for="help-faq-search" class="visually-hidden" data-i18n>Search frequently asked questions</label>
+          <input type="search" id="help-faq-search" class="form-control mb-3" placeholder="Search questions or answers" data-i18n-attrs="placeholder">
+          <div class="help-faq-list">
+            <?php foreach ($faqs as $faq): ?>
+              <details class="help-faq-item" data-help-faq="<?= e(mb_strtolower($faq['question'] . ' ' . $faq['answer'])) ?>"><summary data-i18n><?= e($faq['question']) ?></summary><div data-i18n><?= nl2br(e($faq['answer'])) ?></div></details>
+            <?php endforeach; ?>
+          </div>
+          <p id="help-faq-empty" role="status" hidden data-i18n>No FAQ entries match your search.</p>
+        <?php else: ?>
+          <p data-i18n>No FAQ entries are currently available. Contact MSWDO using the details on this page.</p>
+        <?php endif; ?>
+      </section>
     </div>
     <aside class="help-contact-card" id="help-contact" aria-labelledby="help-contact-heading"><div class="account-eyebrow" data-i18n>WE’RE HERE TO HELP</div><h3 id="help-contact-heading" data-i18n>Contact MSWDO</h3><p class="help-office-name"><?= e($office['name']) ?></p>
       <dl><div><dt data-i18n>Visit us</dt><dd><?= e($office['address']) ?></dd></div><div><dt data-i18n>Office hours</dt><dd><?= e($office['hours']) ?></dd></div>
       <?php if ($office['phone'] !== ''): ?><div><dt data-i18n>Phone</dt><dd><a href="tel:<?= e(preg_replace('/[^\d+]/', '', $office['phone'])) ?>"><?= e($office['phone']) ?></a></dd></div><?php endif; ?>
       <?php if ($office['email'] !== ''): ?><div><dt data-i18n>Email</dt><dd><a href="mailto:<?= e($office['email']) ?>"><?= e($office['email']) ?></a></dd></div><?php endif; ?></dl>
-      <a href="?section=chat" class="help-contact-action" data-i18n>Ask MSWDO staff <span aria-hidden="true">&rarr;</span></a>
       <div class="help-privacy-note"><strong data-i18n>Keep your account private</strong><p data-i18n>Never share your password or SMS reset code with anyone, including MSWDO staff.</p></div>
     </aside>
   </div>
 </div>
+<script>
+  const faqSearch = document.getElementById('help-faq-search');
+  if (faqSearch) faqSearch.addEventListener('input', () => {
+    const query = faqSearch.value.trim().toLocaleLowerCase();
+    const entries = [...document.querySelectorAll('[data-help-faq]')];
+    let visible = 0;
+    entries.forEach(entry => {
+      entry.hidden = query !== '' && !entry.dataset.helpFaq.includes(query);
+      if (!entry.hidden) visible++;
+    });
+    document.getElementById('help-faq-empty').hidden = visible !== 0 || query === '';
+  });
+</script>

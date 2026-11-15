@@ -1,8 +1,7 @@
 /* Content of the eight staff pages only; no header or drawer selectors. */
 .staff-workspace { --sw-card: #fff; --sw-border: #dfe6ef; --sw-muted: #56677e; --sw-soft: #f4f7fb; --sw-accent: #1b3a6b; }
 .staff-workspace > .portal-container { max-width: 1180px !important; }
-.staff-workspace[data-staff-page="notifications.php"] > .portal-container,
-.staff-workspace[data-staff-page="chat.php"] > .portal-container { max-width: 960px !important; }
+.staff-workspace[data-staff-page="notifications.php"] > .portal-container { max-width: 960px !important; }
 .staff-workspace .staff-page-heading { display: flex; align-items: center; gap: 16px; margin: 16px 0 24px; }
 .staff-workspace .staff-page-heading p { font-size: 14px; color: var(--sw-muted); line-height: 1.7; margin: 8px 0 0; max-width: 720px; }
 .staff-workspace .staff-back-link { display: inline-flex; align-items: center; gap: 9px; min-height: 44px; padding: 9px 14px; border: 1px solid var(--sw-border); border-radius: 10px; background: var(--sw-card); color: var(--sw-accent); font-weight: 600; font-size: 13px; text-decoration: none; }
@@ -33,19 +32,8 @@
 .staff-workspace .notif-item { min-width: 0; }
 .staff-workspace .notif-body { min-width: 0; flex: 1; }
 .staff-workspace .notif-text { overflow-wrap: anywhere; }
-.staff-workspace .chat-inbox-row { flex-wrap: wrap; gap: 14px; }
-.staff-workspace .chat-inbox-row > :first-child { flex: 1 1 280px; }
-.staff-workspace .chat-inbox-row > :last-child { white-space: normal !important; }
-.staff-workspace .chat-inbox-row .status-pill { white-space: normal; }
-.staff-workspace .staff-chat-search { display: flex; flex-direction: column; gap: 8px; padding: 18px; margin-bottom: 20px; border: 1px solid var(--sw-border); border-radius: 12px; background: var(--sw-card); font-size: 13px; font-weight: 600; }
-.staff-workspace .staff-chat-search input { width: 100%; }
-.staff-workspace .staff-qr-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; align-items: start; }
-.staff-workspace .staff-qr-grid > .review-card { min-width: 0; }
-.staff-workspace .staff-qr-grid video { max-width: 100% !important; }
 .staff-workspace .staff-code-field { display: flex; flex-direction: column; gap: 8px; flex: 1 1 240px; min-width: 0; font-size: 13px; }
 .staff-workspace .staff-code-field input { flex: 0 0 auto !important; height: 44px; min-height: 44px; width: 100%; }
-.staff-workspace .staff-qr-grid form { align-items: flex-end; }
-.staff-workspace .staff-qr-grid form button { height: 44px; }
 .staff-workspace #admin-report-types { display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .staff-workspace #admin-report-types a { display: flex; align-items: center; min-height: 44px; padding: 10px 12px; white-space: normal; border-radius: 8px; font-size: 12px; }
 .staff-workspace #admin-report-types a[aria-current] { outline: 2px solid var(--sw-accent); outline-offset: 2px; }
@@ -56,9 +44,7 @@
 .staff-workspace .report-table { max-width: 100%; overflow-x: auto; border: 1px solid var(--sw-border); border-radius: 12px; background: var(--sw-card); }
 .staff-workspace .report-table table { min-width: 700px; }
 .staff-workspace .staff-table-hint { font-size: 12px; color: var(--sw-muted); margin: 8px 0; }
-.staff-workspace [data-staff-conversation][hidden], .staff-workspace [data-staff-chat-empty][hidden] { display: none !important; }
 @media (max-width: 800px) {
-  .staff-workspace .staff-qr-grid { grid-template-columns: minmax(0, 1fr); }
   .staff-workspace #admin-report-types { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 575px) {
@@ -68,7 +54,6 @@
   .staff-workspace :is(.filter-bar, .record-filters, .analytics-filters) > label { flex-basis: 100%; min-width: 0; }
   .staff-workspace .staff-page-heading { margin-bottom: 20px; }
   .staff-workspace .staff-page-actions { justify-content: flex-start; }
-  .staff-workspace .chat-inbox-row > :last-child { text-align: left !important; }
 }
 @media screen {
   html[data-theme="dark"] .staff-workspace { --sw-card: #1c2839; --sw-border: #3c4b60; --sw-muted: #b6c3d5; --sw-soft: #172233; --sw-accent: #a9caff; --staff-muted: #b6c3d5; --staff-border: #3c4b60; }

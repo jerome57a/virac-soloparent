@@ -12,7 +12,7 @@
 const SETTINGS_REGISTRY = [
     'general' => [
         'title' => 'Basic System Information',
-        'note' => 'Shown in page titles, the footer, the Help Assistant and the applicant pages.',
+        'note' => 'Shown in page titles, the footer, Help, and applicant pages.',
         'keys' => [
             'system_name' => ['label' => 'System name', 'type' => 'text', 'default' => 'Virac Solo Parent ID Online Portal', 'max' => 120],
             'office_name' => ['label' => 'Office name', 'type' => 'text', 'default' => 'MSWDO Virac', 'max' => 100],
@@ -33,20 +33,18 @@ const SETTINGS_REGISTRY = [
     ],
     'appointments' => [
         'title' => 'Appointments',
-        'note' => 'MSWD staff open the actual dates and times on Appointment Slots; these rules limit when slots may be opened and booked.',
+        'note' => 'MSWD staff choose each interview date and time on the application; these rules limit which days and hours they can pick.',
         'keys' => [
             'appointment_location' => ['label' => 'Default appointment location', 'type' => 'text', 'default' => 'MSWDO Office, Municipal Building, Salvacion, Virac, Catanduanes', 'max' => 255],
-            'appointment_default_capacity' => ['label' => 'Default capacity per slot', 'type' => 'int', 'default' => '10', 'min' => 1, 'max' => 100],
-            'appointment_days' => ['label' => 'Days slots may be scheduled', 'type' => 'list', 'default' => '1,2,3,4,5',
+            'appointment_days' => ['label' => 'Days interviews may be scheduled', 'type' => 'list', 'default' => '1,2,3,4,5',
                 'options' => ['1' => 'Mon', '2' => 'Tue', '3' => 'Wed', '4' => 'Thu', '5' => 'Fri']],
             'appointment_holiday_dates' => ['label' => 'Additional holiday dates', 'type' => 'dates', 'default' => '', 'max' => 2500,
                 'help' => 'Add newly declared or local holidays as YYYY-MM-DD, separated by commas. Declared national holidays for 2026–2027 and Catanduanes Foundation Day are already blocked. Add 2027 Eid dates when officially declared.'],
             'appointment_closure_dates' => ['label' => 'Announced office closure dates', 'type' => 'dates', 'default' => '', 'max' => 2500,
                 'help' => 'Enter every closed date as YYYY-MM-DD, separated by commas. Include dates from office closure announcements. Cancel or reschedule existing interviews on these dates first.'],
-            'appointment_day_start' => ['label' => 'Earliest slot start', 'type' => 'time', 'default' => '08:00'],
-            'appointment_day_end' => ['label' => 'Latest slot end', 'type' => 'time', 'default' => '17:00'],
-            'appointment_max_days_ahead' => ['label' => 'Slots may be opened up to (days ahead)', 'type' => 'int', 'default' => '366', 'min' => 7, 'max' => 366],
-            'appointment_min_notice_hours' => ['label' => 'Minimum notice to book, reschedule or cancel online (hours)', 'type' => 'int', 'default' => '2', 'min' => 0, 'max' => 168],
+            'appointment_day_start' => ['label' => 'Earliest interview start', 'type' => 'time', 'default' => '08:00'],
+            'appointment_day_end' => ['label' => 'Latest interview end', 'type' => 'time', 'default' => '17:00'],
+            'appointment_min_notice_hours' => ['label' => 'Minimum notice to cancel online (hours)', 'type' => 'int', 'default' => '2', 'min' => 0, 'max' => 168],
             'appointment_reminder_hours' => ['label' => 'Send the appointment reminder (hours before)', 'type' => 'int', 'default' => '24', 'min' => 1, 'max' => 168],
         ],
     ],

@@ -8,15 +8,12 @@ require_once __DIR__ . '/../services/ApplicantProfileService.php';
 require_once __DIR__ . '/../models/Applicant.php';
 require_once __DIR__ . '/../models/Application.php';
 require_once __DIR__ . '/../models/Notification.php';
-require_once __DIR__ . '/../services/QrSlipService.php';
 require_once __DIR__ . '/ApplicationController.php';
 require_once __DIR__ . '/../services/ApplicationTrackerService.php';
-require_once __DIR__ . '/../services/ApplicantAnalyticsService.php';
 require_once __DIR__ . '/DocumentController.php';
 require_once __DIR__ . '/AppointmentController.php';
 require_once __DIR__ . '/RenewalController.php';
 require_once __DIR__ . '/NotificationController.php';
-require_once __DIR__ . '/../services/HelpAssistantService.php';
 require_once __DIR__ . '/../services/RequirementGuideService.php';
 require_once __DIR__ . '/../services/IdReleaseService.php';
 
@@ -31,18 +28,14 @@ class ApplicantController extends Controller
 {
     private const SECTION_TITLES = [
         'dashboard'     => 'Dashboard',
-        'analytics'     => 'Analytics',
         'apply'         => 'Apply for Solo Parent ID',
         'application'   => 'My Application',
-        'slip'          => 'Application Slip',
         'renewal'       => 'ID Renewal',
         'myid'          => 'My Solo Parent ID',
         'appointment'   => 'Appointment',
-        'news'          => 'News & Announcements',
         'notifications' => 'Notifications',
         'documents'     => 'Required Documents Checklist',
         'requirements'  => 'Requirements Guide',
-        'chat'          => 'Chat Support',
         'profile'       => 'My Profile',
         'help'          => 'Help & Support',
     ];
@@ -65,9 +58,16 @@ class ApplicantController extends Controller
         $this->applications = (new Application($this->pdo))->forUserDetailed((int) $user['id']);
 
         $section = (string) ($_GET['section'] ?? 'dashboard');
+        // Retain a safe destination for old bookmarks and notification links.
+        if ($section === 'chat') {
+            $this->redirectTo('applicant/dashboard.php?section=help');
+        }
         // Account settings (details, photo, password) all live on My Profile; old "Settings" links go there.
         if ($section === 'settings') {
             $this->redirectTo('applicant/dashboard.php?section=profile');
+        }
+        if (!isset(self::SECTION_TITLES[$section])) {
+            $section = 'dashboard';
         }
         // The Eligibility Checker is a public, pre-application step (eligibility.php); old dashboard links land on the dashboard.
         if ($section === 'eligibility') {
@@ -77,17 +77,9 @@ class ApplicantController extends Controller
             $section = 'dashboard';
         }
         $this->requireOwnPassword($user, 'applicant/dashboard.php?section=profile#password', $section === 'profile');
-        // The account is usable once its mobile number is confirmed by SMS code (after registering, or after the
-        // number changed). My Profile stays open, so a mistyped number can be corrected.
-        if (empty($user['mobile_verified_at']) && $section !== 'profile') {
-            $this->redirectTo('verify-mobile.php');
-        }
         $title = self::SECTION_TITLES[$section];
 
         switch ($section) {
-            case 'slip':
-                $result = (new ApplicationController($this->pdo))->applicantSlipSection($this->user);
-                break;
             case 'apply':
                 $result = (new ApplicationController($this->pdo))->applySection($this->user);
                 break;
@@ -113,20 +105,11 @@ class ApplicantController extends Controller
                 $result = (new RenewalController($this->pdo))->handle($this->user, $this->applications);
                 $title = $result['title'];
                 break;
-            case 'analytics':
-                $result = $this->sectionAnalytics();
-                break;
-            case 'news':
-                $result = $this->sectionNews();
-                break;
             case 'myid':
                 $result = $this->sectionMyid();
                 break;
             case 'notifications':
                 $result = $this->sectionNotifications();
-                break;
-            case 'chat':
-                $result = $this->sectionChat();
                 break;
             case 'profile':
                 $result = $this->sectionProfile();
@@ -136,25 +119,24 @@ class ApplicantController extends Controller
                     'office' => ['name' => setting('office_name'), 'address' => setting('office_address'), 'hours' => setting('office_hours'),
                                  'email' => setting('office_email'), 'phone' => setting('office_phone')],
                     'hasApplication' => (bool) $this->applications,
+                    'faqs' => get_faqs($this->pdo),
                 ]];
                 break;
             default:
                 $result = $this->sectionDashboard();
         }
 
-        $this->renderLayout($section === 'slip' ? 'application' : $section, $title, $result);
+        $this->renderLayout($section, $title, $result);
     }
 
     private function renderLayout(string $section, string $title, array $result): void
     {
-        $announcements = announcements_list();
         $this->render('views/applicant/layout.php', array_merge($result['data'], [
             'user' => $this->user,
             'section' => $section,
             'sectionTitle' => $title,
             'pageTitle' => $title . ' — ' . setting('system_name'),
             'contentView' => 'views/applicant/' . $result['view'],
-            'unreadAnnouncementCount' => count_unread_announcements($announcements),
             'unreadNotificationCount' => (new Notification($this->pdo))->unreadCount((int) $this->user['id']),
         ]));
     }
@@ -229,56 +211,6 @@ class ApplicantController extends Controller
     }
 
     /**
-     * A summary of one of the applicant's own applications (the newest by
-     * default) with their documents, interview, currently held ID and recent
-     * activity. ?application_id= only picks among $this->applications, which
-     * were loaded by the session user's id; an id not in that list (another
-     * applicant's, or made up) falls back to the newest application.
-     */
-    private function sectionAnalytics(): array
-    {
-        $selected = $this->applications[0] ?? null;
-        $requested = is_string($_GET['application_id'] ?? null) ? (int) $_GET['application_id'] : 0;
-        foreach ($this->applications as $app) {
-            if ((int) $app['id'] === $requested) {
-                $selected = $app;
-                break;
-            }
-        }
-        $tracker = $selected ? (new ApplicationTrackerService($this->pdo))->track($selected) : null;
-
-        // The ID the applicant holds now, which may come from an older application than the one shown
-        // (e.g. while a renewal is being processed). Its release date is the first "ID Released" in its
-        // status history: taken from the tracker when it is the shown application, otherwise read once.
-        $idApplication = $this->idApplication();
-        $idReleasedAt = null;
-        if ($idApplication && $idApplication['status'] === 'ID Released') {
-            $history = $selected && (int) $idApplication['id'] === (int) $selected['id']
-                ? $tracker['history']
-                : array_reverse((new Application($this->pdo))->history((int) $idApplication['id']));
-            foreach ($history as $h) {
-                if ($h['status'] === 'ID Released') {
-                    $idReleasedAt = $h['changed_at'];
-                    break;
-                }
-            }
-        }
-
-        return ['view' => 'analytics.php', 'data' => [
-            'application' => $selected,
-            'applications' => $this->applications,
-            'tracker' => $tracker,
-            'documentCounts' => $tracker ? ApplicantAnalyticsService::documentCounts($tracker['checklist']) : null,
-            'activity' => $tracker ? (new ApplicantAnalyticsService($this->pdo))->timeline($selected, $tracker) : [],
-            'applicationDraft' => (new ApplicationService($this->pdo))->draftSummary($this->user),
-            'idApplication' => $idApplication,
-            'idReleasedAt' => $idReleasedAt,
-            'idExpiryInfo' => $this->idExpiryInfo($idApplication),
-            'renewal' => $this->renewalInfo($idApplication),
-        ]];
-    }
-
-    /**
      * Renewal status of the applicant's released ID: state is none (no
      * released ID), in_progress (a renewal is already being processed),
      * expired, due (within the renewal window, admin-configurable, default
@@ -336,39 +268,15 @@ class ApplicantController extends Controller
             $actions[] = ['Track My Application', base_url('applicant/dashboard.php?section=application'), 'apply'];
         }
         $actions[] = ['Notifications', base_url('applicant/dashboard.php?section=notifications'), 'bell'];
-        $actions[] = ['Chat Support', base_url('applicant/dashboard.php?section=chat'), 'chat'];
         return $actions;
-    }
-
-    private function sectionNews(): array
-    {
-        $activeAnnouncement = null;
-        if (isset($_GET['id'])) {
-            $id = (int) $_GET['id'];
-            foreach (announcements_list() as $a) {
-                if ($a['id'] === $id) {
-                    $activeAnnouncement = $a;
-                    mark_announcement_read($a['id']);
-                    break;
-                }
-            }
-        }
-        return ['view' => 'news/index.php', 'data' => [
-            'announcements' => announcements_list(),
-            'activeAnnouncement' => $activeAnnouncement,
-        ]];
     }
 
     private function sectionMyid(): array
     {
         $idApplication = $this->viewableIdApplication();
-        // The same secure slip token as the application slip -- no reference number or personal data in the QR.
-        $slip = $idApplication ? (new QrSlipService($this->pdo))->slipFor($idApplication) : null;
-        return ['view' => 'qr/my-id.php', 'data' => [
+        return ['view' => 'my-id.php', 'data' => [
             'idApplication' => $idApplication,
             'idExpiryInfo' => $this->idExpiryInfo($idApplication),
-            'idQrUri' => $slip ? QrSlipService::qrImage($slip['token']) : null,
-            'idSlipCode' => $slip ? QrSlipService::slipCode($slip['token']) : null,
             'idReleaseSchedule' => $idApplication ? (new IdReleaseService($this->pdo))->scheduleFor((int) $idApplication['id']) : null,
             'idChildren' => $idApplication ? (new Application($this->pdo))->children((int) $idApplication['id']) : [],
             'latestApplication' => $this->applications[0] ?? null,
@@ -378,31 +286,6 @@ class ApplicantController extends Controller
     private function sectionNotifications(): array
     {
         return ['view' => 'notifications/index.php', 'data' => (new NotificationController($this->pdo))->handle($this->user, 'applicant/dashboard.php?section=notifications')];
-    }
-
-    /** Chat Support: the Help Assistant, and hand-off to MSWDO staff who reply in the same thread. */
-    private function sectionChat(): array
-    {
-        $assistant = new HelpAssistantService($this->pdo);
-        $error = null;
-        $typed = '';
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            csrf_require();
-            $typed = is_string($_POST['message'] ?? null) ? $_POST['message'] : '';
-            $error = ($_POST['action'] ?? '') === 'handoff'
-                ? $assistant->requestStaff($this->user, $typed)
-                : $assistant->ask($this->user, $this->applications, $typed);
-            if (!$error) {
-                $this->redirectTo('applicant/dashboard.php?section=chat#chat-latest');
-            }
-        }
-        return ['view' => 'chat/index.php', 'data' => [
-            'thread' => $assistant->thread($this->user),
-            'awaitingStaff' => $assistant->awaitingStaff($this->user),
-            'chatError' => $error,
-            'typed' => $error ? $typed : '',
-            'faqs' => get_faqs($this->pdo),
-        ]];
     }
 
     private function sectionProfile(): array

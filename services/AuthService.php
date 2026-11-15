@@ -182,7 +182,7 @@ class AuthService
     {
         $this->purgeAbandonedDrafts();
         // Preserve only pre-login context, never another account's identity or data.
-        $context = array_intersect_key($_SESSION, array_flip(['eligibility_token', 'pending_qr_token', 'applicant_return']));
+        $context = array_intersect_key($_SESSION, array_flip(['eligibility_token', 'applicant_return']));
         if ($kind !== 'user') {
             unset($context['applicant_return']);
         }
@@ -358,59 +358,10 @@ class AuthService
         $this->userModel->setPassword($userId, password_hash($newPassword, PASSWORD_DEFAULT));
     }
 
-    // ---- Mobile number verification ----
-
-    /**
-     * Texts a fresh 6-digit code to the account's mobile number (only its hash is stored).
-     * Returns '' when sent, otherwise why not -- at most a few texts per account per
-     * 15 minutes, so the page can't be used to flood a phone.
-     */
-    public function sendMobileCode(array $account): string
-    {
-        require_once __DIR__ . '/RateLimiter.php';
-        require_once __DIR__ . '/SMSService.php';
-        if (empty($account['mobile'])) {
-            return 'There is no mobile number on your account.';
-        }
-        $limiter = new RateLimiter($this->pdo);
-        if ($limiter->tooMany('mobile_code', (string) $account['id'])) {
-            return 'Too many codes were sent to this number. Please wait 15 minutes, then request a new one.';
-        }
-        $limiter->hit('mobile_code', (string) $account['id']);
-        $code = (string) random_int(100000, 999999);
-        $this->userModel->setMobileCode((int) $account['id'], password_hash($code, PASSWORD_DEFAULT), date('Y-m-d H:i:s', time() + MOBILE_CODE_MINUTES * 60));
-        $result = (new SMSService($this->pdo))->notifyMobileVerification($account['mobile'], $code);
-        audit_log($this->pdo, (int) $account['id'], $account['full_name'], $account['role'], 'Mobile Code Sent', 'user', (int) $account['id'],
-            'Verification code to the number ending ' . substr(preg_replace('/\D/', '', $account['mobile']), -4) . ' (' . $result['status'] . ')');
-        return $result['status'] === 'FAILED' ? 'The text could not be sent right now. Please try again in a few minutes.' : '';
-    }
-
-    /**
-     * Checks a typed code against the account's current one. Returns '' and marks the number
-     * confirmed when it matches; otherwise the message to show. MOBILE_CODE_MAX_ATTEMPTS wrong
-     * entries void the code.
-     */
-    public function confirmMobileCode(array $account, string $code): string
+    /** True when $password is the account's current password (used to re-authenticate sensitive changes such as a new mobile number). */
+    public function passwordMatches(array $account, string $password): bool
     {
         $stored = $this->userModel->findById((int) $account['id']);
-        if (!$stored || empty($stored['mobile_code'])) {
-            return 'There is no active code. Tap "Send a new code" to get one.';
-        }
-        if (strtotime((string) $stored['mobile_code_expires_at']) < time()) {
-            return 'That code has expired. Tap "Send a new code" to get a new one.';
-        }
-        if (!preg_match('/^\d{6}$/', trim($code)) || !password_verify(trim($code), (string) $stored['mobile_code'])) {
-            $this->userModel->recordMobileCodeFailure((int) $account['id']);
-            $left = MOBILE_CODE_MAX_ATTEMPTS - (int) $stored['mobile_code_attempts'] - 1;
-            audit_log($this->pdo, (int) $account['id'], $account['full_name'], $account['role'], 'Mobile Verification Failed', 'user', (int) $account['id'],
-                'Wrong code (attempt ' . ((int) $stored['mobile_code_attempts'] + 1) . ' of ' . MOBILE_CODE_MAX_ATTEMPTS . ')');
-            return $left > 0
-                ? 'That code is not correct. ' . $left . ($left === 1 ? ' try' : ' tries') . ' left.'
-                : 'That code is not correct, and it can no longer be used. Tap "Send a new code" to get a new one.';
-        }
-        $this->userModel->markMobileVerified((int) $account['id']);
-        audit_log($this->pdo, (int) $account['id'], $account['full_name'], $account['role'], 'Mobile Verified', 'user', (int) $account['id'],
-            'Number ending ' . substr(preg_replace('/\D/', '', (string) $stored['mobile']), -4) . ' confirmed by SMS code');
-        return '';
+        return $stored && $password !== '' && password_verify($password, (string) $stored['password_hash']);
     }
 }

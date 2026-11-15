@@ -6,7 +6,7 @@
  *
  * Key rules:
  * - Application decisions (status changes, document verification,
- *   eligibility assessment, interviews) and QR verification belong to
+ *   eligibility assessment, and interviews) belong to
  *   MSWD staff only. Administrators monitor applications read-only.
  * - System administration (users, settings, SMS, audit, analytics,
  *   reports, backups) belongs to administrators only.
@@ -22,18 +22,14 @@ const ROLE_PERMISSIONS = [
         'applications.process',
         'applicants.view',
         'appointments.view',
-        'appointments.slots',
-        'qr.verify',
         'reports.view',
         'reports.export',
-        'chat.respond',
     ],
     'admin' => [
         'admin.dashboard',
         'applications.monitor',
         'applicants.view',
         'appointments.view',
-        'appointments.slots',
         'reports.view',
         'reports.export',
         'users.manage',
@@ -42,9 +38,7 @@ const ROLE_PERMISSIONS = [
         'sms.manage',
         'audit.view',
         'eligibility.logs',
-        'analytics.view',
         'data.export',
-        'system.monitor',
     ],
 ];
 

@@ -32,7 +32,7 @@ class AuthController extends Controller
             $this->redirectTo($staff['role'] === 'admin' ? 'admin/dashboard.php' : 'staff/dashboard.php');
         }
         if ($existingUser = $this->auth->currentUser()) {
-            $this->redirectTo(!empty($existingUser['mobile_verified_at']) ? take_applicant_return_path() : 'verify-mobile.php');
+            $this->redirectTo(take_applicant_return_path());
         }
         $authMode = ($_GET['mode'] ?? $defaultMode) === 'signup' ? 'signup' : 'login';
         $authError = '';
@@ -52,7 +52,7 @@ class AuthController extends Controller
                     (new EligibilityService($this->pdo))->claimForUser((int) $account['id']);
                     audit_log($this->pdo, (int) $account['id'], $account['full_name'], $account['role'], 'Login', 'user', (int) $account['id'],
                         ctype_digit(ltrim($username, '+')) ? 'Applicant sign-in with mobile number' : 'Applicant sign-in');
-                    $this->redirectTo($account['mobile_verified_at'] ? take_applicant_return_path() : 'verify-mobile.php');
+                    $this->redirectTo(take_applicant_return_path());
                 }
             } elseif ($action === 'signup') {
                 $authMode = 'signup';
@@ -158,50 +158,6 @@ class AuthController extends Controller
         return $this->auth->applicantRegistrationError($form, $password, $confirmation);
     }
 
-    /**
-     * verify-mobile.php: the signed-in applicant confirms their mobile number with the texted
-     * code (after registering, or after the number changed). POST action=verify checks a code;
-     * action=resend texts a new one.
-     */
-    public function verifyMobile(): array
-    {
-        if ($staff = $this->auth->currentStaff()) {
-            $this->redirectTo($staff['role'] === 'admin' ? 'admin/dashboard.php' : 'staff/dashboard.php');
-        }
-        $user = $this->auth->currentUser();
-        if (!$user) {
-            $this->redirectTo('login.php');
-        }
-        if (!empty($user['mobile_verified_at'])) {
-            $this->redirectTo(take_applicant_return_path());
-        }
-        $error = '';
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            csrf_require();
-            if (($_POST['action'] ?? '') === 'resend') {
-                $error = $this->auth->sendMobileCode($user);
-                if ($error === '') {
-                    flash('A new code was texted to ' . $user['mobile'] . '.');
-                    $this->redirectTo('verify-mobile.php');
-                }
-            } else {
-                $error = $this->auth->confirmMobileCode($user, is_string($_POST['code'] ?? null) ? $_POST['code'] : '');
-                if ($error === '') {
-                    create_notification($this->pdo, (int) $user['id'], 'registration', 'Your mobile number ' . $user['mobile'] . ' is confirmed. SMS updates and password-reset codes will be sent there.');
-                    flash('Your mobile number is confirmed. You can now use your dashboard and apply online.');
-                    $this->redirectTo(take_applicant_return_path());
-                }
-            }
-        }
-        $pending = $this->auth->userModel()->findById((int) $user['id']);
-        return [
-            'user' => $user,
-            'error' => $error,
-            'notice' => (string) take_flash(),
-            'hasCode' => !empty($pending['mobile_code']) && strtotime((string) $pending['mobile_code_expires_at']) >= time(),
-        ];
-    }
-
     /** One-time notice for the login page (e.g. session expired). */
     public function takeNotice(): ?string
     {
@@ -235,12 +191,6 @@ class AuthController extends Controller
 
         $this->auth->loginStaff($account);
         audit_log($this->pdo, (int) $account['id'], $account['full_name'], $account['role'], 'Login', 'user', (int) $account['id'], 'Staff sign-in');
-        // A QR slip scanned before signing in: go back to its verification (only that page, only a well-formed token).
-        $pendingToken = $_SESSION['pending_qr_token'] ?? null;
-        unset($_SESSION['pending_qr_token']);
-        if (is_string($pendingToken) && preg_match('/^[0-9a-f]{64}$/', $pendingToken) && can($account, 'qr.verify')) {
-            $this->redirectTo('staff/qr_verify.php?t=' . $pendingToken);
-        }
         $this->redirectTo($account['role'] === 'admin' ? 'admin/dashboard.php' : 'staff/dashboard.php');
         return '';
     }

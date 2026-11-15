@@ -38,14 +38,14 @@ window.ViracTranslations = Object.fromEntries([
   ['Appointment Management', 'Pamamahala ng Appointment'], ['Appointment Slots', 'Mga Iskedyul ng Appointment'],
   ['Renewal', 'Pag-renew'], ['Renew My ID', 'I-renew ang Aking ID'], ['Renewal requirements', 'Mga kinakailangan sa pag-renew'],
   ['My Solo Parent ID', 'Aking Solo Parent ID'], ['My ID', 'Aking ID'], ['Application Slip', 'Slip ng Aplikasyon'],
-  ['QR Verification', 'Pagkumpirma ng QR'], ['Chat Support', 'Suporta sa Chat'],
+  ['QR Verification', 'Pagkumpirma ng QR'],
   ['News & Announcements', 'Mga Balita at Anunsyo'], ['Public Announcements', 'Mga Pampublikong Anunsyo'],
   ['Announcements', 'Mga Anunsyo'], ['News', 'Mga Balita'],
   ['Manage Users', 'Pamahalaan ang mga User'], ['User Management', 'Pamamahala ng mga User'],
   ['System Settings', 'Mga Setting ng Sistema'], ['System Monitoring', 'Pagsubaybay sa Sistema'],
   ['Audit Log', 'Talaan ng mga Aktibidad'], ['Audit Logs', 'Mga Talaan ng Aktibidad'],
   ['Eligibility Logs', 'Mga Talaan ng Kwalipikasyon'], ['SMS Logs', 'Mga Talaan ng SMS'],
-  ['Chat Support FAQ', 'Mga Karaniwang Tanong sa Chat Support'],
+  ['Manage FAQs', 'Pamahalaan ang mga Karaniwang Tanong'],
   ['Back to Home', 'Bumalik sa Pangunahing Pahina'], ['Back to Dashboard', 'Bumalik sa Pangkalahatang-ideya'],
   ['Back', 'Bumalik'], ['Next', 'Susunod'], ['Previous', 'Nakaraan'], ['Continue', 'Magpatuloy'],
   ['Cancel', 'Kanselahin'], ['Close', 'Isara'], ['Save', 'I-save'], ['Save Changes', 'I-save ang mga Pagbabago'],
@@ -533,88 +533,12 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "IYONG PORTAL PARA SA SOLO PARENT"
   ],
   [
-    "How can we help you?",
-    "Paano ka namin matutulungan?"
-  ],
-  [
-    "Ask about your application, requirements, appointments, or ID renewal.",
-    "Magtanong tungkol sa iyong aplikasyon, mga dokumento, appointment, o pag-renew ng ID."
-  ],
-  [
-    "Browse requirements",
-    "Tingnan ang mga kinakailangang dokumento"
-  ],
-  [
-    "Your support conversation",
-    "Iyong pag-uusap para sa tulong"
-  ],
-  [
-    "Help Assistant & MSWDO staff",
-    "Help Assistant at kawani ng MSWDO"
-  ],
-  [
-    "Guidance only.",
-    "Para sa gabay lamang."
-  ],
-  [
-    "Let’s start with your question",
-    "Magsimula sa iyong tanong"
-  ],
-  [
-    "Type a message below or choose a suggested question. You can ask in English or Filipino.",
-    "Mag-type ng mensahe sa ibaba o pumili ng mungkahing tanong. Maaari kang magtanong sa Ingles o Filipino."
-  ],
-  [
-    "Sent to MSWDO staff",
-    "Naipadala sa kawani ng MSWDO"
-  ],
-  [
-    "Your question is with MSWDO.",
-    "Naipadala na sa MSWDO ang iyong tanong."
-  ],
-  [
-    "Try asking about",
-    "Maaaring itanong ang tungkol sa"
-  ],
-  [
-    "Your message",
-    "Iyong mensahe"
-  ],
-  [
-    "Enter to send · Shift + Enter for a new line",
-    "Enter upang ipadala · Shift + Enter para sa bagong linya"
-  ],
-  [
-    "Ask assistant",
-    "Magtanong sa assistant"
-  ],
-  [
-    "Ask MSWDO staff",
-    "Magtanong sa kawani ng MSWDO"
-  ],
-  [
-    "“Ask MSWDO staff” requests a social worker’s reply. You can leave the message empty. Keep passwords and verification codes private.",
-    "Piliin ang “Magtanong sa kawani ng MSWDO” upang humingi ng sagot mula sa social worker. Maaaring iwang blangko ang mensahe. Huwag ibahagi ang password at mga code ng pagkumpirma."
-  ],
-  [
-    "Quick answers",
-    "Mabilis na sagot"
-  ],
-  [
     "Frequently asked questions",
     "Mga karaniwang tanong"
   ],
   [
     "Search frequently asked questions",
     "Hanapin sa mga karaniwang tanong"
-  ],
-  [
-    "No questions are listed yet. Send us a message for help.",
-    "Wala pang nakalistang tanong. Magpadala ng mensahe upang humingi ng tulong."
-  ],
-  [
-    "No matching questions. Try another word or ask in the chat.",
-    "Walang tumugmang tanong. Subukan ang ibang salita o magtanong sa chat."
   ],
   [
     "Contact the office",
@@ -937,8 +861,8 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "Numero ng mobile *"
   ],
   [
-    "Your mobile number receives SMS updates and password-reset codes, and you can sign in with it. It must be unique to your account; a new number is confirmed with a texted code.",
-    "Sa iyong mobile ipinapadala ang mga abiso at password reset code. Maaari mo rin itong gamitin sa pag-log in. Dapat sa account mo lamang ito nakaugnay; kailangang kumpirmahin ang bagong numero gamit ang code na ipapadala sa text."
+    "Your mobile number receives SMS updates and password-reset codes, and you can sign in with it. It must be unique to your account; changing it asks for your current password.",
+    "Sa iyong mobile ipinapadala ang mga abiso at password reset code. Maaari mo rin itong gamitin sa pag-log in. Dapat sa account mo lamang ito nakaugnay; kapag papalitan ito, hihingin ang kasalukuyan mong password."
   ],
   [
     "Save Profile",
@@ -1629,46 +1553,6 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "Email:"
   ],
   [
-    "Common Questions",
-    "Mga Karaniwang Tanong"
-  ],
-  [
-    "How do I apply?",
-    "Paano ako mag-a-apply?"
-  ],
-  [
-    "Check your preliminary eligibility, create an account, complete the application and document checkboxes, then submit. Follow MSWDO instructions for document review, interviews, and ID claiming.",
-    "Suriin ang paunang kwalipikasyon, gumawa ng account, kumpletuhin ang aplikasyon at checklist, at isumite. Sundin ang tagubilin ng MSWDO para sa pagsusuri ng dokumento, panayam, at pagkuha ng ID."
-  ],
-  [
-    "Do I upload my required documents?",
-    "Kailangan ko bang i-upload ang mga dokumento?"
-  ],
-  [
-    "Use the checkbox checklist to indicate the documents you have available. Staff verify documents separately. Bring originals and photocopies as instructed by MSWDO.",
-    "Gamitin ang checklist upang ipakita ang mga dokumentong mayroon ka. Hiwalay na kukumpirmahin ang mga ito ng kawani. Dalhin ang mga orihinal at photocopy ayon sa tagubilin ng MSWDO."
-  ],
-  [
-    "View requirements by category",
-    "Tingnan ang mga kinakailangan ayon sa kategorya"
-  ],
-  [
-    "Where can I find my application reference number?",
-    "Saan ko makikita ang numero ng sanggunian ng aplikasyon?"
-  ],
-  [
-    "Your submitted application and application slip show the reference number. Log in to My Applications to find it. Public tracking only requires your application reference number.",
-    "Makikita ito sa naisumiteng aplikasyon at slip. Mag-log in sa Aking mga Aplikasyon upang hanapin ito. Numero ng sanggunian lamang ang kailangan sa pampublikong pagsubaybay."
-  ],
-  [
-    "Does an eligibility result mean my application is approved?",
-    "Kapag kwalipikado sa pagsusuri, aprubado na ba ang aplikasyon ko?"
-  ],
-  [
-    "The checker gives a preliminary result. Final eligibility and approval depend on MSWDO assessment and document review. Monitor your application for appointment and claiming instructions.",
-    "Paunang resulta lamang ang ibinibigay ng pagsusuri. Ang pinal na kwalipikasyon at pag-apruba ay nakabatay sa pagsusuri ng MSWDO. Subaybayan ang aplikasyon para sa tagubilin sa appointment at pagkuha ng ID."
-  ],
-  [
     "Back to News & Announcements",
     "Bumalik sa mga Balita at Anunsyo"
   ],
@@ -1681,7 +1565,7 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "Wala pang anunsyo sa ngayon. Tingnan muli sa ibang oras."
   ],
   [
-    "Search services, requirements, and announcements",
+    "Search services and requirements",
     "Maghanap ng serbisyo, kinakailangang dokumento, at anunsyo"
   ],
   [
@@ -1859,7 +1743,6 @@ Object.assign(window.ViracTranslations, {
   "Requirements guide": "Gabay sa mga kinakailangang dokumento",
   "Track my application": "Subaybayan ang aking aplikasyon",
   "News & announcements": "Mga balita at anunsyo",
-  "Ask the Help Assistant or send your question to an MSWDO social worker.": "Magtanong sa Help Assistant o ipadala ang iyong tanong sa social worker ng MSWDO.",
   "Find the issuing office, what to bring, and steps to get each document.": "Alamin ang tanggapang nagbibigay ng dokumento, mga dadalhin, at mga hakbang sa pagkuha nito.",
   "See your progress, staff remarks, and the next action needed.": "Tingnan ang progreso, mga puna ng kawani, at susunod na dapat gawin.",
   "Start your Solo Parent ID application and save your progress.": "Simulan ang iyong aplikasyon sa Solo Parent ID at i-save ang iyong progreso.",
@@ -3084,14 +2967,6 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "On the login page choose \"Forgot password\" and enter your username or mobile number. A reset code will be sent to your registered mobile number.",
     "Sa pahina ng pag-log in, piliin ang Nakalimutan ang password at ilagay ang username o mobile number. Ipapadala ang reset code sa iyong nakarehistrong mobile."
   ],
-  [
-    "Can the online assistant tell me if I am eligible or approved?",
-    "Masasabi ba ng online assistant kung kwalipikado o aprubado ako?"
-  ],
-  [
-    "No. The assistant can explain the process and show where your application is, but only MSWD staff decide eligibility and approval after reviewing your documents. The Eligibility Checker on the public Home page (used before logging in) gives only a preliminary, non-binding result.",
-    "Hindi. Maipapaliwanag ng assistant ang proseso at katayuan ng aplikasyon, ngunit ang kawani lamang ng MSWD ang nagpapasya sa kwalipikasyon at pag-apruba matapos suriin ang mga dokumento. Paunang gabay lamang ang resulta ng pagsusuri sa pangunahing pahina bago mag-log in; hindi ito opisyal na desisyon."
-  ]
 ]));
 
 // Public tracking guidance and shared help labels.
@@ -3122,6 +2997,8 @@ Object.assign(window.ViracTranslations, {
   "Log in to view your application details or contact MSWDO for assistance.": "Mag-log in upang tingnan ang detalye ng aplikasyon o humingi ng tulong sa MSWDO.",
   "ID release appointment": "Appointment sa pagkuha ng ID",
   "Interview appointment": "Appointment sa panayam",
+  "Does the Eligibility Checker approve my application?": "Inaaprubahan ba ng Eligibility Checker ang aking aplikasyon?",
+  "No. It gives a preliminary result only. MSWDO reviews your application and supporting documents before making a final decision.": "Hindi. Paunang resulta lamang ang ibinibigay nito. Sinusuri ng MSWDO ang iyong aplikasyon at mga sumusuportang dokumento bago gumawa ng pinal na desisyon.",
   "Your ID release is scheduled": "Nakatakda na ang pagkuha ng iyong ID",
   "Visit MSWDO at the date, time, and location below. Bring your application slip and a valid ID. Your status becomes ID Released after staff confirms handover.": "Pumunta sa MSWDO sa petsa, oras, at lugar sa ibaba. Dalhin ang slip ng aplikasyon at wastong ID. Mamamarkahang naibigay na ang ID kapag nakumpirma ng kawani ang pagtanggap mo.",
   "Arrange another interview": "Magpatakda ng panibagong panayam",
@@ -3174,11 +3051,6 @@ Object.assign(window.ViracTranslations, {
   "Up next": "Susunod",
   "Step": "Hakbang",
   "You": "Ikaw",
-  "Staff reply requested": "Humiling na ng sagot mula sa kawani",
-  "Assistant guidance": "Gabay ng assistant",
-  "Type your question in English or Filipino…": "I-type ang iyong tanong sa Ingles o Filipino…",
-  "Search questions…": "Maghanap ng mga tanong…",
-  "Official decisions on eligibility and approval are made only by MSWD staff after reviewing your application. This assistant gives guidance only; it cannot approve, reject or guarantee anything.": "Ang mga kawani lamang ng MSWD ang gumagawa ng opisyal na desisyon sa kwalipikasyon at pag-apruba matapos suriin ang aplikasyon. Gabay lamang ang assistant; hindi ito maaaring mag-apruba, tumanggi, o maggarantiya ng anuman."
 });
 
 window.ViracTranslationPatterns.push([/^Step (\d+) of (\d+)$/, 'Hakbang $1 sa $2']);
@@ -3216,7 +3088,8 @@ Object.assign(window.ViracTranslations, {
   "No decided applications yet": "Wala pang aplikasyong may desisyon",
   "Based on decided applications": "Batay sa mga aplikasyong may desisyon",
   "Needs attention": "Kailangang tingnan",
-  "Account access, delivery, and backups.": "Pag-access sa account, pagpapadala, at mga backup.",
+  "Account access and message delivery.": "Pag-access sa account at pagpapadala ng mensahe.",
+  "Account access, delivery, and backups.":"Pag-access sa account, pagpapadala, at mga backup.",
   "No failed SMS, locked accounts, or missing backups recorded.": "Walang naitalang bigong SMS, naka-lock na account, o nawawalang backup.",
   "Failed SMS": "Mga Bigong SMS",
   "Check messages that were not sent.": "Suriin ang mga mensaheng hindi naipadala.",
@@ -3310,7 +3183,6 @@ Object.assign(window.ViracTranslations, {
   "Announcement message": "Mensahe ng anunsyo",
   "Recipients": "Mga tatanggap",
   "Search FAQ entries": "Hanapin sa mga nakatalang tanong",
-  "Search questions or answers": "Maghanap ng tanong o sagot",
   "No FAQ entries match your search.": "Walang tanong na tumutugma sa iyong paghahanap.",
   "Question": "Tanong",
   "Answer": "Sagot",
@@ -3345,12 +3217,7 @@ Object.assign(window.ViracTranslations, {
   "Find a Solo Parent and open their account and application records.": "Hanapin ang isang Solo Parent at buksan ang kanyang account at mga tala ng aplikasyon.",
   "Check schedules, record interview outcomes and manage available slots.": "Tingnan ang mga iskedyul, itala ang resulta ng panayam at pamahalaan ang mga bakanteng oras.",
   "Scan a QR code or enter a slip code or reference number to verify a record.": "Mag-scan ng QR code o ilagay ang slip code o reference number upang kumpirmahin ang tala.",
-  "Open an applicant conversation to read their question and reply.": "Buksan ang pag-uusap ng aplikante upang basahin ang kanyang tanong at sumagot.",
   "Choose a report, filter its records, then print or download the results.": "Pumili ng ulat, salain ang mga tala, at i-print o i-download ang resulta.",
-  "Search conversations": "Maghanap ng pag-uusap",
-  "Name, username or question": "Pangalan, username o tanong",
-  "No conversations match your search.": "Walang pag-uusap na tumutugma sa iyong hinanap.",
-  "Open conversation": "Buksan ang pag-uusap",
   "Verification methods": "Mga paraan ng pagkumpirma",
   "Scan QR Code": "Mag-scan ng QR Code",
   "Enter a code": "Maglagay ng code",

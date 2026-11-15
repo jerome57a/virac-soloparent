@@ -1,7 +1,4 @@
 <?php
-require __DIR__ . '/../config/database.php';
-require __DIR__ . '/../includes/functions.php';
-require __DIR__ . '/../includes/csrf.php';
-require __DIR__ . '/../controllers/StaffController.php';
-
-(new StaffController($pdo))->chat();
+// Keep old bookmarks and historical notification links out of the retired chat feature.
+header('Location: dashboard.php', true, 302);
+exit;

@@ -57,23 +57,22 @@
   html[data-theme="dark"] .text-muted { color: var(--muted) !important; }
   html[data-theme="dark"] .bg-white { background: var(--theme-card) !important; }
   html[data-theme="dark"] .bg-light { background: var(--surface) !important; }
-  html[data-theme="dark"] :is(.slip-qr-frame, .applicant-id-qr) { background: #fff !important; }
   html[data-theme="dark"] :is(.status-pill, .document-verification) { color: var(--ink); }
-  /* Transparent PNGs need a stable light backing, including QR quiet zones.
+  /* Transparent PNGs need a stable light backing for issued ID artwork.
      Theme only the surrounding UI; preserve the artwork's original colors. */
-  html[data-theme="dark"] :is(.site-nav-logo img, .nav-drawer-brand img, .footer-seal, .footer-bp, .slip-logo, .home-intro-illustration img, img.dash-user-avatar, .profile-photo-row img) {
+  html[data-theme="dark"] :is(.site-nav-logo img, .nav-drawer-brand img, .footer-seal, .footer-bp, .home-intro-illustration img, img.dash-user-avatar, .profile-photo-row img) {
     color-scheme: light;
     background-color: #fff;
     opacity: 1;
     mix-blend-mode: normal;
   }
   html[data-theme="dark"] :is(.site-nav-logo img, .nav-drawer-brand img, .footer-seal, .footer-bp) { border-radius: 6px; }
-  html[data-theme="dark"] :is(.slip-qr-frame, .applicant-id-qr, .verification-id-face) {
+  html[data-theme="dark"] .verification-id-face {
     color-scheme: light;
     background: #fff !important;
     color: #152d4d;
   }
-  html[data-theme="dark"] :is(.slip-qr-frame, .applicant-id-qr, .verification-id-face) img { opacity: 1; mix-blend-mode: normal; filter: none; }
+  html[data-theme="dark"] .verification-id-face img { opacity: 1; mix-blend-mode: normal; filter: none; }
 }
 @media print {
   .display-preferences { display: none !important; }

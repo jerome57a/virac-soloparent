@@ -8,7 +8,6 @@
  * @var array   $awaitingOutcome    past appointments still BOOKED
  * @var array   $todayAppointments  today's, any status but CANCELLED
  * @var array   $upcomingByDate     Y-m-d => BOOKED appointments after today
- * @var array   $slotsByDate        Y-m-d => slots with booked count
  */
 $apptStyles = [
     'BOOKED' => ['#dce8f5', '#1b3a6b', 'Booked'], 'COMPLETED' => ['#dcf3e2', '#1c7a3f', 'Completed'],
@@ -22,7 +21,7 @@ $row = function (array $iv, string $timeFormat) use ($staff, $canManage, $apptSt
     <div class="appt-row">
       <a href="<?= application_url($staff, (int) $iv['application_id']) ?>" class="text-decoration-none" style="color:inherit;min-width:0;flex:1 1 220px">
         <div class="app-ref"><?= e($iv['reference_no']) ?> <span style="font-weight:400;color:var(--muted)">· <?= e($iv['full_name']) ?></span></div>
-        <div class="app-date"><?= e(date($timeFormat, strtotime($iv['scheduled_at']))) ?> · <?= e($iv['location']) ?><?= $iv['slot_id'] ? '' : ' · set by staff' ?></div>
+        <div class="app-date"><?= e(date($timeFormat, strtotime($iv['scheduled_at']))) ?> · <?= e($iv['location']) ?><?</div>
       </a>
       <div class="d-flex align-items-center gap-2 flex-wrap">
         <span class="status-pill" style="background:<?= e($bg) ?>;color:<?= e($fg) ?>"><?= e($label) ?></span>
@@ -60,14 +59,18 @@ $row = function (array $iv, string $timeFormat) use ($staff, $canManage, $apptSt
 <?php endif; ?>
 
   <?php if (($staff['role'] ?? '') === 'mswd_social_worker'): ?>
-  <div class="staff-page-actions"><a href="#staff-needs-schedule" class="btn-navy" data-i18n>Assign schedule</a><a href="<?= base_url('staff/appointment_slots.php') ?>" class="btn-outline" data-i18n>Manage Slots</a></div>
+  <div class="staff-page-actions"><a href="#staff-needs-schedule" class="btn-navy" data-i18n>Assign schedule</a></div>
   <div class="staff-summary">
     <a href="#admin-appointments-today"><span data-i18n>Today's appointments</span><strong><?= count($todayAppointments) ?></strong></a>
     <a href="#admin-appointments-upcoming"><span data-i18n>Upcoming appointments</span><strong><?= array_sum(array_map('count', $upcomingByDate)) ?></strong></a>
-    <a href="#admin-appointment-slots"><span data-i18n>Available appointment slots</span><strong><?= array_sum(array_map(fn($slots) => count(array_filter($slots, fn($slot) => $slot['status'] === 'AVAILABLE' && (int) $slot['booked'] < (int) $slot['capacity'])), $slotsByDate)) ?></strong></a>
   </div>
   <?php endif; ?>
-  <?php if (($staff['role'] ?? '') === 'admin'): ?><div class="admin-page-actions"><a href="<?= base_url('admin/appointment_slots.php') ?>" class="btn-navy">Manage Slots</a></div><?php endif; ?>
+  <?php if (($staff['role'] ?? '') === 'admin'): ?>
+  <div class="info-box" style="max-width:none">
+    <p class="mb-2" data-i18n>As administrator, you monitor interview appointments scheduled by MSWD staff.</p>
+    <p class="mb-0" data-i18n>MSWD staff set each applicant's interview date and time, handle individual appointment changes and record interview results or missed appointments.</p>
+  </div>
+  <?php endif; ?>
   <?php if (($staff['role'] ?? '') === 'admin'): ?>
   <div class="admin-page-summary">
     <a href="#admin-appointments-today"><span data-i18n>Today's appointments</span><strong><?= count($todayAppointments) ?></strong><small data-i18n>View today's schedule</small></a>
@@ -94,7 +97,7 @@ $row = function (array $iv, string $timeFormat) use ($staff, $canManage, $apptSt
 
   <?php if ($awaitingOutcome): ?>
     <div class="review-card" style="border-color:var(--red)">
-      <div class="review-card-head"><div class="title">Needs Outcome (<?= count($awaitingOutcome) ?>)</div></div>
+      <div class="review-card-head"><div class="title"><span data-i18n><?= $canManage ? 'Needs Outcome' : 'Awaiting MSWD Staff Outcome' ?></span> (<?= count($awaitingOutcome) ?>)</div></div>
       <div style="font-size:13px;color:var(--muted);margin-bottom:8px"><?= $canManage ? 'These appointments have passed but are still marked booked. Record the interview result, or mark a no-show as missed then assign a replacement schedule if needed.' : 'These past appointments still need an outcome from MSWD staff. Open an application to review its interview details.' ?></div>
       <?php if ($staff['role'] === 'admin'): ?><div class="admin-list-scroll" role="region" aria-label="Appointments needing an outcome" tabindex="0"><?php endif; ?>
       <?php foreach ($awaitingOutcome as $iv) { $row($iv, 'M j, Y g:i A'); } ?>
@@ -127,29 +130,4 @@ $row = function (array $iv, string $timeFormat) use ($staff, $canManage, $apptSt
     <?php if ($staff['role'] === 'admin' && $upcomingByDate): ?></div><?php endif; ?>
   </div>
 
-  <div class="review-card">
-    <div class="review-card-head"><div class="title" id="admin-appointment-slots">Available appointment slots</div></div>
-    <?php if (!$slotsByDate): ?>
-      <div style="font-size:13px;color:var(--muted)">No upcoming slots configured. <a href="<?= base_url(role_portal_path($staff, 'appointment_slots.php')) ?>">Add one.</a></div>
-    <?php endif; ?>
-    <?php if ($staff['role'] === 'admin' && $slotsByDate): ?><div class="admin-list-scroll" role="region" aria-label="Upcoming appointment slots" tabindex="0"><?php endif; ?>
-    <?php foreach ($slotsByDate as $date => $items): ?>
-      <div style="margin-bottom:10px">
-        <div style="font-weight:700;font-size:13px;color:var(--ink);margin-bottom:6px"><?= e(date('l, F j, Y', strtotime($date))) ?></div>
-        <div class="d-flex flex-wrap gap-2">
-          <?php foreach ($items as $s):
-              $cancelled = $s['status'] === 'CANCELLED';
-              $full = (int) $s['booked'] >= (int) $s['capacity'];
-              [$bg, $fg] = $cancelled ? ['#f1f1f1', '#555'] : ($full ? ['#fde8e8', '#a51c1c'] : ['#dcf3e2', '#1c7a3f']);
-          ?>
-            <span class="status-pill" style="background:<?= $bg ?>;color:<?= $fg ?>">
-              <?= e(date('g:i A', strtotime($s['start_time']))) ?>&ndash;<?= e(date('g:i A', strtotime($s['end_time']))) ?>
-              <?= $cancelled ? '(cancelled)' : '(' . (int) $s['booked'] . '/' . (int) $s['capacity'] . ($full ? ' full' : '') . ')' ?>
-            </span>
-          <?php endforeach; ?>
-        </div>
-      </div>
-    <?php endforeach; ?>
-    <?php if ($staff['role'] === 'admin' && $slotsByDate): ?></div><?php endif; ?>
-  </div>
 </div>

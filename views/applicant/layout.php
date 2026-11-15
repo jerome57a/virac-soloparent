@@ -7,7 +7,6 @@
  * @var string $sectionTitle
  * @var string $pageTitle
  * @var string $contentView  path relative to APP_ROOT
- * @var int    $unreadAnnouncementCount
  * @var int    $unreadNotificationCount
  */
 ?><!DOCTYPE html>
@@ -79,11 +78,6 @@
         <span data-i18n>Dashboard</span>
       </a>
 
-      <a href="?section=analytics" class="nav-drawer-link nav-drawer-link-icon <?= $section === 'analytics' ? 'active" aria-current="page' : '' ?>">
-        <svg class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="20" x2="20" y2="20"/><rect x="5" y="11" width="3" height="6"/><rect x="10.5" y="7" width="3" height="10"/><rect x="16" y="4" width="3" height="13"/></svg>
-        <span data-i18n>Analytics</span>
-      </a>
-
       <a href="?section=apply" class="nav-drawer-link nav-drawer-link-icon <?= $section === 'apply' ? 'active" aria-current="page' : '' ?>">
         <svg class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
         <span data-i18n>Apply for Solo Parent ID</span>
@@ -116,21 +110,10 @@
         <span data-i18n>Requirements Guide</span>
       </a>
 
-      <a href="?section=news" class="nav-drawer-link nav-drawer-link-icon <?= $section === 'news' ? 'active" aria-current="page' : '' ?>">
-        <svg class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12v14a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2V4z"/><path d="M18 8h2a2 2 0 0 1 2 2v9a1 1 0 0 1-1 1H8"/><line x1="8" y1="8" x2="14" y2="8"/><line x1="8" y1="12" x2="14" y2="12"/><line x1="8" y1="15" x2="12" y2="15"/></svg>
-        <span data-i18n>News &amp; Announcements</span>
-        <?php if ($unreadAnnouncementCount > 0): ?><span class="nav-drawer-badge"><?= (int) $unreadAnnouncementCount ?></span><?php endif; ?>
-      </a>
-
       <a href="?section=notifications" class="nav-drawer-link nav-drawer-link-icon <?= $section === 'notifications' ? 'active" aria-current="page' : '' ?>">
         <svg class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
         <span data-i18n>Notifications</span>
         <?php if ($unreadNotificationCount > 0): ?><span class="nav-drawer-badge"><?= (int) $unreadNotificationCount ?></span><?php endif; ?>
-      </a>
-
-      <a href="?section=chat" class="nav-drawer-link nav-drawer-link-icon <?= $section === 'chat' ? 'active" aria-current="page' : '' ?>">
-        <svg class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        <span data-i18n>Chat Support</span>
       </a>
 
       <div class="nav-drawer-section-label" data-i18n>Account</div>

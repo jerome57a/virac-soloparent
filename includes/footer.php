@@ -32,7 +32,6 @@ $variants = [
         'about' => $footerPortalAbout,
         'title' => 'MSWD STAFF PORTAL',
         'list' => [
-            ['Chat Support', base_url('staff/chat.php')],
             ['My Account', base_url('staff/account.php')],
         ],
     ],
@@ -41,8 +40,6 @@ $variants = [
         'title' => 'ADMINISTRATION PORTAL',
         'list' => [
             ['System Settings', base_url('admin/settings.php')],
-            ['System Monitoring', base_url('admin/monitoring.php')],
-            ['Chat Support FAQ', base_url('admin/faq.php')],
         ],
     ],
 ];

@@ -46,8 +46,7 @@ if (PHP_SAPI !== 'cli') {
     header_remove('X-Powered-By');
     // Framing, plugins, <base> hijacking and off-site form posts are refused outright.
     header("Content-Security-Policy: frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'");
-    // The camera is used only by the staff QR scanner, on this site.
-    header('Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=(), usb=()');
+    header('Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()');
 }
 
 // Keep PHP sessions in the application's protected storage. The XAMPP
@@ -66,7 +65,7 @@ if (!is_writable($sessionPath) || session_save_path($sessionPath) === false) {
 $sessionScript = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
 $sessionFolder = basename(dirname($sessionScript));
 $sessionPortal = in_array($sessionFolder, ['admin', 'staff'], true) ? $sessionFolder : 'applicant';
-if (in_array(basename($sessionScript), ['mswd-login.php', 'forgot-password.php', 'reset-password.php', 'slip.php', 'download.php', 'avatar.php'], true)) {
+if (in_array(basename($sessionScript), ['mswd-login.php', 'forgot-password.php', 'reset-password.php', 'download.php', 'avatar.php'], true)) {
     $requestedPortal = $_GET['portal'] ?? '';
     if (is_string($requestedPortal) && in_array($requestedPortal, ['admin', 'staff'], true)) {
         $sessionPortal = $requestedPortal;

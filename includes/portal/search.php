@@ -15,9 +15,6 @@ foreach (required_doc_groups($pdo) as $group) {
 foreach (get_faqs($pdo) as $faq) {
     $entries[] = ['title' => $faq['question'], 'description' => $faq['answer'], 'url' => base_url('portal.php?tab=help')];
 }
-foreach (announcements_list($pdo) as $news) {
-    $entries[] = ['title' => $news['title'], 'description' => $news['short_desc'], 'search_text' => $news['details'], 'url' => base_url('portal.php?tab=news&id=' . $news['id'])];
-}
 $terms = preg_split('/\s+/u', mb_strtolower($query), -1, PREG_SPLIT_NO_EMPTY) ?: [];
 $matches = $query === '' ? array_slice($entries, 0, 6) : array_values(array_filter($entries, function ($entry) use ($terms) {
     $text = mb_strtolower($entry['title'] . ' ' . $entry['description'] . ' ' . ($entry['search_text'] ?? ''));
@@ -29,8 +26,8 @@ $matches = $query === '' ? array_slice($entries, 0, 6) : array_values(array_filt
 ?>
 <form action="<?= base_url('portal.php') ?>" method="get" role="search" class="portal-search-bar" style="padding:0;margin:0 0 20px">
   <input type="hidden" name="tab" value="search">
-  <label class="visually-hidden" for="portal-search" data-i18n>Search services, requirements, and announcements</label>
-  <input id="portal-search" type="search" name="q" maxlength="100" placeholder="Search services, requirements, announcements" value="<?= e($query) ?>">
+  <label class="visually-hidden" for="portal-search" data-i18n>Search services and requirements</label>
+  <input id="portal-search" type="search" name="q" maxlength="100" placeholder="Search services and requirements" value="<?= e($query) ?>">
 </form>
 <p class="section-sub"><?= $query === '' ? 'Search above, or choose a service below.' : count($matches) . ' result(s) for: ' . e($query) ?></p>
 <div class="portal-search-results">

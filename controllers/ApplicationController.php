@@ -6,7 +6,6 @@ require_once __DIR__ . '/../services/ApplicationTrackerService.php';
 require_once __DIR__ . '/../services/AuthService.php';
 require_once __DIR__ . '/../models/Application.php';
 require_once __DIR__ . '/../models/Document.php';
-require_once __DIR__ . '/../services/QrSlipService.php';
 require_once __DIR__ . '/../models/Appointment.php';
 require_once __DIR__ . '/../services/PublicApplicationTrackingService.php';
 
@@ -169,8 +168,8 @@ class ApplicationController extends Controller
                     return [$draft, $invalid['errors'], null];
                 }
                 try {
-                    $refNumber = $service->submit($user, $draft);
-                    $this->redirectTo('slip.php?ref=' . urlencode($refNumber));
+                    $service->submit($user, $draft);
+                    $this->redirectTo('applicant/dashboard.php?section=application');
                 } catch (DomainException $e) {
                     $this->redirectTo($applyUrl); // shows the "you already have an application" page
                 } catch (Throwable $e) {
@@ -240,97 +239,6 @@ class ApplicationController extends Controller
         ]);
     }
 
-    /** View/replace an owned slip inside the applicant dashboard. */
-    public function applicantSlipSection(array $user): array
-    {
-        $ref = is_string($_GET['ref'] ?? null) ? trim($_GET['ref']) : '';
-        $app = (new Application($this->pdo))->findByReferenceWithCategory($ref);
-        if (!$app || (int) $app['user_id'] !== (int) $user['id']) {
-            http_response_code(404);
-            return ['view' => 'qr/slip-not-found.php', 'data' => []];
-        }
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            csrf_require();
-            if (($_POST['action'] ?? '') === 'replace_slip' && $app['status'] !== 'Rejected') {
-                (new QrSlipService($this->pdo))->replace($app, $user);
-                flash('A new QR code was issued. The old slip no longer works — print or save this one.');
-            }
-            $this->redirectTo('applicant/dashboard.php?section=slip&ref=' . urlencode($app['reference_no']));
-        }
-        return ['view' => 'qr/application-slip.php', 'data' => $this->slipViewData($app, $user, null, true)];
-    }
-
-    /**
-     * slip.php?ref=: the printable QR application slip, for the applicant who
-     * owns it or any staff member. POST action=replace_slip replaces a lost
-     * slip (the old QR stops working).
-     */
-    public function slip(): void
-    {
-        $applications = new Application($this->pdo);
-        $ref = is_string($_GET['ref'] ?? null) ? trim($_GET['ref']) : '';
-        $app = $applications->findByReferenceWithCategory($ref);
-        $auth = new AuthService($this->pdo);
-        $user = $auth->currentUser();
-        $staff = $auth->currentStaff();
-
-        // Same answer whether the reference doesn't exist or isn't yours, so references can't be probed.
-        if (!$app || (!($user && (int) $user['id'] === (int) $app['user_id']) && !$staff)) {
-            if (!$user && !$staff) {
-                $this->redirectTo('portal.php?tab=login');
-            }
-            http_response_code(404);
-            $this->renderPage('Application not found', 'views/applicant/qr/slip-not-found.php');
-            return;
-        }
-
-        $service = new QrSlipService($this->pdo);
-        // Replacing the QR invalidates the old slip: the owner may, and MSWD staff (application processing) may.
-        // Administrators only monitor applications, so they can view and print but not replace.
-        $isOwner = $user && (int) $user['id'] === (int) $app['user_id'];
-        $slipUrl = ($isOwner ? 'applicant/dashboard.php?section=slip&ref=' : 'slip.php?ref=') . urlencode($app['reference_no']);
-        $canReplace = $isOwner || can($staff, 'applications.process');
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            csrf_require();
-            if (!$isOwner) {
-                $this->authorize($staff, 'applications.process');
-            }
-            if (($_POST['action'] ?? '') === 'replace_slip' && $app['status'] !== 'Rejected') {
-                $service->replace($app, $isOwner ? $user : $staff);
-                flash('A new QR code was issued. The old slip no longer works — print or save this one.');
-            }
-            $this->redirectTo($slipUrl);
-        }
-
-        if ($isOwner) {
-            $this->redirectTo($slipUrl);
-            return;
-        }
-        $this->renderPage('Application Slip — ' . $app['reference_no'], 'views/applicant/qr/application-slip.php', $this->slipViewData($app, $user, $staff, $canReplace));
-    }
-
-    /** Shared slip data for applicant dashboard and staff standalone views. */
-    private function slipViewData(array $app, ?array $user, ?array $staff, bool $canReplace): array
-    {
-        $applications = new Application($this->pdo);
-        $slip = (new QrSlipService($this->pdo))->slipFor($app);
-        $appointment = (new Appointment($this->pdo))->interviewFor((int) $app['id']);
-        $idReleaseSchedule = (new IdReleaseService($this->pdo))->scheduleFor((int) $app['id']);
-        $renewalOf = $app['renewal_of_id'] ? $applications->findWithChildren((int) $app['renewal_of_id']) : null;
-        return [
-            'app' => $app,
-            'slip' => $slip,
-            'qrUri' => $slip ? QrSlipService::qrImage($slip['token']) : null,
-            'slipCode' => $slip ? QrSlipService::slipCode($slip['token']) : null,
-            'appointment' => $appointment && $appointment['status'] === 'BOOKED' ? $appointment : null,
-            'idReleaseSchedule' => $app['status'] === 'Approved' && $idReleaseSchedule && !$idReleaseSchedule['released_at'] ? $idReleaseSchedule : null,
-            'renewalOfRef' => $renewalOf['reference_no'] ?? null,
-            'flashMessage' => take_flash(),
-            'user' => $user,
-            'staff' => $staff,
-            'canReplace' => $canReplace,
-        ];
-    }
     /** Full page wrapped in the site header/footer (the header reads $pageTitle/$user/$staff from scope). */
     private function renderPage(string $pageTitle, string $view, array $data = []): void
     {

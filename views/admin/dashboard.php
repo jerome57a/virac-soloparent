@@ -2,14 +2,13 @@
 /** Administrator overview. ReportService supplies all live counts; application links are monitoring only. */
 $trend = (int) $summary['thisMonth'] - (int) $summary['lastMonth'];
 $pending = (int) $stats['pendingNew'] + (int) $stats['pendingRenewals'];
-$attentionCount = ($stats['smsFailed'] > 0 ? 1 : 0) + ($userStats['locked'] > 0 ? 1 : 0) + (!$lastBackupAt ? 1 : 0);
+$attentionCount = ($stats['smsFailed'] > 0 ? 1 : 0) + ($userStats['locked'] > 0 ? 1 : 0);
 $dashboardIcons = [
     'applications' => '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M8 13h8M8 17h5"/>',
     'clock' => '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     'users' => '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
     'id' => '<rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8" cy="10" r="2"/><path d="M5 16c0-3 6-3 6 0M14 9h5M14 13h5"/>',
     'calendar' => '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M8 14h2M14 14h2"/>',
-    'news' => '<path d="M4 4h12v14a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2V4zM18 8h2v10a2 2 0 0 1-2 2M8 8h4M8 12h4M8 16h4"/>',
     'reports' => '<path d="M4 3v18h17M8 16v-4M13 16V8M18 16V5"/>',
     'settings' => '<path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/>',
     'arrow' => '<path d="M5 12h14M13 6l6 6-6 6"/>',
@@ -27,8 +26,6 @@ $applicationRows = [
 $shortcuts = [
     ['Applicant Records', 'Find an applicant and view their records.', 'applicants.php', 'id'],
     ['User Management', 'Manage accounts, roles, and access.', 'users.php', 'users'],
-    ['Appointment Slots', 'Set available interview dates and times.', 'appointment_slots.php', 'calendar'],
-    ['Public Announcements', 'Publish updates and reminders.', 'announcements.php', 'news'],
     ['Reports', 'View reports and export records.', 'reports.php', 'reports'],
     ['System Settings', 'Update service settings and requirements.', 'settings.php', 'settings'],
 ];
@@ -45,7 +42,7 @@ $shortcuts = [
       <a class="ad-metric stat-tile" href="<?= base_url('admin/applications.php') ?>"><span class="ad-metric-top"><span data-i18n>Total Applications</span><span class="ad-icon ad-blue"><?= $dashboardIcon('applications') ?></span></span><strong><?= number_format((int) $stats['totalApplications']) ?></strong><span class="ad-metric-bottom"><span><b><?= number_format((int) $stats['totalRenewals']) ?></b> <span data-i18n>renewals included</span></span><?= $dashboardIcon('arrow') ?></span></a>
       <a class="ad-metric stat-tile" href="<?= base_url('admin/applications.php?status=Pending+Review') ?>"><span class="ad-metric-top"><span data-i18n>Awaiting review</span><span class="ad-icon ad-amber"><?= $dashboardIcon('clock') ?></span></span><strong><?= number_format($pending) ?></strong><span class="ad-metric-bottom"><span data-i18n>New applications and renewals</span><?= $dashboardIcon('arrow') ?></span></a>
       <a class="ad-metric stat-tile" href="<?= base_url('admin/users.php?role=applicant') ?>"><span class="ad-metric-top"><span data-i18n>Registered Solo Parents</span><span class="ad-icon ad-green"><?= $dashboardIcon('users') ?></span></span><strong><?= number_format((int) $userStats['applicants']) ?></strong><span class="ad-metric-bottom"><span><b><?= number_format((int) $userStats['newThisMonth']) ?></b> <span data-i18n>new this month</span></span><?= $dashboardIcon('arrow') ?></span></a>
-      <a class="ad-metric stat-tile" href="<?= base_url('admin/analytics.php') ?>"><span class="ad-metric-top"><span data-i18n>Expiring IDs</span><span class="ad-icon ad-orange"><?= $dashboardIcon('id') ?></span></span><strong><?= number_format((int) $stats['expiringIds']) ?></strong><span class="ad-metric-bottom"><span><span data-i18n>Within the next</span> <?= (int) $stats['expiringWindow'] ?> <span data-i18n>days</span></span><?= $dashboardIcon('arrow') ?></span></a>
+      <a class="ad-metric stat-tile" href="<?= base_url('admin/reports.php?type=expiring') ?>"><span class="ad-metric-top"><span data-i18n>Expiring IDs</span><span class="ad-icon ad-orange"><?= $dashboardIcon('id') ?></span></span><strong><?= number_format((int) $stats['expiringIds']) ?></strong><span class="ad-metric-bottom"><span><span data-i18n>Within the next</span> <?= (int) $stats['expiringWindow'] ?> <span data-i18n>days</span></span><?= $dashboardIcon('arrow') ?></span></a>
     </div>
   </section>
   <div class="ad-workspace dash-two-col">
@@ -66,11 +63,10 @@ $shortcuts = [
       </div>
     </section>
       <section class="ad-panel ad-attention review-card" aria-labelledby="admin-attention-title">
-        <div class="ad-panel-heading review-card-head"><div><h2 id="admin-attention-title" data-i18n>Needs attention</h2><p data-i18n>Account access, delivery, and backups.</p></div><span class="ad-attention-count<?= !$attentionCount ? ' is-clear' : '' ?>"><b><?= $attentionCount ?></b><span data-i18n>to check</span></span></div>
-        <?php if (!$attentionCount): ?><p class="ad-clear-message" data-i18n>No failed SMS, locked accounts, or missing backups recorded.</p><?php endif; ?>
+        <div class="ad-panel-heading review-card-head"><div><h2 id="admin-attention-title" data-i18n>Needs attention</h2><p data-i18n>Account access and message delivery.</p></div><span class="ad-attention-count<?= !$attentionCount ? ' is-clear' : '' ?>"><b><?= $attentionCount ?></b><span data-i18n>to check</span></span></div>
+        <?php if (!$attentionCount): ?><p class="ad-clear-message" data-i18n>No failed SMS or locked accounts recorded.</p><?php endif; ?>
         <a class="ad-attention-row" href="<?= base_url('admin/sms.php?status=failed') ?>"><span><strong data-i18n>Failed SMS</strong><small data-i18n>Check messages that were not sent.</small></span><b class="<?= $stats['smsFailed'] > 0 ? 'ad-count-warn' : '' ?>"><?= number_format((int) $stats['smsFailed']) ?></b><?= $dashboardIcon('arrow') ?></a>
         <a class="ad-attention-row" href="<?= base_url('admin/users.php?status=locked') ?>"><span><strong data-i18n>Locked accounts</strong><small data-i18n>Review accounts after failed sign-ins.</small></span><b class="<?= $userStats['locked'] > 0 ? 'ad-count-warn' : '' ?>"><?= number_format((int) $userStats['locked']) ?></b><?= $dashboardIcon('arrow') ?></a>
-        <a class="ad-backup" href="<?= base_url('admin/monitoring.php') ?>"><span class="ad-backup-top"><strong data-i18n>Latest database backup</strong><?= $dashboardIcon('arrow') ?></span><?php if ($lastBackupAt): ?><time datetime="<?= e(date('c', $lastBackupAt)) ?>"><?= e(date('M j, Y · g:i A', $lastBackupAt)) ?></time><?php else: ?><span class="ad-count-warn" data-i18n>No backup recorded</span><?php endif; ?><small data-i18n>Open system monitoring to manage backups.</small></a>
       </section>
   </div>
   <div class="ad-workspace ad-secondary-workspace dash-two-col">
@@ -114,7 +110,6 @@ $shortcuts = [
       <?php foreach ($shortcuts as [$label, $description, $route, $icon]): ?>
         <a class="ad-tool" href="<?= e(base_url('admin/' . $route)) ?>"><span class="ad-icon ad-blue"><?= $dashboardIcon($icon) ?></span><span><strong data-i18n><?= e($label) ?></strong><small data-i18n><?= e($description) ?></small></span><?= $dashboardIcon('arrow') ?></a>
       <?php endforeach; ?>
-      <a class="ad-analytics-link" href="<?= base_url('admin/analytics.php') ?>"><span class="ad-icon ad-blue"><?= $dashboardIcon('reports') ?></span><span><strong data-i18n>Explore analytics</strong><small data-i18n>See trends and detailed statistics.</small></span><?= $dashboardIcon('arrow') ?></a>
     </div>
   </section>
   <nav class="ad-section-nav" aria-label="Dashboard sections" data-i18n-attrs="aria-label">

@@ -13,7 +13,6 @@
     </div>
     <div class="d-flex align-items-center flex-wrap gap-2">
       <div class="status-pill" style="background:<?= e($st['bg']) ?>;color:<?= e($st['color']) ?>" data-i18n><?= e($app['status']) ?></div>
-      <a href="<?= base_url('applicant/dashboard.php?section=slip&ref=' . urlencode($app['reference_no'])) ?>" class="btn-outline text-decoration-none" style="padding:6px 12px;font-size:12px" data-i18n>View Slip</a>
     </div>
   </div>
 <?php endforeach; ?>

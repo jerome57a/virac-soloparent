@@ -6,10 +6,7 @@
  */
 
 body.dash-body { margin: 0; background: var(--surface-alt); font-family: var(--font-body); color: var(--ink); }
-.dash-content .application-slip-page { padding: 0; }
 @media print {
-  body.dash-body:has(.application-slip-page) :is(.dash-topbar, .nav-drawer, .nav-drawer-overlay) { display: none !important; }
-  body.dash-body:has(.application-slip-page) :is(.dash-main, .dash-content) { margin: 0; padding: 0; width: 100%; max-width: none; }
 }
 
 /* Applicant checklist section: availability and staff review remain separate. */

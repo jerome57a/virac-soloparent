@@ -2,7 +2,6 @@
 require_once __DIR__ . '/../models/Application.php';
 require_once __DIR__ . '/../models/Applicant.php';
 require_once __DIR__ . '/../models/ApplicationDraft.php';
-require_once __DIR__ . '/QrSlipService.php';
 require_once __DIR__ . '/NotificationService.php';
 require_once __DIR__ . '/../models/Document.php';
 require_once __DIR__ . '/DocumentValidationService.php';
@@ -367,7 +366,6 @@ class ApplicationService
         }
 
         $this->clearDraft($user);
-        (new QrSlipService($this->pdo))->issue(['id' => $applicationId, 'status' => 'Pending Review', 'id_expires_at' => null], (int) $user['id']);
 
         audit_log($this->pdo, (int) $user['id'], $user['full_name'], $user['role'], 'Application Submission', 'application', $applicationId, $refNumber);
         $this->auditDocuments($user, $applicationId, $draft['documents']);

@@ -92,8 +92,8 @@ class RenewalController extends Controller
             return [$draft,$invalid['errors'],null];
         }
         try {
-            $ref = $service->submit($user,$source,$draft);
-            $this->redirectTo('slip.php?ref=' . urlencode($ref));
+            $service->submit($user,$source,$draft);
+            $this->redirectTo('applicant/dashboard.php?section=application');
         } catch (DomainException $e) {
             return [$draft,[], $e->getMessage()];
         } catch (Throwable $e) {

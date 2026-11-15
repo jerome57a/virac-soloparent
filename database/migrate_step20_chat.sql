@@ -14,7 +14,7 @@ ALTER TABLE chat_messages
 INSERT INTO faqs (question, answer, sort_order)
 SELECT * FROM (
   SELECT 'How do I book, reschedule or cancel an appointment?' AS q, 'Open Appointment in your dashboard and pick an open slot. You can reschedule or cancel online until a few hours before your appointment (the exact cut-off is shown on the page); after that, please contact the MSWDO office.' AS a, 8 AS s UNION ALL
-  SELECT 'I lost my application slip. What do I do?', 'Open your slip from My Application and choose "Lost it? Get a new QR". The old slip stops working immediately and you can print or save the new one.', 9 UNION ALL
+  SELECT 'Where can I find my application reference?', 'Log in and open My Application to see your reference number and current status. Bring the reference number when you contact or visit MSWDO.', 9 UNION ALL
   SELECT 'I forgot my password.', 'On the login page choose "Forgot password" and enter your username or mobile number. A reset code will be sent to your registered mobile number.', 10 UNION ALL
   SELECT 'Can the online assistant tell me if I am eligible or approved?', 'No. The assistant can explain the process and show where your application is, but only MSWD staff decide eligibility and approval after reviewing your documents. The Eligibility Checker gives a preliminary, non-binding result.', 11
 ) AS new_faqs

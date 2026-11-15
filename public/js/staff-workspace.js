@@ -2,16 +2,6 @@
 (() => {
   const root = document.querySelector('.staff-workspace');
   if (!root) return;
-  const search = root.querySelector('[data-staff-chat-search]');
-  if (search) search.addEventListener('input', () => {
-    const query = search.value.trim().toLocaleLowerCase();
-    let count = 0;
-    root.querySelectorAll('[data-staff-conversation]').forEach(row => {
-      row.hidden = !row.textContent.toLocaleLowerCase().includes(query);
-      if (!row.hidden) count++;
-    });
-    root.querySelector('[data-staff-chat-empty]').hidden = count !== 0 || !query;
-  });
   root.querySelectorAll('.report-table').forEach((table, index) => {
     const hint = document.createElement('p');
     hint.className = 'staff-table-hint';

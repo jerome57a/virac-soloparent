@@ -14,7 +14,6 @@ class RateLimiter
         'reset_ip' => [10, 3600],       // forgot-password requests from one IP, per hour
         'reset_account' => [3, 900],    // reset SMS to one account, per 15 minutes (a code lasts 15 minutes)
         'status_ip' => [10, 900],       // failed public status lookups from one IP, per 15 minutes
-        'mobile_code' => [3, 900],      // verification-code SMS to one account, per 15 minutes
     ];
 
     private PDO $pdo;
