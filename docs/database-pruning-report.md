@@ -46,7 +46,7 @@ exercise the rollback by restoring the dump. A production run needs a separate a
 | Read: `closeAppointment()` compares `slot_id` as a concurrency check | `services/AppointmentService.php:170` |
 | Read: `SELECT *` style reads expose it to callers | `models/Appointment.php` |
 | `appointment_slots` itself is still referenced | `models/User.php:134` (staff "has records" guard), `models/AuditLog.php:136` (entity label), FK `fk_slot_creator` to `users(id)` with no ON DELETE action, so it blocks deleting a staff account that created slots |
-| Tests that build legacy slot rows | `appointment_management_checks.php`, `automatic_interview_checks.php`, `checklist_flow_checks.php`, `test_user_account_actions.php` (temporary table) |
+| Tests that build legacy slot rows | `appointment_management_checks.php`, `automatic_interview_checks.php`, `test_user_account_actions.php` (temporary table; deferred, not yet committed) |
 | Docs | `docs/appointment-management.md`, `docs/runtime-test-plan.md` (cases 2.1, 2.5, 2.7, 2.16) |
 
 Findings: new rows never carry a slot; older rows may. Dropping the column needs the FK and index dropped first and would erase which

@@ -773,46 +773,12 @@ a.stat-tile:hover { border-color: var(--navy); }
 .settings-check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--ink); }
 .settings-check input { margin-top: 3px; }
 
-/* ---- Analytics charts (views/partials/charts.php, public/js/charts.js) ---- */
-.vz-root { --series-1: #2a78d6; --series-2: #eb6834; --vz-track: #cde2fb; --vz-grid: #e8ebef; }
-.vz-legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
-.vz-key { display: inline-flex; align-items: center; gap: 6px; }
-.vz-key i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
-.vz-cols { position: relative; display: flex; height: 220px; padding-left: 34px; margin-bottom: 26px; }
-.vz-yaxis { position: absolute; left: 0; top: 0; bottom: 0; width: 28px; }
-.vz-yaxis span { position: absolute; right: 0; transform: translateY(50%); font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
-.vz-plot { position: relative; flex: 1; display: flex; align-items: flex-end; gap: 2px; border-bottom: 1px solid var(--border); }
-.vz-grid { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid var(--vz-grid); }
-.vz-col { position: relative; flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; outline: none; cursor: default; }
-.vz-col:hover, .vz-col:focus-visible { background: rgba(27, 58, 107, .05); }
-.vz-col:focus-visible { box-shadow: inset 0 0 0 2px var(--navy); }
-.vz-stack { width: min(24px, 70%); height: 100%; display: flex; flex-direction: column-reverse; gap: 2px; justify-content: flex-start; position: relative; z-index: 1; }
-.vz-seg { width: 100%; min-height: 2px; }
-.vz-stack .vz-seg:last-child { border-radius: 4px 4px 0 0; }
-.vz-xlabel { position: absolute; bottom: -22px; font-size: 11px; color: var(--muted); white-space: nowrap; }
-.vz-bars { display: flex; flex-direction: column; gap: 6px; }
-.vz-bar-row { display: grid; grid-template-columns: minmax(90px, 38%) 1fr; align-items: center; gap: 10px; font-size: 13px; outline: none; border-radius: 4px; padding: 1px 2px; }
-.vz-bar-row:hover, .vz-bar-row:focus-visible { background: rgba(27, 58, 107, .05); }
-.vz-bar-row:focus-visible { box-shadow: 0 0 0 2px var(--navy); }
-.vz-bar-label { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.vz-bar-track { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.vz-bar { height: 14px; border-radius: 0 4px 4px 0; flex: none; max-width: calc(100% - 40px); }
-.vz-bar-value { font-size: 12px; color: var(--ink); font-variant-numeric: tabular-nums; }
-.vz-meter { height: 12px; border-radius: 6px; background: var(--vz-track); overflow: hidden; outline: none; }
-.vz-meter span { display: block; height: 100%; background: var(--series-1); border-radius: 6px; }
-.vz-meter:focus-visible { box-shadow: 0 0 0 2px var(--navy); }
-.vz-table { margin-top: 10px; font-size: 13px; }
-.vz-table summary { cursor: pointer; color: var(--link-blue); font-size: 12px; }
-.vz-table table { margin-top: 8px; font-size: 13px; }
-.vz-table caption { caption-side: top; font-size: 12px; color: var(--muted); }
-.vz-table td { font-variant-numeric: tabular-nums; }
-.vz-tooltip { position: absolute; z-index: 1000; background: #1a2233; color: #fff; font-size: 12px; line-height: 1.5; padding: 7px 10px; border-radius: 6px; pointer-events: none; max-width: 260px; box-shadow: 0 4px 14px rgba(0, 0, 0, .18); }
-.vz-tooltip-title { font-weight: 700; }
+/* ---- Stat tiles and filter bars (shared by admin and staff pages) ---- */
 .stat-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 10px; margin-bottom: 18px; }
 .analytics-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-bottom: 14px; }
 .analytics-filters label { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); gap: 3px; }
 .analytics-filters select, .analytics-filters input { padding: 8px; border: 1px solid var(--input-border); border-radius: 6px; font-size: 14px; background: #fff; }
-@media print { .analytics-filters, .vz-table summary, .no-print { display: none !important; } .vz-table table { display: table; } }
+@media print { .analytics-filters, .no-print { display: none !important; } }
 .analytics-range { display: flex; gap: 8px; }
 .analytics-range[hidden] { display: none; }
 

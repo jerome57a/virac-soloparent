@@ -219,8 +219,15 @@ tests above:
 
 - `database/test_admin_management_layout.php`
 - `database/test_role_account_creation.php`
-- `database/test_user_account_actions.php`
-- `database/test_optional_applicant_gmail.php`
+- `database/test_user_account_actions.php` (**deferred**)
+- `database/test_optional_applicant_gmail.php` (**deferred**)
+
+> **Deferred tests.** `test_user_account_actions.php` and `test_optional_applicant_gmail.php`
+> belong to the optional applicant Gmail and account-management work, which is not part of
+> the pruning checkpoint and is **not yet committed**. They are analysed here because they
+> will use the same isolation guard once they are added. Wherever this document names them,
+> read "deferred, not yet committed"; until then only the other two tests exist in the
+> repository.
 
 Based on read-only source inspection; nothing was run and no server was contacted.
 

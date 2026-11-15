@@ -10,7 +10,7 @@ Status: **prepared, not executed.** Nothing here has been run against a database
 - A scratch copy of the app served on a different port or virtual host, with `config/local.php` pointing only to the test values.
 - Synthetic accounts only (applicant, two applicants for ownership checks, staff with `applications.process`, administrator).
 
-Existing suites that apply, run only after the preconditions above: `database/test_staff_review_workflow.php`, which loads `automatic_interview_checks.php` and `appointment_management_checks.php`; `database/checklist_flow_checks.php`; `database/test_simplified_renewal.php`; `database/test_role_account_creation.php`; `database/test_user_account_actions.php`.
+Existing suites that apply, run only after the preconditions above: `database/test_staff_review_workflow.php`, which loads `automatic_interview_checks.php` and `appointment_management_checks.php`; `database/checklist_flow_checks.php`; `database/test_simplified_renewal.php`; `database/test_role_account_creation.php`. `database/test_user_account_actions.php` is part of the deferred account-management work and is not yet committed.
 
 ## 1. Applicant mobile change (profile)
 
