@@ -9,6 +9,8 @@
  */
 function check_staff_assigned_interviews(PDO $test, array $staff, int $category): void
 {
+    require_once __DIR__ . '/upload_fixtures.php';
+    upload_fixture_isolate_ids($test); // new users get ids in the test range; each submission picks and checks its own application folder
     set_setting($test, 'appointment_min_notice_hours', '2');
     $GLOBALS['__settings_cache']['appointment_min_notice_hours'] = '2';
     $holidayDate = review_office_date($test, '+9 days');
@@ -43,10 +45,11 @@ function check_staff_assigned_interviews(PDO $test, array $staff, int $category)
         $draft = array_replace($service->freshDraft($user), [
             'categoryId' => $category, 'barangay' => 'Test', 'address' => 'Test Address', 'birthdate' => '1990-01-01',
             'sex' => 'Female', 'civilStatus' => 'Single', 'children' => [['name' => 'Fixture Child', 'birthdate' => '2020-01-01']], 'consent' => true,
-            'checkedDocuments' => $index === 1 ? array_fill_keys(array_column($requirements, 'doc_key'), true) : [],
         ]);
+        // Every required document is uploaded; submission is refused without them (see test_new_application_uploads.php).
+        $draft = upload_fixture_stage_required($service, new Document($test), $user, $draft);
         review_assert($service->firstInvalidStep($draft) === null, 'Staff scheduling submission fixture is invalid.');
-        $ref = $service->submit($user, $draft);
+        $ref = upload_fixture_submit($test, $service, $user, $draft); // stored files are tracked and removed when the script ends
         $app = $applications->findByReference($ref);
         $results[] = $app;
         review_assert($app['status'] === 'Pending Review' && !$appointments->interviewFor((int) $app['id']), 'Submission assigned an interview before staff chose a schedule.');

@@ -116,11 +116,15 @@ Files: `index.php`, `services.php`, `portal.php`, `login.php`, `register.php`,
 2. Online Solo Parent ID application: personal and children information.
 3. Solo Parent category selection (9 categories, `categories`).
 4. **Upload the actual supporting document files** required for the chosen
-   category (`document_requirements`). Uploading files is the only way
-   applicants submit documents; ticking off a checklist does not count as
-   submission.
-5. Document validation (type, real file content, size).
-6. Application submission and reference number generation.
+   category (`document_requirements`) on the Documents step of the form.
+   Uploading files is the only way applicants submit documents; ticking off a
+   checklist does not count. A file can be replaced before submitting.
+5. Document validation (type, real file content, size), when each file is
+   uploaded and again when the application is submitted.
+6. Application submission and reference number generation. The application
+   cannot be submitted until every required document has a valid uploaded
+   file; the files are stored with the application only when submission
+   succeeds.
 7. SMS submission confirmation.
 8. Application status tracking and notifications.
 9. Replacement (re-upload) of documents flagged **Needs Correction** or
@@ -128,10 +132,13 @@ Files: `index.php`, `services.php`, `portal.php`, `login.php`, `register.php`,
 10. Viewing or cancelling the interview appointment that staff scheduled.
 11. Renewal.
 
-For a **new application**, documents are uploaded from the applicant
-**Documents** page after the application is submitted; the application form
-lists the required documents. Whether this order should change is an open item
-(section 18).
+For a **new application**, the required documents are uploaded as files on the
+Documents step of the application form (staged in the applicant's draft until
+submission), and the application cannot be submitted until every required
+document has a valid uploaded file; the server checks this on the step and
+again at submission. An uploaded file is not verified: staff review it after
+submission. After submission, a document can be replaced from the
+**Documents** page when staff request a correction.
 
 For a **renewal**, the required renewal documents are uploaded as files on the
 renewal form itself, and the renewal cannot be submitted until every required
@@ -374,11 +381,12 @@ Existing test assets (not executed during this documentation task):
 | `database/tool_safety_guard_checks.php` | No-connection checks of the test-environment guard |
 | `database/test_staff_review_workflow.php` | Review workflow, shared staff access, one-year ID expiry (disposable DB) |
 | `database/test_simplified_renewal.php` | Renewal rules, document retention, history (disposable DB) |
+| `database/test_new_application_uploads.php` | New-application uploads: required files, invalid and replaced files, server rechecks at submission, rollback, views, staff review with no checklist rows (disposable DB; writes synthetic files under `storage/uploads`) |
 | `database/test_public_tracking.php` | Public status lookup field filtering |
 | `database/test_role_account_creation.php` | Account creation |
 | `database/test_admin_management_layout.php` | Admin list pagination, SMS filters/retry rules |
 | `database/test_eligibility_history.php` | Public eligibility checking and history |
-| `database/appointment_management_checks.php`, `automatic_interview_checks.php`, `checklist_flow_checks.php` | Appointment, automatic interview SMS, checklist flow checks |
+| `database/appointment_management_checks.php`, `automatic_interview_checks.php`, `checklist_flow_checks.php` | Appointment, automatic interview SMS, upload-based document review and approval checks |
 | `scripts/test-*.cjs` | Browser/UI-level checks using `scripts/fixtures/` |
 
 **Safety rules.** Database tests require process-level settings
@@ -474,15 +482,13 @@ management, public eligibility checking, and the applicant Help page.
 
 ### Items needing a decision
 
-1. Document upload order: before submission or after submission (as
-   implemented now).
-2. Whether other report modules (`admin/reports.php`, `staff/reports.php`,
+1. Whether other report modules (`admin/reports.php`, `staff/reports.php`,
    CSV export) remain in scope now that Barangay Distribution reports are
    retired.
-3. Whether the audit-log browser/export screens, SMS template editing, and
+2. Whether the audit-log browser/export screens, SMS template editing, and
    admin application/notification pages remain, or only the underlying
    recording and logs.
-4. Whether in-app notifications (`notifications`, `system_broadcasts`) stay
+3. Whether in-app notifications (`notifications`, `system_broadcasts`) stay
    alongside SMS.
-5. Whether language and appearance preferences stay (not touched so far).
-6. Timing and approval of the pending database scripts (section 12).
+4. Whether language and appearance preferences stay (not touched so far).
+5. Timing and approval of the pending database scripts (section 12).

@@ -51,7 +51,7 @@ $eligUrl = base_url('eligibility.php');
 <div class="warn-box" data-i18n>💡 Not sure if you qualify? Use the Eligibility Checker below, or visit the MSWDO Office for a personal assessment.</div>
 
 <div id="requirements" class="section-title" style="margin-bottom:4px" data-i18n>Required Documents</div>
-<div class="section-sub" data-i18n>Open your category below to see the configured requirements for that category. Upload a file for each required document after you submit your application; an uploaded file is not verified until MSWDO staff review it, and you may be asked to replace it. Bring originals and photocopies as instructed for document review and your interview.</div>
+<div class="section-sub" data-i18n>Open your category below to see the configured requirements for that category. Upload a file for each required document in the application form before you submit; an uploaded file is not verified until MSWDO staff review it, and you may be asked to replace it. Bring originals and photocopies as instructed for document review and your interview.</div>
 <div class="doc-groups home-requirements">
   <?php foreach (required_doc_groups($pdo) as $g): ?>
     <details class="doc-group-card">

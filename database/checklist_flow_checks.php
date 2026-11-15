@@ -58,7 +58,9 @@ function check_preparation_flow(PDO $test, array $staff, int $applicantId, int $
     review_assert(count($docs->outstandingRequired($app)) === count($requiredKeys), 'Required documents without uploads are not all outstanding.');
     review_assert(!array_column($review->approvalChecklist($app), null, 'label')['Required documents']['ok'], 'Approval would not be blocked with no uploaded documents.');
 
-    // ---- Submitting through the application service creates no checklist rows and no uploads ----
+    // ---- Submitting through the application service stores the staged uploads, creates no checklist rows, verifies nothing ----
+    require_once __DIR__ . '/upload_fixtures.php';
+    upload_fixture_isolate_ids($test); // new users get ids in the test range; each submission picks and checks its own application folder
     $test->prepare("INSERT INTO users (full_name,email,username,password_hash,role,mobile,mobile_verified_at) VALUES ('Preparation Applicant','prepare@example.test','preparation_fixture',?,'applicant','09123456789',NOW())")->execute([password_hash('fixture', PASSWORD_DEFAULT)]);
     $submitterId = (int) $test->lastInsertId();
     $test->prepare('UPDATE categories SET is_active=1 WHERE id=?')->execute([$category]);
@@ -66,17 +68,22 @@ function check_preparation_flow(PDO $test, array $staff, int $applicantId, int $
     $applicationService = new ApplicationService($test);
     $submitDraft = $applicationService->freshDraft($submitter);
     $submitDraft = array_replace($submitDraft, ['categoryId' => $category, 'barangay' => 'Test', 'address' => 'Test Address', 'birthdate' => '1990-01-01', 'sex' => 'Female', 'civilStatus' => 'Single', 'children' => [['name' => 'Fixture Child', 'birthdate' => '2020-01-01']], 'consent' => true]);
+    review_assert(isset($applicationService->validateStep(3, $submitDraft)['documents']), 'A draft with no uploaded files passed the Documents step.');
+    review_assert($applicationService->firstInvalidStep($submitDraft)['step'] === 3, 'A draft with no uploaded files was not stopped at the Documents step.');
+    $refused = false;
+    try { upload_fixture_submit($test, $applicationService, $submitter, $submitDraft); } catch (ApplicationDocumentsException $e) { $refused = true; }
+    review_assert($refused && (int) $test->query("SELECT COUNT(*) FROM applications WHERE user_id=" . $submitterId)->fetchColumn() === 0, 'An application with no uploaded documents was submitted.');
+    $submitDraft = upload_fixture_stage_required($applicationService, $docs, $submitter, $submitDraft);
     review_assert($applicationService->firstInvalidStep($submitDraft) === null, 'The fixture draft fails submission validation: ' . json_encode($applicationService->firstInvalidStep($submitDraft)));
-    // The new-application wizard does not stage uploads yet; when it does, this block must stage files first.
-    $submittedRef = $applicationService->submit($submitter, $submitDraft);
+    $submittedRef = upload_fixture_submit($test, $applicationService, $submitter, $submitDraft);
     $submittedApp = $apps->findByReference($submittedRef);
     review_assert($submittedApp['status'] === 'Pending Review' && $submittedApp['eligibility_status'] === 'Not Assessed', 'Application submission failed.');
     review_assert($checklistRows((int) $submittedApp['id']) === 0, 'Submission wrote applicant checklist rows.');
-    review_assert((int) $test->query('SELECT COUNT(*) FROM application_documents WHERE application_id=' . (int) $submittedApp['id'])->fetchColumn() === 0, 'Submission created uploaded documents that were never uploaded.');
+    review_assert((int) $test->query('SELECT COUNT(*) FROM application_documents WHERE application_id=' . (int) $submittedApp['id'] . " AND verification_status='FOR_VERIFICATION'")->fetchColumn() === count($requiredKeys), 'Submission did not store every uploaded file as awaiting verification.');
     foreach ($docs->checklistForReview((int) $submittedApp['id'], $category) as $item) {
         review_assert($item['verification_status'] === 'Pending', 'A submitted application shows a document as verified without staff review.');
     }
-    review_assert(count($docs->outstandingRequired($submittedApp)) === count($requiredKeys), 'A submitted application with no rows and no uploads has the wrong outstanding documents.');
+    review_assert(count($docs->outstandingRequired($submittedApp)) === count($requiredKeys), 'Uploaded but unverified files counted as complete for the submitted application.');
 
     // ---- Submission SMS and the applicant "still need to upload" list ----
     $sms->notifySubmitted($id, $app['mobile'], $app['reference_no']);

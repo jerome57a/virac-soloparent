@@ -10,7 +10,7 @@ Status: **prepared, not executed.** Nothing here has been run against a database
 - A scratch copy of the app served on a different port or virtual host, with `config/local.php` pointing only to the test values.
 - Synthetic accounts only (applicant, two applicants for ownership checks, staff with `applications.process`, administrator).
 
-Existing suites that apply, run only after the preconditions above: `database/test_staff_review_workflow.php`, which loads `automatic_interview_checks.php` and `appointment_management_checks.php`; `database/checklist_flow_checks.php`; `database/test_simplified_renewal.php`; `database/test_role_account_creation.php`. `database/test_user_account_actions.php` is part of the deferred account-management work and is not yet committed.
+Existing suites that apply, run only after the preconditions above: `database/test_staff_review_workflow.php`, which loads `automatic_interview_checks.php` and `appointment_management_checks.php`; `database/checklist_flow_checks.php`; `database/test_simplified_renewal.php`; `database/test_new_application_uploads.php` (writes synthetic files under `STORAGE_PATH`, which the guard does not redirect: verify storage isolation first); `database/test_role_account_creation.php`. `database/test_user_account_actions.php` is part of the deferred account-management work and is not yet committed.
 
 ## 1. Applicant mobile change (profile)
 
@@ -76,8 +76,8 @@ Use synthetic files created inside the throwaway storage.
 Test in Chrome and a second browser. Check desktop and phone widths, and the browser console and network tabs.
 
 - Public Home Page: sidebar, language, login and register links, tracking page. There must be no links to removed pages (Analytics, News, FAQ, Chat, QR, slots).
-- Applicant: register, sign in (username or confirmed mobile), dashboard, new application (all steps and the checklist), submit (submission SMS only), tracking, renewal, profile and mobile change, sign out.
-- Staff: queue, open an application, checklist verification, schedule interview, record result, eligibility, status change, ID release.
+- Applicant: register, sign in (username or confirmed mobile), dashboard, new application (all steps, uploading a file for every required document; submission must be refused while one is missing, invalid or replaced by a bad file), submit (submission SMS only), tracking, renewal, profile and mobile change, sign out.
+- Staff: queue, open an application, review and verify each uploaded file, schedule interview, record result, eligibility, status change, ID release.
 - Administrator: users (create, reset access, confirm mobile), settings (appointment days, holidays, closures), SMS logs and templates, audit log. No retired menu entries.
 - Renewal: simplified renewal (no interview) and full renewal.
 - Eligibility workflow, Home Page and eligibility views are frozen: only confirm that they still load.

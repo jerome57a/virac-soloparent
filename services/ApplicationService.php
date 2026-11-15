@@ -9,19 +9,37 @@ require_once __DIR__ . '/SMSService.php';
 require_once __DIR__ . '/EmergencyContactService.php';
 
 /**
+ * Thrown by ApplicationService::submit() when a required supporting document is missing, invalid or no
+ * longer on disk. Nothing has been created. $errors uses the same keys as validateStep(3), so the
+ * controller can show them on the Documents step. A DomainException so existing callers still refuse it.
+ */
+class ApplicationDocumentsException extends DomainException
+{
+    /** @param array<string,string> $errors */
+    public function __construct(public array $errors)
+    {
+        parent::__construct('Upload every required document before submitting your application.');
+    }
+}
+
+/**
  * The 4-step Apply Online wizard. Progress is saved as the applicant's
  * draft (application_drafts, one per applicant; uploads in
  * storage/uploads/drafts/<user_id>/) after every action, so it survives
  * logout and can be resumed from any device. It only becomes a real
  * application -- with a reference number -- on final submission.
  * An applicant may have only one active application at a time.
+ *
+ * Supporting documents are uploaded in step 3 and staged in the draft folder; they stay
+ * outside the application's permanent folder until submission succeeds. Uploading never
+ * verifies a document: staff verify each file separately after submission.
  */
 class ApplicationService
 {
     public const STEP_META = [
         1 => ['Personal Info', 'Tell us about yourself. Fields marked * are required.'],
         2 => ['Children', 'List each child in your sole care.'],
-        3 => ['Documents', 'Review the documents required for your application.'],
+        3 => ['Documents', 'Upload each document required for your application.'],
         4 => ['Review', 'Check your details before submitting.'],
     ];
 
@@ -63,7 +81,6 @@ class ApplicationService
             'categoryId' => null,
             'children' => [['name' => '', 'birthdate' => '']],
             'documents' => [],
-            'checkedDocuments' => [],
             'docErrors' => [],
             'consent' => false,
         ] + EmergencyContactService::draftFields();
@@ -77,10 +94,8 @@ class ApplicationService
             return $this->freshDraft($user);
         }
         $draft = $saved['data'] + $this->freshDraft($user);
-        // File paths are rebuilt from the stored name, never trusted from storage.
-        foreach ($draft['documents'] as $key => $meta) {
-            $draft['documents'][$key]['path'] = $this->draftDir((int) $user['id']) . '/' . basename((string) ($meta['stored_name'] ?? ''));
-        }
+        $draft['documents'] = $this->rebuiltStagedFiles($draft['documents'] ?? [], (int) $user['id']);
+        $draft['docErrors'] = []; // upload errors belong to the request that produced them
         $draft['step'] = min(4, max(1, (int) $draft['step']));
         $draft['highestStep'] = self::furthestStep($draft);
         $draft['contact'] = (string) ($user['mobile'] ?? ''); // always the confirmed account number, see collectStepInput()
@@ -231,7 +246,14 @@ class ApplicationService
             $draft['children'] = $children ?: [['name' => '', 'birthdate' => '']];
         }
         if ($step === 3) {
-            $draft['checkedDocuments'] = [];
+            // Staged files are kept only for requirements of the chosen category; a file for any other key
+            // (a forged key, or a category changed after uploading) is deleted from the draft folder.
+            $allowed = array_column($this->documents->requirementsFor($draft['categoryId'] ?? null), 'doc_key');
+            foreach (array_keys($draft['documents'] ?? []) as $docKey) {
+                if (!in_array((string) $docKey, $allowed, true)) {
+                    $draft = $this->files->detachFromDraft($draft, (string) $docKey);
+                }
+            }
         }
         if ($step === 4) {
             $draft['consent'] = !empty($post['consent']);
@@ -307,11 +329,123 @@ class ApplicationService
             }
         }
 
+        if ($step === 3) {
+            $errors = $this->documentErrors($draft);
+        }
+
         if ($step === 4 && empty($draft['consent'])) {
             $errors['consent'] = 'Please confirm to submit.';
         }
 
         return $errors;
+    }
+
+    /**
+     * Stages one uploaded file for a requirement of the chosen category, replacing any earlier staged file
+     * for it. The file goes through the same checks as every other applicant document (type, real content,
+     * size). A rejected file leaves the earlier staged file in place and records the reason in
+     * $draft['docErrors']. Nothing is verified here: staff review the file after the application is submitted.
+     *
+     * @param array $file one entry of $_FILES, as name/type/tmp_name/error/size
+     */
+    public function attachDocument(array $user, array $draft, string $docKey, array $file): array
+    {
+        if (!$this->categoryUsable($draft)) {
+            $draft['docErrors'][$docKey] = 'Choose your Solo Parent category (step 1) before uploading documents.';
+            return $draft;
+        }
+        $allowed = array_column($this->documents->requirementsFor($draft['categoryId'] ?? null), 'doc_key');
+        if (!in_array($docKey, $allowed, true)) {
+            $draft['docErrors'][$docKey] = 'That document is not required for your application.';
+            return $draft;
+        }
+        $dir = $this->draftDir((int) $user['id']);
+        $draft = $this->files->attachToDraft($draft, $docKey, $file, $dir);
+        if (isset($draft['documents'][$docKey]['stored_name'])) {
+            $draft['documents'][$docKey]['path'] = $dir . '/' . basename((string) $draft['documents'][$docKey]['stored_name']);
+        }
+        return $draft;
+    }
+
+    /**
+     * Why the staged documents cannot be submitted, keyed like the other step errors ([] when they can be):
+     * 'documents' lists required documents with no usable file, and 'upload_<doc_key>' carries the rejection
+     * of the file chosen in this request or a staged file that vanished or changed. Uploading is the only way
+     * to satisfy a requirement; nothing the applicant ticks or types counts. $includeMissing = false reports
+     * only the per-file problems (used while the applicant is still adding files).
+     *
+     * @return array<string,string>
+     */
+    public function documentErrors(array $draft, bool $includeMissing = true): array
+    {
+        if (!$this->categoryUsable($draft)) {
+            // Requirements depend on the category; without a valid, active one nothing can be uploaded or submitted.
+            return ['documents' => 'Choose your Solo Parent category (step 1) before uploading documents.'];
+        }
+        $errors = [];
+        $requirements = $this->documents->requirementsFor($draft['categoryId']);
+        $labels = array_column($requirements, 'label', 'doc_key');
+        foreach (($draft['docErrors'] ?? []) as $docKey => $message) {
+            $errors['upload_' . $docKey] = ($labels[$docKey] ?? $docKey) . ': ' . $message;
+        }
+        $missing = [];
+        foreach ($requirements as $requirement) {
+            $docKey = $requirement['doc_key'];
+            $meta = $draft['documents'][$docKey] ?? null;
+            if ($meta === null) {
+                if (!empty($requirement['is_required'])) {
+                    $missing[] = $requirement['label'];
+                }
+                continue;
+            }
+            $problem = $this->stagedFileProblem($meta);
+            if ($problem !== null && !isset($errors['upload_' . $docKey])) {
+                $errors['upload_' . $docKey] = $requirement['label'] . ': ' . $problem;
+                if (!empty($requirement['is_required'])) {
+                    $missing[] = $requirement['label'];
+                }
+            }
+        }
+        if ($includeMissing && $missing) {
+            $errors['documents'] = 'Upload a file for each required document. Still needed: ' . implode(', ', $missing) . '.';
+        }
+        return $errors;
+    }
+
+    /**
+     * Staged documents with their path rebuilt as <this applicant's draft folder>/<stored name>. An entry whose
+     * stored name is not one this system generates (32 hex characters and a permitted extension) is dropped, so a
+     * saved or posted draft can never point at another folder, another applicant's file, or a hidden file.
+     */
+    private function rebuiltStagedFiles(mixed $documents, int $userId): array
+    {
+        $clean = [];
+        foreach (is_array($documents) ? $documents : [] as $docKey => $meta) {
+            $storedName = is_array($meta) ? basename((string) ($meta['stored_name'] ?? '')) : '';
+            if (!is_string($docKey) || !preg_match('/\A[a-f0-9]{32}\.(?:jpe?g|png|pdf)\z/', $storedName)) {
+                continue;
+            }
+            $clean[$docKey] = ['stored_name' => $storedName, 'path' => $this->draftDir($userId) . '/' . $storedName] + $meta;
+        }
+        return $clean;
+    }
+
+    private function categoryUsable(array $draft): bool
+    {
+        return !empty($draft['categoryId']) && $this->categoryExists((int) $draft['categoryId']);
+    }
+
+    /** Null when the staged file is present and unchanged since it was validated; otherwise why it cannot be used. */
+    private function stagedFileProblem(mixed $meta): ?string
+    {
+        $path = is_array($meta) ? (string) ($meta['path'] ?? '') : '';
+        if ($path === '' || !is_file($path)) {
+            return 'the file you chose is no longer available. Please upload it again.';
+        }
+        if (!empty($meta['sha256']) && !hash_equals((string) $meta['sha256'], (string) hash_file('sha256', $path))) {
+            return 'the file was changed after it was uploaded. Please upload it again.';
+        }
+        return null;
     }
 
     /** First step (1-4) that fails validation, with its errors, or null if the whole draft is valid. */
@@ -339,7 +473,12 @@ class ApplicationService
      * Creates the application + children + document rows from a valid
      * draft and deletes the draft. Returns the reference number. Throws
      * DomainException if the applicant meanwhile got another active
-     * application (e.g. submitted from a second tab).
+     * application (e.g. submitted from a second tab), and
+     * ApplicationDocumentsException (a DomainException) if a required
+     * document is missing, invalid or no longer on disk -- this is checked
+     * again here, whatever the wizard showed. The staged files are moved
+     * into the application's folder only inside the transaction, and put
+     * back if it fails, so a failed submission loses neither data nor files.
      */
     public function submit(array $user, array $draft): string
     {
@@ -349,7 +488,14 @@ class ApplicationService
         $draft['contact'] = (string) $user['mobile'];
         // Only documents required for the chosen category go in (the category may have changed after uploading).
         $allowed = array_column($this->documents->requirementsFor($draft['categoryId']), 'doc_key');
-        $draft['documents'] = array_intersect_key($draft['documents'], array_flip($allowed));
+        $draft['documents'] = array_intersect_key($draft['documents'] ?? [], array_flip($allowed));
+        // Staged paths come from the stored name inside this applicant's own draft folder, never from the draft's saved path.
+        $draft['documents'] = $this->rebuiltStagedFiles($draft['documents'], (int) $user['id']);
+        $draft['docErrors'] = [];
+        $documentErrors = $this->documentErrors($draft);
+        if ($documentErrors) {
+            throw new ApplicationDocumentsException($documentErrors);
+        }
         for ($attempt = 1; ; $attempt++) {
             try {
                 [$applicationId, $refNumber] = $this->insertApplication($user, $draft);
@@ -381,6 +527,8 @@ class ApplicationService
     private function insertApplication(array $user, array $draft): array
     {
         $this->pdo->beginTransaction();
+        $applicationId = null;
+        $moved = [];
         try {
             $refNumber = generate_reference_no($this->pdo);
             $applicationId = $this->applications->create($refNumber, (int) $user['id'], 'new', [
@@ -399,22 +547,32 @@ class ApplicationService
                 $this->applications->addChild($applicationId, $c['name'], $c['birthdate']);
             }
             $this->syncProfileFromDraft($user, $draft);
-            $this->storeDraftDocuments($applicationId, $draft['documents'], $user);
+            $moved = $this->storeDraftDocuments($applicationId, $draft['documents'], $user);
             $this->applications->addHistory($applicationId, 'Pending Review', 'Application submitted online.', $draft['fullName'], (int) $user['id']);
 
             $this->pdo->commit();
             return [$applicationId, $refNumber];
         } catch (Throwable $e) {
-            $this->pdo->rollBack();
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            // The rollback undoes the database only: the files that were already moved go back to the draft folder.
+            $this->restoreMovedFiles($moved, $applicationId);
             throw $e;
         }
     }
 
-    /** Moves a draft's tmp files into the application's permanent folder and records them. Call inside a transaction. */
-    public function storeDraftDocuments(int $applicationId, array $documents, array $actor): void
+    /**
+     * Moves a draft's tmp files into the application's permanent folder and records them. Call inside a transaction.
+     * If this fails it puts back every file it moved; if the caller fails LATER it must put back the files
+     * this returns (final path => draft path) itself, since the database rollback cannot.
+     *
+     * @return array<string,string> final path => original draft path, for every file moved
+     */
+    public function storeDraftDocuments(int $applicationId, array $documents, array $actor): array
     {
         if (!$documents) {
-            return;
+            return [];
         }
         $destDir = STORAGE_PATH . '/' . $applicationId;
         if (!is_dir($destDir) && !mkdir($destDir, 0750, true) && !is_dir($destDir)) {
@@ -442,6 +600,18 @@ class ApplicationService
             }
             @rmdir($destDir); // only succeeds if empty, i.e. nothing else was stored there
             throw $e;
+        }
+        return $moved;
+    }
+
+    /** Puts files moved by storeDraftDocuments() back in the draft folder, for a failure after the move. */
+    private function restoreMovedFiles(array $moved, ?int $applicationId): void
+    {
+        foreach ($moved as $final => $original) {
+            @rename($final, $original);
+        }
+        if ($moved && $applicationId !== null) {
+            @rmdir(STORAGE_PATH . '/' . $applicationId); // only succeeds if empty
         }
     }
 

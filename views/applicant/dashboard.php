@@ -93,7 +93,7 @@ $welcomeText = !empty($isFirstLogin) ? 'Welcome' : 'Welcome back';
       <?php elseif (!$applicationDraft): // a saved draft already has its own "Continue" card above ?>
         <div class="dash-card">
           <h2 class="dash-card-label" data-i18n>Get started with your application</h2>
-          <p class="dash-home-body" data-i18n>Complete your personal and family details and submit your application. Then upload the required documents from Documents.</p>
+          <p class="dash-home-body" data-i18n>Complete your personal and family details, upload the required documents, and submit your application.</p>
           <?php if ($eligibilityCheck): ?>
             <div style="font-size:14px;color:var(--ink);margin:8px 0 4px">
               Your preliminary eligibility check (<?= e(date('M j, Y', strtotime($eligibilityCheck['checkedAt']))) ?>):

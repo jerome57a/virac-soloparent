@@ -101,6 +101,33 @@ class ApplicationController extends Controller
         ]];
     }
 
+    /**
+     * Stages each file chosen in application_file[<doc_key>] through ApplicationService::attachDocument()
+     * (type, real content, size). Choosing a file for a requirement that already has one replaces it.
+     */
+    private function attachUploads(ApplicationService $service, array $user, array $draft): array
+    {
+        $files = $_FILES['application_file'] ?? null;
+        if (!is_array($files) || !is_array($files['name'] ?? null)) {
+            return $draft;
+        }
+        // A real form has one input per requirement; a forged one with thousands of keys is not processed past a cap.
+        foreach (array_slice($files['name'], 0, 50, true) as $docKey => $name) {
+            $error = $files['error'][$docKey] ?? UPLOAD_ERR_NO_FILE;
+            if (!is_string($docKey) || $error === UPLOAD_ERR_NO_FILE) {
+                continue;
+            }
+            $draft = $service->attachDocument($user, $draft, $docKey, [
+                'name' => $name,
+                'type' => $files['type'][$docKey] ?? '',
+                'tmp_name' => $files['tmp_name'][$docKey] ?? '',
+                'error' => $error,
+                'size' => $files['size'][$docKey] ?? 0,
+            ]);
+        }
+        return $draft;
+    }
+
     /** @return array{0: array, 1: array, 2: ?string} [draft, errors, submitError] -- redirects on every action that succeeds. */
     private function handleApplyAction(ApplicationService $service, array $user, array $draft): array
     {
@@ -108,7 +135,27 @@ class ApplicationController extends Controller
         $step = (int) $draft['step'];
         $applyUrl = self::APPLY_URL;
 
+        // Step 3 stages the files chosen on the Documents form before anything else happens to the draft.
+        // A rejected file keeps the applicant on the step with the reason (Continue reports it through
+        // validateStep(3)); every other action stays put rather than silently dropping the file.
+        if ($step === 3 && (int) ($_POST['wizard_step'] ?? 0) === 3 && in_array($action, ['continue', 'back', 'goto', 'save_draft', 'upload'], true)) {
+            $draft = $service->collectStepInput(3, $draft, $_POST);
+            $draft['docErrors'] = [];
+            $draft = $this->attachUploads($service, $user, $draft);
+            if ($draft['docErrors'] && $action !== 'continue') {
+                $service->saveDraft($user, $draft); // keeps the files that were accepted
+                return [$draft, $service->documentErrors($draft, false), null];
+            }
+        }
+
         switch ($action) {
+            case 'upload':
+                // "Upload files": save what was chosen and stay on the Documents step.
+                $service->saveDraft($user, $draft);
+                flash('Your files are saved with your draft. Submit your application once every required document is uploaded.');
+                $this->redirectTo($applyUrl);
+                return [$draft, [], null];
+
             case 'continue':
                 $draft = $service->collectStepInput($step, $draft, $_POST);
                 $errors = $service->validateStep($step, $draft);
@@ -170,6 +217,11 @@ class ApplicationController extends Controller
                 try {
                     $service->submit($user, $draft);
                     $this->redirectTo('applicant/dashboard.php?section=application');
+                } catch (ApplicationDocumentsException $e) {
+                    // A required file is missing, invalid or gone: nothing was created; back to the Documents step.
+                    $draft['step'] = 3;
+                    $service->saveDraft($user, $draft);
+                    return [$draft, $e->errors, null];
                 } catch (DomainException $e) {
                     $this->redirectTo($applyUrl); // shows the "you already have an application" page
                 } catch (Throwable $e) {

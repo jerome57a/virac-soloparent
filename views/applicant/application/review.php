@@ -17,12 +17,25 @@ $reviewSections = [
         fn($c, $i) => ['k' => 'Child ' . ($i + 1), 'v' => ($c['name'] ?: '—') . ' · ' . format_date_long($c['birthdate'])],
         $draft['children'], array_keys($draft['children'])
     )],
-    ['title' => 'Supporting Documents', 'step' => 3, 'rows' => array_map(
-        fn($d) => ['k' => $d['label'], 'v' => !empty($d['is_required']) ? 'Required; upload after submitting' : 'Optional'],
-        $docDefs
-    )],
+    ['title' => 'Supporting Documents', 'step' => 3, 'rows' => array_map(function ($d) use ($draft) {
+        $staged = $draft['documents'][$d['doc_key']] ?? null;
+        if ($staged) {
+            return ['k' => $d['label'], 'v' => ($staged['original_name'] ?? 'Uploaded file') . ' — ready to submit'];
+        }
+        return ['k' => $d['label'], 'v' => !empty($d['is_required']) ? 'Required — not uploaded yet' : 'Optional — not uploaded'];
+    }, $docDefs)],
 ];
+// A required document with no staged file blocks submission; the server checks again when you submit.
+$missingRequired = array_values(array_map(
+    fn($d) => $d['label'],
+    array_filter($docDefs, fn($d) => !empty($d['is_required']) && empty($draft['documents'][$d['doc_key']]))
+));
 ?>
+
+<?php if ($missingRequired): ?>
+  <div class="step-alert" role="alert" data-i18n>Upload a file for each required document before you submit. Still needed: <?= e(implode(', ', $missingRequired)) ?>. Use Edit on Supporting Documents to add them.</div>
+<?php endif; ?>
+<div class="info-box" style="max-width:none" role="note" data-i18n>Your uploaded files are sent to MSWDO with your application. Staff review each file after you submit; an uploaded file is not verified until staff confirm it.</div>
 
 <?php foreach ($reviewSections as $sec): ?>
   <div class="review-card">
