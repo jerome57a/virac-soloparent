@@ -3,7 +3,7 @@ const { chromium } = require('playwright');
 const { execFileSync } = require('node:child_process');
 const path = require('node:path');
 const assert = require('node:assert/strict');
-const routes = ['dashboard.php', 'notifications.php', 'index.php', 'applicants.php', 'appointments.php', 'qr_verify.php', 'chat.php', 'reports.php'];
+const routes = ['dashboard.php', 'notifications.php', 'index.php', 'applicants.php', 'appointments.php', 'reports.php'];
 (async () => {
   const previews = new Map(routes.map(route => [route, execFileSync('php', [path.join(__dirname, 'fixtures/staff-workspace.php'), route], { encoding: 'utf8' })]));
   for (const [route, html] of previews) assert(!/Warning:|Fatal error:/.test(html), route + ' renders cleanly');
@@ -41,29 +41,19 @@ const routes = ['dashboard.php', 'notifications.php', 'index.php', 'applicants.p
       if (route === 'reports.php') assert.equal(await page.locator('#admin-report-types a:not([aria-current])').first().evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(28, 40, 57)', 'report choices follow dark theme');
       assert.deepEqual(await values(), originalValues, route + ' preferences preserve form data');
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), route + ' dark Tagalog mobile fits');
-      if (route === 'qr_verify.php' || route === 'reports.php') await page.screenshot({ path: path.join(__dirname, '../storage/staff-' + route.replace('.php', '') + '-dark-mobile.png'), fullPage: true });
+      if (route === 'reports.php') await page.screenshot({ path: path.join(__dirname, '../storage/staff-' + route.replace('.php', '') + '-dark-mobile.png'), fullPage: true });
       await page.locator('[data-language-select]').selectOption('en');
       await page.locator('[data-theme-toggle]').click();
       await page.setViewportSize({ width: 1440, height: 1000 });
       await page.screenshot({ path: path.join(__dirname, '../storage/staff-' + route.replace('.php', '') + '-desktop.png'), fullPage: true });
       console.log('PASS: ' + route + ' heading, search labels, section links, responsive layout, theme and language.');
     }
-    await page.goto('http://localhost/virac-soloparent/staff/chat.php');
-    await page.locator('[data-staff-chat-search]').fill('a-question-that-does-not-exist-12345');
-    assert(await page.locator('[data-staff-chat-empty]').isVisible());
-    assert.equal(await page.locator('[data-staff-conversation]:visible').count(), 0);
-    await page.locator('[data-staff-chat-search]').fill('');
-    assert(!(await page.locator('[data-staff-chat-empty]').isVisible()));
-    await page.goto('http://localhost/virac-soloparent/staff/qr_verify.php');
-    await page.locator('[name=code]').fill('PREVIEW-ONLY-123');
-    await page.locator('form:has([name=code]) button').click();
-    await page.waitForURL('**/qr_verify.php?code=PREVIEW-ONLY-123');
     await page.setViewportSize({ width: 390, height: 844 });
     await page.locator('#nav-menu-btn').click();
     assert.equal(await page.locator('#nav-menu-btn').getAttribute('aria-expanded'), 'true');
     await page.locator('#nav-drawer a[href$="staff/reports.php"]').click();
     await page.waitForURL('**/staff/reports.php');
     assert.deepEqual(errors, []);
-    console.log('PASS: local conversation search, manual QR GET destination and original mobile sidebar navigation. No processing, notification changes, scans or messages.');
+    console.log('PASS: staff workspace pages and mobile sidebar navigation.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

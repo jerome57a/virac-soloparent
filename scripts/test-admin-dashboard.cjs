@@ -45,7 +45,6 @@ const fixture = state => execFileSync('php', [path.join(__dirname, 'fixtures/adm
       if (state === 'empty') {
         assert.equal(await page.locator('.ad-empty').count(), 1);
         assert.match(await page.locator('.ad-trend-summary').textContent(), /No decided applications yet/);
-        assert.match(await page.locator('.ad-backup').textContent(), /No backup recorded/);
       }
       if (state === 'clear') {
         assert.equal(await page.locator('.ad-attention-count b').textContent(), '0');

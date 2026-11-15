@@ -12,7 +12,6 @@ $stats = ['totalApplications' => 348, 'totalRenewals' => 46, 'pendingNew' => 24,
 $userStats = ['applicants' => 312, 'newThisMonth' => 18, 'mswdStaff' => 5, 'admins' => 2, 'deactivated' => 13, 'locked' => 2];
 $auditStats = ['eventsToday' => 35, 'loginsToday' => 9, 'accessDenied7d' => 1, 'failedLogins7d' => 4, 'passwordResets7d' => 3];
 $summary = ['thisMonth' => 28, 'lastMonth' => 21, 'approvalRate' => 90, 'decided' => 80];
-$lastBackupAt = strtotime('2026-11-09 08:30:00');
 $recentActivity = [
     ['action' => 'Announcement Published', 'actor_name' => 'Example Administrator', 'created_at' => '2026-11-09 10:42:00'],
     ['action' => 'User Updated', 'actor_name' => 'Example Administrator', 'created_at' => '2026-11-09 10:15:00'],
@@ -23,7 +22,7 @@ if ($state === 'empty') {
     $userStats = array_fill_keys(array_keys($userStats), 0);
     $auditStats = array_fill_keys(array_keys($auditStats), 0);
     $summary = ['thisMonth' => 0, 'lastMonth' => 0, 'approvalRate' => null, 'decided' => 0];
-    $lastBackupAt = null; $recentActivity = [];
+    $recentActivity = [];
 } elseif ($state === 'clear') {
     $stats['smsFailed'] = 0; $userStats['locked'] = 0;
 } elseif ($state === 'large') {

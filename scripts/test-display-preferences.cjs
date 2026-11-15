@@ -113,18 +113,17 @@ async function testPages() {
     assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'light');
     assert.deepEqual(errors, []);
     await page.setContent(`<html data-theme="dark"><body>
-      <div class="application-slip-page"><div class="slip-qr-frame"><img></div></div>
-      <div class="applicant-id-qr"><img></div><div class="verification-id-face"><img></div>
+      <div class="verification-id-face"><img></div>
     </body></html>`);
     for (const file of ['style', 'preferences-surfaces', 'preferences', 'verification-id']) {
       await page.addStyleTag({ content: read(`public/css/${file}.css`) });
     }
-    for (const selector of ['.slip-qr-frame', '.applicant-id-qr', '.verification-id-face']) {
+    for (const selector of ['.verification-id-face']) {
       assert.equal(await page.locator(selector).evaluate(element => getComputedStyle(element).backgroundColor), 'rgb(255, 255, 255)', selector + ' preserves white backing');
       assert.equal(await page.locator(selector + ' img').evaluate(element => getComputedStyle(element).filter), 'none');
     }
     console.log('PASS: saved language/theme across public pages, logos in dark mode, mobile layout, English/light restoration, no browser errors.');
-    console.log('PASS: application-slip QR, ID QR, and ID artwork preserve white backgrounds and image colors.');
+    console.log('PASS: ID artwork preserves its white background and image colors.');
   } finally { await browser.close(); }
 }
 

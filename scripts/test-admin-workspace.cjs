@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const { execFileSync } = require('node:child_process');
 const { chromium } = require('playwright');
 const root = path.resolve(__dirname, '..');
-const routes = ['notifications.php', 'applicants.php', 'appointments.php', 'reports.php', 'announcements.php', 'eligibility_logs.php', 'applications.php', 'users.php', 'analytics.php', 'sms.php', 'settings.php', 'monitoring.php', 'audit_log.php', 'faq.php'];
+const routes = ['notifications.php', 'applicants.php', 'appointments.php', 'reports.php', 'eligibility_logs.php', 'applications.php', 'users.php', 'sms.php', 'settings.php', 'audit_log.php'];
 (async () => {
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {
@@ -58,11 +58,7 @@ const routes = ['notifications.php', 'applicants.php', 'appointments.php', 'repo
       await page.screenshot({ path: path.join(root, 'storage/admin-' + route.replace('.php', '') + '-desktop.png') });
       console.log('PASS: ' + route + ' heading, navigation, labels, responsive layouts, dark mode and Tagalog.');
     }
-    await page.goto('http://localhost/virac-soloparent/admin/faq.php');
-    await page.locator('[data-admin-faq-search]').fill('no question should match this phrase 123456');
-    assert.equal(await page.locator('[data-admin-faq-empty]').isVisible(), true);
-    assert.equal(await page.locator('#admin-faq-list details.admin-editor:visible').count(), 0);
-    await page.locator('[data-admin-faq-search]').fill('');
+    await page.goto('http://localhost/virac-soloparent/admin/notifications.php');
     await page.setViewportSize({ width: 390, height: 844 });
     await page.locator('#nav-menu-btn').click();
     assert.equal(await page.locator('#nav-menu-btn').getAttribute('aria-expanded'), 'true');
@@ -74,6 +70,6 @@ const routes = ['notifications.php', 'applicants.php', 'appointments.php', 'repo
       assert.equal(await page.locator('details#documents').getAttribute('open'), '');
     }
     assert.deepEqual(errors, [], 'no browser errors');
-    console.log('PASS: local FAQ filtering, original mobile menu navigation, and opening linked settings sections. No writes or messages sent.');
+    console.log('PASS: original mobile menu navigation, and opening linked settings sections. No writes or messages sent.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -17,7 +17,6 @@ require __DIR__ . '/../services/RecordService.php';
 require_once __DIR__ . '/../services/IdReleaseService.php';
 require_once __DIR__ . '/../services/SettingsService.php';
 require_once __DIR__ . '/../controllers/ApplicantController.php';
-require_once __DIR__ . '/../services/QrVerificationService.php';
 require_once __DIR__ . '/../controllers/StaffController.php';
 require_once __DIR__ . '/../includes/csrf.php';
 
@@ -274,15 +273,6 @@ try {
     ]);
     review_assert($settingsError !== '', 'Settings allowed a validity longer than one year.');
     $releaseService = new IdReleaseService($test);
-    $qrVerification = new QrVerificationService($test);
-    $renderVerification = static function (array $outcome, array $verificationCard, array $staff): string {
-        $ownDashboard = base_url('staff/index.php');
-        $error = '';
-        $input = '';
-        ob_start();
-        require APP_ROOT . '/views/staff/qr/verify.php';
-        return ob_get_clean();
-    };
     foreach ($test->query('SELECT id FROM applications')->fetchAll(PDO::FETCH_COLUMN) as $releaseId) {
         $releaseId = (int) $releaseId;
         $test->prepare("UPDATE applications SET status = 'Approved' WHERE id = ?")->execute([$releaseId]);
@@ -292,26 +282,14 @@ try {
         $_GET = ['ref' => $applications->findForReview($releaseId)['reference_no']];
         $myIdSection = new ReflectionMethod(ApplicantController::class, 'sectionMyid');
         review_assert($myIdSection->invoke($applicantController)['data']['idApplication'] === null, 'Approved ID was visible before release was scheduled.');
-        $approvedApp = $applications->findForReview($releaseId);
-        (new QrSlipService($test))->issue($approvedApp, $staff['id']);
-        $beforeScheduleQr = $qrVerification->verify($staff, $approvedApp['reference_no']);
-        review_assert($beforeScheduleQr['result'] === 'VALID' && !$beforeScheduleQr['app']['id_release_schedule'], 'Approved QR verification has an unexpected release schedule.');
-        review_assert(!str_contains($renderVerification($beforeScheduleQr, $approvedApp, $staff), 'class="verification-id"'), 'QR verification shows an ID before release is scheduled.');
         $test->prepare("INSERT INTO id_release_schedules (application_id,scheduled_at,location,scheduled_by,sms_message) VALUES (?,NOW(),'Test office',?,'Fixture')")->execute([$releaseId, $staff['id']]);
         $releaseApp = $applications->findForReview($releaseId);
-        $scheduledQr = $qrVerification->verify($staff, $releaseApp['reference_no']);
-        review_assert($scheduledQr['result'] === 'VALID' && $scheduledQr['app']['status'] === 'Approved' && $scheduledQr['app']['id_release_schedule'], 'Scheduled release QR verification failed.');
-        $verificationCard = $releaseApp;
-        $verificationCard['children'] = $applications->children($releaseId);
-        $scheduledQrHtml = $renderVerification($scheduledQr, $verificationCard, $staff);
-        review_assert(str_contains($scheduledQrHtml, 'verification-id-front') && str_contains($scheduledQrHtml, 'verification-id-back') && str_contains($scheduledQrHtml, 'Release Scheduled'), 'Scheduled QR verification does not show the ID and release status.');
-        review_assert(str_contains($scheduledQr['message'], 'Physical handover has not yet been confirmed.'), 'Scheduled QR verification implies confirmed physical release.');
         $idView = $myIdSection->invoke($applicantController);
         review_assert((int) $idView['data']['idApplication']['id'] === $releaseId && $idView['data']['idReleaseSchedule'] !== null, 'Scheduled ID is not available to its applicant.');
         $renderId = static function (array $data): string {
             extract($data);
             ob_start();
-            require APP_ROOT . '/views/applicant/qr/my-id.php';
+            require APP_ROOT . '/views/applicant/my-id.php';
             return ob_get_clean();
         };
         $idHtml = $renderId($idView['data']);
@@ -328,20 +306,13 @@ try {
         $_GET = [];
         $ownedApps->setValue($applicantController, []);
         review_assert($myIdSection->invoke($applicantController)['data']['idApplication'] === null, 'Applicant without applications could view an ID.');
-        (new QrSlipService($test))->issue($releaseApp, $staff['id']);
         review_assert($releaseService->confirmRelease($staff, $releaseApp) === null, 'Confirming ID release failed.');
         $ownedApps->setValue($applicantController, $applications->forUserDetailed($ids['applicant']));
         $_GET = ['ref' => $releaseApp['reference_no']];
         review_assert($myIdSection->invoke($applicantController)['data']['idApplication']['status'] === 'ID Released', 'Released ID is no longer viewable by its applicant.');
-        $releasedQr = $qrVerification->verify($staff, $releaseApp['reference_no']);
-        review_assert($releasedQr['result'] === 'VALID' && str_contains($renderVerification($releasedQr, $applications->findForReview($releaseId), $staff), 'verification-id-front'), 'Released QR verification lost its ID card.');
-        $revokedQr = $qrVerification->verify($staff, $scheduledQr['slip']['token']);
-        review_assert($revokedQr['result'] === 'INVALID', 'An old replaced QR token became valid after scheduling.');
         $expiry = $applications->findForReview($releaseId)['id_expires_at'];
         $expected = $test->query('SELECT DATE_ADD(DATE(released_at), INTERVAL 1 YEAR) FROM id_release_schedules WHERE application_id = ' . $releaseId)->fetchColumn();
         review_assert($expiry === $expected, 'Released ID did not expire one calendar year after handover.');
-        $qrExpiry = $test->query('SELECT expires_at FROM qr_application_slips WHERE application_id = ' . $releaseId . ' AND revoked_at IS NULL')->fetchColumn();
-        review_assert(substr((string) $qrExpiry, 0, 10) === $expiry, 'QR expiry did not follow ID expiry.');
         review_assert($releaseService->confirmRelease($staff, $releaseApp) !== null, 'Repeated release was accepted.');
         review_assert($applications->findForReview($releaseId)['id_expires_at'] === $expiry, 'Repeated release extended ID validity.');
     }
@@ -354,7 +325,7 @@ try {
     check_staff_assigned_interviews($test, $staff, (int) $category);
     require __DIR__ . '/appointment_management_checks.php';
     check_appointment_management($test, $staff, (int) $category);
-    echo "Staff workflow, shared records, one-year new/renewal ID expiry, QR expiry and existing expiry preservation passed.\n";
+    echo "Staff workflow, shared records, one-year new/renewal ID expiry and existing expiry preservation passed.\n";
 } catch (Throwable $e) {
     fwrite(STDERR, $e->getMessage() . PHP_EOL);
     $exitCode = 1;
