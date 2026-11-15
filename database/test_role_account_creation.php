@@ -1,6 +1,8 @@
 <?php
 /** CLI only; all writes use connection-local temporary tables. No SMS or live accounts. */
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
+require __DIR__ . '/tool_safety.php';
+require_isolated_database_tool_environment();
 require __DIR__ . '/../config/database.php';
 require APP_ROOT . '/includes/functions.php';
 require APP_ROOT . '/services/UserManagementService.php';

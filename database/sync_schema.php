@@ -1,21 +1,35 @@
 <?php
 /**
- * Compare the configured database with schema.sql, or apply additive upgrades.
- * The reference schema is built in an isolated database and always removed.
- * Existing records, custom settings and reference data are never overwritten.
+ * Compare the isolated test database with schema.sql. Comparison only: the target database is
+ * never altered and no schema changes are applied. A randomly named temporary reference database
+ * is created and dropped on the same server to hold the canonical schema.
  */
 if (PHP_SAPI !== 'cli') {
     http_response_code(403);
     exit('Command line only.');
 }
 
-if (count($argv) > 2 || (isset($argv[1]) && !in_array($argv[1], ['--check', '--apply'], true))) {
-    fwrite(STDERR, "Usage: php database/sync_schema.php [--check|--apply]\n");
+$args = array_slice($argv, 1);
+if (array_diff($args, ['--check-with-temp-db', '--allow-temporary-database']) || !in_array('--check-with-temp-db', $args, true)) {
+    fwrite(STDERR, "Schema comparison only; applying schema changes is not supported.
+This tool creates and drops a temporary reference database.
+Usage: php database/sync_schema.php --check-with-temp-db --allow-temporary-database
+");
+    exit(1);
+}
+
+require __DIR__ . '/tool_safety.php';
+try {
+    require_isolated_database_tool_environment();
+    require_temporary_database_opt_in($args);
+    $reference = 'sp_schema_check_' . bin2hex(random_bytes(8));
+    validate_temporary_database_target($reference, 'sp_schema_check_');
+} catch (Throwable $e) {
+    fwrite(STDERR, $e->getMessage() . PHP_EOL);
     exit(1);
 }
 
 require __DIR__ . '/../config/database.php';
-require __DIR__ . '/../services/BackupService.php';
 
 function schema_identifier(string $name): string
 {
@@ -92,7 +106,7 @@ function schema_triggers(PDO $pdo, string $database): array
     return $triggers;
 }
 
-/** Plan additions only. Existing incompatible definitions require a reviewed migration. */
+/** Report-only plan of additive differences. Nothing returned here is ever executed. */
 function schema_plan(PDO $pdo, array $expected, array $actual, array $expectedTriggers, array $actualTriggers): array
 {
     $tableSql = $columnSql = $indexSql = $constraintSql = $triggerSql = $issues = [];
@@ -108,9 +122,9 @@ function schema_plan(PDO $pdo, array $expected, array $actual, array $expectedTr
         $previous = null;
         foreach ($definition['columns'] as $column => $sql) {
             if (isset($actual[$table]) && !isset($actual[$table]['columns'][$column])) {
-                if (str_contains($sql, 'NOT NULL') && !str_contains($sql, 'DEFAULT ') && !str_contains($sql, 'AUTO_INCREMENT')
-                    && $pdo->query('SELECT 1 FROM ' . $quoted . ' LIMIT 1')->fetchColumn() !== false) {
-                    $issues[] = $table . '.' . $column . ': requires a data backfill before adding a required column.';
+                // Metadata only: table contents are never read, so a required column without a default always needs review.
+                if (str_contains($sql, 'NOT NULL') && !str_contains($sql, 'DEFAULT ') && !str_contains($sql, 'AUTO_INCREMENT')) {
+                    $issues[] = $table . '.' . $column . ': required column without a default may need a data backfill; review before adding.';
                 } else {
                     $columnSql[] = 'ALTER TABLE ' . $quoted . ' ADD COLUMN ' . $sql
                         . ($previous === null ? ' FIRST' : ' AFTER ' . schema_identifier($previous));
@@ -156,8 +170,6 @@ function schema_plan(PDO $pdo, array $expected, array $actual, array $expectedTr
     return [array_merge($tableSql, $columnSql, $indexSql, $constraintSql, $triggerSql), $issues];
 }
 
-$apply = ($argv[1] ?? '--check') === '--apply';
-$reference = 'sp_schema_check_' . bin2hex(random_bytes(8));
 $createdReference = false;
 $exitCode = 0;
 $lockName = 'solo_parent_schema_' . substr(hash('sha256', DB_NAME), 0, 40);
@@ -166,7 +178,7 @@ try {
     $lock = $pdo->prepare('SELECT GET_LOCK(?, 0)');
     $lock->execute([$lockName]);
     if ((int) $lock->fetchColumn() !== 1) {
-        throw new RuntimeException('Another schema check or upgrade is running.');
+        throw new RuntimeException('Another schema check is running.');
     }
     $locked = true;
     $pdo->exec('CREATE DATABASE ' . schema_identifier($reference) . ' CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
@@ -198,28 +210,18 @@ try {
         $exitCode = 1;
         echo "No changes applied. Resolve incompatible definitions with a data-preserving migration.\n";
     } elseif (!$statements) {
-        echo "Schema matches: columns, defaults, indexes, foreign keys and audit triggers. No upgrade needed.\n";
-    } elseif (!$apply) {
-        foreach ($statements as $statement) {
-            echo $statement . ";\n";
-        }
-        echo "Additive changes pending. Run with --apply to back up and upgrade.\n";
-        $exitCode = 1;
+        echo "Schema matches: columns, defaults, indexes, foreign keys and audit triggers. No differences.\n";
     } else {
-        $backup = new BackupService($pdo);
-        $filename = $backup->create();
-        echo 'Backup: ' . $backup->directory() . '/' . $filename . PHP_EOL;
         foreach ($statements as $statement) {
-            $pdo->exec($statement);
+            echo $statement . ";
+";
         }
-        [$remaining, $issues] = schema_plan($pdo, $expected, schema_tables($pdo, DB_NAME), $expectedTriggers, schema_triggers($pdo, DB_NAME));
-        if ($remaining || $issues) {
-            throw new RuntimeException('The upgraded database still differs from schema.sql. Run --check for details.');
-        }
-        echo 'Applied ' . count($statements) . " additive changes; schema matches.\n";
+        echo "Additive differences found (listed for review only; nothing was applied).
+";
+        $exitCode = 1;
     }
 } catch (Throwable $e) {
-    fwrite(STDERR, 'Schema check/upgrade failed: ' . $e->getMessage() . PHP_EOL);
+    fwrite(STDERR, 'Schema check failed: ' . $e->getMessage() . PHP_EOL);
     $exitCode = 1;
 } finally {
     // These operations only remove the randomly named database created by this run.

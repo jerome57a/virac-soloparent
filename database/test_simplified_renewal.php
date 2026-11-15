@@ -1,6 +1,10 @@
 <?php
 /** Disposable-database checks; synthetic category policies are not installed in the live system. */
 if (PHP_SAPI !== 'cli') { http_response_code(403); exit('Command line only.'); }
+require __DIR__ . '/tool_safety.php';
+require_isolated_database_tool_environment();
+$testDb = 'renewal_test_' . bin2hex(random_bytes(6));
+validate_temporary_database_target($testDb, 'renewal_test_');
 require __DIR__ . '/../config/database.php';
 require __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../services/RenewalService.php';
@@ -13,7 +17,6 @@ require_once __DIR__ . '/../includes/csrf.php';
 
 function renewal_assert(bool $ok,string $message): void { if (!$ok) { throw new RuntimeException($message); } }
 $live = $pdo;
-$testDb = 'renewal_test_' . bin2hex(random_bytes(6));
 $created = false;
 $exitCode = 0;
 try {

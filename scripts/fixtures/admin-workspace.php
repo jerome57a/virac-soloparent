@@ -12,6 +12,8 @@ $_SERVER['REQUEST_METHOD'] = 'GET';
 $_SERVER['SCRIPT_NAME'] = '/virac-soloparent/admin/' . $route;
 $_SERVER['REQUEST_URI'] = $_SERVER['SCRIPT_NAME'];
 define('BASE_URL', 'http://localhost/virac-soloparent');
+require dirname(__DIR__, 2) . '/database/tool_safety.php';
+require_isolated_database_tool_environment();
 require dirname(__DIR__, 2) . '/config/database.php';
 require APP_ROOT . '/includes/functions.php';
 require APP_ROOT . '/includes/csrf.php';

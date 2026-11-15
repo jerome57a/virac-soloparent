@@ -1,6 +1,8 @@
 <?php
 /** CLI regression checks for public tracking; no retained database changes. */
 if (PHP_SAPI !== 'cli') { http_response_code(403); exit('Command line only.'); }
+require __DIR__ . '/tool_safety.php';
+require_isolated_database_tool_environment();
 require __DIR__ . '/../config/database.php';
 require __DIR__ . '/../includes/functions.php';
 require __DIR__ . '/../controllers/ApplicationController.php';

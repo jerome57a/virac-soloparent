@@ -1,9 +1,12 @@
 <?php
 /**
- * One-time helper to create the first MSWDO staff/admin account.
- * Run once from a browser (http://localhost/virac-soloparent/database/seed_admin.php)
- * or from the CLI (php seed_admin.php), then delete this file.
+ * One-time helper to create the first MSWDO staff/admin account in the isolated test database.
+ * Run from the CLI only (php seed_admin.php) with process-level test settings: APP_ENV=testing,
+ * DB_HOST=localhost|127.0.0.1, DB_NAME=virac_solo_parent_test, a non-root DB_USER, DB_PASS and
+ * SMS_PROVIDER=test. It refuses to run otherwise; config/local.php is not used for this check.
  */
+require __DIR__ . '/tool_safety.php';
+require_isolated_database_tool_environment();
 require __DIR__ . '/../config/database.php';
 
 $username = 'admin';

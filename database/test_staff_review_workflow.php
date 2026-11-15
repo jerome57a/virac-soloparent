@@ -4,6 +4,10 @@ if (PHP_SAPI !== 'cli') {
     http_response_code(403);
     exit('Command line only.');
 }
+require __DIR__ . '/tool_safety.php';
+require_isolated_database_tool_environment();
+$testDatabase = 'solo_review_test_' . bin2hex(random_bytes(6));
+validate_temporary_database_target($testDatabase, 'solo_review_test_');
 require __DIR__ . '/../config/database.php';
 require __DIR__ . '/../includes/functions.php';
 require __DIR__ . '/../services/ApplicationReviewService.php';
@@ -50,7 +54,9 @@ function review_render_staff(PDO $pdo, array $staff, int $id): string
 }
 
 $source = $pdo;
-$testDatabase = 'solo_review_test_' . bin2hex(random_bytes(6));
+$originalGlobalPdo = $GLOBALS['pdo'] ?? null;
+$originalSettingsCacheSet = array_key_exists('__settings_cache', $GLOBALS);
+$originalSettingsCache = $GLOBALS['__settings_cache'] ?? null;
 $created = false;
 $exitCode = 0;
 try {

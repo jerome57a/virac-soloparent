@@ -1,6 +1,8 @@
 <?php
 /** CLI checks use connection-local temporary tables; no real SMS or announcements are changed. */
 if (PHP_SAPI !== 'cli') { http_response_code(403); exit('Command line only.'); }
+require __DIR__ . '/tool_safety.php';
+require_isolated_database_tool_environment();
 require __DIR__ . '/../config/database.php';
 require __DIR__ . '/../includes/functions.php';
 require __DIR__ . '/../includes/csrf.php';

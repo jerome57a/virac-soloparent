@@ -10,24 +10,27 @@ the Codex GitHub connection access to this private repository. Choose **Get
 started** and give the setup agent these requirements:
 
 > Set up PHP 8.2 or later, Composer, MariaDB, and PHP extensions pdo_mysql,
-> mbstring, gd, and xml. Run composer install. Start MariaDB and create a fresh,
-> isolated development database using database/schema.sql and database/seed.sql.
-> Keep SMS_PROVIDER=test. Configure the database connection through environment
-> variables or an ignored config/local.php. Run the disposable staff workflow
-> test and public tracking test, then start PHP on port 8080. Save and test the
-> environment setup so future tasks can start it again.
+> mbstring, gd, and xml. Run composer install. Provision a fresh isolated test
+> database named virac_solo_parent_test using a reviewed test-only schema setup;
+> do not import the repository schema.sql unchanged because it drops/recreates
+> virac_solo_parent. Configure explicit process variables APP_ENV=testing,
+> DB_HOST, DB_NAME=virac_solo_parent_test, a dedicated DB_USER/DB_PASS, and
+> SMS_PROVIDER=test. Never copy real applicant data. Run the database safety
+> guard checks, then the database tests only after verifying this configuration.
+> Start PHP on port 8080 and save the environment setup for later use.
 
-`database/schema.sql` drops and recreates `virac_solo_parent`. Import it only in
-the isolated cloud database. The workflow tests need a database user that can
-create and drop temporary test databases. Use sample data in cloud development.
+`database/schema.sql` drops and recreates `virac_solo_parent`; never import it
+unchanged. Database tests now refuse to connect without explicit isolated test
+environment variables. The workflow tests need a database user that can create
+and drop generated disposable test databases. Use synthetic data only.
 
 After installing tools and starting MariaDB, the setup uses:
 
 ```sh
 composer install --no-interaction --prefer-dist
-mysql -u root < database/schema.sql
-mysql -u root virac_solo_parent < database/seed.sql
-export SMS_PROVIDER=test
+php database/tool_safety_guard_checks.php
+export APP_ENV=testing DB_HOST=localhost DB_NAME=virac_solo_parent_test
+export DB_USER=soloparent_test DB_PASS='<test-only password>' SMS_PROVIDER=test
 php database/test_staff_review_workflow.php
 php database/test_public_tracking.php
 php -S 0.0.0.0:8080 -t .
