@@ -43,6 +43,8 @@ class ApplicantController extends Controller
 
     private array $user;
     private array $applications;
+    /** @var ?array cache of documentsToFix() for this request */
+    private ?array $fixList = null;
 
     public function handle(): void
     {
@@ -145,7 +147,37 @@ class ApplicantController extends Controller
             'pageTitle' => $title . ' — ' . setting('system_name'),
             'contentView' => 'views/applicant/' . $result['view'],
             'unreadNotificationCount' => (new Notification($this->pdo))->unreadCount((int) $this->user['id']),
+            'documentsToFixCount' => count($this->documentsToFix()),
         ]));
+    }
+
+    /**
+     * The documents MSWDO asked this applicant to replace (needs correction, invalid or legacy-rejected), across the applications
+     * whose documents can still be changed: [['application_id', 'reference_no', 'doc_key', 'label', 'remarks']]. Shown on the dashboard
+     * and as a count beside Documents in the menu, so a correction is seen right after sign-in.
+     */
+    private function documentsToFix(): array
+    {
+        if ($this->fixList !== null) {
+            return $this->fixList;
+        }
+        $documents = new Document($this->pdo);
+        $list = [];
+        foreach ($this->applications as $app) {
+            if (!in_array($app['status'], Application::CHECKLIST_EDITABLE_STATUSES, true)) {
+                continue;
+            }
+            $uploads = array_column($documents->uploadedForApplication((int) $app['id']), null, 'doc_key');
+            $categoryId = $app['category_id'] !== null ? (int) $app['category_id'] : null;
+            foreach ($documents->checklistForReview((int) $app['id'], $categoryId, $app['type'] === 'renewal') as $item) {
+                $upload = $uploads[$item['doc_key']] ?? null;
+                if ($upload && in_array($upload['verification_status'], ['NEEDS_CORRECTION', 'INVALID', 'REJECTED'], true)) {
+                    $list[] = ['application_id' => (int) $app['id'], 'reference_no' => (string) $app['reference_no'], 'doc_key' => (string) $item['doc_key'],
+                        'label' => (string) $item['label'], 'remarks' => trim((string) ($upload['staff_remarks'] ?? ''))];
+                }
+            }
+        }
+        return $this->fixList = $list;
     }
 
     /** The released ID if there is one, otherwise the approved-but-not-yet-released one. */
@@ -218,6 +250,7 @@ class ApplicantController extends Controller
             'eligibilityCheck' => (new EligibilityService($this->pdo))->latestForUser((int) $this->user['id']),
             'quickActions' => $this->quickActions($renewal, $bookable, $draft, $bookingOpen),
             'applicationDraft' => $draft,
+            'documentsToFix' => $this->documentsToFix(),
         ]];
     }
 

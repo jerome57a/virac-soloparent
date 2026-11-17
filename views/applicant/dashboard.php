@@ -40,6 +40,30 @@ $welcomeText = !empty($isFirstLogin) ? 'Welcome' : 'Welcome back';
         <p class="dash-welcome-sub" data-i18n><?= !empty($isFirstLogin) ? 'Welcome to your Solo Parent portal. Start your application and find the guidance you need here.' : 'Your application, appointments, and ID updates in one place.' ?></p>
       </section>
 
+      <?php if (!empty($documentsToFix)): $fixN = count($documentsToFix); ?>
+        <section class="fix-alert" role="alert" aria-labelledby="fix-alert-title">
+          <div class="fix-alert-head">
+            <span class="fix-alert-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v5M12 18h.01"/></svg></span>
+            <div>
+              <h2 id="fix-alert-title" class="fix-alert-title"><?= $fixN === 1 ? '1 document needs a new file' : $fixN . ' documents need a new file' ?></h2>
+              <p class="fix-alert-sub">MSWDO could not accept <?= $fixN === 1 ? 'this document' : 'these documents' ?>. Tap <b>Upload new file</b> to read the reason and send a replacement. Your application cannot move forward until <?= $fixN === 1 ? 'it is' : 'they are' ?> fixed.</p>
+            </div>
+          </div>
+          <ul class="fix-alert-list">
+            <?php foreach ($documentsToFix as $fix): ?>
+              <li class="fix-alert-item">
+                <div class="fix-alert-text">
+                  <strong><?= e($fix['label']) ?></strong>
+                  <?php if (count(array_unique(array_column($documentsToFix, 'application_id'))) > 1): ?><span class="fix-alert-ref"><?= e($fix['reference_no']) ?></span><?php endif; ?>
+                  <span class="fix-alert-reason"><?= $fix['remarks'] !== '' ? e(mb_strimwidth($fix['remarks'], 0, 140, '…')) : 'MSWDO asked for a clearer or correct file.' ?></span>
+                </div>
+                <a class="btn-navy fix-alert-btn" href="?section=documents#doc-<?= (int) $fix['application_id'] ?>-<?= e(preg_replace('/[^a-z0-9_-]/i', '', $fix['doc_key'])) ?>">Upload new file</a>
+              </li>
+            <?php endforeach; ?>
+          </ul>
+        </section>
+      <?php endif; ?>
+
       <?php require __DIR__ . '/application/draft-card.php'; ?>
 
       <?php if ($latestApplication): $st = status_style($latestApplication['status']); ?>
@@ -81,7 +105,7 @@ $welcomeText = !empty($isFirstLogin) ? 'Welcome' : 'Welcome back';
               </li>
             <?php endforeach; ?>
           </ol>
-          <?php if ($latestTracker['correction']): ?>
+          <?php if ($latestTracker['correction'] && empty($documentsToFix)): ?>
             <div class="step-alert" role="alert">
               <b data-i18n>Action needed:</b> MSWDO has asked for corrections<?= $latestTracker['correction']['reason'] ? ': ' . e($latestTracker['correction']['reason']) : '' ?>.
               <div class="mt-2"><a href="?section=documents" class="btn-red btn-sm" style="text-decoration:none;color:#fff" data-i18n>Fix My Documents</a></div>
