@@ -30,3 +30,6 @@
 /.env.*
 !/.env.example
 /node_modules/
+
+# Local backups (database dumps with applicant data, removed-code copies): never commit.
+/backups/

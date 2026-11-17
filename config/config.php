@@ -52,7 +52,12 @@ if (PHP_SAPI !== 'cli') {
 // Keep PHP sessions in the application's protected storage. The XAMPP
 // default C:\xampp\tmp can be unreadable to the web-server account, which
 // breaks CSRF validation and logout POSTs.
-$sessionPath = APP_ROOT . '/storage/sessions';
+// With APP_ENV=testing SESSION_PATH is <TEST_STORAGE_ROOT>/sessions (see config/storage.php), never storage/sessions.
+if (!storage_root_still_safe()) {
+    $tempProblem = storage_temp_settings_error(); // null unless a testing web request has wrong PHP temp settings
+    throw new RuntimeException('The test storage root failed its safety check; refusing to start a session.' . ($tempProblem !== null ? ' ' . $tempProblem : ''));
+}
+$sessionPath = SESSION_PATH;
 if (!is_dir($sessionPath) && !@mkdir($sessionPath, 0700, true) && !is_dir($sessionPath)) {
     throw new RuntimeException('Unable to create the application session directory.');
 }

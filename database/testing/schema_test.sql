@@ -1,7 +1,8 @@
 -- PROPOSED, NOT IMPORTED. Test-only schema for the database virac_solo_parent_test.
 --
--- Derived from database/schema.sql (lines 35-630: roles through public_announcements,
--- including the audit_logs_no_update / audit_logs_no_delete triggers). Table,
+-- Derived from database/schema.sql (lines 36-766: roles through public_announcements,
+-- including the audit_logs_no_update / audit_logs_no_delete and the
+-- appointment_events_no_update / appointment_events_no_delete triggers). Table,
 -- index, foreign-key and trigger definitions are copied unchanged. Re-derive this
 -- file whenever schema.sql changes; do not edit table definitions here by hand.
 --
@@ -355,10 +356,15 @@ CREATE TABLE qr_application_slips (
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------
--- Appointments: staff enter the interview date, time and location directly;
--- new rows always have slot_id NULL. appointment_slots (self-booking slots) and
--- any appointments.slot_id values are HISTORICAL and kept for existing records;
--- the application no longer creates or reads slots.
+-- Appointments: legacy rows carry a staff-entered interview date AND time
+-- (date_only = 0). New date-booking rows (date_only = 1, applicant- or
+-- staff-created) reserve a DATE only: scheduled_at holds that date at 00:00:00
+-- and there is no time slot. New rows always have slot_id NULL. appointment_slots
+-- (self-booking slots) and any appointments.slot_id values are HISTORICAL and kept
+-- for existing records; the application no longer creates or reads slots.
+-- Daily capacity: interview_dates (staff-opened dates) is the lock target; the
+-- seats used on a date are the BOOKED + COMPLETED appointments with that
+-- interview_date (legacy timed rows included). See interview_dates below.
 -- ---------------------------------------------------------------
 CREATE TABLE appointment_slots (
   id          INT AUTO_INCREMENT PRIMARY KEY,
@@ -382,6 +388,14 @@ CREATE TABLE appointments (
   application_id      INT NOT NULL,
   slot_id             INT NULL,
   scheduled_at        DATETIME NOT NULL,
+  -- The calendar day of scheduled_at, kept by the database itself so legacy timed rows and date-only rows are counted
+  -- against a date's capacity the same way. Never written by the application.
+  interview_date      DATE GENERATED ALWAYS AS (DATE(`scheduled_at`)) STORED,
+  -- 1 = date-booking row: the applicant/staff reserved a DATE only, scheduled_at is that date at 00:00:00.
+  -- 0 = legacy row with a real time of day (displayed and reminded as before).
+  date_only           TINYINT(1) NOT NULL DEFAULT 0,
+  -- LEGACY = created before date booking existed (also the default); STAFF / APPLICANT = created by date booking.
+  booking_source      ENUM('LEGACY','STAFF','APPLICANT') NOT NULL DEFAULT 'LEGACY',
   location            VARCHAR(255) NOT NULL,
   -- BOOKED -> COMPLETED (result recorded) | MISSED (no-show) | CANCELLED (by staff, with a reason). One interview per application.
   status              ENUM('BOOKED','COMPLETED','CANCELLED','MISSED') NOT NULL DEFAULT 'BOOKED',
@@ -394,6 +408,7 @@ CREATE TABLE appointments (
   scheduled_by        INT NULL,
   reminder_sent_at    DATETIME DEFAULT NULL,
   interview_sms_log_id INT NULL,
+  confirmation_sms_log_id INT NULL,   -- the date-booking confirmation SMS (the invitation SMS is logged on interview_invitations)
   created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_interview_app (application_id),
@@ -402,7 +417,9 @@ CREATE TABLE appointments (
   CONSTRAINT fk_interview_slot FOREIGN KEY (slot_id) REFERENCES appointment_slots(id) ON DELETE SET NULL,
   CONSTRAINT fk_interview_staff FOREIGN KEY (scheduled_by) REFERENCES users(id),
   CONSTRAINT fk_appt_cancelled_by FOREIGN KEY (cancelled_by) REFERENCES users(id) ON DELETE SET NULL,
-  KEY idx_appt_slot_status (slot_id, status)
+  KEY idx_appt_slot_status (slot_id, status),
+  KEY idx_appt_interview_date (interview_date, status),
+  CONSTRAINT chk_appt_date_only CHECK (date_only = 0 OR TIME(`scheduled_at`) = '00:00:00')
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------
@@ -501,7 +518,123 @@ CREATE TABLE sms_logs (
 
 ALTER TABLE appointments
   ADD KEY idx_appt_sms_log (interview_sms_log_id),
-  ADD CONSTRAINT fk_appt_sms_log FOREIGN KEY (interview_sms_log_id) REFERENCES sms_logs(id) ON DELETE SET NULL;
+  ADD CONSTRAINT fk_appt_sms_log FOREIGN KEY (interview_sms_log_id) REFERENCES sms_logs(id) ON DELETE SET NULL,
+  ADD KEY idx_appt_confirm_sms (confirmation_sms_log_id),
+  ADD CONSTRAINT fk_appt_confirm_sms FOREIGN KEY (confirmation_sms_log_id) REFERENCES sms_logs(id) ON DELETE SET NULL;
+
+-- ---------------------------------------------------------------
+-- Interview date booking (applicants reserve a DATE; there are no time slots).
+-- ---------------------------------------------------------------
+-- Dates staff have opened for booking. A row here is the date-level capacity
+-- lock: every booking path (applicant and staff) must, inside its transaction,
+-- SELECT ... FOR UPDATE this row, then count the seats used with a locking read
+-- (BOOKED + COMPLETED appointments with this interview_date) and refuse when the
+-- count has reached the capacity. A date with no row is not open and cannot be
+-- booked. Rows are closed, never deleted. "Full" is derived from the count, not stored.
+-- capacity_override NULL = use the configured default daily capacity (system_settings).
+CREATE TABLE interview_dates (
+  interview_date    DATE PRIMARY KEY,
+  status            ENUM('OPEN','CLOSED') NOT NULL DEFAULT 'OPEN',
+  capacity_override INT NULL,
+  created_by        INT NULL,
+  closed_by         INT NULL,
+  closed_at         DATETIME DEFAULT NULL,
+  closed_reason     VARCHAR(255) DEFAULT NULL,
+  created_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_idate_status (status, interview_date),
+  CONSTRAINT chk_idate_capacity CHECK (capacity_override IS NULL OR capacity_override >= 1),
+  CONSTRAINT fk_idate_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_idate_closer FOREIGN KEY (closed_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- One invitation per application: staff open interview scheduling once every required document is
+-- verified and unexpired; the same row is closed and reopened afterwards (every change is in appointment_events).
+-- OPEN = the applicant may pick a date; BOOKED = a date is reserved (appointments is authoritative);
+-- CLOSED = staff closed it, staff cancelled / marked the appointment missed, or the applicant cancelled
+-- with no reschedule allowance left. Invitations never expire automatically.
+-- An applicant cancelling never changes reschedules_used: with allowance left (reschedules_used <
+-- reschedules_allowed) the invitation reopens automatically, otherwise it closes. reschedules_used is increased
+-- only when a counted replacement booking commits (an applicant booking after the applicant cancelled their
+-- own date booking); first bookings, staff-created bookings and bookings after a staff cancellation or
+-- MISSED never use the allowance. Extra allowance: only while the allowance is exhausted, the invitation is
+-- CLOSED and the latest appointment was cancelled by the applicant, staff grant one at a time (reason
+-- required, reschedules_allowed at most 5), then reopen it as a separate action. Past that, staff create the booking.
+-- sms_log_id is the invitation SMS (the confirmation SMS is appointments.confirmation_sms_log_id).
+CREATE TABLE interview_invitations (
+  id                  INT AUTO_INCREMENT PRIMARY KEY,
+  application_id      INT NOT NULL,
+  status              ENUM('OPEN','BOOKED','CLOSED') NOT NULL DEFAULT 'OPEN',
+  reschedules_allowed TINYINT UNSIGNED NOT NULL DEFAULT 1,
+  reschedules_used    TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  opened_by           INT NULL,
+  opened_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  closed_by           INT NULL,
+  closed_at           DATETIME DEFAULT NULL,
+  close_reason        VARCHAR(255) DEFAULT NULL,
+  sms_log_id          INT NULL,
+  created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_invite_app (application_id),
+  KEY idx_invite_status (status),
+  CONSTRAINT fk_invite_app FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
+  CONSTRAINT fk_invite_opener FOREIGN KEY (opened_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_invite_closer FOREIGN KEY (closed_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_invite_sms FOREIGN KEY (sms_log_id) REFERENCES sms_logs(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- Append-only history of invitations and interview date bookings, starting when date booking goes live
+-- (earlier appointments are not back-filled; their history stays in application_status_history and
+-- audit_logs). One row per event, never edited: a reschedule or cancellation adds a row, because the
+-- appointments row (one per application) is overwritten. event_type and source are plain text so new
+-- kinds need no migration: INVITATION_OPENED, INVITATION_CLOSED, INVITATION_REOPENED, RESCHEDULE_GRANTED,
+-- BOOKED, RESCHEDULED, CANCELLED, MISSED, COMPLETED; source is APPLICANT, STAFF or SYSTEM.
+-- BOOKED = any booking except a counted replacement, which is RESCHEDULED. RESCHEDULE_GRANTED and
+-- INVITATION_REOPENED are always separate rows (an applicant-cancel automatic reopening is INVITATION_REOPENED
+-- with source APPLICANT).
+-- actor_name/actor_role are snapshots, as in audit_logs.
+CREATE TABLE appointment_events (
+  id                      INT AUTO_INCREMENT PRIMARY KEY,
+  application_id          INT NOT NULL,
+  appointment_id          INT NULL,
+  event_type              VARCHAR(30) NOT NULL,
+  interview_date          DATE DEFAULT NULL,
+  previous_interview_date DATE DEFAULT NULL,
+  source                  VARCHAR(20) DEFAULT NULL,
+  actor_user_id           INT NULL,
+  actor_name              VARCHAR(150) NOT NULL,
+  actor_role              VARCHAR(30) NOT NULL,
+  reason                  VARCHAR(255) DEFAULT NULL,
+  details                 VARCHAR(500) DEFAULT NULL,
+  created_at              TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_aevent_app (application_id, id),
+  KEY idx_aevent_appt (appointment_id),
+  KEY idx_aevent_date (interview_date, event_type),
+  KEY idx_aevent_type (event_type, created_at),
+  CONSTRAINT fk_aevent_app FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
+  CONSTRAINT fk_aevent_appt FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE SET NULL,
+  CONSTRAINT fk_aevent_actor FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- Append-only like audit_logs: the database refuses UPDATE/DELETE on appointment_events (foreign-key
+-- actions never fire triggers, so deleting an account or an application still works).
+-- Deliberate DBA maintenance opts in per session: SET @appointment_events_maintenance = 1;
+DELIMITER $$
+CREATE TRIGGER appointment_events_no_update BEFORE UPDATE ON appointment_events
+FOR EACH ROW
+BEGIN
+  IF COALESCE(@appointment_events_maintenance, 0) <> 1 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Appointment event records cannot be changed.';
+  END IF;
+END$$
+CREATE TRIGGER appointment_events_no_delete BEFORE DELETE ON appointment_events
+FOR EACH ROW
+BEGIN
+  IF COALESCE(@appointment_events_maintenance, 0) <> 1 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Appointment event records cannot be deleted.';
+  END IF;
+END$$
+DELIMITER ;
 
 -- ID release appointments are separate from actual ID handover. A single
 -- current schedule is retained per application; released_at/by record the
