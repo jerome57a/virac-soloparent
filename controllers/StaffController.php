@@ -5,6 +5,7 @@ require_once __DIR__ . '/../services/ApplicationReviewService.php';
 require_once __DIR__ . '/../services/AppointmentService.php';
 require_once __DIR__ . '/../services/InterviewDateService.php';
 require_once __DIR__ . '/../services/InterviewInvitationService.php';
+require_once __DIR__ . '/../services/InterviewBookingService.php';
 require_once __DIR__ . '/../services/ApplicationNextStepService.php';
 require_once __DIR__ . '/../services/RenewalService.php';
 require_once __DIR__ . '/../services/IdReleaseService.php';
@@ -134,6 +135,9 @@ class StaffController extends Controller
             'invitationState' => $invitationState,
             'invitationPanel' => $invitationPanel,
             'invitationAutoMessage' => $invitationState === 'ready' ? (new SMSService($this->pdo))->interviewBookingOpenMessage((string) $app['reference_no']) : '',
+            'scheduleAutoMessage' => $invitationState === 'ready' ? (new SMSService($this->pdo))->interviewDateAssignedMessage((string) $app['reference_no'], null, get_setting($this->pdo, 'appointment_location', AppointmentService::DEFAULT_LOCATION)) : '',
+            'scheduleMinDate' => date('Y-m-d', strtotime(Appointment::manilaDate() . ' +1 day')),
+            'scheduleMaxDate' => date('Y-m-d', strtotime(Appointment::manilaDate() . ' +' . InterviewBookingService::BOOKING_WINDOW_DAYS . ' days')),
             'flashMessage' => take_flash(),
             'verificationNotice' => (function () { $n = $_SESSION['verification_notice'] ?? null; unset($_SESSION['verification_notice']); return is_array($n) ? $n : null; })(),
             'reviewUndoToken' => $review->reviewUndoToken($id),
@@ -214,6 +218,16 @@ class StaffController extends Controller
                     return ['release' => $error];
                 }
                 $back .= '#id-release';
+                break;
+            case 'schedule_interview_date':
+                // Staff set the interview date: booked at once, the applicant is texted and may keep it or pick another date.
+                $scheduleDate = $post('interview_date');
+                $error = (new InterviewBookingService($this->pdo))->scheduleForApplicant($this->staff, $id, $scheduleDate, $post('sms_message_type') === 'custom' ? $post('invitation_custom_message') : null);
+                if ($error) {
+                    return ['invitation' => $error];
+                }
+                flash('Interview scheduled for ' . date('l, F j, Y', strtotime($scheduleDate)) . '. The applicant was texted and can keep that date or pick another one.');
+                $back .= '#invitation';
                 break;
             case 'open_invitation':
             case 'close_invitation':

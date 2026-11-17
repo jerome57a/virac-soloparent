@@ -60,7 +60,7 @@ $actionIcon = require APP_ROOT . '/includes/user-management-icons.php';
               <?php
               // A readable message type, so an invitation is told apart from a booking confirmation without opening the row.
               $typeLabel = SMSService::TEMPLATES[$l['template_key'] ?? ''][0] ?? ([
-                  'interview_custom' => 'Interview scheduled (custom message)', 'interview_booking_custom' => 'Interview booking invitation (custom message)',
+                  'interview_custom' => 'Interview scheduled (custom message)', 'interview_date_assigned_custom' => 'Interview date scheduled by staff (custom message)', 'interview_booking_custom' => 'Interview booking invitation (custom message)',
                   'id_release_scheduled' => 'ID release scheduled', 'id_release_custom' => 'ID release scheduled (custom message)',
               ][$l['template_key'] ?? ''] ?? null);
               ?>

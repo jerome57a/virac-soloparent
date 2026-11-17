@@ -29,6 +29,7 @@ class SMSService
         'appointment_cancelled' => ['Appointment Cancelled', 'MSWDO Virac: Your appointment for application {ref} on {when} was cancelled. Reason: {reason}. Please contact MSWDO for a new schedule.'],
         'appointment_missed' => ['Appointment Missed', 'MSWDO Virac: You missed your appointment for application {ref} on {when}. Please contact MSWDO for a new schedule.'],
         'interview_booking_open' => ['Interview Booking Opened', 'MSWDO Virac: Your documents for application {ref} are verified. Please log in to your e-SoloParentID account and pick the date you want to arrive for your interview.'],
+        'interview_date_assigned' => ['Interview Date Scheduled by Staff', 'MSWDO Virac: Your interview for application {ref} is scheduled on {when}, {hours} at {location}. You may come on that date, or log in to your e-SoloParentID account and pick another date.'],
         'interview_date_booked' => ['Interview Date Booked', 'MSWDO Virac: Your interview for application {ref} is booked for {when} at {location}. Please come during office hours on that date and bring a valid ID.'],
         'document_correction' => ['Document Needs Correction', 'MSWDO Virac: Your document "{document}" for application {ref} needs correction. Please log in and open Supporting Documents to see what to fix and upload a replacement.'],
         'password_reset' => ['Password Reset Code', "MSWDO Virac: Your password reset code is {code}. It expires in {minutes} minutes. If you didn't request this, ignore this message."],
@@ -46,6 +47,7 @@ class SMSService
         'appointment_missed' => ['{ref}', '{when}'],
         'interview_booking_open' => ['{ref}'],
         'interview_date_booked' => ['{ref}', '{when}', '{location}'],
+        'interview_date_assigned' => ['{ref}', '{when}', '{hours}', '{location}'],
         'document_correction' => ['{ref}', '{document}'],
         'password_reset' => ['{code}', '{minutes}'],
     ];
@@ -424,6 +426,35 @@ class SMSService
     public function interviewBookingOpenMessage(string $refNumber): string
     {
         return $this->render('interview_booking_open', ['{ref}' => $refNumber]);
+    }
+
+    /** Office hours as text for a date-only interview: the fixed opening time to the closing-time setting ("7:00 AM to 5:00 PM"). */
+    public function officeHours(): string
+    {
+        $closes = get_setting($this->pdo, 'appointment_day_end', '17:00');
+        $closes = preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $closes) === 1 ? $closes : '17:00';
+        return '7:00 AM to ' . date('g:i A', strtotime($closes));
+    }
+
+    /** The automatic text for a date staff scheduled (what the applicant gets when staff choose Automatic Message). $date is Y-m-d; null keeps a literal {when} for the staff screen's live preview. */
+    public function interviewDateAssignedMessage(string $refNumber, ?string $date, string $location): string
+    {
+        return $this->render('interview_date_assigned', ['{ref}' => $refNumber, '{when}' => $date === null ? '{when}' : date('l, F j, Y', strtotime($date)), '{hours}' => $this->officeHours(), '{location}' => $location]);
+    }
+
+    /**
+     * Staff scheduled an interview DATE for the applicant (interview_date_assigned): come on that date, or log in and pick another.
+     * A custom text uses the same on/off switch, logged under its own key.
+     */
+    public function notifyInterviewDateAssigned(int $applicationId, string $mobile, string $refNumber, string $date, string $location, ?string $customMessage = null): array
+    {
+        if ($customMessage === null) {
+            return $this->sendTemplate('interview_date_assigned', ['{ref}' => $refNumber, '{when}' => date('l, F j, Y', strtotime($date)), '{hours}' => $this->officeHours(), '{location}' => $location], $applicationId, $mobile);
+        }
+        if (!$this->templateEnabled('interview_date_assigned')) {
+            return ['id' => null, 'status' => 'DISABLED', 'test_mode' => false, 'error' => null];
+        }
+        return $this->send($applicationId, $this->recipientFor($applicationId, $mobile), trim($customMessage), 'interview_date_assigned_custom');
     }
 
     /** The applicant booked (or replaced) an interview DATE (interview_date_booked). $date is Y-m-d; {when} is the date with its weekday, never a time. */

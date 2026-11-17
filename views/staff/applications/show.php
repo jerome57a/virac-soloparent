@@ -388,29 +388,41 @@ if ($interviewOutcome !== null) {
       $invProblems = $invPanel['problems'] ?? [];
       // SMS choice shared by the send and reopen forms: the automatic text, or a custom text staff write and review first.
       $invitationAutoMessage = $invitationAutoMessage ?? '';
-      $invSmsFields = function () use ($invitationAutoMessage) { ?>
+      // $p makes the element ids unique when two forms share the page. $auto may hold a {when} token, filled live from the
+      // date field with id "$p-date" (the schedule form).
+      $invSmsFields = function (string $p = 'invitation', ?string $auto = null) use ($invitationAutoMessage) { $auto = $auto ?? $invitationAutoMessage; ?>
         <label style="font-size:13px;font-weight:600;color:var(--ink)">SMS Message Option
-          <select name="sms_message_type" id="invitation-sms-type" class="form-select mt-1">
+          <select name="sms_message_type" id="<?= $p ?>-sms-type" class="form-select mt-1">
             <option value="automatic" selected>Automatic Message</option>
             <option value="custom">Custom Message</option>
           </select>
         </label>
-        <div id="invitation-sms-preview" class="info-box small" style="max-width:none;margin:0;white-space:pre-wrap" role="status"><?= e($invitationAutoMessage) ?></div>
-        <label id="invitation-custom-wrap" class="d-none" style="font-size:13px;font-weight:600;color:var(--ink)">Review and edit the final SMS
-          <textarea name="invitation_custom_message" id="invitation-custom-message" rows="4" maxlength="500" class="form-control mt-1" placeholder="Write the message to send"></textarea>
+        <div id="<?= $p ?>-sms-preview" class="info-box small" style="max-width:none;margin:0;white-space:pre-wrap" role="status"><?= e($auto) ?></div>
+        <label id="<?= $p ?>-custom-wrap" class="d-none" style="font-size:13px;font-weight:600;color:var(--ink)">Review and edit the final SMS
+          <textarea name="invitation_custom_message" id="<?= $p ?>-custom-message" rows="4" maxlength="500" class="form-control mt-1" placeholder="Write the message to send"></textarea>
         </label>
         <script>
           (() => {
-            const type = document.getElementById('invitation-sms-type'), preview = document.getElementById('invitation-sms-preview');
-            const wrap = document.getElementById('invitation-custom-wrap'), custom = document.getElementById('invitation-custom-message');
-            const automatic = <?= json_encode($invitationAutoMessage, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+            const type = document.getElementById('<?= $p ?>-sms-type'), preview = document.getElementById('<?= $p ?>-sms-preview');
+            const wrap = document.getElementById('<?= $p ?>-custom-wrap'), custom = document.getElementById('<?= $p ?>-custom-message');
+            const dateField = document.getElementById('<?= $p ?>-date');
+            const template = <?= json_encode($auto, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+            const fill = () => {
+              if (!dateField) return template;
+              const d = dateField.value ? new Date(dateField.value + 'T00:00:00') : null;
+              return template.split('{when}').join(d && !isNaN(d) ? d.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '[the date you pick]');
+            };
+            let lastAuto = fill();
             const update = () => {
-              const customMode = type.value === 'custom';
+              const customMode = type.value === 'custom', automatic = fill();
               wrap.classList.toggle('d-none', !customMode); custom.required = customMode;
-              if (customMode && !custom.value) custom.value = automatic;
+              if (customMode && (!custom.value || custom.value === lastAuto)) custom.value = automatic;
+              lastAuto = automatic;
               preview.textContent = customMode ? (custom.value || 'Enter the custom SMS message to review it here.') : automatic;
             };
-            type.addEventListener('change', update); custom.addEventListener('input', update); update();
+            type.addEventListener('change', update); custom.addEventListener('input', update);
+            if (dateField) dateField.addEventListener('input', update);
+            update();
           })();
         </script>
       <?php };
@@ -430,7 +442,7 @@ if ($interviewOutcome !== null) {
         <?php if ($invState === 'incomplete'): ?>
           <div class="info-box" style="max-width:none" role="status">Interview invitation management is not available because its setup is incomplete. Please contact the system administrator.</div>
         <?php elseif ($invState === 'ready' && $invPanel !== null): ?>
-          <div class="small text-muted mb-3">Sending the invitation texts the applicant to log in to e-SoloParentID and choose an available interview date. Staff do not pick the date; the applicant chooses any available Monday to Friday office day (holidays and announced closures are skipped).</div>
+          <div class="small text-muted mb-3">Sending the invitation texts the applicant to log in to e-SoloParentID and choose an available interview date. The applicant chooses any available Monday to Friday office day (holidays and announced closures are skipped). You can also schedule a date for them below.</div>
           <?php if ($inv): ?>
             <div class="review-grid mb-3">
               <div class="review-row"><div class="k">Reschedules used</div><div class="v"><?= (int) $inv['reschedules_used'] ?> of <?= (int) $inv['reschedules_allowed'] ?> allowed</div></div>
@@ -475,6 +487,19 @@ if ($interviewOutcome !== null) {
             <?php endif; ?>
           <?php else: ?>
             <div class="small text-muted"><?= e($invProblems['close'] ?? 'A date is booked for this invitation.') ?></div>
+          <?php endif; ?>
+          <?php if (($inv === null && ($invProblems['open'] ?? null) === null) || ($inv && $inv['status'] === 'OPEN')): ?>
+            <hr style="border:0;border-top:1px solid var(--line,#e3e6ea);margin:14px 0">
+            <div style="font-weight:700;color:var(--ink);margin-bottom:4px">Or schedule a date for the applicant</div>
+            <div class="small text-muted mb-2">Pick a Monday to Friday office day (office hours 7:00 AM to 5:00 PM). The date is booked right away and the applicant is texted: they can come on that date, or log in and pick a different day.</div>
+            <form method="post" class="d-flex flex-column gap-2 mb-2" onsubmit="return confirm('Schedule this interview date and text the applicant?');">
+              <?= csrf_field() ?><input type="hidden" name="form_action" value="schedule_interview_date">
+              <label style="font-size:13px;font-weight:600;color:var(--ink)">Interview date
+                <input type="date" name="interview_date" id="schedule-date" class="form-control mt-1" min="<?= e($scheduleMinDate ?? '') ?>" max="<?= e($scheduleMaxDate ?? '') ?>" required>
+              </label>
+              <?php $invSmsFields('schedule', $scheduleAutoMessage ?? ''); ?>
+              <button type="submit" class="btn-navy">Schedule Date and Send SMS</button>
+            </form>
           <?php endif; ?>
         <?php endif; ?>
       </div>

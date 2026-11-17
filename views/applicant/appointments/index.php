@@ -81,7 +81,9 @@ $apptStyles = [
                 <?php if (!empty($cancelWindow['dateOnly'])): ?>
                   <div class="appt-help"><?= e(AppointmentService::dateOnlyCancellationNotice($cancelWindow)) ?></div>
                 <?php endif; ?>
-                <?php if ($dateBooked): ?>
+                <?php if (!empty($booking['staffAssigned'])): ?>
+                  <div class="appt-help">MSWDO scheduled this date for you. You can come on this date, or choose a different day below. Changing it this way does not use up a reschedule.</div>
+                <?php elseif ($dateBooked): ?>
                   <div class="appt-help">To change your date, cancel this booking first, then choose another available date.
                     <?= (int) $reschedulesLeft > 0 ? 'You can reschedule ' . (int) $reschedulesLeft . ' more time' . ((int) $reschedulesLeft === 1 ? '' : 's') . '.' : 'You have no reschedules left.' ?>
                     The date you cancel is released and may be taken by another applicant.</div>
@@ -101,10 +103,12 @@ $apptStyles = [
           </section>
         <?php endif; ?>
 
-        <?php if ($booking !== null && $booking['state'] !== 'booked'): ?>
+        <?php $changing = !empty($booking['staffAssigned']) && $status === 'BOOKED'; ?>
+        <?php if ($booking !== null && ($booking['state'] !== 'booked' || $changing)): ?>
           <section class="appt-card" id="book-interview" aria-labelledby="book-title">
-            <h2 id="book-title" class="appt-card-title">Book Your Interview Date</h2>
-            <?php if ($booking['state'] === 'open'): ?>
+            <h2 id="book-title" class="appt-card-title"><?= $changing ? 'Prefer a Different Day?' : 'Book Your Interview Date' ?></h2>
+            <?php if ($changing) { $booking['dates'] = array_values(array_filter($booking['dates'], fn ($d) => $d['date'] !== substr((string) $appointment['scheduled_at'], 0, 10))); } ?>
+            <?php if ($booking['state'] === 'open' || $changing): ?>
               <?php if (!$booking['dates']): ?>
                 <div class="appt-empty appt-empty-inline">
                   <svg class="appt-empty-icon" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
@@ -118,8 +122,8 @@ $apptStyles = [
                 // Only the month that is needed: the earliest month that still has days. The next month appears once this one has none left.
                 $byMonth = array_slice($byMonth, 0, 1, true);
               ?>
-                <p class="appt-lead">Choose the day you want to arrive for your interview. The office is open Monday to Friday; holidays and closures are not shown.</p>
-                <form method="post" id="book-form" onsubmit="return confirm('Book this interview date?')">
+                <p class="appt-lead"><?= $changing ? 'You can keep the date MSWDO scheduled, or choose another day to arrive instead.' : 'Choose the day you want to arrive for your interview.' ?> The office is open Monday to Friday, 7:00 AM to 5:00 PM; holidays and closures are not shown.</p>
+                <form method="post" id="book-form" onsubmit="return confirm('<?= $changing ? 'Change your interview to this date?' : 'Book this interview date?' ?>')">
                   <?= csrf_field() ?>
                   <input type="hidden" name="action" value="book_appointment">
                   <?php foreach ($byMonth as $monthLabel => $options): ?>
@@ -144,7 +148,7 @@ $apptStyles = [
                   <?php endif; ?>
                   <div class="appt-book-bar">
                     <span class="appt-help m-0">First come, first served. You can cancel online until the office closes on the previous office day; after that please contact MSWDO.</span>
-                    <button type="submit" class="btn-navy" id="book-submit" disabled>Book this date</button>
+                    <button type="submit" class="btn-navy" id="book-submit" disabled><?= $changing ? 'Change to this date' : 'Book this date' ?></button>
                   </div>
                 </form>
                 <script>

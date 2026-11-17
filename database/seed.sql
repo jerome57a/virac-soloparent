@@ -137,4 +137,5 @@ INSERT INTO sms_templates (template_key, label, body) VALUES
 ('document_correction', 'Document Checklist Needs Correction', 'MSWDO Virac: The requirement "{document}" for application {ref} needs correction. Reason: {remarks}. Please log in and update your Required Documents Checklist.'),
 ('interview_booking_open', 'Interview Booking Opened', 'MSWDO Virac: Your documents for application {ref} are verified. Please log in to your e-SoloParentID account and pick the date you want to arrive for your interview.'),
 ('interview_date_booked', 'Interview Date Booked', 'MSWDO Virac: Your interview for application {ref} is booked for {when} at {location}. Please come during office hours on that date and bring a valid ID.'),
+('interview_date_assigned', 'Interview Date Scheduled by Staff', 'MSWDO Virac: Your interview for application {ref} is scheduled on {when}, {hours} at {location}. You may come on that date, or log in to your e-SoloParentID account and pick another date.'),
 ('password_reset', 'Password Reset Code', 'MSWDO Virac: Your password reset code is {code}. It expires in {minutes} minutes. If you didn''t request this, ignore this message.');
