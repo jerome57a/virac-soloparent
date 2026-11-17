@@ -338,10 +338,6 @@ class InterviewBookingService
                 $this->pdo->rollBack();
                 return 'Verify every required document before scheduling the interview: ' . $this->outstandingText($outstanding) . '.';
             }
-            if ($invitation !== null && $invitation['status'] === 'CLOSED') {
-                $this->pdo->rollBack();
-                return 'The interview invitation is closed. Reopen it before scheduling a date.';
-            }
             if (($invitation !== null && $invitation['status'] === 'BOOKED') || ($appointment !== null && in_array($appointment['status'], ['BOOKED', 'COMPLETED'], true))) {
                 $this->pdo->rollBack();
                 return 'This applicant already has an interview date.';
@@ -370,9 +366,20 @@ class InterviewBookingService
                 $this->pdo->rollBack();
                 return 'This date is already full. Choose another date.';
             }
-            if ($invitation === null && !$this->invitations->insertOpenIfMissing($applicationId, (int) $staff['id'])) {
-                $this->pdo->rollBack();
-                return 'The invitation changed. Refresh and try again.';
+            // No invitation yet: open one with this schedule. A closed one (staff closed it, or the applicant used every reschedule):
+            // scheduling a date here reopens it for this booking; staff decide, so the applicant's reschedule count is not consulted.
+            $reopened = false;
+            if ($invitation === null) {
+                if (!$this->invitations->insertOpenIfMissing($applicationId, (int) $staff['id'])) {
+                    $this->pdo->rollBack();
+                    return 'The invitation changed. Refresh and try again.';
+                }
+            } elseif ($invitation['status'] === 'CLOSED') {
+                if (!$this->invitations->markReopened($applicationId, (int) $staff['id'], date('Y-m-d H:i:s'))) {
+                    $this->pdo->rollBack();
+                    return 'The invitation changed. Refresh and try again.';
+                }
+                $reopened = true;
             }
             $this->appointments->bookDateOnly($applicationId, $date, $location, 'STAFF', (int) $staff['id']);
             if (!$this->invitations->markBooked($applicationId, false)) {
@@ -383,7 +390,7 @@ class InterviewBookingService
             $this->applications->setStatus($applicationId, 'Interview Scheduled');
             $this->applications->addHistory($applicationId, 'Interview Scheduled', 'Interview date ' . $when . ' scheduled by MSWD staff', (string) $staff['full_name'], (int) $staff['id']);
             $saved = $this->appointments->interviewFor($applicationId);
-            $details = 'Scheduled ' . $date . ' by staff' . ($invitation === null ? ' (invitation opened with it)' : '') . '. The applicant may keep it or choose another date.';
+            $details = 'Scheduled ' . $date . ' by staff' . ($invitation === null ? ' (invitation opened with it)' : ($reopened ? ' (closed booking reopened with it)' : '')) . '. The applicant may keep it or choose another date.';
             $this->events->record($applicationId, 'STAFF_SCHEDULED', 'STAFF', $staff, null, $details, $saved !== null ? (int) $saved['id'] : null, $date);
             audit_log($this->pdo, (int) $staff['id'], (string) $staff['full_name'], (string) $staff['role'], 'Interview Date Scheduled by Staff', 'application', $applicationId, $app['reference_no'] . ' · ' . $details);
             $this->pdo->commit();

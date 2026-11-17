@@ -10,7 +10,7 @@ require_once __DIR__ . '/../models/Document.php';
  * what happens next. Read-only and derived from recorded data only (documents, invitation, appointment, ID release),
  * so it can never disagree with the review page that makes the same decisions.
  *
- *   Pending Review -> verify documents -> send interview invitation -> applicant chooses a date -> interview day ->
+ *   Pending Review -> verify documents -> schedule the interview date -> applicant keeps it or picks another -> interview day ->
  *   record result -> decision -> ID release -> done
  *
  * tone: 'action' (staff should act), 'wait' (waiting on the applicant or on a date), 'done' (nothing left to do).
@@ -101,12 +101,12 @@ class ApplicationNextStepService
             return $this->step('Documents verified: schedule the interview', 'action');
         }
         if (is_array($invitation) && $invitation['status'] === 'OPEN') {
-            return $this->step('Invitation sent: waiting for the applicant to choose a date', 'wait');
+            return $this->step('Waiting for the applicant to choose a new date (or schedule one)', 'wait');
         }
         if (is_array($invitation) && $invitation['status'] === 'CLOSED') {
-            return $this->step('Invitation closed: reopen it or book for the applicant', 'action');
+            return $this->step('Booking closed: schedule a date for the applicant', 'action');
         }
-        return $this->step('Documents verified: send the interview invitation', 'action');
+        return $this->step('Documents verified: schedule the interview date', 'action');
     }
 
     private function step(string $label, string $tone): array

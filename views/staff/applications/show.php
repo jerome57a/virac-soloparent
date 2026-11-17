@@ -370,12 +370,12 @@ if ($interviewOutcome !== null) {
         <?php if ($inProgress && $ivStatus !== 'COMPLETED'): ?>
           <?php if ($outstandingRequirements): ?>
             <div class="info-box" style="max-width:none" role="status">
-              <b>The interview invitation is locked until all required documents are verified</b>
+              <b>Scheduling the interview is locked until all required documents are verified</b>
               <ul><?php foreach ($outstandingRequirements as $item): $expiredItem = !empty($item['expires_at']) && $item['expires_at'] < date('Y-m-d'); ?><li><?= e($item['label']) ?><?= $expiredItem ? ' - expired' : (!empty($item['uploaded_document']) ? ' - ' . e(document_status_label($item['uploaded_document']['verification_status'])) : ' - no file uploaded') ?></li><?php endforeach; ?></ul>
-              Staff must verify every required document before sending the interview invitation. When the applicant uploads a replacement, verify it above to unlock it.
+              Staff must verify every required document before scheduling the interview. When the applicant uploads a replacement, verify it above to unlock it.
             </div>
           <?php else: ?>
-            <div class="info-box" style="max-width:none"><b>All required documents are verified</b> <?php if (($invitationState ?? 'off') !== 'ready'): ?>Interview invitations are not available until interview date booking is enabled.<?php else: ?>Send the interview invitation below. The applicant is texted to log in and choose an available interview date; the booking then appears here and in the staff dashboard's Expected Today list. You do not need to open dates: the applicant can choose any Monday to Friday office day (holidays and closures are skipped).<?php endif; ?></div>
+            <div class="info-box" style="max-width:none"><b>All required documents are verified</b> <?php if (($invitationState ?? 'off') !== 'ready'): ?>Interview scheduling is not available until interview date booking is enabled.<?php else: ?>Pick the interview date in <b>Schedule the interview date</b> below. The applicant is texted the date and can keep it or log in to pick another day; the booking then appears here and in the staff dashboard's Expected Today list.<?php endif; ?></div>
           <?php endif; ?>
         <?php endif; ?>
 
@@ -386,11 +386,10 @@ if ($interviewOutcome !== null) {
       $invPanel = $invitationPanel ?? null;
       $inv = $invPanel['invitation'] ?? null;
       $invProblems = $invPanel['problems'] ?? [];
-      // SMS choice shared by the send and reopen forms: the automatic text, or a custom text staff write and review first.
-      $invitationAutoMessage = $invitationAutoMessage ?? '';
+      // SMS choice for the schedule form: the automatic text, or a custom text staff write and review first.
       // $p makes the element ids unique when two forms share the page. $auto may hold a {when} token, filled live from the
       // date field with id "$p-date" (the schedule form).
-      $invSmsFields = function (string $p = 'invitation', ?string $auto = null) use ($invitationAutoMessage) { $auto = $auto ?? $invitationAutoMessage; ?>
+      $invSmsFields = function (string $p, string $auto) { ?>
         <label style="font-size:13px;font-weight:600;color:var(--ink)">SMS Message Option
           <select name="sms_message_type" id="<?= $p ?>-sms-type" class="form-select mt-1">
             <option value="automatic" selected>Automatic Message</option>
@@ -410,7 +409,7 @@ if ($interviewOutcome !== null) {
             const fill = () => {
               if (!dateField) return template;
               const d = dateField.value ? new Date(dateField.value + 'T00:00:00') : null;
-              return template.split('{when}').join(d && !isNaN(d) ? d.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '[the date you pick]');
+              return template.split('{when}').join(d && !isNaN(d) ? d.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) : '[the date you pick]');
             };
             let lastAuto = fill();
             const update = () => {
@@ -428,70 +427,37 @@ if ($interviewOutcome !== null) {
       <?php };
       ?>
       <?php if ($invState !== 'off' || !empty($invitationError)): ?>
-      <div class="review-card" id="invitation">
+      <div class="review-card" id="schedule-interview">
         <div class="review-card-head">
-          <div class="title">Interview booking invitation</div>
-          <?php if ($invState === 'ready' && $invPanel !== null):
-              $invStyles = ['OPEN' => ['#dcf3e2', '#1c7a3f', 'Open'], 'BOOKED' => ['#dce8f5', '#1b3a6b', 'Booked'], 'CLOSED' => ['#f1f1f1', '#555', 'Closed']];
-              [$invBg, $invFg, $invLabel] = $inv ? $invStyles[$inv['status']] : ['#f1f1f1', '#555', 'Not opened']; ?>
-            <span class="status-pill" style="background:<?= $invBg ?>;color:<?= $invFg ?>"><?= e($invLabel) ?></span>
+          <div class="title">Schedule the interview date</div>
+          <?php $ivNow = $interview['status'] ?? null; ?>
+          <?php if (in_array($ivNow, ['BOOKED', 'COMPLETED'], true)): ?>
+            <span class="status-pill" style="background:#dce8f5;color:#1b3a6b"><?= $ivNow === 'COMPLETED' ? 'Interview done' : 'Date set' ?></span>
+          <?php else: ?>
+            <span class="status-pill" style="background:#f1f1f1;color:#555">No date yet</span>
           <?php endif; ?>
         </div>
         <?php if (!empty($invitationError)): ?><div class="auth-error" role="alert"><?= e($invitationError) ?></div><?php endif; ?>
 
         <?php if ($invState === 'incomplete'): ?>
-          <div class="info-box" style="max-width:none" role="status">Interview invitation management is not available because its setup is incomplete. Please contact the system administrator.</div>
+          <div class="info-box" style="max-width:none" role="status">Interview scheduling is not available because its setup is incomplete. Please contact the system administrator.</div>
         <?php elseif ($invState === 'ready' && $invPanel !== null): ?>
-          <div class="small text-muted mb-3">Sending the invitation texts the applicant to log in to e-SoloParentID and choose an available interview date. The applicant chooses any available Monday to Friday office day (holidays and announced closures are skipped). You can also schedule a date for them below.</div>
-          <?php if ($inv): ?>
-            <div class="review-grid mb-3">
-              <div class="review-row"><div class="k">Reschedules used</div><div class="v"><?= (int) $inv['reschedules_used'] ?> of <?= (int) $inv['reschedules_allowed'] ?> allowed</div></div>
-              <?php if ($inv['status'] === 'CLOSED'): ?>
-                <div class="review-row"><div class="k">Closed</div><div class="v"><?= !empty($inv['closed_at']) ? e(date('M j, Y g:i A', strtotime($inv['closed_at']))) : '' ?><?= !empty($inv['close_reason']) ? ' — ' . e($inv['close_reason']) : '' ?></div></div>
-              <?php endif; ?>
-            </div>
-          <?php endif; ?>
-
-          <?php if (!$inv): ?>
-            <?php if ($invProblems['open'] === null): ?>
-              <form method="post" class="d-flex flex-column gap-2 mb-2">
-                <?= csrf_field() ?><input type="hidden" name="form_action" value="open_invitation">
-                <?php $invSmsFields(); ?>
-                <button type="submit" class="btn-navy">Send Interview Booking Invitation</button>
-              </form>
-            <?php else: ?><div class="small text-muted"><?= e($invProblems['open']) ?></div><?php endif; ?>
-          <?php elseif ($inv['status'] === 'OPEN'): ?>
-            <?php if ($invProblems['close'] === null): ?>
-              <form method="post" class="d-flex flex-column gap-2 mb-2" onsubmit="return confirm('Close this invitation? The applicant will not be able to book until it is reopened.');">
-                <?= csrf_field() ?><input type="hidden" name="form_action" value="close_invitation">
-                <input type="text" name="reason" maxlength="255" class="form-control" placeholder="Reason for closing (required)" aria-label="Reason for closing the invitation" required>
-                <button type="submit" class="btn-outline">Close invitation</button>
-              </form>
-            <?php endif; ?>
-          <?php elseif ($inv['status'] === 'CLOSED'): ?>
-            <?php if ($invProblems['reopen'] === null): ?>
-              <form method="post" class="d-flex flex-column gap-2 mb-2">
-                <?= csrf_field() ?><input type="hidden" name="form_action" value="reopen_invitation">
-                <?php $invSmsFields(); ?>
-                <button type="submit" class="btn-navy">Reopen and Resend Interview Booking Invitation</button>
-              </form>
-            <?php elseif ($invProblems['grant'] === null): ?>
-              <div class="small text-muted mb-2"><?= e($invProblems['reopen']) ?></div>
-            <?php else: ?><div class="small text-muted mb-2"><?= e($invProblems['reopen']) ?></div><?php endif; ?>
-            <?php if ($invProblems['grant'] === null): ?>
-              <form method="post" class="d-flex flex-column gap-2 mb-2" onsubmit="return confirm('Allow this applicant one more reschedule?');">
-                <?= csrf_field() ?><input type="hidden" name="form_action" value="grant_reschedule">
-                <input type="text" name="reason" maxlength="255" class="form-control" placeholder="Reason for the extra reschedule (required)" aria-label="Reason for the extra reschedule" required>
-                <button type="submit" class="btn-outline">Grant one extra reschedule</button>
-              </form>
-            <?php endif; ?>
+          <?php if ($ivNow === 'BOOKED'): ?>
+            <div class="small text-muted">An interview date is already set (shown above). The applicant can keep it or pick another day from their own account. To change it yourself, the applicant must cancel it first.</div>
+          <?php elseif ($ivNow === 'COMPLETED'): ?>
+            <div class="small text-muted">The interview has been held. Record the result and decide on the application below.</div>
+          <?php elseif (($invProblems['open'] ?? null) !== null && !$inv): ?>
+            <div class="small text-muted"><?= e($invProblems['open']) ?></div>
           <?php else: ?>
-            <div class="small text-muted"><?= e($invProblems['close'] ?? 'A date is booked for this invitation.') ?></div>
-          <?php endif; ?>
-          <?php if (($inv === null && ($invProblems['open'] ?? null) === null) || ($inv && $inv['status'] === 'OPEN')): ?>
-            <hr style="border:0;border-top:1px solid var(--line,#e3e6ea);margin:14px 0">
-            <div style="font-weight:700;color:var(--ink);margin-bottom:4px">Or schedule a date for the applicant</div>
             <div class="small text-muted mb-2">Pick a Monday to Friday office day (office hours 7:00 AM to 5:00 PM). The date is booked right away and the applicant is texted: they can come on that date, or log in and pick a different day.</div>
+            <?php if ($inv): ?>
+              <div class="review-grid mb-2">
+                <div class="review-row"><div class="k">Reschedules used</div><div class="v"><?= (int) $inv['reschedules_used'] ?> of <?= (int) $inv['reschedules_allowed'] ?> by the applicant</div></div>
+                <?php if ($inv['status'] === 'CLOSED'): ?>
+                  <div class="review-row"><div class="k">Applicant booking</div><div class="v">Closed<?= !empty($inv['close_reason']) ? ' — ' . e($inv['close_reason']) : '' ?>. Scheduling a date here reopens it for this booking.</div></div>
+                <?php endif; ?>
+              </div>
+            <?php endif; ?>
             <form method="post" class="d-flex flex-column gap-2 mb-2" onsubmit="return confirm('Schedule this interview date and text the applicant?');">
               <?= csrf_field() ?><input type="hidden" name="form_action" value="schedule_interview_date">
               <label style="font-size:13px;font-weight:600;color:var(--ink)">Interview date
@@ -504,7 +470,7 @@ if ($interviewOutcome !== null) {
         <?php endif; ?>
       </div>
       <?php else: ?>
-      <div class="small text-muted mb-3" id="invitation">Interview date booking is currently not enabled.</div>
+      <div class="small text-muted mb-3" id="schedule-interview">Interview date booking is currently not enabled.</div>
       <?php endif; ?>
 
       <?php else: ?>

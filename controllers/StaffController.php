@@ -134,7 +134,6 @@ class StaffController extends Controller
             'invitationError' => $errors['invitation'],
             'invitationState' => $invitationState,
             'invitationPanel' => $invitationPanel,
-            'invitationAutoMessage' => $invitationState === 'ready' ? (new SMSService($this->pdo))->interviewBookingOpenMessage((string) $app['reference_no']) : '',
             'scheduleAutoMessage' => $invitationState === 'ready' ? (new SMSService($this->pdo))->interviewDateAssignedMessage((string) $app['reference_no'], null, get_setting($this->pdo, 'appointment_location', AppointmentService::DEFAULT_LOCATION)) : '',
             'scheduleMinDate' => date('Y-m-d', strtotime(Appointment::manilaDate() . ' +1 day')),
             'scheduleMaxDate' => date('Y-m-d', strtotime(Appointment::manilaDate() . ' +' . InterviewBookingService::BOOKING_WINDOW_DAYS . ' days')),
@@ -229,34 +228,7 @@ class StaffController extends Controller
                 flash('Interview scheduled for ' . date('l, F j, Y', strtotime($scheduleDate)) . '. The applicant was texted and can keep that date or pick another one.');
                 $back .= '#invitation';
                 break;
-            case 'open_invitation':
-            case 'close_invitation':
-            case 'reopen_invitation':
-            case 'grant_reschedule':
-                // Reads the form only; every rule, lock and audit entry lives in InterviewInvitationService.
-                $invitations = new InterviewInvitationService($this->pdo);
-                $action = $post('form_action');
-                // Automatic message unless staff chose to write their own (null = automatic).
-                $customMessage = $post('sms_message_type') === 'custom' ? $post('invitation_custom_message') : null;
-                $error = match ($action) {
-                    'open_invitation' => $invitations->open($this->staff, $id, '', $customMessage),
-                    'close_invitation' => $invitations->close($this->staff, $id, $post('reason')),
-                    'reopen_invitation' => $invitations->reopen($this->staff, $id, '', $customMessage),
-                    default => $invitations->grantReschedule($this->staff, $id, $post('reason')),
-                };
-                if ($error) {
-                    return ['invitation' => $error];
-                }
-                flash(match ($action) {
-                    'open_invitation' => 'Interview booking invitation sent. The applicant was notified to log in and choose an available date.',
-                    'close_invitation' => 'Interview invitation closed.',
-                    'reopen_invitation' => 'Interview booking invitation reopened. The applicant was notified to log in and choose an available date.',
-                    default => 'An extra reschedule was granted.',
-                });
-                $back .= '#invitation';
-                break;
-            // Interviews are no longer assigned a fixed date and time from this page: staff send the interview invitation
-            // (the cases above) and the applicant chooses an available date (InterviewBookingService).
+            // Interviews: staff schedule a date (the case above) and the applicant may keep it or pick another (InterviewBookingService).
             case 'retry_interview_sms':
                 $appointment = (new Appointment($this->pdo))->interviewFor($id);
                 $sms = new SMSService($this->pdo);
