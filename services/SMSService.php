@@ -10,7 +10,7 @@
  *
  * Providers (all settings come from the environment / config/local.php, none are hard-coded):
  *   test       test mode (default): logged as SENT with test_mode = 1, never sent anywhere.
- *   semaphore  Semaphore PH HTTP API (SMS_API_URL, SMS_API_KEY, SMS_SENDER_NAME, SMS_TIMEOUT).
+ *   iprog      IPROG SMS HTTP API (SMS_API_KEY = your IPROG API token, SMS_API_URL, SMS_TIMEOUT).
  *
  * Message text comes from the admin-editable sms_templates table (see
  * TEMPLATES for the keys, placeholders and the built-in fallback text).
@@ -49,7 +49,7 @@ class SMSService
         'document_correction' => ['{ref}', '{document}'],
         'password_reset' => ['{code}', '{minutes}'],
     ];
-    public const PROVIDERS = ['test', 'semaphore'];
+    public const PROVIDERS = ['test', 'iprog'];
 
     private PDO $pdo;
 
@@ -58,7 +58,7 @@ class SMSService
         $this->pdo = $pdo;
     }
 
-    /** 'test' or 'semaphore' -- an unknown SMS_PROVIDER value is treated as test mode so nothing is sent by accident. */
+    /** 'test' or 'iprog' -- an unknown SMS_PROVIDER value is treated as test mode so nothing is sent by accident. */
     public static function provider(): string
     {
         return in_array(SMS_PROVIDER, self::PROVIDERS, true) ? SMS_PROVIDER : 'test';
@@ -158,7 +158,7 @@ class SMSService
             return ['ok' => true, 'provider_status' => 'test-mode', 'message_id' => null, 'error' => null];
         }
         try {
-            return $this->sendViaSemaphore($number, $message);
+            return $this->sendViaIprog($number, $message);
         } catch (Throwable $e) {
             error_log('SMS gateway error: ' . $e->getMessage());
             return ['ok' => false, 'provider_status' => 'error', 'message_id' => null, 'error' => 'Gateway error.'];
@@ -166,15 +166,13 @@ class SMSService
     }
 
     /**
-     * Semaphore PH: POST apikey/number/message/sendername. Success is a JSON
-     * array of accepted messages (message_id + status); anything else --
-     * HTTP error, validation errors, a "Failed" status -- is a failure. The
-     * API key is never written to the log.
+     * IPROG SMS: POST JSON {api_token, phone_number (63XXXXXXXXXX), message}. Success is an HTTP 2xx whose JSON has no
+     * error status; anything else is a failure. The token (SMS_API_KEY) is never written to the log.
      */
-    private function sendViaSemaphore(string $number, string $message): array
+    private function sendViaIprog(string $number, string $message): array
     {
         if (SMS_API_KEY === '') {
-            return ['ok' => false, 'provider_status' => 'not-configured', 'message_id' => null, 'error' => 'SMS_API_KEY is not set.'];
+            return ['ok' => false, 'provider_status' => 'not-configured', 'message_id' => null, 'error' => 'SMS_API_KEY (the IPROG API token) is not set.'];
         }
         if (!function_exists('curl_init')) {
             return ['ok' => false, 'provider_status' => 'not-configured', 'message_id' => null, 'error' => 'The PHP curl extension is not enabled.'];
@@ -185,11 +183,11 @@ class SMSService
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_CONNECTTIMEOUT => min(5, SMS_TIMEOUT),
             CURLOPT_TIMEOUT => SMS_TIMEOUT,
-            CURLOPT_POSTFIELDS => http_build_query([
-                'apikey' => SMS_API_KEY,
-                'number' => $number,
+            CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Accept: application/json'],
+            CURLOPT_POSTFIELDS => json_encode([
+                'api_token' => SMS_API_KEY,
+                'phone_number' => '63' . substr($number, 1),
                 'message' => $message,
-                'sendername' => SMS_SENDER_NAME,
             ]),
         ]);
         $body = curl_exec($ch);
@@ -200,11 +198,14 @@ class SMSService
             return ['ok' => false, 'provider_status' => 'unreachable', 'message_id' => null, 'error' => 'Could not reach the SMS gateway: ' . $curlError];
         }
         $data = json_decode((string) $body, true);
-        $first = is_array($data) && array_is_list($data) && isset($data[0]) && is_array($data[0]) ? $data[0] : null;
-        if ($httpCode >= 200 && $httpCode < 300 && $first && isset($first['message_id']) && strcasecmp((string) ($first['status'] ?? ''), 'Failed') !== 0) {
-            return ['ok' => true, 'provider_status' => strtolower((string) ($first['status'] ?? 'accepted')), 'message_id' => (string) $first['message_id'], 'error' => null];
+        $status = is_array($data) && isset($data['status']) ? (string) $data['status'] : '';
+        $statusOk = $status === '' || $status === '200' || in_array(strtolower($status), ['success', 'sent', 'queued'], true);
+        $id = is_array($data) ? ($data['message_id'] ?? $data['id'] ?? null) : null;
+        // Accepted only with IPROG's message id: a bare 200 page (maintenance, proxy) must not be recorded as sent.
+        if ($httpCode >= 200 && $httpCode < 300 && $statusOk && $id !== null && $id !== '') {
+            return ['ok' => true, 'provider_status' => 'accepted', 'message_id' => $id !== null ? (string) $id : null, 'error' => null];
         }
-        return ['ok' => false, 'provider_status' => $first ? strtolower((string) ($first['status'] ?? 'rejected')) : 'http-' . $httpCode, 'message_id' => $first['message_id'] ?? null,
+        return ['ok' => false, 'provider_status' => 'http-' . $httpCode, 'message_id' => null,
             'error' => 'Gateway rejected the message (HTTP ' . $httpCode . '): ' . self::describeError($data, (string) $body)];
     }
 

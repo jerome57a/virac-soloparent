@@ -6,7 +6,7 @@ Status: **prepared, not executed.** Nothing here has been run against a database
 
 - A separate MySQL instance or database that is **not** `virac_solo_parent`. Use the guards in `docs/database-tooling-safety.md`: `APP_ENV=testing`, `DB_NAME=virac_solo_parent_test`, a DB user limited to that database, `SMS_PROVIDER=test`. Run `php database/tool_safety_guard_checks.php` first (it performs no SQL).
 - A throwaway `STORAGE_PATH` created for the test run (empty directory, synthetic files only). The real uploads directory is never mounted or pointed to.
-- No Semaphore key in the environment. `SMSService::testMode()` must be true; every `sms_logs` row must have `test_mode = 1`.
+- No IPROG token in the environment. `SMSService::testMode()` must be true; every `sms_logs` row must have `test_mode = 1`.
 - A scratch copy of the app served on a different port or virtual host, with `config/local.php` pointing only to the test values.
 - Synthetic accounts only (applicant, two applicants for ownership checks, staff with `applications.process`, administrator).
 
@@ -91,4 +91,4 @@ Test in Chrome and a second browser. Check desktop and phone widths, and the bro
 
 ## 6. Out of scope for this plan
 
-Provider-side Semaphore delivery (needs live credentials, which are not used), load testing, and production data migration.
+Provider-side IPROG delivery (needs live credentials, which are not used), load testing, and production data migration.

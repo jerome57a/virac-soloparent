@@ -12,11 +12,10 @@ return [
     'DB_USER' => 'root',
     'DB_PASS' => '',
 
-    // SMS: 'test' logs messages without sending them; 'semaphore' sends through Semaphore PH.
+    // SMS: 'test' logs messages without sending them; 'iprog' sends through IPROG SMS (put your IPROG API token in SMS_API_KEY).
     'SMS_PROVIDER' => 'test',
     'SMS_API_KEY' => '',
-    'SMS_API_URL' => 'https://api.semaphore.co/api/v4/messages',
-    'SMS_SENDER_NAME' => 'VIRACMSWD',
+    'SMS_API_URL' => 'https://sms.iprogtech.com/api/v1/sms_messages',
     'SMS_TIMEOUT' => 10,
     'SMS_MAX_ATTEMPTS' => 3,
 ];

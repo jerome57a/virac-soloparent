@@ -259,7 +259,7 @@ class StaffController extends Controller
                     return ['interview' => $retryError];
                 }
                 if ($retryResult['status'] === 'SENT') {
-                    flash(!empty($retryResult['test_mode']) ? 'SMS retry was logged in test mode and was not sent.' : 'Semaphore accepted the interview SMS retry.');
+                    flash(!empty($retryResult['test_mode']) ? 'SMS retry was logged in test mode and was not sent.' : 'The SMS gateway accepted the interview SMS retry.');
                 } else {
                     flash('SMS retry failed: ' . ($retryResult['error'] ?: 'provider error'));
                 }

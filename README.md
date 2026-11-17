@@ -59,7 +59,7 @@ The system supports:
 | Database | MySQL 8.0.16+, strict SQL mode, prepared statements |
 | Web server | Apache (XAMPP) with `.htaccess` protection of non-public folders |
 | Front end | Bootstrap 5 (CDN with Subresource Integrity), JavaScript, project CSS |
-| SMS | Semaphore PH API through `services/SMSService.php` (test mode by default) |
+| SMS | IPROG SMS API through `services/SMSService.php` (test mode by default) |
 | Scheduling | PHP CLI scripts in `cron/` (Windows Task Scheduler or cron) |
 | Testing | PHP scripts in `database/` and Node (`.cjs`) scripts in `scripts/` |
 
@@ -73,7 +73,7 @@ page (`includes/auth.php`, `config/permissions.php`).
 | **Applicant** (`applicant`) | Register and log in, maintain profile, apply online, upload and replace documents, correct flagged documents, track status, view or cancel their interview appointment, renew the ID. |
 | **MSWD Staff** (`mswd_social_worker`) | Manage applications and renewals, view and verify documents, request corrections, assess eligibility, schedule interviews, approve or reject, schedule ID release, maintain application and renewal records. |
 | **Administrator** (`admin`) | Essential user and staff account management and necessary system configuration. Does not process applications. |
-| **SMS service** | Semaphore PH gateway, called by `SMSService`; every attempt is logged in `sms_logs`. |
+| **SMS service** | IPROG SMS gateway, called by `SMSService`; every attempt is logged in `sms_logs`. |
 
 Applicants can only reach their own records. A deactivated account loses
 access on its next request.
@@ -413,15 +413,14 @@ never in code):
 
 | Setting | Default | Notes |
 |---|---|---|
-| `SMS_PROVIDER` | `test` | `semaphore` to send for real; `test` logs only |
-| `SMS_API_KEY` | none | Semaphore API key; never displayed, scrubbed from errors |
-| `SMS_SENDER_NAME` | `VIRACMSWD` | Must be approved by Semaphore |
-| `SMS_API_URL` | Semaphore messages API | Point to a mock gateway for testing |
+| `SMS_PROVIDER` | `test` | `iprog` to send for real; `test` logs only |
+| `SMS_API_KEY` | none | IPROG API token; never displayed, scrubbed from errors |
+| `SMS_API_URL` | IPROG messages API | Point to a mock gateway for testing |
 | `SMS_TIMEOUT` | `10` | Seconds per call |
 | `SMS_MAX_ATTEMPTS` | `3` | Attempts per message including retries |
 
 Provider acceptance does not prove delivery to the handset. Real SMS delivery
-requires valid Semaphore credentials and an approved sender name; until
+requires a valid IPROG API token; until
 configured, the system runs in test mode.
 
 ## 12. Database Structure
@@ -588,7 +587,7 @@ Quality Model (2023 terminology, not the 2011 terms "Usability" and
 |---|---|---|---|
 | 1 | Functional Suitability | Completeness, correctness, appropriateness of application, verification, scheduling, renewal, and SMS functions | Planned |
 | 2 | Performance Efficiency | Response time, resource use, capacity under expected MSWDO load | Planned |
-| 3 | Compatibility | Co-existence and interoperability (browsers, devices, Semaphore API, XAMPP) | Planned |
+| 3 | Compatibility | Co-existence and interoperability (browsers, devices, IPROG API, XAMPP) | Planned |
 | 4 | Interaction Capability | Ease of use and learning, user error protection, accessibility, inclusivity | Planned |
 | 5 | Reliability | Maturity, availability, fault tolerance, recoverability (e.g., SMS failure handling, retries) | Planned |
 | 6 | Security | Confidentiality, integrity, non-repudiation, accountability, authenticity | Planned |

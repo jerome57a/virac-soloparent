@@ -20,7 +20,7 @@ foreach ([
     [array_replace($valid, ['DB_NAME' => 'virac_solo_parent']), 'Production database was accepted.'],
     [array_replace($valid, ['DB_NAME' => 'another_database']), 'Ambiguous database name was accepted.'],
     [array_replace($valid, ['APP_ENV' => 'local']), 'Non-testing environment was accepted.'],
-    [array_replace($valid, ['SMS_PROVIDER' => 'semaphore']), 'Non-test SMS provider was accepted.'],
+    [array_replace($valid, ['SMS_PROVIDER' => 'iprog']), 'Non-test SMS provider was accepted.'],
 ] as [$configuration, $message]) {
     safety_check(database_tool_configuration_error($configuration) !== null, $message);
 }
@@ -109,7 +109,7 @@ foreach ([
     [array_replace($temporary, ['DB_USER' => 'root']), 'Root account was accepted.'],
     [array_replace($temporary, ['DB_USER' => ' ROOT ']), 'Root account with different case/whitespace was accepted.'],
     [array_replace($temporary, ['APP_ENV' => 'production']), 'Non-testing APP_ENV was accepted.'],
-    [array_replace($temporary, ['SMS_PROVIDER' => 'semaphore']), 'Non-test SMS provider was accepted.'],
+    [array_replace($temporary, ['SMS_PROVIDER' => 'iprog']), 'Non-test SMS provider was accepted.'],
     [array_diff_key($temporary, ['DB_PASS' => 1]), 'Missing DB_PASS was accepted.'],
 ] as [$configuration, $message]) {
     safety_check(temporary_database_tool_configuration_error($configuration) !== null, $message);

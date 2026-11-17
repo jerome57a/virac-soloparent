@@ -89,12 +89,11 @@ unset($testStorageRoot, $storageRoots);
 
 // SMS gateway (services/SMSService.php). SMS_PROVIDER:
 //   'test'      -- test mode (default): every message is logged in sms_logs, flagged as not delivered; nothing is sent.
-//   'semaphore' -- Semaphore PH (https://semaphore.co): needs SMS_API_KEY; SMS_SENDER_NAME must be approved by Semaphore.
 // SMS_API_URL can point at the provider's sandbox or a local mock gateway for testing.
 define('SMS_PROVIDER', APP_ENV === 'testing' ? 'test' : strtolower((string) $env('SMS_PROVIDER', 'test'))); // testing: validated above
 define('SMS_API_KEY', (string) $env('SMS_API_KEY', ''));
-define('SMS_API_URL', (string) $env('SMS_API_URL', 'https://api.semaphore.co/api/v4/messages'));
-define('SMS_SENDER_NAME', (string) $env('SMS_SENDER_NAME', 'VIRACMSWD'));
+//   'iprog'     -- IPROG SMS (https://sms.iprogtech.com): needs SMS_API_KEY (your IPROG API token); no sender name.
+define('SMS_API_URL', (string) $env('SMS_API_URL', 'https://sms.iprogtech.com/api/v1/sms_messages'));
 define('SMS_TIMEOUT', max(2, (int) $env('SMS_TIMEOUT', 10)));          // seconds per gateway call
 define('SMS_MAX_ATTEMPTS', max(1, (int) $env('SMS_MAX_ATTEMPTS', 3)));  // a failed SMS can be retried up to this many attempts in total
 

@@ -18,9 +18,9 @@ $actionIcon = require APP_ROOT . '/includes/user-management-icons.php';
 
   <div class="info-box sms-mode" style="max-width:none">
     <?php if ($provider === 'test'): ?>
-      <b>Test mode.</b> Messages are logged below but <b>not delivered</b>. To send real SMS, set <code>SMS_PROVIDER=semaphore</code> and <code>SMS_API_KEY</code> as server environment variables or in <code>config/local.php</code>.
+      <b>Test mode.</b> Messages are logged below but <b>not delivered</b>. To send real SMS, set <code>SMS_PROVIDER=iprog</code> and <code>SMS_API_KEY</code> as server environment variables or in <code>config/local.php</code>.
     <?php else: ?>
-      <b>Live: <?= e(ucfirst($provider)) ?>.</b> Sender name <code><?= e(SMS_SENDER_NAME) ?></code> · gateway <code><?= e((string) parse_url(SMS_API_URL, PHP_URL_HOST)) ?></code> · API key <?= SMS_API_KEY !== '' ? 'configured' : '<b style="color:var(--error-text)">missing — every message will fail</b>' ?> · up to <?= (int) SMS_MAX_ATTEMPTS ?> attempts per message.
+      <b>Live: <?= e(ucfirst($provider)) ?>.</b> Gateway <code><?= e((string) parse_url(SMS_API_URL, PHP_URL_HOST)) ?></code> · API token <?= SMS_API_KEY !== '' ? 'configured' : '<b style="color:var(--error-text)">missing — every message will fail</b>' ?> · up to <?= (int) SMS_MAX_ATTEMPTS ?> attempts per message.
     <?php endif; ?>
   </div>
 
