@@ -246,8 +246,8 @@ DELIMITER ;
 -- ---------------------------------------------------------------
 INSERT IGNORE INTO sms_templates (template_key, label, body) VALUES
 ('interview_booking_open', 'Interview Booking Opened', 'MSWDO Virac: Your documents for application {ref} are verified. Please log in to your e-SoloParentID account and pick the date you want to arrive for your interview.'),
-('interview_date_booked', 'Interview Date Booked', 'MSWDO Virac: Your interview for application {ref} is booked for {when} at {location}. Please come during office hours on that date and bring a valid ID.'),
-('interview_date_assigned', 'Interview Date Scheduled by Staff', 'MSWDO Virac: Your interview for application {ref} is scheduled on {when}, {hours} at {location}. You may come on that date, or log in to your e-SoloParentID account and pick another date.');
+('interview_date_booked', 'Interview Date Booked', 'MSWDO Virac: Interview for {ref} is booked for {when}. Come during office hours with a valid ID.'),
+('interview_date_assigned', 'Interview Date Scheduled by Staff', 'MSWDO Virac: Interview for {ref} is on {when}, {hours}. Come then, or log in to e-SoloParentID to pick another date.');
 
 -- ---------------------------------------------------------------
 -- ROLLBACK GUIDE (comments only; nothing below is executed).

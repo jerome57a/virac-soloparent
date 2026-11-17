@@ -94,6 +94,12 @@ define('SMS_PROVIDER', APP_ENV === 'testing' ? 'test' : strtolower((string) $env
 define('SMS_API_KEY', (string) $env('SMS_API_KEY', ''));
 //   'iprog'     -- IPROG SMS (https://sms.iprogtech.com): needs SMS_API_KEY (your IPROG API token); no sender name.
 define('SMS_API_URL', (string) $env('SMS_API_URL', 'https://sms.iprogtech.com/api/v1/sms_messages'));
+// Credit savers for real sending (all optional; they never affect test mode):
+//   SMS_ALLOWED_NUMBERS  comma-separated numbers; when set, ONLY these receive real texts (use your own number while testing).
+//   SMS_DAILY_LIMIT      most real texts per day (0 = no limit). A duplicate of a text already sent to the same number in the
+//                        last 10 minutes is always skipped.
+define('SMS_ALLOWED_NUMBERS', (string) $env('SMS_ALLOWED_NUMBERS', ''));
+define('SMS_DAILY_LIMIT', max(0, (int) $env('SMS_DAILY_LIMIT', 0)));
 define('SMS_TIMEOUT', max(2, (int) $env('SMS_TIMEOUT', 10)));          // seconds per gateway call
 define('SMS_MAX_ATTEMPTS', max(1, (int) $env('SMS_MAX_ATTEMPTS', 3)));  // a failed SMS can be retried up to this many attempts in total
 

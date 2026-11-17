@@ -125,17 +125,17 @@ INSERT INTO faqs (question, answer, sort_order) VALUES
 -- Keys match SMSService::TEMPLATES; the retired mobile_verification key is not seeded.
 -- ---------------------------------------------------------------
 INSERT INTO sms_templates (template_key, label, body) VALUES
-('submitted', 'Application Submitted', 'MSWDO Virac: Your Solo Parent ID application {ref} has been received and is Pending Review. We will text you when its status changes.'),
+('submitted', 'Application Submitted', 'MSWDO Virac: Application {ref} received and Pending Review. We will text you when its status changes.'),
 ('status_change', 'Status Change (approval/rejection/correction/etc.)', 'MSWDO Virac: Application {ref} is now {status}. Note: {remarks}'),
 ('interview_scheduled', 'Interview/Appointment Scheduled', 'Hello {name}, your Solo Parent ID application interview is scheduled on {when}. Location: {location}. Please arrive on time. For inquiries, contact the MSWDO Virac office.'),
-('renewal_submitted', 'Renewal Submitted', 'MSWDO Virac: Your Solo Parent ID renewal request {ref} has been received and is Pending Review. We will text you when its status changes.'),
-('renewal_reminder', 'Renewal Reminder (auto)', 'MSWDO Virac: Your Solo Parent ID ({ref}) expires on {when}. Please visit MSWDO or apply for renewal online soon to avoid interruption.'),
-('renewal_expired', 'Renewal Reminder after Expiry (auto)', 'MSWDO Virac: Your Solo Parent ID ({ref}) expired on {when}. Please renew online or visit MSWDO to keep your benefits.'),
-('appointment_reminder', 'Appointment Reminder (auto)', 'MSWDO Virac: Reminder -- your appointment for application {ref} is on {when} at {location}. Please arrive on time and bring a valid ID.'),
+('renewal_submitted', 'Renewal Submitted', 'MSWDO Virac: Renewal request {ref} received and Pending Review. We will text you when its status changes.'),
+('renewal_reminder', 'Renewal Reminder (auto)', 'MSWDO Virac: Your Solo Parent ID ({ref}) expires on {when}. Please renew online or visit MSWDO.'),
+('renewal_expired', 'Renewal Reminder after Expiry (auto)', 'MSWDO Virac: Your Solo Parent ID ({ref}) expired on {when}. Please renew online or visit MSWDO.'),
+('appointment_reminder', 'Appointment Reminder (auto)', 'MSWDO Virac: Reminder: your interview for {ref} is on {when}. Please bring a valid ID.'),
 ('appointment_cancelled', 'Appointment Cancelled', 'MSWDO Virac: Your appointment for application {ref} on {when} was cancelled. Reason: {reason}. Please contact MSWDO for a new schedule.'),
 ('appointment_missed', 'Appointment Missed', 'MSWDO Virac: You missed your appointment for application {ref} on {when}. Please contact MSWDO for a new schedule.'),
 ('document_correction', 'Document Checklist Needs Correction', 'MSWDO Virac: The requirement "{document}" for application {ref} needs correction. Reason: {remarks}. Please log in and update your Required Documents Checklist.'),
 ('interview_booking_open', 'Interview Booking Opened', 'MSWDO Virac: Your documents for application {ref} are verified. Please log in to your e-SoloParentID account and pick the date you want to arrive for your interview.'),
-('interview_date_booked', 'Interview Date Booked', 'MSWDO Virac: Your interview for application {ref} is booked for {when} at {location}. Please come during office hours on that date and bring a valid ID.'),
-('interview_date_assigned', 'Interview Date Scheduled by Staff', 'MSWDO Virac: Your interview for application {ref} is scheduled on {when}, {hours} at {location}. You may come on that date, or log in to your e-SoloParentID account and pick another date.'),
+('interview_date_booked', 'Interview Date Booked', 'MSWDO Virac: Interview for {ref} is booked for {when}. Come during office hours with a valid ID.'),
+('interview_date_assigned', 'Interview Date Scheduled by Staff', 'MSWDO Virac: Interview for {ref} is on {when}, {hours}. Come then, or log in to e-SoloParentID to pick another date.'),
 ('password_reset', 'Password Reset Code', 'MSWDO Virac: Your password reset code is {code}. It expires in {minutes} minutes. If you didn''t request this, ignore this message.');
