@@ -8,7 +8,8 @@
  * @var array $stats              pending, underVerification, forRevision, pendingRenewals, todaysAppointments, approved, rejected
  * @var array $docBacklog         applications, documents (awaiting verification)
  * @var array $verificationQueue  oldest-first applications with unverified documents
- * @var array $todaysAppointments
+ * @var array $todaysAppointments  today's BOOKED appointments only (Manila date); their count is "expected today"
+ * @var bool  $bookingEnabled      interview date booking is on (applicants choose their own date)
  * @var array $upcomingInterviews
  * @var array $recentlyProcessed
  */
@@ -51,9 +52,9 @@
       <div class="stat-sub">renewal requests</div>
     </a>
     <a href="<?= base_url('staff/appointments.php') ?>" class="stat-tile">
-      <div class="stat-label">Today's Appointments</div>
+      <div class="stat-label">Expected Today</div>
       <div class="stat-value"><?= (int) $stats['todaysAppointments'] ?></div>
-      <div class="stat-sub">scheduled today</div>
+      <div class="stat-sub">applicants booked for today</div>
     </a>
   </div>
 
@@ -91,8 +92,9 @@
 
     <div class="review-card" id="staff-today">
       <div class="review-card-head"><div class="title">Today's Appointments</div></div>
+      <div class="small text-muted mb-2">Total expected today: <b><?= (int) $stats['todaysAppointments'] ?></b></div>
       <?php if (!$todaysAppointments): ?>
-        <div class="empty-state compact">No appointments are scheduled for today.</div>
+        <div class="empty-state compact">No applicants are booked for today.</div>
       <?php else: ?>
         <?php foreach ($todaysAppointments as $iv): ?>
           <a href="<?= base_url('staff/application.php?id=' . (int) $iv['application_id']) ?>" class="app-card text-decoration-none" style="color:inherit">
@@ -100,7 +102,7 @@
               <div class="app-ref"><?= e($iv['reference_no']) ?></div>
               <div class="app-date"><?= e($iv['full_name']) ?> · <?= e($iv['location']) ?></div>
             </div>
-            <div class="app-date"><?= e(date('g:i A', strtotime($iv['scheduled_at']))) ?></div>
+            <div class="app-date"><?= e(interview_time_text($iv['scheduled_at'], interview_is_date_only($iv))) ?></div>
           </a>
         <?php endforeach; ?>
       <?php endif; ?>
@@ -111,7 +113,7 @@
     <div class="review-card" id="staff-upcoming">
       <div class="review-card-head"><div class="title">Upcoming Interviews</div></div>
       <?php if (!$upcomingInterviews): ?>
-        <div class="empty-state compact">No upcoming interviews. Interviews appear here once MSWDO staff assign a schedule.</div>
+        <div class="empty-state compact"><?= !empty($bookingEnabled) ? 'No upcoming interviews. Interviews appear here once applicants book a date or staff assign a schedule.' : 'No upcoming interviews. Interviews appear here once MSWDO staff assign a schedule.' ?></div>
       <?php else: ?>
         <?php foreach ($upcomingInterviews as $iv): ?>
           <a href="<?= base_url('staff/application.php?id=' . (int) $iv['application_id']) ?>" class="app-card text-decoration-none" style="color:inherit">
@@ -119,7 +121,7 @@
               <div class="app-ref"><?= e($iv['reference_no']) ?></div>
               <div class="app-date"><?= e($iv['full_name']) ?> · <?= e($iv['location']) ?></div>
             </div>
-            <div class="app-date"><?= e(date('M j, Y g:i A', strtotime($iv['scheduled_at']))) ?></div>
+            <div class="app-date"><?= e(interview_schedule_text($iv['scheduled_at'], interview_is_date_only($iv), 'M j, Y g:i A')) ?></div>
           </a>
         <?php endforeach; ?>
       <?php endif; ?>

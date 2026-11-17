@@ -12,6 +12,7 @@
  * @var array  $renewal              state: none|valid|due|expired|in_progress (+ daysLeft, expiresAt, windowDays, application)
  * @var ?array $upcomingAppointment  application row with interview_at / interview_location
  * @var bool   $canBookAppointment
+ * @var bool   $bookingOpen          interview date booking is on and the applicant can choose a date now
  * @var array  $recentNotifications
  * @var ?array $eligibilityCheck     latest preliminary check: answers, result, checkedAt
  * @var int    $unreadNotificationCount
@@ -121,13 +122,16 @@ $welcomeText = !empty($isFirstLogin) ? 'Welcome' : 'Welcome back';
           <?php if ($upcomingAppointment): ?>
             <div class="dash-home-appointment-date">
               <div class="dash-home-date-tile" aria-hidden="true"><span><?= e(date('M', strtotime($upcomingAppointment['interview_at']))) ?></span><b><?= e(date('j', strtotime($upcomingAppointment['interview_at']))) ?></b></div>
-              <div><div class="dash-home-date-label"><?= e(date('l, F j, Y', strtotime($upcomingAppointment['interview_at']))) ?></div><div class="dash-home-time"><?= e(date('g:i A', strtotime($upcomingAppointment['interview_at']))) ?></div></div>
+              <div><div class="dash-home-date-label"><?= e(date('l, F j, Y', strtotime($upcomingAppointment['interview_at']))) ?></div><?php if (!interview_is_date_only($upcomingAppointment, 'interview_date_only')): ?><div class="dash-home-time"><?= e(date('g:i A', strtotime($upcomingAppointment['interview_at']))) ?></div><?php endif; ?></div>
             </div>
             <dl class="dash-home-details"><div><dt data-i18n>Location</dt><dd><?= e($upcomingAppointment['interview_location'] ?: 'Contact MSWDO for the location') ?></dd></div><div><dt data-i18n>Application</dt><dd><?= e($upcomingAppointment['reference_no']) ?></dd></div></dl>
             <?php $preparationItems = $upcomingRequirements ?? []; require APP_ROOT . '/views/partials/requirements-preparation.php'; ?>
-            <a href="?section=appointment" class="btn-outline text-decoration-none dash-card-link" data-i18n>View or Reschedule</a>
+            <a href="?section=appointment" class="btn-outline text-decoration-none dash-card-link" data-i18n>View Appointment</a>
+          <?php elseif ($canBookAppointment && !empty($bookingOpen)): ?>
+            <p class="dash-home-body">Interview booking is open. Choose your interview date from the available dates.</p>
+            <a href="?section=appointment" class="btn-navy text-decoration-none dash-card-link">Choose Interview Date</a>
           <?php elseif ($canBookAppointment): ?>
-            <p class="dash-home-body" data-i18n>MSWDO staff will assign your interview date and time and notify you by SMS. Upload any missing documents from Documents while waiting.</p>
+            <p class="dash-home-body" data-i18n>MSWDO will arrange your interview after all required documents are uploaded and verified. Replace any document that needs correction; staff must verify the replacement before your interview can be scheduled. You can view your interview schedule in your account.</p>
             <a href="?section=appointment" class="btn-navy text-decoration-none dash-card-link" data-i18n>View Interview Status</a>
           <?php else: ?>
             <div class="dash-home-empty"><h3 data-i18n>No upcoming appointment</h3><p data-i18n>MSWDO will notify you when your interview is scheduled.</p></div>

@@ -57,6 +57,14 @@ $actionIcon = require APP_ROOT . '/includes/user-management-icons.php';
           <tr>
             <td><span class="admin-cell-title"><?= e($l['mobile']) ?></span>
               <div class="admin-cell-meta"><?= e($l['reference_no'] ?? 'Account-level SMS') ?></div>
+              <?php
+              // A readable message type, so an invitation is told apart from a booking confirmation without opening the row.
+              $typeLabel = SMSService::TEMPLATES[$l['template_key'] ?? ''][0] ?? ([
+                  'interview_custom' => 'Interview scheduled (custom message)', 'interview_booking_custom' => 'Interview booking invitation (custom message)',
+                  'id_release_scheduled' => 'ID release scheduled', 'id_release_custom' => 'ID release scheduled (custom message)',
+              ][$l['template_key'] ?? ''] ?? null);
+              ?>
+              <?php if ($typeLabel): ?><div class="admin-cell-meta"><b><?= e($typeLabel) ?></b></div><?php endif; ?>
               <div class="admin-cell-meta"><?= e(date('M j, Y g:i A', strtotime($l['sent_at']))) ?></div>
             </td>
             <td><details class="sms-message-details"><summary>View message &amp; details</summary>
@@ -69,7 +77,7 @@ $actionIcon = require APP_ROOT . '/includes/user-management-icons.php';
             </details></td>
             <td><span class="status-pill" style="background:<?= $bg ?>;color:<?= $fg ?>"><?= $l['test_mode'] && $l['status'] === 'SENT' ? 'Test (not sent)' : e(ucfirst(strtolower($l['status']))) . ($l['test_mode'] ? ' (test)' : '') ?></span></td>
             <td>
-              <?php if ($l['status'] === 'FAILED' && (int) $l['attempts'] < SMS_MAX_ATTEMPTS && $l['template_key'] !== 'password_reset'): ?>
+              <?php if ($l['status'] === 'FAILED' && (int) $l['attempts'] < SMS_MAX_ATTEMPTS && $l['template_key'] !== 'password_reset' && $l['template_key'] !== 'document_correction'): ?>
                 <form method="post" class="m-0">
                   <?= csrf_field() ?>
                   <input type="hidden" name="action" value="retry">
@@ -103,6 +111,17 @@ $actionIcon = require APP_ROOT . '/includes/user-management-icons.php';
         <div style="font-size:12px;color:var(--faint);margin-bottom:14px">Each template lists the placeholders it can use; the first one is required. Max 500 characters (a standard SMS is 160).</div>
         <div class="sms-template-list">
         <?php foreach ($templates as $t): if (!isset(SMSService::TEMPLATES[$t['template_key']])) { continue; /* retired template: row kept in the database, no longer managed */ } $ph = SMSService::PLACEHOLDERS[$t['template_key']] ?? []; $isEditing = ($editedTemplate ?? '') === $t['template_key']; ?>
+          <?php if ($t['template_key'] === 'document_correction'): ?>
+          <details class="admin-editor">
+          <summary><?= e($t['label']) ?> <span class="admin-cell-meta">(system-managed)</span></summary>
+          <div class="admin-editor-content d-flex flex-column gap-2">
+            <div class="admin-cell-meta"><strong>System-managed, read-only.</strong> This is the exact approved wording sent to applicants. It is fixed in the system and is not read from the stored template, so it cannot be edited here. The applicant name, document names and application reference are filled in automatically, and staff remarks are never included.</div>
+            <div class="admin-cell-meta">Placeholders filled in: <code>{applicant_name}</code> <code>{document}</code> <code>{ref}</code></div>
+            <div class="sms-message-text" aria-label="Approved correction SMS wording"><?= e(SMSService::CORRECTION_BODY) ?></div>
+            <div class="admin-cell-meta">Staff send it one batch at a time from the application review page, after previewing and confirming it. You can switch this message on or off under Settings &rarr; Notifications.</div>
+          </div>
+          </details>
+          <?php continue; endif; ?>
           <details class="admin-editor" <?= $isEditing ? 'open' : '' ?>>
           <summary><?= e($t['label']) ?></summary>
           <form method="post" class="admin-editor-content d-flex flex-column gap-2">

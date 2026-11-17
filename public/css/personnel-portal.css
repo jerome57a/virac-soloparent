@@ -271,3 +271,34 @@
   .personnel-portal { background: #fff; }
   .personnel-portal :is(.review-card, .dash-card, .app-card, .stat-tile, .notif-item) { box-shadow: none; }
 }
+
+/* Staff application: Supporting Documents rows */
+.personnel-portal #checklist .staff-applicant-list { gap: 12px; }
+.personnel-portal #checklist .review-row.doc-item { padding: 14px 16px; margin: 0; background: #fff; border: 1px solid var(--border); border-radius: 10px; }
+.personnel-portal #checklist .staff-applicant-list .review-row.doc-item:first-child { padding-top: 14px; }
+.personnel-portal #checklist .staff-applicant-list .review-row.doc-item:last-child { padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+.doc-item .doc-name { font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 8px; }
+.doc-item .doc-file { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.doc-item .doc-file-info { min-width: 0; flex: 1 1 auto; }
+.doc-item .doc-filename { font-size: 14px; color: var(--ink); overflow-wrap: anywhere; line-height: 1.4; }
+.doc-item .doc-meta { font-size: 12px; color: var(--faint); line-height: 1.5; }
+.doc-item .doc-file .js-view-document { flex: none; white-space: nowrap; }
+.doc-item .doc-status { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 10px; }
+.doc-item .doc-status-pill { display: inline-block; padding: 3px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.doc-item .doc-remark { margin-top: 10px; padding: 8px 12px; font-size: 13px; line-height: 1.5; background: #fff8e6; border-left: 4px solid #c77700; border-radius: 6px; color: #603800; overflow-wrap: anywhere; }
+.doc-item .doc-controls { margin-top: 12px; padding: 12px; background: #f5f8fc; border: 1px solid var(--border); border-radius: 8px; }
+.doc-item .doc-controls-title { flex: 1 1 100%; font-size: 12px; font-weight: 700; color: var(--faint); text-transform: uppercase; letter-spacing: .04em; }
+.doc-item .doc-history-title { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); font-size: 12px; font-weight: 700; color: var(--faint); text-transform: uppercase; letter-spacing: .04em; }
+.doc-item .doc-history-item { margin-top: 4px; font-size: 12px; line-height: 1.5; color: var(--faint); overflow-wrap: anywhere; }
+@media (max-width: 575.98px) {
+  .doc-item .doc-file { flex-direction: column; align-items: stretch; }
+  .doc-item .doc-file .js-view-document { width: 100%; }
+  .doc-item .doc-controls .form-select, .doc-item .doc-controls .form-control { flex: 1 1 100%; }
+}
+
+/* Applications list: where each application is in the flow and what happens next. */
+.personnel-portal .app-next { margin-top: 6px; font-size: 13px; line-height: 1.4; color: var(--staff-muted); }
+.personnel-portal .app-next span { font-weight: 700; }
+.personnel-portal .app-next-action { color: var(--navy); font-weight: 600; }
+.personnel-portal .app-next-wait { color: var(--warn-text); }
+.personnel-portal .app-next-done { color: var(--success-text2); }

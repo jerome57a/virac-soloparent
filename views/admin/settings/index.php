@@ -85,6 +85,7 @@ $apptHours = (int) $current['appointments']['appointment_reminder_hours'];
                 };
               ?>
               <input class="form-control" id="<?= e($id) ?>" name="<?= e($key) ?>" value="<?= e((string) (!empty($def['readonly']) ? $def['default'] : $v)) ?>" <?= $attrs ?> <?= !empty($def['readonly']) ? 'readonly' : '' ?> required>
+              <?php if (!empty($def['help'])): ?><span class="settings-note"><?= e($def['help']) ?></span><?php endif; ?>
             </label>
           <?php endif; ?>
         <?php endforeach; ?>
@@ -101,7 +102,7 @@ $apptHours = (int) $current['appointments']['appointment_reminder_hours'];
               <label class="settings-check"><input type="checkbox" name="sms_template[<?= e($tKey) ?>]" value="1" <?= $checked ? 'checked' : '' ?> <?= $tLocked ? 'disabled' : '' ?>> <?= e($tLabel) ?><?= $tLocked ? ' <span class="opt">(always sent — needed to sign in)</span>' : '' ?></label>
             <?php endforeach; ?>
           </fieldset>
-          <div class="settings-note">These apply only while "Send SMS notifications" is on. Edit the wording on <a href="<?= base_url('admin/sms.php') ?>">SMS &amp; Notifications</a>. Administrators always receive security and scheduled-job alerts.</div>
+          <div class="settings-note">These apply only while "Send SMS notifications" is on. Edit the wording on <a href="<?= base_url('admin/sms.php') ?>">SMS &amp; Notifications</a> (the Document Needs Correction wording is system-managed and cannot be edited). Administrators always receive security and scheduled-job alerts.</div>
         <?php endif; ?>
         <button type="submit" class="btn-navy" style="align-self:flex-start" data-i18n>Save <?= e($section['title']) ?></button>
       </form>

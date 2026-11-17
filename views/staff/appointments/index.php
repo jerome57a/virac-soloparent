@@ -16,18 +16,24 @@ $apptStyles = [
 /** One appointment row: link to the application, time, status, and (for MSWD) the actions allowed now. */
 $row = function (array $iv, string $timeFormat) use ($staff, $canManage, $apptStyles): void {
     [$bg, $fg, $label] = $apptStyles[$iv['status']];
-    $started = strtotime($iv['scheduled_at']) <= time();
+    $canRecord = Appointment::canRecordResult($iv);
+    $canMarkMissed = Appointment::canMarkMissed($iv);
+    // Timed rows keep $timeFormat exactly; a date-only row shows its date (date formats) or "Date only" (time-only format).
+    $dateOnly = interview_is_date_only($iv);
+    $when = preg_match('/[djFMnYyl]/', $timeFormat) ? interview_schedule_text($iv['scheduled_at'], $dateOnly, $timeFormat) : interview_time_text($iv['scheduled_at'], $dateOnly, $timeFormat);
     ?>
     <div class="appt-row">
       <a href="<?= application_url($staff, (int) $iv['application_id']) ?>" class="text-decoration-none" style="color:inherit;min-width:0;flex:1 1 220px">
         <div class="app-ref"><?= e($iv['reference_no']) ?> <span style="font-weight:400;color:var(--muted)">· <?= e($iv['full_name']) ?></span></div>
-        <div class="app-date"><?= e(date($timeFormat, strtotime($iv['scheduled_at']))) ?> · <?= e($iv['location']) ?><?</div>
+        <div class="app-date"><?= e($when) ?> · <?= e($iv['location']) ?></div>
       </a>
       <div class="d-flex align-items-center gap-2 flex-wrap">
         <span class="status-pill" style="background:<?= e($bg) ?>;color:<?= e($fg) ?>"><?= e($label) ?></span>
         <?php if ($canManage && $iv['status'] === 'BOOKED'): ?>
-          <?php if ($started): ?>
+          <?php if ($canRecord): ?>
             <a href="<?= application_url($staff, (int) $iv['application_id']) ?>#interview" class="btn-outline text-decoration-none" style="padding:6px 12px;font-size:12px">Record result</a>
+          <?php endif; ?>
+          <?php if ($canMarkMissed): ?>
             <form method="post" class="m-0" onsubmit="return confirm('Mark this appointment as missed (no-show)?');">
               <?= csrf_field() ?>
               <input type="hidden" name="appointment_id" value="<?= (int) $iv['id'] ?>">
@@ -59,16 +65,17 @@ $row = function (array $iv, string $timeFormat) use ($staff, $canManage, $apptSt
 <?php endif; ?>
 
   <?php if (($staff['role'] ?? '') === 'mswd_social_worker'): ?>
-  <div class="staff-page-actions"><a href="#staff-needs-schedule" class="btn-navy" data-i18n>Assign schedule</a></div>
+  <div class="staff-page-actions"><a href="#staff-needs-schedule" class="btn-navy">Send interview invitations</a></div>
   <div class="staff-summary">
     <a href="#admin-appointments-today"><span data-i18n>Today's appointments</span><strong><?= count($todayAppointments) ?></strong></a>
     <a href="#admin-appointments-upcoming"><span data-i18n>Upcoming appointments</span><strong><?= array_sum(array_map('count', $upcomingByDate)) ?></strong></a>
+    <?php if (!empty($waitingForDate)): ?><a href="#staff-waiting-for-date"><span>Waiting for a date</span><strong><?= count($waitingForDate) ?></strong></a><?php endif; ?>
   </div>
   <?php endif; ?>
   <?php if (($staff['role'] ?? '') === 'admin'): ?>
   <div class="info-box" style="max-width:none">
-    <p class="mb-2" data-i18n>As administrator, you monitor interview appointments scheduled by MSWD staff.</p>
-    <p class="mb-0" data-i18n>MSWD staff set each applicant's interview date and time, handle individual appointment changes and record interview results or missed appointments.</p>
+    <p class="mb-2" data-i18n>As administrator, you monitor interview appointments.</p>
+    <p class="mb-0" data-i18n>Applicants choose their own interview day after MSWD staff send an invitation. MSWD staff handle individual appointment changes and record interview results or missed appointments.</p>
   </div>
   <?php endif; ?>
   <?php if (($staff['role'] ?? '') === 'admin'): ?>
@@ -83,13 +90,26 @@ $row = function (array $iv, string $timeFormat) use ($staff, $canManage, $apptSt
 
   <?php if ($canManage): ?>
   <div class="review-card" id="staff-needs-schedule">
-    <div class="review-card-head"><div class="title" data-i18n>Needs a schedule</div></div>
-    <p class="small text-muted" data-i18n>Open an application to assign its first interview or replace a cancelled or missed appointment. Oldest applications first, up to 100.</p>
+    <div class="review-card-head"><div class="title">Needs an interview invitation</div></div>
+    <p class="small text-muted">Once an applicant's required documents are verified, open the application and send the interview invitation: the applicant then logs in and chooses an available date. Oldest applications first, up to 100.</p>
     <?php if (empty($awaitingSchedule)): ?><div class="empty-state compact" data-i18n>No applications are waiting for a schedule.</div><?php endif; ?>
     <?php foreach ($awaitingSchedule ?? [] as $waiting): ?>
-      <a href="<?= e(application_url($staff, (int) $waiting['id']) . '#interview') ?>" class="app-card text-decoration-none" style="color:inherit">
-        <div><div class="app-ref"><?= e($waiting['reference_no']) ?> &middot; <?= e($waiting['full_name']) ?></div><div class="app-date" data-i18n><?= $waiting['appointment_status'] === 'MISSED' ? 'Missed appointment — replacement needed' : ($waiting['appointment_status'] === 'CANCELLED' ? 'Cancelled appointment — replacement needed' : 'First interview not yet scheduled') ?></div></div>
-        <span class="staff-open-record" data-i18n>Assign schedule</span>
+      <a href="<?= e(application_url($staff, (int) $waiting['id']) . '#invitation') ?>" class="app-card text-decoration-none" style="color:inherit">
+        <div><div class="app-ref"><?= e($waiting['reference_no']) ?> &middot; <?= e($waiting['full_name']) ?></div><div class="app-date" data-i18n><?= $waiting['appointment_status'] === 'MISSED' ? 'Missed appointment — replacement needed' : ($waiting['appointment_status'] === 'CANCELLED' ? 'Cancelled appointment — replacement needed' : 'Interview invitation not yet sent') ?></div></div>
+        <span class="staff-open-record">Open application</span>
+      </a>
+    <?php endforeach; ?>
+  </div>
+  <?php endif; ?>
+
+  <?php if ($canManage && !empty($waitingForDate)): ?>
+  <div class="review-card" id="staff-waiting-for-date">
+    <div class="review-card-head"><div class="title">Invitation sent, waiting for the applicant to choose a date (<?= count($waitingForDate) ?>)</div></div>
+    <p class="small text-muted">These applicants were texted to log in and pick a date. Their booking appears under Upcoming appointments as soon as they choose.</p>
+    <?php foreach ($waitingForDate as $waiting): ?>
+      <a href="<?= e(application_url($staff, (int) $waiting['id']) . '#invitation') ?>" class="app-card text-decoration-none" style="color:inherit">
+        <div><div class="app-ref"><?= e($waiting['reference_no']) ?> &middot; <?= e($waiting['full_name']) ?></div><div class="app-date">Invited <?= e(date('M j, Y g:i A', strtotime($waiting['opened_at']))) ?><?= (int) $waiting['reschedules_used'] > 0 ? ' · rescheduling' : '' ?></div></div>
+        <span class="staff-open-record">Open application</span>
       </a>
     <?php endforeach; ?>
   </div>
@@ -129,5 +149,33 @@ $row = function (array $iv, string $timeFormat) use ($staff, $canManage, $apptSt
     <?php endforeach; ?>
     <?php if ($staff['role'] === 'admin' && $upcomingByDate): ?></div><?php endif; ?>
   </div>
+
+  <?php
+  // Interview dates (date-only booking). Hidden while the rollout flag is off; the only thing shown for a refused
+  // action on a disabled feature is its error. Management forms are for MSWD staff only (applications.process).
+  $dateState = $dateState ?? 'off'; $dateError = $dateError ?? ''; $interviewDates = $interviewDates ?? []; $defaultCapacity = $defaultCapacity ?? 0;
+  ?>
+  <?php if ($dateState === 'off' && $dateError !== ''): ?><div class="auth-error mb-3" role="alert"><?= e($dateError) ?></div><?php endif; ?>
+<?php if ($dateState !== 'off'): ?>
+  <div class="review-card" id="interview-dates">
+    <div class="review-card-head"><div class="title">Interview days</div></div>
+    <?php if ($dateState === 'incomplete'): ?>
+      <div class="info-box" style="max-width:none" role="status">Interview date booking is not available because its setup is incomplete. Please contact the system administrator.</div>
+    <?php else: ?>
+      <p class="small text-muted mb-2">Dates do not need to be opened. Once an interview invitation is sent, the applicant can choose any office day (Monday to Friday) in the next 45 days. Weekends, holidays and announced office closures are never offered. Each day takes up to <?= $defaultCapacity >= 1 ? (int) $defaultCapacity : '0 (not configured: set it under System Settings)' ?> applicants; only BOOKED and COMPLETED interviews use a seat.<?php if (($staff['role'] ?? '') === 'admin'): ?> Capacity, holidays and closures are managed under <a href="<?= base_url('admin/settings.php') ?>">System Settings</a>.<?php endif; ?></p>
+      <?php $bookedDays = array_values(array_filter($interviewDates, fn($d) => (int) $d['seats_used'] > 0)); ?>
+      <?php if (!$bookedDays): ?><div style="font-size:13px;color:var(--muted)">No applicant has booked an upcoming interview day yet.</div><?php endif; ?>
+      <?php foreach ($bookedDays as $d): ?>
+        <div class="appt-row">
+          <div style="flex:1 1 240px;min-width:0">
+            <div class="app-ref"><?= e(date('l, F j, Y', strtotime($d['interview_date']))) ?></div>
+            <div class="app-date"><?= (int) $d['seats_used'] ?> booked<?= $d['capacity_configured'] ? ' of ' . (int) $d['effective_capacity'] . ' · ' . (int) $d['remaining'] . ' remaining' : '' ?></div>
+          </div>
+          <?php if ($d['full']): ?><span class="status-pill" style="background:#fde8e8;color:#a51c1c">Full</span><?php endif; ?>
+        </div>
+      <?php endforeach; ?>
+    <?php endif; ?>
+  </div>
+  <?php endif; ?>
 
 </div>

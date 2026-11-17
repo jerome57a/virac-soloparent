@@ -8,12 +8,20 @@
       form.querySelector('[data-applicant-fields]').hidden = !applicant;
       form.elements.mobile.disabled = !applicant;
       form.elements.mobile.required = applicant;
+      form.elements.email.disabled = !applicant;
       form.querySelector('[data-personnel-fields]').hidden = !personnel;
       form.elements.mustChange.disabled = !personnel;
-      form.elements.username.pattern = applicant ? '(?=.*[A-Za-z])[A-Za-z0-9._]{4,30}' : '[A-Za-z0-9._\\x2D]{3,50}';
-      form.elements.username.maxLength = applicant ? 30 : 50;
-      form.querySelector('[data-applicant-help]').hidden = !applicant;
-      form.querySelector('[data-personnel-help]').hidden = applicant;
+      // Every role signs in with a username; applicants have a shorter, stricter rule than personnel.
+      const username = form.elements.username;
+      form.querySelector('[data-account-username]').hidden = !(applicant || personnel);
+      username.disabled = !(applicant || personnel);
+      username.required = applicant || personnel;
+      if (applicant || personnel) {
+        const kind = applicant ? 'applicant' : 'personnel';
+        username.pattern = username.dataset['pattern' + (applicant ? 'Applicant' : 'Personnel')];
+        username.maxLength = Number(username.dataset['max' + (applicant ? 'Applicant' : 'Personnel')]);
+        form.querySelectorAll('[data-username-help]').forEach(help => { help.hidden = help.dataset.usernameHelp !== kind; });
+      }
     };
     role.addEventListener('change', updateRoleFields);
     updateRoleFields();

@@ -43,10 +43,10 @@
             <?php if ($canUpload): ?>
               <form method="post" action="<?= base_url('applicant/dashboard.php?section=documents') ?>" enctype="multipart/form-data" class="mt-2 d-flex flex-wrap align-items-end gap-2">
                 <?= csrf_field() ?><input type="hidden" name="action" value="upload_document"><input type="hidden" name="application_id" value="<?= (int) $app['id'] ?>"><input type="hidden" name="doc_key" value="<?= e($item['doc_key']) ?>">
-                <div><label class="form-label" for="<?= $inputId ?>"><?= $upload ? 'Choose replacement file' : 'Choose file' ?></label><input class="form-control" type="file" id="<?= $inputId ?>" name="file" accept=".jpg,.jpeg,.png,.pdf" required></div>
+                <div><label class="form-label" for="<?= $inputId ?>"><?= $upload ? 'Choose replacement file' : 'Choose file' ?></label><input class="form-control" type="file" id="<?= $inputId ?>" name="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" required></div>
                 <button type="submit" class="btn-navy"><?= $upload ? 'Replace document' : 'Upload document' ?></button>
               </form>
-              <small class="text-muted" data-i18n>Accepted formats: JPG, PNG, PDF. Maximum size: <?= e((string) document_rules()['max_mb']) ?> MB.</small>
+              <small class="text-muted" data-i18n>Accepted formats: JPG, JPEG, PNG only. Maximum size: <?= e((string) document_rules()['max_mb']) ?> MB.</small>
             <?php endif; ?>
           </article>
         <?php endforeach; ?>

@@ -47,8 +47,8 @@
         <div class="user-label">
           <label class="form-label" for="<?= $inputId ?>"><strong><?= e($item['label']) ?></strong> <span class="opt"><?= e($item['reason']) ?></span></label>
           <?php if ($uploaded): ?><p class="small mb-1"><span data-i18n>Selected file:</span> <?= e($uploaded['original_name']) ?></p><?php endif; ?>
-          <input class="form-control" type="file" id="<?= $inputId ?>" name="renewal_file[<?= e($item['doc_key']) ?>]" accept=".jpg,.jpeg,.png,.pdf">
-          <span class="opt" data-i18n><?= $uploaded ? 'Choose another file only to replace it.' : 'Choose a file to upload.' ?> Accepted formats: JPG, PNG, PDF. Maximum size: <?= e((string) document_rules()['max_mb']) ?> MB.</span>
+          <input class="form-control" type="file" id="<?= $inputId ?>" name="renewal_file[<?= e($item['doc_key']) ?>]" accept=".png,.jpg,.jpeg,image/png,image/jpeg">
+          <span class="opt" data-i18n><?= $uploaded ? 'Choose another file only to replace it.' : 'Choose a file to upload.' ?> Accepted formats: PNG, JPG and JPEG only. Maximum size: <?= e((string) document_rules()['max_mb']) ?> MB.</span>
         </div>
       <?php endforeach; ?>
       <p class="opt" data-i18n>Each required document must be uploaded as a file before you can submit. Staff review the uploaded files and may ask you to replace one; an uploaded file is not verified until staff confirm it. Document expiry uses recorded dates; no unrecorded expiry is assumed.</p>

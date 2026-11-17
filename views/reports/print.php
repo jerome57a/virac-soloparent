@@ -54,7 +54,7 @@
       <thead><tr><?php foreach ($columns as [$label, $format]): ?><th class="<?= $format === 'int' ? 'num' : '' ?>"><?= e($label) ?></th><?php endforeach; ?></tr></thead>
       <tbody>
         <?php foreach ($rows as $row): ?>
-          <tr><?php foreach ($columns as $key => [, $format]): ?><td class="<?= $format === 'int' ? 'num' : '' ?>"><?= e(ReportService::formatCell($row[$key] ?? null, $format)) ?></td><?php endforeach; ?></tr>
+          <tr><?php foreach ($columns as $key => [, $format]): ?><td class="<?= $format === 'int' ? 'num' : '' ?>"><?= e(ReportService::formatCell($row[$key] ?? null, $format, $row)) ?></td><?php endforeach; ?></tr>
         <?php endforeach; ?>
       </tbody>
       <?php if ($totals): ?>

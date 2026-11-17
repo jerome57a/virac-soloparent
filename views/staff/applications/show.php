@@ -5,7 +5,9 @@
  * @var string $assessmentError
  * @var string $releaseError
  * @var string $interviewError
- * @var string $noteError
+ * @var string $invitationError
+ * @var string $invitationState  'off' (flag off: card hidden), 'incomplete' (flag on, schema not ready) or 'ready'
+ * @var ?array $invitationPanel  InterviewInvitationService::panel(); null unless ready
  * @var ?string $flashMessage
  * @var array  $allowedTransitions  statuses the application can move to now (Application::TRANSITIONS)
  * @var array  $approvalChecklist   ApplicationReviewService::approvalChecklist()
@@ -17,6 +19,8 @@
 $st = status_style($app['status']);
 $interviewOutcome = Appointment::interviewOutcome($interview);
 $canDecide = !empty($app['renewal_simplified']) || Appointment::interviewSuccessful($interview);
+// Rejecting needs no successful interview (only a reason); corrections and approval still do ($canDecide).
+$canReject = in_array('Rejected', $allowedTransitions ?? [], true);
 $interviewNotes = (string) ($interview['result'] ?? '');
 $requiredChecklist = array_filter($submittedChecklist ?? [], fn($item) => !empty($item['is_required']));
 $outstandingRequirements = array_filter($requiredChecklist, fn($item) => $item['verification_status'] !== 'Verified' || (!empty($item['expires_at']) && $item['expires_at'] < date('Y-m-d')));
@@ -82,27 +86,42 @@ if ($interviewOutcome !== null) {
           <?php if (empty($submittedChecklist)): ?>
             <div class="text-muted small" data-i18n>No document requirements are configured for this application.</div>
           <?php else: foreach ($submittedChecklist as $item): $file = $item['uploaded_document'] ?? null; ?>
-            <div class="review-row" id="<?= $file ? 'doc-' . (int) $file['id'] : 'checklist-' . e($item['doc_key']) ?>">
-              <div class="k"><?= e($item['label']) ?><?= !empty($item['is_required']) ? ' *' : ' (optional)' ?></div>
+            <div class="review-row doc-item" id="<?= $file ? 'doc-' . (int) $file['id'] : 'checklist-' . e($item['doc_key']) ?>">
+              <div class="k doc-name"><?= e($item['label']) ?><?= !empty($item['is_required']) ? ' *' : ' (optional)' ?></div>
               <?php if ($file): ?>
-                <div class="v"><a href="<?= base_url('download.php?doc_id=' . (int) $file['id']) ?>" target="_blank" rel="noopener"><?= e($file['original_name']) ?></a> - <a href="<?= base_url('download.php?doc_id=' . (int) $file['id'] . '&download=1') ?>" data-i18n>Download</a> - <?= e(date('M j, Y g:i A', strtotime($file['uploaded_at']))) ?></div>
-                <div class="small" data-i18n>Status: <strong><?= e(document_status_label($file['verification_status'])) ?></strong><?php if (!empty($file['verifier_name'])): ?> - <?= e($file['verifier_name']) ?><?php endif; ?><?php if (!empty($file['verified_at'])): ?> - <?= e(date('M j, Y g:i A', strtotime($file['verified_at']))) ?><?php endif; ?></div>
+                <?php $docStyle = document_status_style((string) $file['verification_status']); ?>
+                <div class="doc-file">
+                  <div class="doc-file-info">
+                    <div class="doc-filename" title="<?= e($file['original_name']) ?>"><?= e($file['original_name']) ?></div>
+                    <div class="doc-meta">Uploaded <?= e(date('M j, Y g:i A', strtotime($file['uploaded_at']))) ?></div>
+                  </div>
+                  <button type="button" class="btn btn-sm btn-outline-primary js-view-document" data-doc-src="<?= e(base_url('download.php?doc_id=' . (int) $file['id'] . '&app_id=' . (int) $app['id'] . '&preview=1')) ?>" data-doc-name="<?= e($file['original_name']) ?>" data-i18n>View Document</button>
+                </div>
+                <div class="doc-status">
+                  <span class="doc-status-pill" style="background:<?= e($docStyle['bg']) ?>;color:<?= e($docStyle['color']) ?>"><?= e(document_status_label($file['verification_status'])) ?></span>
+                  <?php if (!empty($file['verifier_name']) || !empty($file['verified_at'])): ?><span class="doc-meta"><?php if (!empty($file['verifier_name'])): ?>by <?= e($file['verifier_name']) ?><?php endif; ?><?php if (!empty($file['verified_at'])): ?> on <?= e(date('M j, Y g:i A', strtotime($file['verified_at']))) ?><?php endif; ?></span><?php endif; ?>
+                </div>
                 <?php if (!empty($documentErrors[$file['id']])): ?><div class="field-error" role="alert"><?= e($documentErrors[$file['id']]) ?></div><?php endif; ?>
-                <?php if (!empty($file['staff_remarks'])): ?><div class="field-error"><?= e($file['staff_remarks']) ?></div><?php endif; ?>
+                <?php if (!empty($file['staff_remarks'])): ?><div class="doc-remark"><b>Staff remarks:</b> <?= e($file['staff_remarks']) ?></div><?php endif; ?>
                 <?php if ($canVerifyDocs):
                   $stored = (string) $file['verification_status'];
                   $storedRemarks = (string) ($file['staff_remarks'] ?? '');
                   $posted = $_POST['docs'][$file['id']] ?? null;
-                  // Keep the submitted values only for rows the staff member actually edited.
+                  // Keep the submitted values only for rows the staff member actually edited AND whose submitted file
+                  // version still matches the file shown now. After a stale-file rejection the posted verdict is
+                  // discarded, so a fresh decision must be made on the current file.
                   $wasEdited = is_array($posted) && is_string($posted['status'] ?? null) && is_string($posted['remarks'] ?? null)
                       && is_string($posted['expected'] ?? null) && is_string($posted['expected_remarks'] ?? null)
+                      && is_string($posted['expected_version'] ?? null) && hash_equals(Document::versionToken($file), $posted['expected_version'])
                       && ($posted['status'] !== $posted['expected'] || trim($posted['remarks']) !== trim($posted['expected_remarks']));
                   $curStatus = $wasEdited ? $posted['status'] : $stored;
                   $curRemarks = $wasEdited ? $posted['remarks'] : $storedRemarks;
                   $legacy = !in_array($stored, Document::VERIFICATION_STATUSES, true); ?>
-                  <div class="doc-verify-form mt-2">
+                  <div class="doc-verify-form doc-controls">
+                    <div class="doc-controls-title">Verification decision</div>
                     <input type="hidden" name="docs[<?= (int) $file['id'] ?>][expected]" value="<?= e($stored) ?>">
                     <input type="hidden" name="docs[<?= (int) $file['id'] ?>][expected_remarks]" value="<?= e($storedRemarks) ?>">
+                    <input type="hidden" name="docs[<?= (int) $file['id'] ?>][expected_version]" value="<?= e(Document::versionToken($file)) ?>">
                     <select name="docs[<?= (int) $file['id'] ?>][status]" class="form-select" aria-label="Verification status for <?= e($item['label']) ?>">
                       <?php if ($legacy): ?><option value="<?= e($stored) ?>" <?= $curStatus === $stored ? 'selected' : '' ?>><?= e(document_status_label($stored)) ?> (current status - choose a new status to change it)</option><?php endif; ?>
                       <?php foreach (Document::VERIFICATION_STATUSES as $status): ?><option value="<?= e($status) ?>" <?= $curStatus === $status ? 'selected' : '' ?>><?= e(document_status_label($status)) ?></option><?php endforeach; ?>
@@ -110,7 +129,8 @@ if ($interviewOutcome !== null) {
                     <input type="text" name="docs[<?= (int) $file['id'] ?>][remarks]" maxlength="500" value="<?= e($curRemarks) ?>" placeholder="Remarks for rejection or correction" class="form-control" aria-label="Remarks for <?= e($item['label']) ?>">
                   </div>
                 <?php endif; ?>
-                <?php foreach (($documentHistory[$file['id']] ?? []) as $event): ?><div class="small text-muted"><?= !empty($event['from_status']) ? e(document_status_label((string) $event['from_status'])) . ' to ' : '' ?><?= e(document_status_label((string) ($event['to_status'] ?? ''))) ?> - <?= e($event['actor_name']) ?> - <?= e(date('M j, Y g:i A', strtotime($event['created_at']))) ?><?= !empty($event['remarks']) ? ' - ' . e($event['remarks']) : '' ?></div><?php endforeach; ?>
+                <?php if (!empty($documentHistory[$file['id']])): ?><div class="doc-history-title">Verification history</div><?php endif; ?>
+                <?php foreach (($documentHistory[$file['id']] ?? []) as $event): ?><div class="doc-history-item"><?= !empty($event['from_status']) ? e(document_status_label((string) $event['from_status'])) . ' to ' : '' ?><?= e(document_status_label((string) ($event['to_status'] ?? ''))) ?> - <?= e($event['actor_name']) ?> - <?= e(date('M j, Y g:i A', strtotime($event['created_at']))) ?><?= !empty($event['remarks']) ? ' - ' . e($event['remarks']) : '' ?></div><?php endforeach; ?>
               <?php else: ?>
                 <div class="small text-muted" data-i18n><?= $item['verification_status'] === 'Verified' ? 'Previously accepted evidence is retained in the application record.' : 'No file uploaded yet.' ?></div>
               <?php endif; ?>
@@ -120,7 +140,73 @@ if ($interviewOutcome !== null) {
         <?php if ($canVerifyDocs && !empty($submittedChecklist)): ?>
           <div class="mt-3"><?php if (!empty($documentErrors['checklist'])): ?><div class="field-error mb-2" role="alert"><?= e($documentErrors['checklist']) ?></div><?php endif; ?><button type="submit" class="btn-navy" data-i18n>Save Verification</button></div>
         </form><?php endif; ?>
+        <?php if ($canVerifyDocs && !empty($correctionSms)): $cs = $correctionSms; $csLog = $cs['last_log']; ?>
+        <div id="correction-sms" class="mt-4 pt-3" style="border-top:1px solid #dee2e6;scroll-margin-top:80px">
+          <div class="fw-semibold" data-i18n>Correction SMS</div>
+          <?php if (!empty($correctionNotice)):
+            $cn = $correctionNotice;
+            $cnLabel = $cn['outcome'] === 'SENT' ? ($cn['test_mode'] ? 'TEST MODE - NOT DELIVERED' : 'SENT') : ($cn['outcome'] === 'PENDING' ? 'PENDING - NOT CONFIRMED' : ($cn['outcome'] === 'FAILED' ? 'FAILED' : ($cn['outcome'] === 'DISABLED' ? 'NOT SENT - SMS DISABLED' : 'NOT SENT'))); ?>
+            <div class="<?= $cn['outcome'] === 'SENT' && !$cn['test_mode'] ? 'info-box' : 'auth-error' ?> my-2" style="max-width:none" role="status" tabindex="-1"><strong><?= e($cnLabel) ?>:</strong> <?= e($cn['text']) ?></div>
+          <?php endif; ?>
+          <p class="small text-muted mb-2" data-i18n>Save Verification does not send an SMS. After you save documents as Needs Correction, review the message below and confirm to send one SMS for the whole batch. Your remarks are never included in the SMS.</p>
+          <?php if ($cs['has_batch']): ?>
+            <?php if ($csLog): ?>
+              <div class="small mb-2">Latest SMS for this batch: <strong><?= e($csLog['status']) ?></strong> (<?= e(date('M j, Y g:i A', strtotime($csLog['sent_at']))) ?>)<?= $csLog['status'] === 'FAILED' && !empty($csLog['error']) ? ' - ' . e($csLog['error']) : '' ?><?= $csLog['status'] === 'SENT' && !empty($csLog['test_mode']) ? ' - TEST MODE: logged only, NOT delivered to any phone' : '' ?><?= $csLog['status'] === 'PENDING' ? ' - outcome not recorded; this batch stays blocked and needs separate manual investigation' : '' ?></div>
+            <?php else: ?>
+              <div class="small mb-2 text-muted">No correction SMS has been sent for this batch yet.</div>
+            <?php endif; ?>
+          <?php else: ?>
+            <div class="small text-muted">No document is currently marked Needs Correction.</div>
+          <?php endif; ?>
+          <?php if ($cs['has_batch']): ?>
+            <div class="review-card mt-3" style="background:#f8f9fa">
+              <div class="small text-muted">Review the message below - nothing has been sent yet</div>
+              <div class="fw-semibold"><?= e($cs['applicant']) ?> <span class="text-muted fw-normal">- <?= e($cs['reference']) ?></span></div>
+              <div class="small">To: <strong><?= e($cs['recipient']) ?></strong></div>
+              <?php if ($cs['test_mode']): ?><div class="small mt-1" style="color:#8a5a00"><strong>TEST MODE:</strong> the SMS provider is "test". Confirming will log the message but will NOT deliver it to a phone.</div><?php endif; ?>
+              <?php if ($cs['has_batch']): ?>
+                <div class="small mt-2">Documents (<?= count($cs['documents']) ?>): <?= e(implode(', ', $cs['documents'])) ?></div>
+                <div class="mt-2 p-2 bg-white border rounded" style="white-space:pre-wrap"><?= e($cs['message']) ?></div>
+                <div class="small text-muted mt-1"><?= (int) $cs['length'] ?> / <?= (int) SMSService::CORRECTION_MAX_LENGTH ?> characters</div>
+              <?php endif; ?>
+              <?php if ($cs['block']): ?>
+                <div class="field-error mt-2" role="alert"><?= e($cs['block']) ?></div>
+              <?php endif; ?>
+              <form method="post" class="mt-3" onsubmit="var b=this.querySelector('button[type=submit]');if(b){b.disabled=true;}">
+                <?= csrf_field() ?>
+                <input type="hidden" name="form_action" value="confirm_correction_sms">
+                <input type="hidden" name="batch_token" value="<?= e($cs['token']) ?>">
+                <button type="submit" class="btn-navy js-correction-confirm" data-blocked="<?= $cs['block'] ? '1' : '0' ?>" <?= $cs['block'] ? 'disabled' : '' ?> data-i18n>Confirm and Send Correction SMS</button>
+              </form>
+              <script>
+                // Back/forward cache can restore this page with the button still disabled from the earlier submit.
+                // Usability only: the server (CSRF, token, lock, reservation) decides whether anything is sent.
+                window.addEventListener('pageshow', function () {
+                  document.querySelectorAll('.js-correction-confirm').forEach(function (b) { b.disabled = b.getAttribute('data-blocked') === '1'; });
+                });
+              </script>
+            </div>
+          <?php endif; ?>
+        </div>
+        <?php endif; ?>
       </div>
+      <div class="modal fade" id="document-viewer" tabindex="-1" aria-labelledby="document-viewer-title" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-fullscreen-lg-down">
+          <div class="modal-content" style="height:90vh">
+            <div class="modal-header py-2">
+              <h2 class="modal-title fs-6 text-truncate" id="document-viewer-title">Document</h2>
+              <div class="btn-group btn-group-sm ms-auto me-2 d-none" id="document-viewer-zoom" role="group" aria-label="Zoom">
+                <button type="button" class="btn btn-outline-secondary" data-zoom="out" aria-label="Zoom out">&minus;</button>
+                <button type="button" class="btn btn-outline-secondary" data-zoom="reset">100%</button>
+                <button type="button" class="btn btn-outline-secondary" data-zoom="in" aria-label="Zoom in">+</button>
+              </div>
+              <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+            <div class="modal-body p-0 position-relative bg-light" id="document-viewer-body" style="overflow:auto"></div>
+          </div>
+        </div>
+      </div>
+      <script src="<?= public_asset('js/document-viewer.js') ?>" defer></script>
       <div class="review-card">
         <div class="review-card-head"><div class="title">Applicant Declaration</div></div>
         <div class="staff-applicant-list">
@@ -143,7 +229,7 @@ if ($interviewOutcome !== null) {
         <?php if (!$allowedTransitions): ?>
           <div style="font-size:13px;color:var(--muted)">This application has a final status (<?= e($app['status']) ?>). No further decisions can be made.</div>
         <?php else: ?>
-          <?php if ($interview && $interview['status'] === 'BOOKED'): ?><div class="mb-2"><b data-i18n>Interview Scheduled</b> · <?= e(date('F j, Y g:i A', strtotime($interview['scheduled_at']))) ?> at <?= e($interview['location']) ?></div><?php endif; ?>
+          <?php if ($interview && $interview['status'] === 'BOOKED'): ?><div class="mb-2"><b data-i18n>Interview Scheduled</b> · <?= e(interview_schedule_text($interview['scheduled_at'], interview_is_date_only($interview))) ?> at <?= e($interview['location']) ?></div><?php endif; ?>
           <?php if ($approvalChecklist): ?>
             <div class="approval-checklist">
               <div style="font-size:12px;font-weight:700;color:var(--ink);margin-bottom:6px">Before approving</div>
@@ -156,6 +242,16 @@ if ($interviewOutcome !== null) {
             <?php if ($interviewOutcome): ?>
               <div class="review-saved-action mb-3"><span>Interview: <b><?= e($interviewOutcome) ?></b></span><?php $undoButton('interview', 'Undo Interview Result'); ?></div>
               <?php if ($interviewNotes !== ''): ?><div class="small mb-3"><?= e($interviewNotes) ?></div><?php endif; ?>
+              <?php if ($outstandingRequirements): ?><div class="small text-muted mb-3" id="interview-result-locked">The interview result cannot be changed until all required documents are verified again (<?= e(implode('; ', array_map(fn($item) => $item['label'], $outstandingRequirements))) ?>).</div><?php endif; ?>
+            <?php elseif ($outstandingRequirements): ?>
+            <div class="info-box mb-3" id="interview-result-locked" style="max-width:none" role="status">
+              <b>Interview result is locked until all required documents are verified</b>
+              <ul><?php foreach ($outstandingRequirements as $item): $expiredItem = !empty($item['expires_at']) && $item['expires_at'] < date('Y-m-d'); ?><li><?= e($item['label']) ?><?= $expiredItem ? ' - expired' : (!empty($item['uploaded_document']) ? ' - ' . e(document_status_label($item['uploaded_document']['verification_status'])) : ' - no file uploaded') ?></li><?php endforeach; ?></ul>
+              Staff must verify every required document before recording the interview result. The appointment and its reminders are not affected; verify the documents above to unlock the result.
+              <?php if ($interview['status'] === 'BOOKED' && strtotime((string) $interview['scheduled_at']) > time()): ?>
+                <div class="small text-muted mt-2">The interview result can be recorded on or after <?= e(interview_schedule_text($interview['scheduled_at'], interview_is_date_only($interview))) ?>.</div>
+              <?php endif; ?>
+            </div>
             <?php else: ?>
             <form method="post" id="interview-result-form" class="d-flex flex-column gap-2 mb-3" onsubmit="return confirm('Confirm this interview result?');">
               <?= csrf_field() ?>
@@ -165,7 +261,7 @@ if ($interviewOutcome !== null) {
                 <div style="font-size:12px;color:var(--faint)">Recorded <?= e(date('M j, Y g:i A', strtotime($interview['result_recorded_at']))) ?></div>
               <?php endif; ?>
               <?php if ($interview['status'] === 'BOOKED' && strtotime((string) $interview['scheduled_at']) > time()): ?>
-                <div class="small text-muted">The interview result can be recorded on or after <?= e(date('F j, Y g:i A', strtotime($interview['scheduled_at']))) ?>.</div>
+                <div class="small text-muted">The interview result can be recorded on or after <?= e(interview_schedule_text($interview['scheduled_at'], interview_is_date_only($interview))) ?>.</div>
               <?php else: ?>
                 <div class="review-action-grid" role="group" aria-label="Interview result">
                   <button type="submit" name="interview_outcome" value="Successful" class="btn-outline review-button-success<?= $interviewOutcome === 'Successful' ? ' is-selected' : '' ?>" aria-pressed="<?= $interviewOutcome === 'Successful' ? 'true' : 'false' ?>" style="flex:1" data-i18n>Successful</button>
@@ -182,18 +278,43 @@ if ($interviewOutcome !== null) {
             <input type="hidden" name="expected_status" value="<?= e($app['status']) ?>">
             <div class="review-action-grid">
               <?php foreach ($allowedTransitions as $to):
-                  if ($to === 'Under Verification') {
+                  if ($to === 'Under Verification' || $to === 'Rejected' || !$canDecide) {
                       continue;
                   }
                   $class = $to === 'Rejected' ? 'btn-outline review-button-danger' : ($to === 'Approved' || $to === 'ID Released' ? 'btn-navy review-button-success is-selected' : 'btn-outline review-button-correction');
                   $confirm = $to === 'Rejected' ? 'Reject this application? This is final.' : ($to === 'Approved' ? 'Approve this application?' : '');
+                  $needsReason = in_array($to, Application::REASON_REQUIRED, true);
               ?>
-                <button type="submit" name="status" value="<?= e($to) ?>" class="<?= $class ?>" style="flex:1 1 150px"<?= $to === 'Approved' && $outstandingRequirements ? ' disabled title="Complete all required documents before approval"' : '' ?><?= $confirm ? ' onclick="return confirm(\'' . e($confirm) . '\')"' : '' ?>><?= e(Application::ACTION_LABELS[$to] ?? $to) ?></button>
+                <button type="submit" name="status" value="<?= e($to) ?>" class="<?= $class ?>" style="flex:1 1 150px"<?= $to === 'Approved' && $outstandingRequirements ? ' disabled title="Complete all required documents before approval"' : '' ?><?= $needsReason ? ' data-needs-reason="1" data-confirm="' . e($confirm) . '"' : ($confirm ? ' onclick="return confirm(\'' . e($confirm) . '\')"' : '') ?>><?= e(Application::ACTION_LABELS[$to] ?? $to) ?></button>
               <?php endforeach; ?>
             </div>
+            <?php /* The reason is asked for only when the chosen action needs one (reject / request corrections). */ ?>
+            <label id="decision-reason-wrap" class="d-none mt-2" style="font-size:13px;font-weight:600;color:var(--ink)">
+              <span id="decision-reason-label">Reason for the applicant</span>
+              <textarea name="remarks" id="decision-reason" aria-label="Reason for the applicant" rows="3" maxlength="500" placeholder="Required. This reason is sent to the applicant by SMS." class="form-control mt-1" style="padding:10px;border:1px solid var(--input-border);border-radius:6px"></textarea>
+              <span class="small text-muted d-block mt-1">Fill this in, then press the same button again to confirm.</span>
+            </label>
           </form>
-          <?php elseif ($interview && in_array($interview['status'], ['BOOKED', 'COMPLETED', 'MISSED'], true)): ?>
-            <div class="info-box" role="status">Request Corrections, Approve, and Reject become available after a successful interview is recorded.</div>
+          <script>
+            (() => {
+              const form = document.getElementById('application-decision-form'), wrap = document.getElementById('decision-reason-wrap');
+              const box = document.getElementById('decision-reason'), label = document.getElementById('decision-reason-label');
+              form.querySelectorAll('button[name="status"]').forEach(btn => btn.addEventListener('click', event => {
+                if (!btn.dataset.needsReason) { box.value = ''; box.required = false; return; }   // approving needs no remarks
+                if (wrap.classList.contains('d-none') || !box.value.trim()) {
+                  event.preventDefault();
+                  wrap.classList.remove('d-none'); box.required = true;
+                  label.textContent = 'What does the applicant need to correct?';
+                  box.focus();
+                  return;
+                }
+                if (btn.dataset.confirm && !confirm(btn.dataset.confirm)) event.preventDefault();
+              }));
+            })();
+          </script>
+          <?php endif; ?>
+          <?php if (!$canDecide && $interview && in_array($interview['status'], ['BOOKED', 'COMPLETED', 'MISSED'], true)): ?>
+            <div class="info-box" role="status"><?= 'Request Corrections and Approve become available after a successful interview is recorded.' ?></div>
           <?php endif; ?>
         <?php endif; ?>
       </div>
@@ -213,7 +334,7 @@ if ($interviewOutcome !== null) {
 
         <?php if ($interview): ?>
           <div class="review-grid mb-3">
-            <div class="review-row"><div class="k">Scheduled</div><div class="v"><?= e(date('F j, Y g:i A', strtotime($interview['scheduled_at']))) ?></div></div>
+            <div class="review-row"><div class="k">Scheduled</div><div class="v"><?= e(interview_schedule_text($interview['scheduled_at'], interview_is_date_only($interview))) ?></div></div>
             <div class="review-row"><div class="k" data-i18n>Location</div><div class="v"><?= e($interview['location']) ?></div></div>
             <div class="review-row"><div class="k">Booked by</div><div class="v"><?= $interview['scheduled_by'] ? 'MSWDO staff' : (($interview['notes'] ?? '') === 'Interview automatically scheduled on application submission.' ? 'System (automatically scheduled)' : 'Applicant (self-booked)') ?></div></div>
             <?php if ($interview['notes']): ?><div class="review-row"><div class="k">Notes</div><div class="v"><?= e($interview['notes']) ?></div></div><?php endif; ?>
@@ -247,25 +368,123 @@ if ($interviewOutcome !== null) {
         <?php endif; ?>
 
         <?php if ($inProgress && $ivStatus !== 'COMPLETED'): ?>
-          <div class="info-box" style="max-width:none">
-            <b><?= $outstandingRequirements ? 'Required documents still need review' : 'All required documents are verified' ?></b>
-            <?php if ($outstandingRequirements): ?><ul><?php foreach ($outstandingRequirements as $item): ?><li><?= e($item['label']) ?><?= !empty($item['uploaded_document']) ? ' - ' . e(document_status_label($item['uploaded_document']['verification_status'])) : ' - no file uploaded' ?></li><?php endforeach; ?></ul><?php endif; ?>
-            You can schedule the interview while documents are outstanding. The applicant can upload missing files from Documents; staff must verify all required files before approval.
-          </div>
-          <?php require APP_ROOT . '/views/staff/appointments/schedule-form.php'; ?>
+          <?php if ($outstandingRequirements): ?>
+            <div class="info-box" style="max-width:none" role="status">
+              <b>The interview invitation is locked until all required documents are verified</b>
+              <ul><?php foreach ($outstandingRequirements as $item): $expiredItem = !empty($item['expires_at']) && $item['expires_at'] < date('Y-m-d'); ?><li><?= e($item['label']) ?><?= $expiredItem ? ' - expired' : (!empty($item['uploaded_document']) ? ' - ' . e(document_status_label($item['uploaded_document']['verification_status'])) : ' - no file uploaded') ?></li><?php endforeach; ?></ul>
+              Staff must verify every required document before sending the interview invitation. When the applicant uploads a replacement, verify it above to unlock it.
+            </div>
+          <?php else: ?>
+            <div class="info-box" style="max-width:none"><b>All required documents are verified</b> <?php if (($invitationState ?? 'off') !== 'ready'): ?>Interview invitations are not available until interview date booking is enabled.<?php else: ?>Send the interview invitation below. The applicant is texted to log in and choose an available interview date; the booking then appears here and in the staff dashboard's Expected Today list. You do not need to open dates: the applicant can choose any Monday to Friday office day (holidays and closures are skipped).<?php endif; ?></div>
+          <?php endif; ?>
         <?php endif; ?>
 
-        <?php if ($allowedTransitions && $canDecide): ?>
-          <label class="d-block mt-3" style="font-size:13px;font-weight:600;color:var(--ink)">
-            Remarks for the applicant
-            <textarea form="application-decision-form" name="remarks" aria-label="Remarks for the applicant" rows="3" maxlength="500" placeholder="Remarks for the applicant (required to reject; sent by SMS)" class="form-control mt-1" style="padding:10px;border:1px solid var(--input-border);border-radius:6px"></textarea>
-          </label>
+      </div>
+
+      <?php
+      $invState = $invitationState ?? 'off';
+      $invPanel = $invitationPanel ?? null;
+      $inv = $invPanel['invitation'] ?? null;
+      $invProblems = $invPanel['problems'] ?? [];
+      // SMS choice shared by the send and reopen forms: the automatic text, or a custom text staff write and review first.
+      $invitationAutoMessage = $invitationAutoMessage ?? '';
+      $invSmsFields = function () use ($invitationAutoMessage) { ?>
+        <label style="font-size:13px;font-weight:600;color:var(--ink)">SMS Message Option
+          <select name="sms_message_type" id="invitation-sms-type" class="form-select mt-1">
+            <option value="automatic" selected>Automatic Message</option>
+            <option value="custom">Custom Message</option>
+          </select>
+        </label>
+        <div id="invitation-sms-preview" class="info-box small" style="max-width:none;margin:0;white-space:pre-wrap" role="status"><?= e($invitationAutoMessage) ?></div>
+        <label id="invitation-custom-wrap" class="d-none" style="font-size:13px;font-weight:600;color:var(--ink)">Review and edit the final SMS
+          <textarea name="invitation_custom_message" id="invitation-custom-message" rows="4" maxlength="500" class="form-control mt-1" placeholder="Write the message to send"></textarea>
+        </label>
+        <script>
+          (() => {
+            const type = document.getElementById('invitation-sms-type'), preview = document.getElementById('invitation-sms-preview');
+            const wrap = document.getElementById('invitation-custom-wrap'), custom = document.getElementById('invitation-custom-message');
+            const automatic = <?= json_encode($invitationAutoMessage, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+            const update = () => {
+              const customMode = type.value === 'custom';
+              wrap.classList.toggle('d-none', !customMode); custom.required = customMode;
+              if (customMode && !custom.value) custom.value = automatic;
+              preview.textContent = customMode ? (custom.value || 'Enter the custom SMS message to review it here.') : automatic;
+            };
+            type.addEventListener('change', update); custom.addEventListener('input', update); update();
+          })();
+        </script>
+      <?php };
+      ?>
+      <?php if ($invState !== 'off' || !empty($invitationError)): ?>
+      <div class="review-card" id="invitation">
+        <div class="review-card-head">
+          <div class="title">Interview booking invitation</div>
+          <?php if ($invState === 'ready' && $invPanel !== null):
+              $invStyles = ['OPEN' => ['#dcf3e2', '#1c7a3f', 'Open'], 'BOOKED' => ['#dce8f5', '#1b3a6b', 'Booked'], 'CLOSED' => ['#f1f1f1', '#555', 'Closed']];
+              [$invBg, $invFg, $invLabel] = $inv ? $invStyles[$inv['status']] : ['#f1f1f1', '#555', 'Not opened']; ?>
+            <span class="status-pill" style="background:<?= $invBg ?>;color:<?= $invFg ?>"><?= e($invLabel) ?></span>
+          <?php endif; ?>
+        </div>
+        <?php if (!empty($invitationError)): ?><div class="auth-error" role="alert"><?= e($invitationError) ?></div><?php endif; ?>
+
+        <?php if ($invState === 'incomplete'): ?>
+          <div class="info-box" style="max-width:none" role="status">Interview invitation management is not available because its setup is incomplete. Please contact the system administrator.</div>
+        <?php elseif ($invState === 'ready' && $invPanel !== null): ?>
+          <div class="small text-muted mb-3">Sending the invitation texts the applicant to log in to e-SoloParentID and choose an available interview date. Staff do not pick the date; the applicant chooses any available Monday to Friday office day (holidays and announced closures are skipped).</div>
+          <?php if ($inv): ?>
+            <div class="review-grid mb-3">
+              <div class="review-row"><div class="k">Reschedules used</div><div class="v"><?= (int) $inv['reschedules_used'] ?> of <?= (int) $inv['reschedules_allowed'] ?> allowed</div></div>
+              <?php if ($inv['status'] === 'CLOSED'): ?>
+                <div class="review-row"><div class="k">Closed</div><div class="v"><?= !empty($inv['closed_at']) ? e(date('M j, Y g:i A', strtotime($inv['closed_at']))) : '' ?><?= !empty($inv['close_reason']) ? ' — ' . e($inv['close_reason']) : '' ?></div></div>
+              <?php endif; ?>
+            </div>
+          <?php endif; ?>
+
+          <?php if (!$inv): ?>
+            <?php if ($invProblems['open'] === null): ?>
+              <form method="post" class="d-flex flex-column gap-2 mb-2">
+                <?= csrf_field() ?><input type="hidden" name="form_action" value="open_invitation">
+                <?php $invSmsFields(); ?>
+                <button type="submit" class="btn-navy">Send Interview Booking Invitation</button>
+              </form>
+            <?php else: ?><div class="small text-muted"><?= e($invProblems['open']) ?></div><?php endif; ?>
+          <?php elseif ($inv['status'] === 'OPEN'): ?>
+            <?php if ($invProblems['close'] === null): ?>
+              <form method="post" class="d-flex flex-column gap-2 mb-2" onsubmit="return confirm('Close this invitation? The applicant will not be able to book until it is reopened.');">
+                <?= csrf_field() ?><input type="hidden" name="form_action" value="close_invitation">
+                <input type="text" name="reason" maxlength="255" class="form-control" placeholder="Reason for closing (required)" aria-label="Reason for closing the invitation" required>
+                <button type="submit" class="btn-outline">Close invitation</button>
+              </form>
+            <?php endif; ?>
+          <?php elseif ($inv['status'] === 'CLOSED'): ?>
+            <?php if ($invProblems['reopen'] === null): ?>
+              <form method="post" class="d-flex flex-column gap-2 mb-2">
+                <?= csrf_field() ?><input type="hidden" name="form_action" value="reopen_invitation">
+                <?php $invSmsFields(); ?>
+                <button type="submit" class="btn-navy">Reopen and Resend Interview Booking Invitation</button>
+              </form>
+            <?php elseif ($invProblems['grant'] === null): ?>
+              <div class="small text-muted mb-2"><?= e($invProblems['reopen']) ?></div>
+            <?php else: ?><div class="small text-muted mb-2"><?= e($invProblems['reopen']) ?></div><?php endif; ?>
+            <?php if ($invProblems['grant'] === null): ?>
+              <form method="post" class="d-flex flex-column gap-2 mb-2" onsubmit="return confirm('Allow this applicant one more reschedule?');">
+                <?= csrf_field() ?><input type="hidden" name="form_action" value="grant_reschedule">
+                <input type="text" name="reason" maxlength="255" class="form-control" placeholder="Reason for the extra reschedule (required)" aria-label="Reason for the extra reschedule" required>
+                <button type="submit" class="btn-outline">Grant one extra reschedule</button>
+              </form>
+            <?php endif; ?>
+          <?php else: ?>
+            <div class="small text-muted"><?= e($invProblems['close'] ?? 'A date is booked for this invitation.') ?></div>
+          <?php endif; ?>
         <?php endif; ?>
       </div>
+      <?php else: ?>
+      <div class="small text-muted mb-3" id="invitation">Interview date booking is currently not enabled.</div>
+      <?php endif; ?>
 
       <?php else: ?>
         <div class="info-box">This renewal needs document review and approval only. A new interview is not required.</div>
-        <?php if ($allowedTransitions): ?><label class="d-block mb-3">Remarks for the applicant<textarea form="application-decision-form" name="remarks" rows="3" maxlength="500" class="form-control" aria-label="Renewal decision remarks"></textarea></label><?php endif; ?>
+
       <?php endif; ?>
       <?php if (!empty($app['renewal_simplified']) || in_array($interview['status'] ?? '', ['BOOKED', 'COMPLETED', 'MISSED'], true) || in_array($app['status'], ['Approved', 'ID Released'], true)): ?>
       <div class="review-card" id="id-release">
@@ -355,16 +574,8 @@ if ($interviewOutcome !== null) {
 
       <?php endif; ?>
 <?php
-$noteForm = function () use ($noteError): void { ?>
-  <?php if ($noteError): ?><div class="auth-error" role="alert"><?= e($noteError) ?></div><?php endif; ?>
-  <form method="post" class="d-flex flex-column gap-2 mb-3">
-    <?= csrf_field() ?>
-    <input type="hidden" name="form_action" value="add_note">
-    <textarea name="note" aria-label="Case note" rows="2" maxlength="1000" required placeholder="Add a case note (home visit findings, phone call, etc.)" class="form-control" style="padding:10px;border:1px solid var(--input-border);border-radius:6px"></textarea>
-    <button type="submit" class="btn-outline">Add Note</button>
-  </form>
-<?php };
 $showAssessmentHistory = false;
+$showCaseNotes = false;   // staff no longer see or add case notes here; the admin monitoring view still lists them
 $showDecisionHistory = !empty($app['renewal_simplified']) || in_array($interview['status'] ?? '', ['BOOKED', 'COMPLETED', 'MISSED'], true) || !empty($decisions);
 require APP_ROOT . '/views/partials/case-record.php';
 require APP_ROOT . '/views/partials/status-history.php'; ?>

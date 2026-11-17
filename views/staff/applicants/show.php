@@ -87,7 +87,7 @@ $empty = fn(string $text) => '<div style="font-size:13px;color:var(--muted)">' .
     <?php if (!$rows): ?><?= $empty($none) ?><?php else: ?>
     <div class="table-responsive">
       <table class="table table-sm record-table">
-        <thead><tr><th data-i18n>Reference</th><?php if ($anchor === 'renewals'): ?><th>Renews</th><?php endif; ?><th data-i18n>Category</th><th data-i18n>Submitted</th><th data-i18n>Status</th><th>Reviewed by</th><th data-i18n>ID valid until</th><th></th></tr></thead>
+        <thead><tr><th data-i18n>Reference</th><?php if ($anchor === 'renewals'): ?><th>Renews</th><?php endif; ?><th data-i18n>Category</th><th data-i18n>Submitted</th><th data-i18n>Status</th><th>Next step</th><th>Reviewed by</th><th data-i18n>ID valid until</th><th></th></tr></thead>
         <tbody>
           <?php foreach ($rows as $app): ?>
             <tr<?= $selected && (int) $selected['id'] === (int) $app['id'] ? ' class="record-selected"' : '' ?>>
@@ -96,6 +96,7 @@ $empty = fn(string $text) => '<div style="font-size:13px;color:var(--muted)">' .
               <td><?= e($app['category_name']) ?></td>
               <td><?= e($when($app['submitted_at'], 'M j, Y')) ?></td>
               <td><?= $pill($app['status']) ?></td>
+              <td style="font-size:12px"><?= e(($nextSteps ?? [])[(int) $app['id']]['label'] ?? '—') ?></td>
               <td><?= e($app['reviewed_by_name'] ?: '—') ?></td>
               <td><?= e($app['id_expires_at'] ? $when($app['id_expires_at'], 'M j, Y') . (strtotime($app['id_expires_at']) < strtotime('today') ? ' (expired)' : '') : '—') ?></td>
               <td><a href="<?= e($recordUrl(['app' => (int) $app['id']])) ?>#documents" style="font-size:12px;white-space:nowrap">Records for this only</a></td>
@@ -135,7 +136,7 @@ $empty = fn(string $text) => '<div style="font-size:13px;color:var(--muted)">' .
               <td><?= $docPill($d['verification_status']) ?></td>
               <td><?= $d['verified_at'] ? e($when($d['verified_at'])) . '<div style="font-size:11px;color:var(--faint)">' . e($d['verified_by_name'] ?: 'former staff member') . '</div>' : '—' ?></td>
               <td><?= e($d['staff_remarks'] ?: '—') ?></td>
-              <td><a href="<?= e(base_url('download.php?doc_id=' . (int) $d['id'])) ?>" target="_blank" rel="noopener" data-i18n>View</a></td>
+              <td style="white-space:nowrap"><a href="<?= e(base_url('download.php?doc_id=' . (int) $d['id'])) ?>" target="_blank" rel="noopener" data-i18n>View</a></td>
             </tr>
           <?php endforeach; ?>
         </tbody>
@@ -154,7 +155,7 @@ $empty = fn(string $text) => '<div style="font-size:13px;color:var(--muted)">' .
           <?php foreach ($appointments as $i): [$al, $abg, $afg] = $apptLabels[$i['status']]; ?>
             <tr>
               <td><?= e($i['reference_no']) ?></td>
-              <td><?= e($when($i['scheduled_at'])) ?></td>
+              <td><?= e($i['scheduled_at'] ? interview_schedule_text($i['scheduled_at'], interview_is_date_only($i), 'M j, Y g:i A') : '—') ?></td>
               <td><?= e($i['location']) ?></td>
               <td><span class="status-pill" style="background:<?= $abg ?>;color:<?= $afg ?>;font-size:11px"><?= $al ?></span></td>
               <td>
@@ -162,6 +163,28 @@ $empty = fn(string $text) => '<div style="font-size:13px;color:var(--muted)">' .
                 <?php elseif ($i['result']): ?><?= e($i['result']) ?> <span style="color:var(--faint)">(<?= e($when($i['result_recorded_at'])) ?>)</span>
                 <?php else: ?><?= e($i['notes'] ?: '—') ?><?php endif; ?>
               </td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <?php endif; ?>
+    <?php if (!empty($invitations)): ?>
+    <div class="fw-semibold mt-3 mb-1" style="font-size:13px">Interview booking invitations</div>
+    <div class="table-responsive">
+      <table class="table table-sm record-table">
+        <thead><tr><th>Application</th><th>Status</th><th>Sent</th><th>Reschedules</th><th>Details</th></tr></thead>
+        <tbody>
+          <?php foreach ($invitations as $inv):
+              $invLabels = ['OPEN' => ['Open', '#dcf3e2', '#1c7a3f', 'Waiting for the applicant to choose a date.'], 'BOOKED' => ['Booked', '#dce8f5', '#1b3a6b', 'The applicant chose a date (see Appointments above).'], 'CLOSED' => ['Closed', '#f1f1f1', '#555', '']];
+              [$il, $ibg, $ifg, $itext] = $invLabels[$inv['status']] ?? ['—', '#f1f1f1', '#555', ''];
+          ?>
+            <tr>
+              <td><?= e($inv['reference_no']) ?></td>
+              <td><span class="status-pill" style="background:<?= $ibg ?>;color:<?= $ifg ?>;font-size:11px"><?= e($il) ?></span></td>
+              <td><?= e($when($inv['opened_at'])) ?></td>
+              <td><?= (int) $inv['reschedules_used'] ?> of <?= (int) $inv['reschedules_allowed'] ?> used</td>
+              <td><?= e($inv['status'] === 'CLOSED' ? ($inv['close_reason'] ?: 'Closed by staff.') : $itext) ?></td>
             </tr>
           <?php endforeach; ?>
         </tbody>

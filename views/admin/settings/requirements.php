@@ -75,7 +75,7 @@
             <input type="hidden" name="action" value="update">
             <input type="hidden" name="req_id" value="<?= (int) $r['id'] ?>">
             <span style="font-size:12px;color:var(--faint);min-width:100px"><?= e($r['doc_key']) ?></span>
-            <input class="form-control" type="text" name="label" maxlength="255" required value="<?= e($r['label']) ?>" style="flex:1 1 200px;padding:8px;border:1px solid var(--input-border);border-radius:6px;font-size:13px">
+            <input class="form-control" type="text" name="label" maxlength="255" required value="<?= e($r['label']) ?>" style="flex:1 1 320px;min-width:240px;padding:8px;border:1px solid var(--input-border);border-radius:6px;font-size:13px">
             <label class="d-flex align-items-center gap-1" style="font-size:12px" data-i18n>
               <input type="checkbox" name="is_required" value="1" <?= $r['is_required'] ? 'checked' : '' ?> data-i18n> Required
             </label>

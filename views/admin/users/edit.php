@@ -19,7 +19,7 @@ $userIcon = require APP_ROOT . '/includes/user-management-icons.php';
   <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mt-2 mb-3">
     <div>
       <h1 class="font-heading m-0" style="font-size:26px"><?= e($target['full_name']) ?></h1>
-      <div style="font-size:13px;color:var(--muted)">@<?= e($target['username']) ?> · <?= e($roleLabels[$target['role']] ?? $target['role']) ?><?= $isSelf ? ' · this is you' : '' ?></div>
+      <div style="font-size:13px;color:var(--muted)"><?= e($target['username'] ? '@' . $target['username'] : ($target['email'] ?: $target['mobile'])) ?> · <?= e($roleLabels[$target['role']] ?? $target['role']) ?><?= $isSelf ? ' · this is you' : '' ?></div>
     </div>
     <div class="d-flex flex-wrap gap-1">
       <span class="status-pill" style="background:<?= $target['is_active'] ? '#dcf3e2' : '#fde8e8' ?>;color:<?= $target['is_active'] ? '#1c7a3f' : '#a51c1c' ?>" data-i18n><?= $target['is_active'] ? 'Active' : 'Deactivated' ?></span>
@@ -39,7 +39,7 @@ $userIcon = require APP_ROOT . '/includes/user-management-icons.php';
       <div class="review-row"><div class="k">Last sign-in</div><div class="v"><?= $target['last_login_at'] ? e($when($target['last_login_at'])) : 'Never' ?></div></div>
       <div class="review-row"><div class="k">Failed sign-in attempts</div><div class="v"><?= (int) $target['failed_login_attempts'] ?><?= $locked ? ' · locked until ' . e(date('g:i A', strtotime($target['locked_until']))) : '' ?></div></div>
       <?php if ($target['role'] === 'applicant'): ?>
-        <div class="review-row"><div class="k" data-i18n>Mobile number</div><div class="v"><?php if (!$target['mobile']): ?>None<?php elseif ($target['mobile_verified_at']): ?><?= e($target['mobile']) ?> · confirmed <?= e($when($target['mobile_verified_at'])) ?><?php else: ?><?= e($target['mobile']) ?> · <b>not confirmed</b> — the applicant can't use their account until they enter the texted code<?php endif; ?></div></div>
+        <div class="review-row"><div class="k" data-i18n>Mobile number</div><div class="v"><?php if (!$target['mobile']): ?>None<?php elseif ($target['mobile_verified_at']): ?><?= e($target['mobile']) ?> · confirmed <?= e($when($target['mobile_verified_at'])) ?><?php else: ?><?= e($target['mobile']) ?> · <b>not confirmed</b> — sign-in by mobile number stays disabled until an administrator confirms it (the username and password still work)<?php endif; ?></div></div>
         <div class="review-row"><div class="k" data-i18n>Applications</div><div class="v"><?= $applicationCount ?><?php if (can($staff, 'applicants.view')): ?> · <a href="<?= e(base_url('admin/applicant_view.php?id=' . (int) $target['id'])) ?>">Applicant record</a><?php endif; ?></div></div>
       <?php endif; ?>
     </div>
@@ -49,7 +49,9 @@ $userIcon = require APP_ROOT . '/includes/user-management-icons.php';
       <label class="user-label" data-i18n>Full name<input class="form-control" type="text" name="full_name" value="<?= e($target['full_name']) ?>" maxlength="150" required></label>
       <label class="user-label"><span><span data-i18n>Email address</span> <span class="opt" data-i18n>(optional)</span></span><input class="form-control" type="email" name="email" value="<?= e($target['email']) ?>" maxlength="150"></label>
       <label class="user-label" data-i18n>Mobile number <span class="opt">(optional)</span><input class="form-control" type="text" name="mobile" value="<?= e($target['mobile']) ?>" placeholder="09XXXXXXXXX" maxlength="20"></label>
+      <?php if (!empty($target['username'])): ?>
       <div style="font-size:12px;color:var(--faint)">The username <b><?= e($target['username']) ?></b> can't be changed.</div>
+      <?php endif; ?>
       <div class="user-form-actions">
         <button type="submit" class="btn-navy user-action"><?= $userIcon('save') ?> Save Details</button>
         <a href="<?= e(base_url('admin/users.php')) ?>" class="btn-outline user-action" data-i18n>Cancel</a>
@@ -103,7 +105,7 @@ $userIcon = require APP_ROOT . '/includes/user-management-icons.php';
               </form>
             <?php endif; ?>
           </div>
-          <div style="font-size:12px;color:var(--faint);margin-top:8px">Reset Access issues a temporary password (shown once), clears any lockout and makes them choose a new password at sign-in.<?php if ($target['role'] === 'applicant' && $target['mobile'] && !$target['mobile_verified_at']): ?> Confirm Mobile is for an applicant whose verification text never arrives, once MSWDO has checked the number another way.<?php endif; ?></div>
+          <div style="font-size:12px;color:var(--faint);margin-top:8px">Reset Access issues a temporary password (shown once), clears any lockout and makes them choose a new password at sign-in.<?php if ($target['role'] === 'applicant' && $target['mobile'] && !$target['mobile_verified_at']): ?> Confirm Mobile marks the number as checked by MSWDO (for example after a number change).<?php endif; ?></div>
         </div>
       </div>
     </div>

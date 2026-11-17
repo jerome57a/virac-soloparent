@@ -12,16 +12,15 @@
       <div class="info-box" style="max-width:none" role="status"><?= e($success) ?></div>
       <a href="<?= base_url('reset-password.php') ?>" class="btn-navy text-decoration-none text-center d-block" data-i18n>Enter reset code</a>
     <?php else: ?>
-      <p style="font-size:14px;color:var(--muted)">Enter your username or the mobile number on your account. We'll text you a 6-digit reset code, valid for <?= (int) PASSWORD_RESET_CODE_MINUTES ?> minutes.</p>
+      <p style="font-size:14px;color:var(--muted)">Enter your Gmail address, existing username or the mobile number on your account. We'll text you a 6-digit reset code, valid for <?= (int) PASSWORD_RESET_CODE_MINUTES ?> minutes.</p>
       <form method="post" class="d-flex flex-column gap-3">
         <?= csrf_field() ?>
-        <input class="form-control" type="text" name="identifier" aria-label="Username or mobile number" placeholder="Username or mobile number" required data-i18n-attrs="aria-label placeholder">
+        <input class="form-control" type="text" name="identifier" aria-label="Gmail, username or mobile number" placeholder="Gmail, username or mobile number" required data-i18n-attrs="aria-label placeholder">
         <button type="submit" class="btn-navy" data-i18n>Send reset code</button>
       </form>
     <?php endif; ?>
   </div>
   <div style="font-size:13px;margin-top:12px">
-    <a href="<?= base_url('login.php') ?>" data-i18n>Back to applicant log in</a> ·
-    <a href="<?= base_url('mswd-login.php') ?>" data-i18n>MSWD admin and staff log in</a>
+    <a href="<?= base_url('login.php') ?>" data-i18n>Back to log in</a>
   </div>
 </div>

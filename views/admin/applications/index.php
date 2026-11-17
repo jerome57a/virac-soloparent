@@ -52,6 +52,7 @@
         <div class="app-ref"><?= e($app['reference_no']) ?><?php if ($app['type'] === 'renewal'): ?> <span class="doc-tag" style="vertical-align:middle" data-i18n>RENEWAL</span><?php endif; ?></div>
         <div class="app-date"><?= e($app['full_name']) ?> · <?= e($app['category_name']) ?></div>
         <div class="app-date" data-i18n>Submitted <?= e(date('M j, Y', strtotime($app['submitted_at']))) ?></div>
+        <?php $next = ($nextSteps ?? [])[(int) $app['id']] ?? null; if ($next): ?><div class="app-next app-next-<?= e($next['tone']) ?>"><span>Next:</span> <?= e($next['label']) ?></div><?php endif; ?>
       </div>
       <div class="status-pill" style="background:<?= e($st['bg']) ?>;color:<?= e($st['color']) ?>"><?= e($app['status']) ?></div>
       <span class="admin-record-open"><span data-i18n>Open application</span><span aria-hidden="true">&rarr;</span></span>

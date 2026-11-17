@@ -52,10 +52,25 @@ $missing = array_keys(array_filter(['birthdate' => 1, 'sex' => 1, 'civil_status'
       </div>
 
       <div class="profile-progress"><div><strong data-i18n>Personal details</strong><span><?= 5 - count($missing) ?> of 5 filled</span></div><progress max="5" value="<?= 5 - count($missing) ?>" aria-label="Personal profile fields filled"></progress><p data-i18n>Saved profile details prefill new applications.</p></div>
+      <?php if (empty($user['username'])): ?>
+      <div class="review-card" id="username">
+        <div class="review-card-head"><div class="title" data-i18n>Choose your username</div></div>
+        <div class="auth-error mb-3" role="alert" data-i18n>Your account was created before usernames were introduced. Choose a username now; you will use it, with your password, to sign in from now on. It cannot be changed later.</div>
+        <form method="post" class="profile-password-form">
+          <?= csrf_field() ?>
+          <input type="hidden" name="action" value="set_username">
+          <label class="field-label"><span data-i18n>Username</span><input class="form-control" type="text" name="username" minlength="3" maxlength="30" pattern="[A-Za-z0-9][A-Za-z0-9._\-]*" autocomplete="username" aria-label="Username" placeholder="juan.delacruz" title="3-30 characters: letters, numbers, dots, underscores or hyphens, with at least one letter." required data-i18n-attrs="aria-label placeholder title"></label>
+          <button type="submit" class="btn-navy" style="align-self:flex-start" data-i18n>Save Username</button>
+        </form>
+      </div>
+      <?php endif; ?>
       <div class="review-card">
         <div class="review-card-head"><div class="title" data-i18n>Account</div></div>
         <div class="review-grid">
+          <?php if (!empty($user['username'])): ?>
           <div class="review-row"><div class="k" data-i18n>Username</div><div class="v"><?= e($user['username']) ?> <span style="color:var(--faint)" data-i18n>(cannot be changed)</span></div></div>
+          <?php endif; ?>
+          <div class="review-row"><div class="k" data-i18n>Gmail address or mobile number</div><div class="v"><?= e($user['email'] ?: $user['mobile']) ?></div></div>
           <div class="review-row"><div class="k" data-i18n>Account type</div><div class="v" data-i18n>Solo Parent</div></div>
         </div>
       </div>
@@ -122,7 +137,7 @@ $missing = array_keys(array_filter(['birthdate' => 1, 'sex' => 1, 'civil_status'
               <input type="text" name="address" value="<?= e($form['address']) ?>" placeholder="House no., street, purok" maxlength="255" autocomplete="street-address" data-i18n-attrs="placeholder">
             </label>
           </div>
-          <div style="font-size:12px;color:var(--faint);margin-top:4px" data-i18n>Your mobile number receives SMS updates and password-reset codes, and you can sign in with it. It must be unique to your account; changing it asks for your current password.</div>
+          <div style="font-size:12px;color:var(--faint);margin-top:4px" data-i18n>Your mobile number receives SMS updates and password-reset codes. It must be unique to your account; changing it asks for your current password.</div>
         </div>
 
         <div class="profile-save-row">

@@ -1,5 +1,32 @@
 /* Exact display strings only. Never translate submitted values or personal data. */
 window.ViracTranslations = Object.fromEntries([
+  ['Deactivate', 'I-deactivate'], ['Activate', 'I-activate'],
+  ["Deactivate blocks sign-in and keeps the account's records. Activate restores access.", 'Hinaharang ng Deactivate ang pag-log in at pinapanatili ang mga rekord ng account. Ibinabalik ng Activate ang access.'],
+  ['Delete permanently removes an account. Accounts with applications or interview scheduling records must be deactivated so their history is preserved.', 'Permanenteng inaalis ng Delete ang account. Ang mga account na may aplikasyon o rekord ng iskedyul ng panayam ay dapat i-deactivate upang mapanatili ang kanilang kasaysayan.'],
+  ['Deletion unavailable: applications on file.', 'Hindi maaaring tanggalin: may mga nakatalang aplikasyon.'],
+  ['Deletion unavailable: interview scheduling history.', 'Hindi maaaring tanggalin: may kasaysayan ng pag-iskedyul ng panayam.'],
+  ['Solo Parents sign in with their mobile number or Gmail address, if provided. No username is needed.', 'Nagla-log in ang mga Solo Parent gamit ang numero ng mobile o Gmail address, kung mayroon. Hindi kailangan ng username.'],
+  ['Appointment Overview', 'Pangkalahatang-ideya ng mga Appointment'],
+  ['Monitor interview schedules, available capacity and appointments awaiting a staff outcome.', 'Subaybayan ang mga iskedyul ng panayam, bakanteng kapasidad at mga appointment na naghihintay ng resulta mula sa kawani.'],
+  ['As administrator, you monitor appointments and manage the interview dates, times and capacity available to the office.', 'Bilang tagapangasiwa, sinusubaybayan mo ang mga appointment at pinamamahalaan ang mga petsa, oras at kapasidad ng panayam sa opisina.'],
+  ['MSWD staff assign applicants to slots, handle individual appointment changes and record interview results or missed appointments.', 'Ang mga kawani ng MSWD ang nagtatalaga ng iskedyul sa mga aplikante, humahawak ng pagbabago sa bawat appointment at nagtatala ng resulta ng panayam o hindi pagdalo.'],
+  ['Manage Available Slots', 'Pamahalaan ang mga Bakanteng Iskedyul'],
+  ['Awaiting MSWD Staff Outcome', 'Naghihintay ng Resulta mula sa Kawani ng MSWD'],
+  ['Back to Appointment Overview', 'Bumalik sa Pangkalahatang-ideya ng mga Appointment'],
+  ['Manage office availability here. MSWD staff assign individual applicants and record interview outcomes.', 'Pamahalaan dito ang mga bakanteng iskedyul ng opisina. Ang mga kawani ng MSWD ang nagtatalaga ng iskedyul sa bawat aplikante at nagtatala ng resulta ng panayam.'],
+  ['Cancelling a booked slot cancels all appointments in that slot and notifies the affected applicants. MSWD staff then assign replacement schedules.', 'Ang pagkansela ng naka-book na iskedyul ay nagkakansela ng lahat ng appointment dito at nag-aabiso sa mga apektadong aplikante. Pagkatapos, ang mga kawani ng MSWD ang magtatalaga ng kapalit na iskedyul.'],
+  ['Gmail address (optional)', 'Gmail address (opsyonal)'],
+  ['Gmail address or mobile number', 'Gmail address o numero ng mobile'],
+  ['Gmail, username or mobile number', 'Gmail, username o numero ng mobile'],
+  ['You can still use your existing username to log in.', 'Maaari mo pa ring gamitin ang dati mong username para mag-log in.'],
+  ['Registered before usernames were introduced? Sign in once with your mobile number or Gmail address, and you will be asked to choose a username.', 'Nagparehistro bago ipinakilala ang mga username? Mag-sign in nang isang beses gamit ang iyong numero ng mobile o Gmail address, at hihilingin sa iyong pumili ng username.'],
+  ['You will sign in with this username and your password. It cannot be changed later.', 'Gagamitin mo ang username na ito at ang iyong password para mag-sign in. Hindi na ito mapapalitan pagkatapos.'],
+  ['Choose your username', 'Piliin ang iyong username'],
+  ['Your account was created before usernames were introduced. Choose a username now; you will use it, with your password, to sign in from now on. It cannot be changed later.', 'Ginawa ang iyong account bago ipinakilala ang mga username. Pumili ng username ngayon; ito, kasama ang iyong password, ang gagamitin mo sa pag-sign in mula ngayon. Hindi na ito mapapalitan pagkatapos.'],
+  ['Save Username', 'I-save ang Username'],
+  ['Mobile number and Gmail address (if provided) are contact details for SMS and password recovery. Solo Parents sign in with their username.', 'Ang numero ng mobile at Gmail address (kung mayroon) ay mga detalye ng contact para sa SMS at pagbawi ng password. Nagla-log in ang mga Solo Parent gamit ang kanilang username.'],
+  ['3 to 30 characters: letters, numbers, dots, hyphens or underscores, with at least one letter. The Solo Parent signs in with it and cannot change it later.', '3 hanggang 30 karakter: mga letra, numero, tuldok, gitling o underscore, na may kahit isang letra. Ito ang gagamitin ng Solo Parent sa pag-log in at hindi na ito mapapalitan.'],
+  ['Enter a Gmail address ending in @gmail.com, or leave this blank.', 'Maglagay ng Gmail address na nagtatapos sa @gmail.com, o iwan itong blangko.'],
   ['Solo Parent ID Services', 'Mga Serbisyo para sa Solo Parent ID'],
   ['Home', 'Pangunahing Pahina'], ['Main', 'Pangunahing Menu'],
   ['Dashboard', 'Pangkalahatang-ideya'], ['Applicant Portal', 'Portal ng Aplikante'],
@@ -146,6 +173,8 @@ window.ViracTranslations = Object.fromEntries([
   ['💡 Not sure if you qualify? Use the Eligibility Checker below, or visit the MSWDO Office for a personal assessment.', '💡 Hindi sigurado kung kwalipikado ka? Gamitin ang Pagsusuri ng Kwalipikasyon o bumisita sa MSWDO para sa personal na pagtatasa.'],
   ['Username or mobile number', 'Username o numero ng mobile'],
   ['Applicant Log In — use your public applicant account.', 'Pag-log in ng Aplikante — gamitin ang iyong account bilang aplikante.'],
+  ['Sign In', 'Mag-sign In'], ['Back to log in', 'Bumalik sa pag-log in'], ['New applicant?', 'Bagong aplikante?'],
+  ['Sign in with your username and password. Applicants, MSWD staff and administrators all use this page.', 'Mag-sign in gamit ang iyong username at password. Ang mga aplikante, kawani ng MSWD at administrator ay gumagamit ng pahinang ito.'],
   ['MSWD personnel?', 'Kawani ng MSWD?'], ['Admin and Staff Log In', 'Pag-log In ng Admin at Kawani'],
   ['Personal details', 'Personal na detalye'], ['Birthdate', 'Petsa ng kapanganakan'],
   ['Select sex', 'Piliin ang kasarian'], ['Civil status', 'Katayuang sibil'],
@@ -497,8 +526,8 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "Wala kang aplikasyong nangangailangan ng appointment sa ngayon. Magagamit ang pahinang ito kapag naisumite na ang iyong aplikasyon at naghihintay ng pagsusuri o panayam."
   ],
   [
-    "MSWDO staff will assign your interview date and time after you submit your application. Your schedule will appear here and be sent by SMS. Once booked, you may reschedule using an open slot below. Missing documents must be completed before ID release scheduling.",
-    "Magtatakda ang MSWDO ng petsa at oras ng iyong panayam pagkatapos mong magsumite. Makikita rito ang iskedyul at ipapadala rin sa SMS. Maaari mong palitan ang naka-book na iskedyul gamit ang bakanteng oras sa ibaba. Kumpletuhin ang mga kulang na dokumento bago itakda ang pagkuha ng ID."
+    "MSWDO staff will arrange your interview schedule after all required documents have been uploaded and verified. Your schedule will appear here and be sent by SMS. If MSWDO asks for a correction, upload a replacement; staff must verify it before your interview can be scheduled.",
+    "Aayusin ng MSWDO ang iskedyul ng iyong panayam kapag na-upload at na-verify na ang lahat ng kinakailangang dokumento. Makikita rito ang iskedyul at ipapadala rin sa SMS. Kung humiling ang MSWDO ng pagwawasto, mag-upload ng kapalit; kailangan itong i-verify ng staff bago maitakda ang iyong panayam."
   ],
   [
     "View your document checklist",
@@ -629,8 +658,8 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "Tingnan o Palitan ang Iskedyul"
   ],
   [
-    "MSWDO staff will assign your interview date and time and notify you by SMS. You can prepare any missing documents while waiting.",
-    "Magtatakda ang MSWDO ng petsa at oras ng panayam at aabisuhan ka sa SMS. Ihanda ang mga kulang na dokumento habang naghihintay."
+    "MSWDO will arrange your interview after all required documents are uploaded and verified. Replace any document that needs correction; staff must verify the replacement before your interview can be scheduled. You can view your interview schedule in your account.",
+    "Aayusin ng MSWDO ang iyong panayam kapag na-upload at na-verify na ang lahat ng kinakailangang dokumento. Palitan ang anumang dokumentong kailangang iwasto; kailangan itong i-verify ng staff bago maitakda ang iyong panayam. Makikita mo ang iskedyul ng iyong panayam sa iyong account."
   ],
   [
     "View Interview Status",

@@ -33,7 +33,6 @@ $n = 0;
 <?php $release = $tracker['idReleaseSchedule'] ?? null; $trackedStatus = $app['status'] ?? ($latestRenewal['status'] ?? ''); ?>
 <?php if ($release && $release['released_at']): ?>
   <div class="info-box" style="max-width:none"><b data-i18n>Solo Parent ID Released</b><br>Your ID was handed over on <?= e(date('F j, Y g:i A', strtotime($release['released_at']))) ?>.</div>
-  <a href="<?= base_url('applicant/dashboard.php?section=myid&ref=' . urlencode($tracker['referenceNo'])) ?>" class="btn-navy text-decoration-none mb-3" data-i18n>View My ID</a>
 <?php elseif ($trackedStatus === 'Approved' && $release): ?>
   <div class="review-card mt-3">
     <div class="review-card-head"><div class="title" data-i18n>Solo Parent ID Release Appointment</div></div>
@@ -41,7 +40,6 @@ $n = 0;
     <div class="review-row"><div class="k" data-i18n>Time</div><div class="v"><?= e(date('g:i A', strtotime($release['scheduled_at']))) ?></div></div>
     <div class="review-row"><div class="k" data-i18n>Location</div><div class="v"><?= e($release['location']) ?></div></div>
     <div class="tracker-detail mt-2" data-i18n>Your Solo Parent ID is ready for scheduled release. Please visit the MSWDO office at your scheduled date and time. Your application will be marked ID Released after staff confirms that you have received your ID.</div>
-    <a href="<?= base_url('applicant/dashboard.php?section=myid&ref=' . urlencode($tracker['referenceNo'])) ?>" class="btn-navy text-decoration-none mt-3" data-i18n>View My ID</a>
   </div>
 <?php endif; ?>
 

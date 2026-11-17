@@ -14,7 +14,7 @@
     <?php else: ?>
       <form method="post" class="d-flex flex-column gap-3">
         <?= csrf_field() ?>
-        <input class="form-control" type="text" name="identifier" aria-label="Username or mobile number" placeholder="Username or mobile number" value="<?= e((string) ($_POST['identifier'] ?? '')) ?>" required data-i18n-attrs="aria-label placeholder">
+        <input class="form-control" type="text" name="identifier" aria-label="Gmail, username or mobile number" placeholder="Gmail, username or mobile number" value="<?= e((string) ($_POST['identifier'] ?? '')) ?>" required data-i18n-attrs="aria-label placeholder">
         <input class="form-control" type="text" name="code" aria-label="6-digit reset code" placeholder="6-digit code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required data-i18n-attrs="placeholder">
         <input class="form-control" type="password" name="new_password" aria-label="New password" placeholder="New password" minlength="<?= PASSWORD_MIN_LENGTH ?>" autocomplete="new-password" required data-i18n-attrs="aria-label placeholder">
         <input class="form-control" type="password" name="new_password_confirm" aria-label="Confirm new password" placeholder="Confirm new password" minlength="<?= PASSWORD_MIN_LENGTH ?>" autocomplete="new-password" required data-i18n-attrs="aria-label placeholder">

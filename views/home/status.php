@@ -44,7 +44,7 @@
           <h3 id="track-appointment-title" data-i18n><?= e($appointment['label']) ?></h3>
           <dl class="public-track-details">
             <div><dt data-i18n>Date</dt><dd><?= e(date('l, F j, Y', strtotime($appointment['scheduled_at']))) ?></dd></div>
-            <div><dt data-i18n>Time</dt><dd><?= e(date('g:i A', strtotime($appointment['scheduled_at']))) ?></dd></div>
+            <?php if (empty($appointment['date_only'])): ?><div><dt data-i18n>Time</dt><dd><?= e(date('g:i A', strtotime($appointment['scheduled_at']))) ?></dd></div><?php endif; ?>
             <div class="public-track-wide"><dt data-i18n>Location</dt><dd><?= e($appointment['location'] ?: 'Contact MSWDO to confirm the location.') ?></dd></div>
           </dl>
           <?php if ($appointment['past']): ?><p class="public-track-note" data-i18n>The scheduled time has passed. If you have not attended or collected your ID, contact MSWDO to confirm the next available schedule.</p><?php endif; ?>

@@ -5,6 +5,7 @@
  * @var array $user
  * @var ?array $applicationDraft
  */
+require_once APP_ROOT . '/models/Document.php';
 ?>
       <?php require __DIR__ . '/draft-card.php'; ?>
       <?php if (!$myApplications && !$applicationDraft): ?>
@@ -27,8 +28,9 @@
 
             <?php if ($app['interview_at']): ?>
               <div class="info-box" style="max-width:none"><?= appointment_summary_html($app) ?></div>
-              <?php if (($app['interview_status'] ?? '') === 'BOOKED'): ?>
-                <?php $preparationItems = $tracker['checklist']; require APP_ROOT . '/views/partials/requirements-preparation.php'; ?>
+              <?php $preparationItems = $tracker['checklist']; // Only when something still needs uploading: no "all uploaded" box to read past. ?>
+              <?php if (($app['interview_status'] ?? '') === 'BOOKED' && array_filter($preparationItems, [Document::class, 'needsPreparation'])): ?>
+                <?php require APP_ROOT . '/views/partials/requirements-preparation.php'; ?>
               <?php endif; ?>
             <?php endif; ?>
 
