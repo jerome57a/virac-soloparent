@@ -17,18 +17,44 @@ class User extends Model
     }
 
     /**
-     * Applicant account for sign-in by username, or by mobile number once that number has been
-     * confirmed by SMS code. A username match wins (usernames can't be all digits, so they never
-     * look like a mobile number).
+     * Applicant sign-in by username. Email and mobile number are contact details, not login identifiers.
+     *
+     * Transitional rule for accounts created before usernames existed: ONLY an account whose username is still empty
+     * may also be found by its Gmail address or confirmed mobile number. It is then required to choose a username
+     * (see AuthService::chooseUsername), after which it signs in by username only. An account that has a username
+     * is never found by its email or mobile number.
      */
     public function findApplicantForLogin(string $identifier): ?array
     {
+        if ($identifier === '') {
+            return null;
+        }
+        $stmt = $this->pdo->prepare("SELECT * FROM users WHERE role = 'applicant' AND username = ? LIMIT 2");
+        $stmt->execute([$identifier]);
+        $matches = $stmt->fetchAll();
+        if ($matches) {
+            return count($matches) === 1 ? $matches[0] : null;
+        }
         $stmt = $this->pdo->prepare(
-            "SELECT * FROM users WHERE role = 'applicant' AND (username = ? OR (mobile IN (?, ?) AND mobile_verified_at IS NOT NULL))
-             ORDER BY username = ? DESC LIMIT 1"
+            "SELECT * FROM users WHERE role = 'applicant' AND (username IS NULL OR username = '')
+               AND ((email = ? AND email <> '') OR (mobile IN (?, ?) AND mobile_verified_at IS NOT NULL))
+             LIMIT 2"
         );
-        $stmt->execute([$identifier, ...mobile_variants($identifier), $identifier]);
-        return $stmt->fetch() ?: null;
+        $stmt->execute([$identifier, ...mobile_variants($identifier)]);
+        $matches = $stmt->fetchAll();
+        // Older records may share an email. Require an unambiguous identity for sign-in.
+        return count($matches) === 1 ? $matches[0] : null;
+    }
+
+    /**
+     * Sets an applicant's username once, only while it is still empty. True if this call set it; false if the
+     * account already has a username (or is not an applicant). A duplicate raises the database's unique-key error.
+     */
+    public function setUsernameIfEmpty(int $userId, string $username): bool
+    {
+        $stmt = $this->pdo->prepare("UPDATE users SET username = ? WHERE id = ? AND role = 'applicant' AND (username IS NULL OR username = '')");
+        $stmt->execute([$username, $userId]);
+        return $stmt->rowCount() === 1;
     }
 
     /** Active staff account (MSWD or admin) by username, for login. */
@@ -42,9 +68,10 @@ class User extends Model
     /** By username or mobile, any role -- used by "forgot password" since the user might not remember which they signed up with. */
     public function findByUsernameOrMobile(string $usernameOrMobile): ?array
     {
-        $stmt = $this->pdo->prepare('SELECT * FROM users WHERE username = ? OR mobile IN (?, ?) ORDER BY username = ? DESC LIMIT 1');
-        $stmt->execute([$usernameOrMobile, ...mobile_variants($usernameOrMobile), $usernameOrMobile]);
-        return $stmt->fetch() ?: null;
+        $stmt = $this->pdo->prepare("SELECT * FROM users WHERE username = ? OR (role = 'applicant' AND email = ? AND email <> '') OR mobile IN (?, ?) ORDER BY username = ? DESC LIMIT 2");
+        $stmt->execute([$usernameOrMobile, $usernameOrMobile, ...mobile_variants($usernameOrMobile), $usernameOrMobile]);
+        $matches = $stmt->fetchAll();
+        return count($matches) === 1 ? $matches[0] : null;
     }
 
     public function usernameExists(string $username): bool
@@ -61,7 +88,14 @@ class User extends Model
         return (bool) $stmt->fetch();
     }
 
-    public function createApplicant(string $fullName, string $email, string $username, string $passwordHash, string $mobile): int
+    public function emailTakenByOther(string $email, int $userId): bool
+    {
+        $stmt = $this->pdo->prepare('SELECT id FROM users WHERE email = ? AND id <> ?');
+        $stmt->execute([$email, $userId]);
+        return (bool) $stmt->fetch();
+    }
+
+    public function createApplicant(string $fullName, string $email, ?string $username, string $passwordHash, string $mobile): int
     {
         return $this->createWithRole($fullName, $email, $username, $passwordHash, 'applicant', $mobile);
     }
@@ -121,7 +155,10 @@ class User extends Model
         $count->execute($params);
         $pager = paginate((int) $count->fetchColumn(), $page, $perPage);
         $stmt = $this->pdo->prepare(
-            "SELECT id, full_name, email, username, mobile, role, is_active, locked_until, must_change_password, last_login_at, created_at
+            "SELECT id, full_name, email, username, mobile, role, is_active, locked_until, must_change_password, last_login_at, created_at,
+                    (SELECT COUNT(*) FROM applications a WHERE a.user_id = users.id) AS application_count,
+                    (EXISTS(SELECT 1 FROM appointment_slots s WHERE s.created_by = users.id)
+                     OR EXISTS(SELECT 1 FROM appointments i WHERE i.scheduled_by = users.id)) AS has_staff_records
              FROM users WHERE $sqlWhere ORDER BY created_at DESC, id DESC LIMIT {$pager['perPage']} OFFSET {$pager['offset']}"
         );
         $stmt->execute($params);
@@ -149,7 +186,7 @@ class User extends Model
         return $this->pdo->query('SELECT username, full_name, email, mobile, role, is_active, created_at FROM users ORDER BY created_at DESC')->fetchAll();
     }
 
-    public function createWithRole(string $fullName, string $email, string $username, string $passwordHash, string $role, ?string $mobile = null): int
+    public function createWithRole(string $fullName, string $email, ?string $username, string $passwordHash, string $role, ?string $mobile = null): int
     {
         $this->pdo->prepare('INSERT INTO users (full_name, email, username, password_hash, role, mobile) VALUES (?, ?, ?, ?, ?, ?)')
             ->execute([$fullName, $email, $username, $passwordHash, $role, $mobile !== null ? normalize_mobile($mobile) : null]);

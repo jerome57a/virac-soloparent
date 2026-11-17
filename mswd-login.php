@@ -1,36 +1,12 @@
 <?php
-require __DIR__ . '/config/database.php';
-require __DIR__ . '/includes/functions.php';
-require __DIR__ . '/includes/csrf.php';
-require __DIR__ . '/controllers/AuthController.php';
+// Retired separate MSWD login page. The unified sign-in is login.php; this stub keeps old links, bookmarks and the
+// staff/admin redirects working. It runs in the portal's own session only to pass on a pending "session expired" or
+// "password changed" notice (as a fixed code, never free text), then sends the visitor to login.php. It never signs
+// anyone in and never redirects back here, so it cannot loop.
+require_once __DIR__ . '/config/config.php';
+require_once __DIR__ . '/includes/functions.php';
 
-$authController = new AuthController($pdo);
-$error = $authController->handleStaffLogin();
-$notice = $authController->takeNotice();
-
-$pageTitle = 'MSWD Admin & Staff Login';
-require __DIR__ . '/includes/header.php';
-?>
-<div class="portal-container" style="max-width:420px">
-  <h1 class="font-heading mb-3" style="font-size:24px">MSWD Admin & Staff Login</h1>
-  <div class="auth-card">
-    <div class="d-flex gap-2 mb-3">
-      <a href="<?= base_url('mswd-login.php?portal=staff') ?>" class="auth-tab text-decoration-none text-center <?= AUTH_PORTAL === 'staff' ? 'active' : '' ?>"<?= AUTH_PORTAL === 'staff' ? ' aria-current="page"' : '' ?>>Staff</a>
-      <a href="<?= base_url('mswd-login.php?portal=admin') ?>" class="auth-tab text-decoration-none text-center <?= AUTH_PORTAL === 'admin' ? 'active' : '' ?>"<?= AUTH_PORTAL === 'admin' ? ' aria-current="page"' : '' ?>>Admin</a>
-    </div>
-    <?php if ($notice): ?><div class="info-box" style="max-width:none"><?= e($notice) ?></div><?php endif; ?>
-    <?php if ($error): ?><div class="auth-error"><?= e($error) ?></div><?php endif; ?>
-    <p style="font-size:14px;color:var(--muted)">Sign in with your MSWD <?= AUTH_PORTAL === 'admin' ? 'administrator' : 'staff' ?> account. Each portal stays signed in separately.</p>
-    <form method="post" action="<?= base_url('mswd-login.php') ?>" class="d-flex flex-column gap-3">
-      <?= csrf_field() ?>
-      <input class="form-control" type="text" name="username" aria-label="Username" placeholder="Username" autocomplete="username" required data-i18n-attrs="aria-label placeholder">
-      <input class="form-control" type="password" name="password" aria-label="Password" placeholder="Password" autocomplete="current-password" required data-i18n-attrs="aria-label placeholder">
-      <button type="submit" class="btn-navy" data-i18n>Log In</button>
-    </form>
-    <a href="<?= base_url('forgot-password.php') ?>" style="display:inline-block;font-size:13px;margin-top:12px" data-i18n>Forgot password?</a>
-  </div>
-  <div style="font-size:12px;color:var(--faint);margin-top:12px">For MSWDO Virac administrators and staff. Applicants use <a href="<?= base_url('login.php') ?>">Applicant Log In</a>.</div>
-</div>
-<?php
-$footerVariant = 'portal';
-require __DIR__ . '/includes/footer.php';
+$notice = (string) ($_SESSION['auth_notice'] ?? '');
+unset($_SESSION['auth_notice']);
+$code = str_contains($notice, 'expired') ? 'expired' : (str_contains($notice, 'password was changed') ? 'password_changed' : '');
+redirect(base_url('login.php' . ($code !== '' ? '?notice=' . $code : '')));

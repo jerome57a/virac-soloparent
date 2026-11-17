@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../models/Applicant.php';
+require_once __DIR__ . '/../models/User.php';
 require_once __DIR__ . '/DocumentValidationService.php';
 
 /**
@@ -84,6 +85,9 @@ class ApplicantProfileService
         }
         if ($f['email'] !== '' && (!filter_var($f['email'], FILTER_VALIDATE_EMAIL) || strlen($f['email']) > 150)) {
             return 'Enter a valid email address.';
+        }
+        if ($f['email'] !== '' && (new User($this->pdo))->emailTakenByOther($f['email'], $userId)) {
+            return 'That email address is already registered to another account.';
         }
         if (!is_valid_ph_mobile($f['mobile'])) {
             return 'Enter a valid Philippine mobile number (e.g. 09171234567).';

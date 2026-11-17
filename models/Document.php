@@ -94,13 +94,6 @@ class Document extends Model
         return $rows;
     }
 
-    public function updateChecklistReview(int $applicationId, string $docKey, string $status, ?string $remarks, int $staffId): bool
-    {
-        $stmt = $this->pdo->prepare("UPDATE application_document_checklists SET verification_status = ?, staff_remarks = ?, reviewed_by = ?, reviewed_at = NOW() WHERE application_id = ? AND doc_key = ?");
-        $stmt->execute([$status, $remarks, $staffId, $applicationId, $docKey]);
-        return $stmt->rowCount() > 0;
-    }
-
     /** Requirements that still block approval and ID handover, including expired evidence. */
     public function outstandingRequired(array $app): array
     {
@@ -189,25 +182,6 @@ class Document extends Model
     public function standardRequirements(): array
     {
         return $this->pdo->query('SELECT * FROM document_requirements WHERE category_id IS NULL ORDER BY sort_order, id')->fetchAll();
-    }
-
-    /** All of one applicant's uploaded documents, grouped by application reference_no. */
-    public function forUserByReference(int $userId): array
-    {
-        $stmt = $this->pdo->prepare(
-            'SELECT d.*, a.reference_no, a.category_id, COALESCE(dr.label, d.doc_key) AS doc_label
-             FROM application_documents d
-             JOIN applications a ON a.id = d.application_id
-             LEFT JOIN document_requirements dr ON dr.doc_key = d.doc_key AND (dr.category_id IS NULL OR dr.category_id = a.category_id)
-             WHERE a.user_id = ?
-             ORDER BY a.submitted_at DESC, d.uploaded_at'
-        );
-        $stmt->execute([$userId]);
-        $byRef = [];
-        foreach ($stmt->fetchAll() as $doc) {
-            $byRef[$doc['reference_no']][] = $doc;
-        }
-        return $byRef;
     }
 
     /**
@@ -340,6 +314,31 @@ class Document extends Model
     public function findForApplication(int $applicationId, string $docKey): ?array
     {
         $stmt = $this->pdo->prepare('SELECT id, doc_key, stored_path, verification_status FROM application_documents WHERE application_id = ? AND doc_key = ?');
+        $stmt->execute([$applicationId, $docKey]);
+        return $stmt->fetch() ?: null;
+    }
+
+    /**
+     * Identity of the exact file currently attached to a document row. It changes whenever the file is replaced
+     * (new random stored_path, new checksum, new upload time), so a staff review form can prove which file it showed.
+     * $doc is a full application_documents row.
+     */
+    public static function versionToken(array $doc): string
+    {
+        return hash('sha256', implode('|', [(int) $doc['id'], (string) $doc['stored_path'], (string) ($doc['sha256'] ?? ''), (string) $doc['uploaded_at']]));
+    }
+
+    /**
+     * The document row, locked FOR UPDATE until the surrounding transaction ends. Call only inside a transaction.
+     * Lock order is always application row first, then document row(s) by ascending id, the same order staff
+     * verification and interview scheduling use. Taking the application row first matters because the status-history
+     * insert that follows a replacement needs a shared lock on that row; holding a document lock while waiting for
+     * it would deadlock against a staff transaction that holds the application row and wants the document.
+     */
+    public function lockForApplication(int $applicationId, string $docKey): ?array
+    {
+        $this->pdo->prepare('SELECT id FROM applications WHERE id = ? FOR UPDATE')->execute([$applicationId]);
+        $stmt = $this->pdo->prepare('SELECT id, doc_key, stored_path, verification_status FROM application_documents WHERE application_id = ? AND doc_key = ? FOR UPDATE');
         $stmt->execute([$applicationId, $docKey]);
         return $stmt->fetch() ?: null;
     }

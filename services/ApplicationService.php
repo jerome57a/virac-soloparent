@@ -360,7 +360,7 @@ class ApplicationService
             return $draft;
         }
         $dir = $this->draftDir((int) $user['id']);
-        $draft = $this->files->attachToDraft($draft, $docKey, $file, $dir);
+        $draft = $this->files->attachToDraft($draft, $docKey, $file, $dir, true); // new-application documents are image-only (JPG/JPEG/PNG)
         if (isset($draft['documents'][$docKey]['stored_name'])) {
             $draft['documents'][$docKey]['path'] = $dir . '/' . basename((string) $draft['documents'][$docKey]['stored_name']);
         }
@@ -509,13 +509,21 @@ class ApplicationService
             }
         }
 
-        $this->clearDraft($user);
-
-        audit_log($this->pdo, (int) $user['id'], $user['full_name'], $user['role'], 'Application Submission', 'application', $applicationId, $refNumber);
-        $this->auditDocuments($user, $applicationId, $draft['documents']);
-        (new SMSService($this->pdo))->notifySubmitted($applicationId, $draft['contact'], $refNumber);
-        create_notification($this->pdo, (int) $user['id'], 'submission', 'Your application ' . $refNumber . ' has been received and is Pending Review. MSWDO staff will assign your interview schedule and notify you by SMS.', $applicationId);
-        (new NotificationService($this->pdo))->notifyStaff('new_application', 'New application ' . $refNumber . ' from ' . $draft['fullName'] . ' is waiting for review.', $applicationId);
+        // The application is committed. Nothing below may make it look unsuccessful or bring the draft back: each follow-up
+        // step is attempted on its own and a failure is only logged (the submission itself is already saved).
+        $afterCommit = static function (callable $step): void {
+            try {
+                $step();
+            } catch (Throwable $e) {
+                error_log('Application submission follow-up failed after the application was saved: ' . $e->getMessage());
+            }
+        };
+        $afterCommit(fn() => $this->clearDraft($user));
+        $afterCommit(fn() => audit_log($this->pdo, (int) $user['id'], $user['full_name'], $user['role'], 'Application Submission', 'application', $applicationId, $refNumber));
+        $afterCommit(fn() => $this->auditDocuments($user, $applicationId, $draft['documents']));
+        $afterCommit(fn() => (new SMSService($this->pdo))->notifySubmitted($applicationId, $draft['contact'], $refNumber));
+        $afterCommit(fn() => create_notification($this->pdo, (int) $user['id'], 'submission', 'Your application ' . $refNumber . ' has been received and is Pending Review. MSWDO will notify you when your interview can be scheduled or booked.', $applicationId));
+        $afterCommit(fn() => (new NotificationService($this->pdo))->notifyStaff('new_application', 'New application ' . $refNumber . ' from ' . $draft['fullName'] . ' is waiting for review.', $applicationId));
 
         return $refNumber;
     }
@@ -575,12 +583,15 @@ class ApplicationService
             return [];
         }
         $destDir = STORAGE_PATH . '/' . $applicationId;
-        if (!is_dir($destDir) && !mkdir($destDir, 0750, true) && !is_dir($destDir)) {
+        if (!$this->files->ensureDir($destDir)) {
             throw new RuntimeException('Could not create storage folder for uploaded documents.');
         }
         $moved = []; // final path => draft path, to put files back if anything fails (the caller rolls back the DB)
         try {
             foreach ($documents as $docKey => $meta) {
+                if (!storage_dir_confined(dirname((string) $meta['path']))) { // testing only; always true in production
+                    throw new RuntimeException('Could not store an uploaded document. Please try again.');
+                }
                 // The file must still be exactly what was validated at upload.
                 $hash = is_file($meta['path']) ? hash_file('sha256', $meta['path']) : null;
                 if ($hash === null || (!empty($meta['sha256']) && !hash_equals($meta['sha256'], $hash))) {

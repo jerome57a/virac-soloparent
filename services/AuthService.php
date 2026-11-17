@@ -177,6 +177,20 @@ class AuthService
         $this->endSession();
     }
 
+    /**
+     * Switches this request to the admin or staff portal's own session (and cookie) so the unified login page can sign
+     * a staff member in after verifying their credentials. loginStaff() then wipes that session and issues a new ID.
+     */
+    public function enterPortalSession(string $portal): void
+    {
+        if (!in_array($portal, ['admin', 'staff'], true)) {
+            throw new InvalidArgumentException('Unknown portal.');
+        }
+        session_write_close();
+        session_name('ESPID_' . strtoupper($portal) . '_SESSION');
+        session_start();
+    }
+
     /** New session ID on every login (prevents session fixation). $kind: 'user' (applicant) or 'staff'. */
     private function startSession(string $kind, int $userId): void
     {
@@ -208,9 +222,20 @@ class AuthService
      */
     private function purgeAbandonedDrafts(): void
     {
+        // Confined to the configured upload root (STORAGE_PATH): in testing that is the validated test root, and
+        // the purge stands down if its marker or folder has gone. Only real, non-link, direct children of
+        // <root>/tmp and <root>/drafts with the expected folder names are ever considered.
+        if (!storage_root_still_safe()) {
+            error_log('Draft cleanup skipped: the configured test storage root failed its safety check.');
+            return;
+        }
+        $root = realpath(STORAGE_PATH);
+        if ($root === false) {
+            return;
+        }
         $cutoff = time() - SESSION_ABSOLUTE_HOURS * 3600;
         $files = new DocumentValidationService($this->pdo);
-        foreach (glob(STORAGE_PATH . '/tmp/*', GLOB_ONLYDIR) ?: [] as $dir) {
+        foreach ($this->purgeCandidates($root, 'tmp', '/\A[A-Za-z0-9_-]{1,80}\z/') as $dir) {
             if (filemtime($dir) < $cutoff) {
                 $files->deleteDir($dir);
             }
@@ -219,21 +244,49 @@ class AuthService
         // Draft folders whose draft row is gone (e.g. the account was deleted).
         // The hour's grace covers an upload whose draft row is written a moment later.
         $saved = (new ApplicationDraft($this->pdo))->folderNames();
-        foreach (glob(STORAGE_PATH . '/drafts/*', GLOB_ONLYDIR) ?: [] as $dir) {
+        foreach ($this->purgeCandidates($root, 'drafts', '/\A(?:renewal_)?[0-9]{1,12}\z/') as $dir) {
             if (!isset($saved[basename($dir)]) && filemtime($dir) < time() - 3600) {
                 $files->deleteDir($dir);
             }
         }
     }
 
+    /**
+     * Direct child folders of <root>/<kind> whose names match $namePattern, excluding links and anything whose
+     * real path is not exactly <real root>/<kind>/<name>.
+     *
+     * @return string[]
+     */
+    private function purgeCandidates(string $root, string $kind, string $namePattern): array
+    {
+        $base = realpath($root . '/' . $kind);
+        if ($base === false || is_link($root . '/' . $kind) || dirname($base) !== $root) {
+            return [];
+        }
+        $candidates = [];
+        foreach (glob($base . '/*', GLOB_ONLYDIR) ?: [] as $dir) {
+            $name = basename($dir);
+            $real = realpath($dir);
+            if (preg_match($namePattern, $name) === 1 && !is_link($dir) && $real !== false && dirname($real) === $base && basename($real) === $name) {
+                $candidates[] = $dir;
+            }
+        }
+        return $candidates;
+    }
+
     // ---- Password policy ----
 
-    /** Null if acceptable, otherwise the message to show. Pass $confirmation to also require the two entries to match. */
-    /** Registration rules shared by public signup and administrator-created Solo Parent accounts. */
+    /** Shared rules for public and administrator-created Solo Parent accounts: mobile and optional Gmail. */
     public function applicantRegistrationError(array $form, string $password, string $confirmation): string
     {
-        if ($form['fullName'] === '' || $form['username'] === '' || $form['mobile'] === '' || $password === '') {
-            return 'Please fill in full name, mobile number, username, and password.';
+        // Public sign-up always supplies a username (the form key is present); other callers, such as
+        // administrator-created accounts, do not pass one and keep their existing rules.
+        $usernameRequired = array_key_exists('username', $form);
+        if ($form['fullName'] === '' || $form['mobile'] === '' || $password === '' || ($usernameRequired && trim((string) $form['username']) === '')) {
+            return $usernameRequired ? 'Please fill in full name, username, mobile number, and password.' : 'Please fill in full name, mobile number, and password.';
+        }
+        if ($usernameRequired && ($usernameError = $this->usernameError((string) $form['username']))) {
+            return $usernameError;
         }
         if (mb_strlen($form['fullName']) > 150) {
             return 'Full name is too long.';
@@ -241,19 +294,76 @@ class AuthService
         if (!is_valid_ph_mobile($form['mobile'])) {
             return 'Enter a valid Philippine mobile number (e.g. 09171234567).';
         }
-        if (!preg_match('/^[A-Za-z0-9._]{4,30}$/', $form['username']) || !preg_match('/[A-Za-z]/', $form['username'])) {
-            return 'Username must be 4 to 30 characters: letters, numbers, dots, or underscores, with at least one letter.';
-        }
         if ($error = $this->passwordPolicyError($password, $confirmation)) {
             return $error;
         }
-        if ($this->userModel->usernameExists($form['username'])) {
-            return 'That username is already taken.';
+        $email = trim((string) ($form['email'] ?? ''));
+        if ($email !== '' && (strlen($email) > 150 || !filter_var($email, FILTER_VALIDATE_EMAIL) || strcasecmp(substr($email, -10), '@gmail.com') !== 0)) {
+            return 'Enter a valid Gmail address ending in @gmail.com, or leave it blank.';
+        }
+        if ($email !== '' && $this->userModel->emailExists($email)) {
+            return 'That Gmail address is already registered. Log in, or use Forgot password.';
         }
         if ($this->userModel->mobileExists($form['mobile'])) {
             return 'That mobile number is already registered. Log in, or use Forgot password if you can\'t remember it.';
         }
         return '';
+    }
+
+    public const USERNAME_MIN_LENGTH = 3;
+    public const USERNAME_MAX_LENGTH = 30;
+
+    /**
+     * Rules for an applicant's username: 3-30 characters, letters, digits, dot, underscore or hyphen, starting with a
+     * letter or digit, containing at least one letter (so it can never look like a mobile number), and unique across
+     * every account (staff included). Characters such as "@" and "+" are refused so a username can never be mistaken
+     * for an email address or a +63 mobile number. Null if acceptable.
+     */
+    public function usernameError(string $username): ?string
+    {
+        if (strlen($username) < self::USERNAME_MIN_LENGTH || strlen($username) > self::USERNAME_MAX_LENGTH
+            || preg_match('/\A[A-Za-z0-9][A-Za-z0-9._-]*\z/', $username) !== 1
+            || preg_match('/[A-Za-z]/', $username) !== 1 || preg_match('/[._-]\z/', $username) === 1) {
+            return 'Username must be ' . self::USERNAME_MIN_LENGTH . '-' . self::USERNAME_MAX_LENGTH . ' characters: letters, numbers, dots, underscores or hyphens, with at least one letter, starting with a letter or number and not ending with a symbol.';
+        }
+        if ($this->userModel->usernameExists($username)) {
+            return 'That username is already taken. Please choose another.';
+        }
+        return null;
+    }
+
+    /**
+     * An applicant whose account predates usernames chooses one (once). Returns [error, success].
+     *
+     * @return array{0: string, 1: string}
+     */
+    public function chooseUsername(array $account, string $username): array
+    {
+        $username = trim($username);
+        if (($account['role'] ?? '') !== 'applicant') {
+            return ['Only applicant accounts can choose a username here.', ''];
+        }
+        if (!empty($account['username'])) {
+            return ['Your username is already set and cannot be changed.', ''];
+        }
+        if ($error = $this->usernameError($username)) {
+            return [$error, ''];
+        }
+        try {
+            $set = $this->userModel->setUsernameIfEmpty((int) $account['id'], $username);
+        } catch (PDOException $e) {
+            // SQLSTATE 23000 covers every integrity failure; report a duplicate only if the username now exists
+            // (taken between the check and the update). Any other failure is rethrown unchanged.
+            if ($e->getCode() === '23000' && $this->userModel->usernameExists($username)) {
+                return ['That username is already taken. Please choose another.', ''];
+            }
+            throw $e;
+        }
+        if (!$set) {
+            return ['Your username is already set and cannot be changed.', ''];
+        }
+        audit_log($this->pdo, (int) $account['id'], (string) $account['full_name'], 'applicant', 'Username Set', 'user', (int) $account['id'], 'Chose a username (account predated usernames)');
+        return ['', 'Your username is saved. From now on, sign in with your username and password.'];
     }
 
     public function passwordPolicyError(string $password, ?string $confirmation = null): ?string

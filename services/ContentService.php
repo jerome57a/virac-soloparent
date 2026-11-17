@@ -97,6 +97,10 @@ class ContentService
         if (mb_strlen($body) > 500) {
             return ['Template text is too long (up to 500 characters).', ''];
         }
+        if ($key === 'document_correction') {
+            // The correction SMS uses fixed, approved source wording (SMSService::CORRECTION_BODY); a stored body would be ignored.
+            return ['The correction SMS wording is system-managed and cannot be edited. You can still switch it on or off in Settings.', ''];
+        }
         $logs = new SmsLog($this->pdo);
         if (!$logs->templateExists($key) || !isset(SMSService::PLACEHOLDERS[$key])) {
             return ['Unknown template.', ''];

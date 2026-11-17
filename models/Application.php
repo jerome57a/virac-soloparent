@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/Model.php';
+require_once __DIR__ . '/../services/InterviewDateFeature.php';
 
 /** Data access for applications and their status history, as seen by the owning applicant. */
 class Application extends Model
@@ -68,32 +69,10 @@ class Application extends Model
 
         $stmt = $this->pdo->prepare(
             "SELECT a.*, c.name AS category_name FROM applications a JOIN categories c ON c.id = a.category_id
-             WHERE $where ORDER BY a.submitted_at DESC LIMIT {$pager['perPage']} OFFSET {$pager['offset']}"
+             WHERE $where ORDER BY a.submitted_at DESC, a.id DESC LIMIT {$pager['perPage']} OFFSET {$pager['offset']}"
         );
         $stmt->execute($params);
         return ['rows' => $stmt->fetchAll()] + $pager;
-    }
-
-    /** Admin read-only monitoring list: latest 200, by status/type/reference-or-name. */
-    public function monitoringList(string $status, string $type, string $q): array
-    {
-        $sql = 'SELECT a.*, c.name AS category_name FROM applications a JOIN categories c ON c.id = a.category_id WHERE 1=1';
-        $params = [];
-        if (in_array($status, self::STATUSES, true)) {
-            $sql .= ' AND a.status = ?';
-            $params[] = $status;
-        }
-        if (in_array($type, ['new', 'renewal'], true)) {
-            $sql .= ' AND a.type = ?';
-            $params[] = $type;
-        }
-        if ($q !== '') {
-            $sql .= ' AND (a.reference_no LIKE ? OR a.full_name LIKE ?)';
-            array_push($params, "%$q%", "%$q%");
-        }
-        $stmt = $this->pdo->prepare($sql . ' ORDER BY a.submitted_at DESC LIMIT 200');
-        $stmt->execute($params);
-        return $stmt->fetchAll();
     }
 
     /** status => count across all applications. */
@@ -118,13 +97,6 @@ class Application extends Model
     public function countWhere(string $where): int
     {
         return (int) $this->pdo->query("SELECT COUNT(*) FROM applications WHERE $where")->fetchColumn();
-    }
-
-    public function recentlyReviewedBy(int $staffId, int $limit = 5): array
-    {
-        $stmt = $this->pdo->prepare('SELECT * FROM applications WHERE reviewed_by = ? ORDER BY updated_at DESC LIMIT ' . (int) $limit);
-        $stmt->execute([$staffId]);
-        return $stmt->fetchAll();
     }
 
     /** Shared staff activity, including work done before a new staff account was created. */
@@ -153,14 +125,6 @@ class Application extends Model
         );
         $stmt->execute([$id]);
         return $stmt->fetch() ?: null;
-    }
-
-    public function findIdByReference(string $ref): ?int
-    {
-        $stmt = $this->pdo->prepare('SELECT id FROM applications WHERE reference_no = ?');
-        $stmt->execute([$ref]);
-        $id = $stmt->fetchColumn();
-        return $id === false ? null : (int) $id;
     }
 
     public function children(int $applicationId): array
@@ -197,8 +161,10 @@ class Application extends Model
     /** Every application of one applicant, newest first, with category name and interview (if any). */
     public function forUserDetailed(int $userId): array
     {
+        // date_only is selected only when the column is proven present; absent or unknown keeps the legacy query.
+        $dateOnlyColumn = InterviewDateFeature::dateOnlyColumnPresence($this->pdo) === 'present' ? ', i.date_only AS interview_date_only' : '';
         $stmt = $this->pdo->prepare(
-            "SELECT a.*, c.name AS category_name, i.scheduled_at AS interview_at, i.location AS interview_location, i.status AS interview_status
+            "SELECT a.*, c.name AS category_name, i.scheduled_at AS interview_at, i.location AS interview_location, i.status AS interview_status" . $dateOnlyColumn . "
              FROM applications a
              JOIN categories c ON c.id = a.category_id
              LEFT JOIN appointments i ON i.application_id = a.id AND i.status <> 'CANCELLED'
@@ -263,13 +229,6 @@ class Application extends Model
     {
         $stmt = $this->pdo->prepare('SELECT reference_no, status FROM applications WHERE renewal_of_id = ? ORDER BY submitted_at DESC, id DESC LIMIT 1');
         $stmt->execute([$applicationId]);
-        return $stmt->fetch() ?: null;
-    }
-
-    public function findByReferenceWithCategory(string $ref): ?array
-    {
-        $stmt = $this->pdo->prepare('SELECT a.*, c.name AS category_name FROM applications a JOIN categories c ON c.id = a.category_id WHERE a.reference_no = ?');
-        $stmt->execute([$ref]);
         return $stmt->fetch() ?: null;
     }
 

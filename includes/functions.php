@@ -114,17 +114,6 @@ function is_past_date(string $date): bool
     return $dt && $dt->format('Y-m-d') === $date && $date >= '1900-01-01' && $date <= today_iso();
 }
 
-function format_bytes(int $bytes): string
-{
-    if ($bytes >= 1048576) {
-        return round($bytes / 1048576, 1) . ' MB';
-    }
-    if ($bytes >= 1024) {
-        return round($bytes / 1024, 1) . ' KB';
-    }
-    return $bytes . ' B';
-}
-
 function normalize_mobile(string $mobile): string
 {
     return preg_replace('/[\s\-]/', '', $mobile);
@@ -279,16 +268,57 @@ function format_mb(float $mb): string
  */
 function appointment_summary_html(array $app): string
 {
-    $when = '<b>' . e(date('F j, Y g:i A', strtotime($app['interview_at']))) . '</b>';
+    $when = '<b>' . e(interview_schedule_text($app['interview_at'], interview_is_date_only($app, 'interview_date_only'))) . '</b>';
     $where = e($app['interview_location']);
     switch ($app['interview_status'] ?? 'BOOKED') {
         case 'COMPLETED':
             return '✅ Interview completed on ' . $when . '.';
         case 'MISSED':
-            return '⚠️ You missed your appointment on ' . $when . '. <a href="' . base_url('applicant/dashboard.php?section=appointment') . '">Book a new one</a>.';
+            return '⚠️ You missed your appointment on ' . $when . '. Please contact MSWDO to arrange another interview.';
+        case 'CANCELLED':
+            return '⚠️ Your interview on ' . $when . ' was cancelled. See the <a href="' . base_url('applicant/dashboard.php?section=appointment') . '">Appointment page</a> for your options, or contact MSWDO.';
         default:
             return '📅 Interview scheduled for ' . $when . ' at ' . $where . '.';
     }
+}
+
+/**
+ * True when an interview row is a date-booking row (date_only = 1), i.e. the date is reserved but there is no
+ * time of day. A row without the key (older queries, an unmigrated database) is a timed appointment.
+ */
+function interview_is_date_only(?array $row, string $key = 'date_only'): bool
+{
+    return $row !== null && isset($row[$key]) && (int) $row[$key] === 1;
+}
+
+/**
+ * The date part of a date()-format that also shows the time, e.g. 'F j, Y g:i A' => 'F j, Y' and
+ * 'l, F j, Y · g:i A' => 'l, F j, Y'. Falls back to 'F j, Y' if nothing is left.
+ */
+function interview_date_format(string $timedFormat): string
+{
+    $date = trim((string) preg_replace('/[\s,·@\-]*[gGhH]:i(?::s)?(?:\s*[aA])?/u', '', $timedFormat));
+    return $date !== '' ? $date : 'F j, Y';
+}
+
+/**
+ * Plain text (callers escape it) for when an interview is. A timed appointment is formatted exactly as the
+ * screens did before ($timedFormat is the format that screen already used); a date-only appointment shows
+ * the date alone. Not for ID release schedules, which always have a time.
+ */
+function interview_schedule_text(?string $scheduledAt, bool $dateOnly, string $timedFormat = 'F j, Y g:i A', ?string $dateFormat = null): string
+{
+    // (string) only avoids the null deprecation; the result is exactly date($format, strtotime($scheduledAt)), also for null, '' or invalid input.
+    return date($dateOnly ? ($dateFormat ?? interview_date_format($timedFormat)) : $timedFormat, strtotime((string) $scheduledAt));
+}
+
+/**
+ * Plain text for screens that show only the time of an interview. A date-only appointment has no time, so
+ * it shows $dateOnlyLabel (a temporary English default; the final wording is decided later).
+ */
+function interview_time_text(?string $scheduledAt, bool $dateOnly, string $timeFormat = 'g:i A', string $dateOnlyLabel = 'Date only'): string
+{
+    return $dateOnly ? $dateOnlyLabel : date($timeFormat, strtotime((string) $scheduledAt));
 }
 
 /** Display label for a document status code (see Document::STATUSES). */
@@ -313,13 +343,6 @@ function document_status_style(string $status): array
         'REJECTED'         => ['bg' => '#fde8e8', 'color' => '#7f1616'],
     ];
     return $map[$status] ?? $map['FOR_VERIFICATION'];
-}
-
-/** Status pill for a document status code. */
-function document_status_pill(string $status, string $extraStyle = ''): string
-{
-    $st = document_status_style($status);
-    return '<span class="status-pill" style="background:' . e($st['bg']) . ';color:' . e($st['color']) . ';' . e($extraStyle) . '">' . e(document_status_label($status)) . '</span>';
 }
 
 function generate_reference_no(PDO $pdo): string
@@ -441,11 +464,18 @@ function audit_log(
 /** Fixed applicant destinations; arbitrary URLs are never accepted. */
 function applicant_return_path($key): ?string
 {
-    return is_string($key) ? ([
+    if (!is_string($key)) {
+        return null;
+    }
+    // The Requirements Guide, optionally one entry: "requirements" or "requirements:<doc_key>" (letters, digits, underscores).
+    if (preg_match('/^requirements(?::([A-Za-z0-9_]{1,50}))?\z/', $key, $m)) {
+        return 'applicant/dashboard.php?section=requirements' . (isset($m[1]) ? '&doc=' . $m[1] : '');
+    }
+    return [
         'apply' => 'applicant/dashboard.php?section=apply',
         'applications' => 'applicant/dashboard.php?section=application',
         'track' => 'portal.php?tab=status',
-    ][$key] ?? null) : null;
+    ][$key] ?? null;
 }
 
 function take_applicant_return_path(): string

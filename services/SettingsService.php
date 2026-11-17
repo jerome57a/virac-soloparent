@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/AppointmentService.php';
+require_once __DIR__ . '/InterviewDateService.php';
 require_once __DIR__ . '/SMSService.php';
 
 /**
@@ -218,15 +219,36 @@ class SettingsService
         if ($section === 'appointments') {
             $blockedDates = array_unique(array_merge(InterviewCalendarService::dates($new['appointment_holiday_dates']), InterviewCalendarService::dates($new['appointment_closure_dates'])));
             if ($blockedDates) {
-                $conflicts = $this->pdo->prepare("SELECT COUNT(*) FROM appointments WHERE status = 'BOOKED' AND scheduled_at >= NOW() AND DATE(scheduled_at) IN (" . implode(',', array_fill(0, count($blockedDates), '?')) . ')');
-                $conflicts->execute(array_values($blockedDates));
+                // A date-only appointment (date_only = 1) sits at 00:00:00 of its date, so "not yet passed" means its
+                // date is today or later (the Manila date from PHP), not scheduled_at >= NOW(). present => date-only
+                // aware query; absent => the exact legacy query; unknown => the bookings cannot be checked, so refuse.
+                $presence = InterviewDateFeature::dateOnlyColumnPresence($this->pdo);
+                if ($presence === 'unknown') {
+                    return 'Booked interviews on the selected holiday or closure dates could not be checked right now, so these dates cannot be saved. No settings were changed. Please try again.';
+                }
+                $placeholders = implode(',', array_fill(0, count($blockedDates), '?'));
+                $params = array_values($blockedDates);
+                if ($presence === 'present') {
+                    $conflicts = $this->pdo->prepare("SELECT COUNT(*) FROM appointments WHERE status = 'BOOKED' AND DATE(scheduled_at) IN (" . $placeholders . ') AND ((date_only = 0 AND scheduled_at >= NOW()) OR (date_only = 1 AND scheduled_at >= ?))');
+                    $params[] = Appointment::manilaDate() . ' 00:00:00';
+                } else {
+                    $conflicts = $this->pdo->prepare("SELECT COUNT(*) FROM appointments WHERE status = 'BOOKED' AND scheduled_at >= NOW() AND DATE(scheduled_at) IN (" . $placeholders . ')');
+                }
+                $conflicts->execute($params);
                 $count = (int) $conflicts->fetchColumn();
                 if ($count > 0) {
                     return 'Cancel or reschedule ' . $count . ' booked interview(s) on the selected holiday or closure dates before saving. No settings were changed.';
                 }
             }
-            if ($new['appointment_day_end'] <= $new['appointment_day_start']) {
-                return 'The latest interview end must be after the earliest interview start.';
+            // Lowering the default daily interview capacity must not leave an open date that follows it with more
+            // seats used than its capacity. Raising it, or leaving it unchanged, needs no check; the service itself
+            // does nothing unless interview date booking is enabled.
+            if (isset($new['interview_default_capacity'])) {
+                $dates = new InterviewDateService($this->pdo);
+                if ((int) $new['interview_default_capacity'] < $dates->defaultCapacity()
+                    && ($conflict = $dates->defaultCapacityConflict((int) $new['interview_default_capacity']))) {
+                    return $conflict;
+                }
             }
         }
         if ($section === 'renewals' && (int) $new['renewal_reminder_days'] >= (int) $new['id_validity_years'] * 365) {

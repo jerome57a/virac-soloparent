@@ -4,9 +4,11 @@ require_once __DIR__ . '/../models/Appointment.php';
 require_once __DIR__ . '/SMSService.php';
 require_once __DIR__ . '/NotificationService.php';
 require_once __DIR__ . '/InterviewCalendarService.php';
+require_once __DIR__ . '/InterviewInvitationService.php';
 
 /**
- * Interview appointments, scheduled by MSWD staff (ApplicationReviewService::scheduleInterview).
+ * Interview appointments: an applicant chooses an interview day after MSWD staff send an invitation (InterviewBookingService);
+ * this service handles what happens to a booked appointment afterwards (cancel, no-show, reminders).
  *
  * Rules: an application holds at most one appointment (UNIQUE
  * application_id). Applicants may cancel only up to the admin-configured
@@ -61,9 +63,45 @@ class AppointmentService
     }
 
     /** True if an appointment at $scheduledAt is still outside the applicant's notice window (can be changed/cancelled online). */
-    public function changeableByApplicant(string $scheduledAt): bool
+    public function changeableByApplicant(string $scheduledAt, ?int $now = null): bool
     {
-        return strtotime($scheduledAt) >= time() + $this->minNoticeHours() * 3600;
+        return strtotime($scheduledAt) >= ($now ?? time()) + $this->minNoticeHours() * 3600;
+    }
+
+    /**
+     * Whether the applicant may cancel this appointment online, and why not. A timed appointment keeps the
+     * minimum-notice-hours rule exactly (changeableByApplicant). A date-only appointment can be cancelled strictly
+     * before the office closing time on the previous office day (Manila time); at or after that instant, or when the
+     * calendar cannot determine it, online cancellation is refused (fail closed).
+     * @return array{allowed: bool, dateOnly: bool, deadline: ?DateTimeImmutable}
+     */
+    public function cancellationWindow(array $appointment, ?int $now = null): array
+    {
+        $scheduledAt = (string) $appointment['scheduled_at'];
+        if (!interview_is_date_only($appointment)) {
+            return ['allowed' => $this->changeableByApplicant($scheduledAt, $now), 'dateOnly' => false, 'deadline' => null];
+        }
+        $deadline = (new InterviewCalendarService($this->pdo))->cancellationCutoff(substr($scheduledAt, 0, 10));
+        return ['allowed' => $deadline !== null && ($now ?? time()) < $deadline->getTimestamp(), 'dateOnly' => true, 'deadline' => $deadline];
+    }
+
+    /** The deadline as shown to the applicant, e.g. "5:00 PM on Friday, December 4, 2026". */
+    public static function formatCancellationDeadline(DateTimeImmutable $deadline): string
+    {
+        return $deadline->format('g:i A \o\n l, F j, Y');
+    }
+
+    /** What to tell the applicant about a date-only appointment's online cancellation window (allowed, passed or unknown). */
+    public static function dateOnlyCancellationNotice(array $window): string
+    {
+        $deadline = $window['deadline'] ?? null;
+        if ($deadline === null) {
+            return 'Online cancellation is not available for this appointment right now. Please contact the MSWDO office.';
+        }
+        $when = self::formatCancellationDeadline($deadline);
+        return $window['allowed']
+            ? 'You can cancel this appointment online until ' . $when . '. After that, please contact MSWDO.'
+            : 'The online cancellation deadline for this appointment (' . $when . ") has passed. Please contact the MSWDO office if you can't make it.";
     }
 
     // ---- Applicant ----
@@ -75,14 +113,18 @@ class AppointmentService
         if (!$current || $current['status'] !== 'BOOKED') {
             return 'You have no booked appointment to cancel.';
         }
-        if (!$this->changeableByApplicant($current['scheduled_at'])) {
+        $window = $this->cancellationWindow($current);
+        if (!$window['allowed']) {
+            if ($window['dateOnly']) {
+                return self::dateOnlyCancellationNotice($window);
+            }
             return 'Your appointment is less than ' . $this->minNoticeHours() . ' hour(s) away and can no longer be cancelled online. Please contact the MSWDO office.';
         }
         $current += ['reference_no' => $application['reference_no'], 'user_id' => $user['id'], 'mobile' => $application['mobile'], 'application_status' => $application['status']];
         if (!$this->closeAppointment($user, $current, 'CANCELLED', 'Cancelled by the applicant', false)) {
             return 'This appointment changed. Refresh the page before cancelling.';
         }
-        (new NotificationService($this->pdo))->notifyStaff('appointment_update', $application['reference_no'] . ' (' . $user['full_name'] . ') cancelled their appointment on ' . date('M j, Y g:i A', strtotime($current['scheduled_at'])) . '.', (int) $application['id']);
+        (new NotificationService($this->pdo))->notifyStaff('appointment_update', $application['reference_no'] . ' (' . $user['full_name'] . ') cancelled their appointment on ' . interview_schedule_text($current['scheduled_at'], interview_is_date_only($current), 'M j, Y g:i A') . '.', (int) $application['id']);
         return null;
     }
 
@@ -111,7 +153,12 @@ class AppointmentService
                 return 'Give a reason for cancelling -- it is sent to the applicant.';
             }
         } elseif ($outcome === 'MISSED') {
-            if (strtotime($appt['scheduled_at']) > time()) {
+            if (interview_is_date_only($appt)) {
+                // Read from the row itself, so this holds whatever the schema checks say; Manila calendar date.
+                if (!Appointment::canMarkMissed($appt)) {
+                    return 'A date-only appointment can only be marked missed after its scheduled date has passed.';
+                }
+            } elseif (strtotime($appt['scheduled_at']) > time()) {
                 return 'An appointment can only be marked missed after its scheduled time.';
             }
         } else {
@@ -148,7 +195,37 @@ class AppointmentService
             $sentRefs[] = $iv['reference_no'];
         }
 
-        return ['checked' => count($due), 'sent' => $sentRefs];
+        // Date-only appointments: one reminder at the office closing time on the previous valid office day (the same
+        // instant online cancellation closes, so the text never offers cancelling), with a catch-up until noon on the
+        // appointment date. SMS failure bookkeeping is exactly the timed behaviour above.
+        $calendar = new InterviewCalendarService($this->pdo);
+        $dueDateOnly = array_values(array_filter($this->appointments->dueDateOnlyForReminder(), fn($iv) => self::dateOnlyReminderDue($calendar, (string) $iv['scheduled_at'])));
+        foreach ($dueDateOnly as $iv) {
+            $sms->notifyAppointmentReminder((int) $iv['application_id'], $iv['mobile'], $iv['reference_no'], $iv['scheduled_at'], $iv['location'], true);
+            create_notification(
+                $this->pdo, (int) $iv['user_id'], 'appointment_reminder',
+                'Reminder: your appointment for ' . $iv['reference_no'] . ' is on ' . interview_schedule_text($iv['scheduled_at'], true, 'M j, Y g:i A') . ' at ' . $iv['location'] . '.',
+                (int) $iv['application_id']
+            );
+            $this->appointments->markReminded((int) $iv['interview_id']);
+            $sentRefs[] = $iv['reference_no'];
+        }
+
+        return ['checked' => count($due) + count($dueDateOnly), 'sent' => $sentRefs];
+    }
+
+    /**
+     * Whether a date-only appointment on $scheduledAt's date is due its reminder now (Manila time): at or after the
+     * cancellation cutoff instant (previous valid office day at the office closing time), and no later than 12:00 noon on
+     * the appointment date. False, so it is retried by a later run, when the calendar cannot determine the instant.
+     */
+    private static function dateOnlyReminderDue(InterviewCalendarService $calendar, string $scheduledAt, ?int $now = null): bool
+    {
+        $date = substr($scheduledAt, 0, 10);
+        $due = $calendar->cancellationCutoff($date);
+        $noon = DateTimeImmutable::createFromFormat('!Y-m-d H:i', $date . ' 12:00', new DateTimeZone('Asia/Manila'));
+        $now ??= time();
+        return $due !== null && $noon !== false && $now >= $due->getTimestamp() && $now <= $noon->getTimestamp();
     }
 
     /**
@@ -160,7 +237,8 @@ class AppointmentService
     private function closeAppointment(array $actor, array $appt, string $outcome, ?string $reason, bool $byStaff): bool
     {
         $applicationId = (int) $appt['application_id'];
-        $when = date('M j, Y g:i A', strtotime($appt['scheduled_at']));
+        // Display text only (history note, in-app notification, audit log); SMS reads scheduled_at itself.
+        $when = interview_schedule_text($appt['scheduled_at'], interview_is_date_only($appt), 'M j, Y g:i A');
 
         $this->pdo->beginTransaction();
         try {
@@ -183,6 +261,8 @@ class AppointmentService
                 $note = ($outcome === 'CANCELLED' ? 'Appointment on ' . $when . ' cancelled' : 'Appointment on ' . $when . ' missed') . ($reason ? ': ' . $reason : '.');
                 $this->applications->addHistory($applicationId, $back, $note, $actor['full_name'], (int) $actor['id']);
             }
+            // Interview date booking: event + invitation transition in this same transaction (a no-op when the feature is off).
+            (new InterviewInvitationService($this->pdo))->afterAppointmentClosed($actor, $appt, $outcome, $byStaff, $reason);
             $this->pdo->commit();
         } catch (Throwable $e) {
             $this->pdo->rollBack();
@@ -195,9 +275,9 @@ class AppointmentService
                 : 'You missed your appointment for ' . $appt['reference_no'] . ' on ' . $when . '. Please contact MSWDO for a new schedule.';
             create_notification($this->pdo, (int) $appt['user_id'], 'appointment_confirmation', $message, $applicationId);
             if ($outcome === 'CANCELLED') {
-                (new SMSService($this->pdo))->notifyAppointmentCancelled($applicationId, $appt['mobile'], $appt['reference_no'], $appt['scheduled_at'], (string) $reason);
+                (new SMSService($this->pdo))->notifyAppointmentCancelled($applicationId, $appt['mobile'], $appt['reference_no'], $appt['scheduled_at'], (string) $reason, interview_is_date_only($appt));
             } else {
-                (new SMSService($this->pdo))->notifyAppointmentMissed($applicationId, $appt['mobile'], $appt['reference_no'], $appt['scheduled_at']);
+                (new SMSService($this->pdo))->notifyAppointmentMissed($applicationId, $appt['mobile'], $appt['reference_no'], $appt['scheduled_at'], interview_is_date_only($appt));
             }
         }
         audit_log($this->pdo, (int) $actor['id'], $actor['full_name'], $actor['role'],

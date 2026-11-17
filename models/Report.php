@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/Model.php';
 require_once __DIR__ . '/Application.php';
+require_once __DIR__ . '/../services/InterviewDateFeature.php';
 
 /**
  * The eight operational reports (Reports page) plus the system-monitoring
@@ -65,7 +66,7 @@ class Report extends Model
         return $this->totals($type, $f);
     }
 
-    /** The report's columns: key => [label, format]; formats: text, int, datetime, date. */
+    /** The report's columns: key => [label, format]; formats: text, int, datetime, date, interview (datetime, or date alone for a date-only appointment). */
     public function columns(string $type): array
     {
         return $this->definition($type)['columns'];
@@ -185,17 +186,21 @@ class Report extends Model
                         'renews' => ['Renews ID', 'text'], 'old_expiry' => ['Old ID Expiry', 'date'], 'status' => ['Status', 'text'], 'submitted_at' => ['Submitted', 'datetime']],
                 ];
             case 'appointment':
+                // date_only is selected only when the column is proven present; absent or unknown keeps the legacy query.
+                $dateOnlyColumn = InterviewDateFeature::dateOnlyColumnPresence($this->pdo) === 'present' ? ', i.date_only' : '';
                 return [
-                    'select' => "SELECT a.reference_no, a.full_name, a.mobile, i.scheduled_at, i.location,
+                    'select' => "SELECT a.reference_no, a.full_name, a.mobile, i.scheduled_at" . $dateOnlyColumn . ", i.location,
                                    CASE i.status WHEN 'BOOKED' THEN 'Booked' WHEN 'COMPLETED' THEN 'Completed' WHEN 'MISSED' THEN 'Missed' ELSE 'Cancelled' END AS status_label,
-                                   CASE WHEN i.scheduled_by IS NULL THEN 'Applicant' ELSE 'Staff' END AS booked_by,
+                                   CASE WHEN i.scheduled_by IS NOT NULL THEN 'Staff'
+                                        WHEN i.notes = 'Interview automatically scheduled on application submission.' THEN 'System'
+                                        ELSE 'Applicant' END AS booked_by,
                                    COALESCE(i.result, i.cancel_reason, '') AS outcome
                                  FROM appointments i JOIN applications a ON a.id = i.application_id",
                     'dateColumn' => 'i.scheduled_at', 'dateLabel' => 'Scheduled',
                     'search' => ['a.reference_no', 'a.full_name', 'i.location'],
                     'filters' => ['status' => ['Outcome', 'i.status', ['BOOKED' => 'Booked', 'COMPLETED' => 'Completed', 'MISSED' => 'Missed', 'CANCELLED' => 'Cancelled']]],
                     'orderBy' => 'i.scheduled_at DESC, i.id DESC',
-                    'columns' => ['reference_no' => ['Reference No', 'text'], 'full_name' => ['Full Name', 'text'], 'mobile' => ['Mobile', 'text'], 'scheduled_at' => ['Scheduled', 'datetime'],
+                    'columns' => ['reference_no' => ['Reference No', 'text'], 'full_name' => ['Full Name', 'text'], 'mobile' => ['Mobile', 'text'], 'scheduled_at' => ['Scheduled', 'interview'],
                         'location' => ['Location', 'text'], 'status_label' => ['Outcome', 'text'], 'booked_by' => ['Booked By', 'text'], 'outcome' => ['Result / Cancel Reason', 'text']],
                 ];
             case 'expiring':

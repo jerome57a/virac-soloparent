@@ -9,6 +9,7 @@ require_once __DIR__ . '/../services/AuditLogService.php';
 require_once __DIR__ . '/../services/RenewalService.php';
 require_once __DIR__ . '/../services/ScheduledJobService.php';
 require_once __DIR__ . '/../services/SMSService.php';
+require_once __DIR__ . '/../services/ApplicationNextStepService.php';
 require_once __DIR__ . '/NotificationController.php';
 require_once __DIR__ . '/ReportController.php';
 require_once __DIR__ . '/../services/AppointmentService.php';
@@ -78,6 +79,7 @@ class AdminController extends Controller
             'q' => $q,
             'validStatuses' => Application::STATUSES,
             'apps' => $result['rows'],
+            'nextSteps' => (new ApplicationNextStepService($this->pdo))->forRows($result['rows']),
             'pager' => $result,
             'stageCounts' => $applications->countsByStatus(),
         ]);
@@ -126,9 +128,11 @@ class AdminController extends Controller
                     $this->redirectTo('admin/user_edit.php?id=' . $newId);
                 }
                 $form = array_intersect_key($_POST, array_flip(['fullName', 'email', 'username', 'mobile', 'role', 'mustChange']));
-            } elseif (($_POST['action'] ?? '') === 'delete') {
+            } elseif (in_array($_POST['action'] ?? '', ['delete', 'deactivate', 'activate'], true)) {
                 $target = $service->find((int) ($_POST['user_id'] ?? 0));
-                [$error, $success] = $target ? $service->delete($this->admin, $target) : ['Account not found.', ''];
+                [$error, $success] = !$target ? ['Account not found.', '']
+                    : (($_POST['action'] === 'delete') ? $service->delete($this->admin, $target)
+                        : $service->setActive($this->admin, $target, $_POST['action'] === 'activate'));
                 if ($success) {
                     flash($success);
                     $this->redirectTo('admin/users.php' . (($_SERVER['QUERY_STRING'] ?? '') !== '' ? '?' . $_SERVER['QUERY_STRING'] : ''));
@@ -181,7 +185,7 @@ class AdminController extends Controller
         }
 
         $scope = (string) ($_GET['scope'] ?? '');
-        $this->page('Manage ' . $target['username'], 'users/edit.php', [
+        $this->page('Manage ' . ($target['username'] ?: $target['full_name']), 'users/edit.php', [
             'error' => $error,
             'success' => $success ?: (string) take_flash(),
             'target' => $target,

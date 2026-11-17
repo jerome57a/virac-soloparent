@@ -28,7 +28,7 @@ class ApplicationDraft extends Model
             'INSERT INTO application_drafts (user_id, kind, data) VALUES (?, ?, ?)
              ON DUPLICATE KEY UPDATE data = VALUES(data), updated_at = NOW()'
         );
-        $stmt->execute([$userId, $kind, json_encode($data, JSON_UNESCAPED_UNICODE)]);
+        $stmt->execute([$userId, $kind, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)]);
         return $stmt->rowCount() === 1;
     }
 

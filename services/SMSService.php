@@ -28,7 +28,9 @@ class SMSService
         'appointment_reminder' => ['Appointment Reminder (auto)', 'MSWDO Virac: Reminder -- your appointment for application {ref} is on {when} at {location}. Please arrive on time and bring a valid ID.'],
         'appointment_cancelled' => ['Appointment Cancelled', 'MSWDO Virac: Your appointment for application {ref} on {when} was cancelled. Reason: {reason}. Please contact MSWDO for a new schedule.'],
         'appointment_missed' => ['Appointment Missed', 'MSWDO Virac: You missed your appointment for application {ref} on {when}. Please contact MSWDO for a new schedule.'],
-        'document_correction' => ['Document Needs Correction', 'MSWDO Virac: The document "{document}" for application {ref} needs correction. Reason: {remarks}. Please log in and upload a replacement file under Documents.'],
+        'interview_booking_open' => ['Interview Booking Opened', 'MSWDO Virac: Your documents for application {ref} are verified. Please log in to your e-SoloParentID account and pick the date you want to arrive for your interview.'],
+        'interview_date_booked' => ['Interview Date Booked', 'MSWDO Virac: Your interview for application {ref} is booked for {when} at {location}. Please come during office hours on that date and bring a valid ID.'],
+        'document_correction' => ['Document Needs Correction', 'MSWDO Virac: Your document "{document}" for application {ref} needs correction. Please log in and open Supporting Documents to see what to fix and upload a replacement.'],
         'password_reset' => ['Password Reset Code', "MSWDO Virac: Your password reset code is {code}. It expires in {minutes} minutes. If you didn't request this, ignore this message."],
     ];
     /** Placeholders each template can use (anything else would be sent literally); the first is required. */
@@ -42,7 +44,9 @@ class SMSService
         'appointment_reminder' => ['{ref}', '{when}', '{location}'],
         'appointment_cancelled' => ['{ref}', '{when}', '{reason}'],
         'appointment_missed' => ['{ref}', '{when}'],
-        'document_correction' => ['{ref}', '{document}', '{remarks}'],
+        'interview_booking_open' => ['{ref}'],
+        'interview_date_booked' => ['{ref}', '{when}', '{location}'],
+        'document_correction' => ['{ref}', '{document}'],
         'password_reset' => ['{code}', '{minutes}'],
     ];
     public const PROVIDERS = ['test', 'semaphore'];
@@ -113,6 +117,11 @@ class SMSService
         }
         if ((int) $log['attempts'] >= SMS_MAX_ATTEMPTS) {
             return ['This message has already been tried ' . SMS_MAX_ATTEMPTS . ' times.', null];
+        }
+        if ($log['template_key'] === 'document_correction') {
+            // A correction SMS is only ever sent through staff preview-and-confirm, which checks the batch is still
+            // current and not already sent. A blind re-send of the stored text could duplicate it or contradict the record.
+            return ['Correction SMS cannot be retried from the SMS log. Staff must confirm it again from the application review page.', null];
         }
         if ($log['template_key'] === 'password_reset') {
             return ['Password reset codes cannot be re-sent from the log; the applicant should request a new code.', null];
@@ -357,30 +366,6 @@ class SMSService
         return $this->sendTemplate('status_change', ['{ref}' => $refNumber, '{status}' => $status, '{remarks}' => $remarks], $applicationId, $mobile);
     }
 
-    public function interviewScheduleMessage(string $applicantName, string $refNumber, string $scheduledAt, string $location, int $applicationId = 0): string
-    {
-        $date = date('F j, Y', strtotime($scheduledAt));
-        $time = date('g:i A', strtotime($scheduledAt));
-        $message = 'Hello ' . $applicantName . ', interview for ' . $refNumber . ': ' . $date . ' at ' . $time
-            . '. Location: ' . $location . '. Please arrive on time.';
-        $preparation = self::preparationText($this->uncheckedRequirementLabels($applicationId), 499 - mb_strlen($message));
-        return $message . ($preparation !== '' ? ' ' . $preparation : '');
-    }
-
-    public function notifyInterviewScheduled(int $applicationId, string $mobile, string $refNumber, string $scheduledAt, string $location, string $applicantName = '', ?string $customMessage = null): array
-    {
-        $custom = $customMessage !== null;
-        $message = $custom ? trim($customMessage) : $this->interviewScheduleMessage($applicantName, $refNumber, $scheduledAt, $location, $applicationId);
-        $key = $custom ? 'interview_custom' : 'interview_scheduled';
-        if (!$this->templateEnabled('interview_scheduled')) {
-            $recipient = $this->recipientFor($applicationId, $mobile);
-            $stmt = $this->pdo->prepare("INSERT INTO sms_logs (application_id, mobile, message, status, test_mode, template_key, provider, provider_status, error) VALUES (?, ?, ?, 'FAILED', 0, ?, ?, 'disabled', 'Interview SMS notifications are disabled in settings.')");
-            $stmt->execute([$applicationId, mb_substr($recipient, 0, 20), fit_text($message, 500), $key, self::provider()]);
-            return ['id' => (int) $this->pdo->lastInsertId(), 'status' => 'FAILED', 'test_mode' => false, 'error' => 'Interview SMS notifications are disabled in settings.', 'provider_status' => 'disabled'];
-        }
-        return $this->send($applicationId, $this->recipientFor($applicationId, $mobile), $message, $key);
-    }
-
     /** Sends the selected custom release message to the applicant's current confirmed number (or application fallback). */
     public function notifyIdReleaseScheduled(int $applicationId, string $mobile, string $message, bool $custom): array
     {
@@ -394,14 +379,6 @@ class SMSService
         return $this->send($applicationId, $this->recipientFor($applicationId, $mobile), $message, $key);
     }
 
-    /** The latest interview scheduling notification attempt for an application. */
-    public function latestInterviewNotification(int $applicationId): ?array
-    {
-        $stmt = $this->pdo->prepare("SELECT * FROM sms_logs WHERE application_id = ? AND template_key IN ('interview_scheduled','interview_custom') ORDER BY id DESC LIMIT 1");
-        $stmt->execute([$applicationId]);
-        return $stmt->fetch() ?: null;
-    }
-
     public function notifyRenewalSubmitted(int $applicationId, string $mobile, string $refNumber): array
     {
         return $this->sendTemplate('renewal_submitted', ['{ref}' => $refNumber], $applicationId, $mobile, $this->preparationReminder($applicationId));
@@ -413,26 +390,115 @@ class SMSService
             ['{ref}' => $refNumber, '{when}' => date('F j, Y', strtotime($expiresAt))], $applicationId, $mobile);
     }
 
-    public function notifyAppointmentReminder(int $applicationId, string $mobile, string $refNumber, string $scheduledAt, string $location): array
+    /**
+     * $dateOnly (a date-only appointment has no time of day): {when} is the date alone, and the appended "Please arrive on
+     * time." sentence is left out; the admin-editable template text is used as it is. false (the default) is the timed behaviour, unchanged.
+     */
+    public function notifyAppointmentReminder(int $applicationId, string $mobile, string $refNumber, string $scheduledAt, string $location, bool $dateOnly = false): array
     {
-        return $this->sendTemplate('appointment_reminder', ['{ref}' => $refNumber, '{when}' => date('F j, Y g:i A', strtotime($scheduledAt)), '{location}' => $location], $applicationId, $mobile,
-            trim('Please arrive on time. ' . $this->preparationReminder($applicationId)));
+        return $this->sendTemplate('appointment_reminder', ['{ref}' => $refNumber, '{when}' => date($dateOnly ? 'F j, Y' : 'F j, Y g:i A', strtotime($scheduledAt)), '{location}' => $location], $applicationId, $mobile,
+            trim(($dateOnly ? '' : 'Please arrive on time. ') . $this->preparationReminder($applicationId)));
     }
 
-    public function notifyAppointmentCancelled(int $applicationId, string $mobile, string $refNumber, string $scheduledAt, string $reason): array
+    /** $dateOnly: {when} is the date alone (no misleading 12:00 AM); false (the default) is the timed behaviour, unchanged. */
+    public function notifyAppointmentCancelled(int $applicationId, string $mobile, string $refNumber, string $scheduledAt, string $reason, bool $dateOnly = false): array
     {
-        return $this->sendTemplate('appointment_cancelled', ['{ref}' => $refNumber, '{when}' => date('F j, Y g:i A', strtotime($scheduledAt)), '{reason}' => $reason], $applicationId, $mobile);
+        return $this->sendTemplate('appointment_cancelled', ['{ref}' => $refNumber, '{when}' => date($dateOnly ? 'F j, Y' : 'F j, Y g:i A', strtotime($scheduledAt)), '{reason}' => $reason], $applicationId, $mobile);
     }
 
-    public function notifyAppointmentMissed(int $applicationId, string $mobile, string $refNumber, string $scheduledAt): array
+    /** Staff opened or manually reopened interview date booking for this application (interview_booking_open). */
+    public function notifyInterviewBookingOpen(int $applicationId, string $mobile, string $refNumber, ?string $customMessage = null): array
     {
-        return $this->sendTemplate('appointment_missed', ['{ref}' => $refNumber, '{when}' => date('F j, Y g:i A', strtotime($scheduledAt))], $applicationId, $mobile);
+        if ($customMessage === null) {
+            return $this->sendTemplate('interview_booking_open', ['{ref}' => $refNumber], $applicationId, $mobile);
+        }
+        // Staff-written text: same on/off switch as the automatic message, logged under its own key.
+        if (!$this->templateEnabled('interview_booking_open')) {
+            return ['id' => null, 'status' => 'DISABLED', 'test_mode' => false, 'error' => null];
+        }
+        return $this->send($applicationId, $this->recipientFor($applicationId, $mobile), trim($customMessage), 'interview_booking_custom');
     }
 
-    /** Keep detailed physical-document corrections on the authenticated dashboard. */
-    public function notifyDocumentCorrection(int $applicationId, string $mobile, string $refNumber, string $documentLabel, string $remarks): array
+    /** The automatic invitation text for an application (what the applicant receives when staff choose Automatic Message). */
+    public function interviewBookingOpenMessage(string $refNumber): string
     {
-        return $this->sendTemplate('document_correction', ['{ref}' => $refNumber, '{document}' => 'Physical requirements', '{remarks}' => 'Log in to view MSWDO instructions and prepare the requested documents'], $applicationId, $mobile);
+        return $this->render('interview_booking_open', ['{ref}' => $refNumber]);
+    }
+
+    /** The applicant booked (or replaced) an interview DATE (interview_date_booked). $date is Y-m-d; {when} is the date with its weekday, never a time. */
+    public function notifyInterviewDateBooked(int $applicationId, string $mobile, string $refNumber, string $date, string $location): array
+    {
+        return $this->sendTemplate('interview_date_booked', ['{ref}' => $refNumber, '{when}' => date('l, F j, Y', strtotime($date)), '{location}' => $location], $applicationId, $mobile);
+    }
+
+    /** $dateOnly: {when} is the date alone (no misleading 12:00 AM); false (the default) is the timed behaviour, unchanged. */
+    public function notifyAppointmentMissed(int $applicationId, string $mobile, string $refNumber, string $scheduledAt, bool $dateOnly = false): array
+    {
+        return $this->sendTemplate('appointment_missed', ['{ref}' => $refNumber, '{when}' => date($dateOnly ? 'F j, Y' : 'F j, Y g:i A', strtotime($scheduledAt))], $applicationId, $mobile);
+    }
+
+    /**
+     * The approved correction SMS wording. It is deliberately a source constant, NOT read from sms_templates:
+     * render() prefers an administrator-edited or older stored 'document_correction' row over the built-in text,
+     * which would silently replace this wording (and could drop the applicant name or the document names).
+     * The staff preview and the confirmed send both use correctionMessage(), so neither can differ from this.
+     * The stored row still controls only whether this SMS is switched on (templateEnabled()).
+     */
+    public const CORRECTION_BODY = 'Hello {applicant_name}, your document "{document}" for application {ref} needs correction. Please log in to your Solo Parent ID account, open Supporting Documents, and upload a replacement document. Please check the instructions provided by MSWDO in your account. Thank you.';
+
+    /**
+     * The exact correction SMS for a batch: the approved wording with the applicant's name, EVERY affected
+     * document name (one message however many) and the application reference filled in. Nothing is shortened
+     * or dropped here; callers must check the length (CORRECTION_MAX_LENGTH) and refuse to send rather than
+     * truncate. Staff remarks are not a parameter and cannot appear. strtr() substitutes in a single pass, so a
+     * name or label that happens to contain "{ref}" or similar is never expanded again.
+     */
+    public function correctionMessage(string $applicantName, string $refNumber, array $documentLabels): string
+    {
+        $clean = static fn($text) => trim((string) preg_replace('/\s+/u', ' ', (string) $text));
+        $names = [];
+        foreach ($documentLabels as $label) {
+            $label = $clean($label);
+            if ($label !== '') {
+                $names[] = $label;
+            }
+        }
+        $applicant = $clean($applicantName);
+        return strtr(self::CORRECTION_BODY, [
+            '{applicant_name}' => $applicant !== '' ? $applicant : 'Applicant',
+            '{document}' => $names ? implode(', ', $names) : 'Supporting document',
+            '{ref}' => $refNumber,
+        ]);
+    }
+
+    /** The longest SMS text the log (and therefore a confirmed send) can hold without cutting it. */
+    public const CORRECTION_MAX_LENGTH = 500;
+
+    /** The number texts about an application go to (confirmed account number, else $fallback), as send() would use it. */
+    public function recipientForApplication(int $applicationId, string $fallback): string
+    {
+        return $this->recipientFor($applicationId, $fallback);
+    }
+
+    /**
+     * Step one of a two-step send: records a PENDING log row for the exact $message without contacting the
+     * provider, so the caller can commit the reservation before dispatching. Returns the log id.
+     */
+    public function reserveLog(int $applicationId, string $number, string $message, string $templateKey): int
+    {
+        $provider = self::provider();
+        $this->pdo->prepare(
+            "INSERT INTO sms_logs (application_id, mobile, message, status, test_mode, template_key, provider, provider_status)
+             VALUES (?, ?, ?, 'PENDING', ?, ?, ?, 'pending')"
+        )->execute([$applicationId, mb_substr($number, 0, 20), $message, (int) ($provider === 'test'), $templateKey, $provider]);
+        return (int) $this->pdo->lastInsertId();
+    }
+
+    /** Step two: sends the reserved message and records the outcome on its log row. Same return shape as send(). */
+    public function dispatchReserved(int $logId, string $number, string $message): array
+    {
+        $provider = self::provider();
+        return $this->record($logId, $this->dispatch($provider, $number, $message), $provider === 'test');
     }
 
     /** The code is sent but never stored: the log keeps the text with the code masked. */

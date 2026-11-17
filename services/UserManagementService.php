@@ -24,6 +24,8 @@ class UserManagementService
     public const ACTIVITY_PER_PAGE = 20;
     public const STATUS_FILTERS = ['active' => 'Active', 'inactive' => 'Deactivated', 'locked' => 'Locked out', 'temp_password' => 'Temporary password'];
     private const USERNAME_PATTERN = '/^[A-Za-z0-9._-]{3,50}$/';
+    /** The same rule as AuthService::usernameError, as an HTML pattern for the create form (3-30 characters, at least one letter, no trailing symbol). */
+    public const APPLICANT_USERNAME_PATTERN_HTML = '(?=.*[A-Za-z])[A-Za-z0-9][A-Za-z0-9._\x2D]{1,28}[A-Za-z0-9]';
 
     private PDO $pdo;
     private User $users;
@@ -59,6 +61,9 @@ class UserManagementService
         if ((!$optionalEmail || $email !== '') && (mb_strlen($email) > 150 || !filter_var($email, FILTER_VALIDATE_EMAIL))) {
             return 'Enter a valid email address.';
         }
+        if ($email !== '' && $this->users->emailTakenByOther($email, $exceptUserId)) {
+            return 'That email address is already registered to another account.';
+        }
         if ($mobile !== '' && !is_valid_ph_mobile($mobile)) {
             return 'Enter a valid Philippine mobile number (e.g. 09171234567), or leave it blank.';
         }
@@ -84,9 +89,10 @@ class UserManagementService
         }
         $auth = new AuthService($this->pdo);
         if ($role === 'applicant') {
-            // Applicant signup uses mobile contact, without requiring an email address.
-            $email = '';
-            if ($error = $auth->applicantRegistrationError(compact('fullName', 'username', 'mobile'), $password, $confirmation)) {
+            // Match public Solo Parent registration: a required, globally unique username (the sign-in identifier),
+            // a mobile number and an optional Gmail address. The username rules are AuthService::usernameError's.
+            $email = strtolower($email);
+            if ($error = $auth->applicantRegistrationError(compact('fullName', 'username', 'email', 'mobile'), $password, $confirmation)) {
                 return [$error, '', null];
             }
         } else {
@@ -107,18 +113,33 @@ class UserManagementService
             }
         }
         $hash = password_hash($password, PASSWORD_DEFAULT);
-        $newId = $this->users->createWithRole($fullName, $email, $username, $hash, $role, $mobile !== '' ? $mobile : null);
+        try {
+            $newId = $this->users->createWithRole($fullName, $email, $username, $hash, $role, $mobile !== '' ? $mobile : null);
+        } catch (PDOException $e) {
+            // SQLSTATE 23000 covers every integrity failure (foreign key, NOT NULL, any unique key). Report a duplicate
+            // username only if the username now exists (it was taken between the check above and the insert; usernames
+            // are unique across all roles); anything else is a real error and is rethrown unchanged.
+            if ($e->getCode() !== '23000' || !$this->users->usernameExists($username)) {
+                throw $e;
+            }
+            return ['That username is already taken.', '', null];
+        }
+        if ($role === 'applicant') {
+            // Match self-registration's current verification bypass so mobile-only accounts can sign in.
+            $this->users->markMobileVerified($newId);
+        }
         $mustChange = $role !== 'applicant' && !empty($in['mustChange']);
         if ($mustChange) {
             $this->users->setTemporaryPassword($newId, $hash);
         }
-        $this->audit($admin, 'User Creation', $newId, $username . ' (' . User::ROLE_LABELS[$role] . ')' . ($mustChange ? ', must change password at first sign-in' : ''));
-        $success = 'Account created for ' . $username . '.';
+        $accountLabel = $username ?: $fullName;
+        $this->audit($admin, 'User Creation', $newId, $accountLabel . ' (' . User::ROLE_LABELS[$role] . ')' . ($mustChange ? ', must change password at first sign-in' : ''));
+        $success = 'Account created for ' . $accountLabel . '.';
         if ($role === 'mswd_social_worker') {
             $success .= ' They can access and continue updating all existing applicant records when they sign in. Previous staff history is preserved.';
         }
         if ($role === 'applicant') {
-            $success .= ' They must confirm their mobile number when they sign in. This creates an account only; the Solo Parent application is completed separately.';
+            $success .= ' They sign in with this username and the password you set; their mobile number and Gmail address are contact details only. This creates an account only; the Solo Parent application is completed separately.';
         }
         return ['', $success, $newId];
     }
@@ -142,7 +163,7 @@ class UserManagementService
             return ['', 'No changes to save.'];
         }
         $this->users->updateAccount((int) $target['id'], $fullName, $email, $mobile !== '' ? $mobile : null);
-        $this->audit($admin, 'User Edited', (int) $target['id'], $target['username'] . ': ' . implode(', ', $changes));
+        $this->audit($admin, 'User Edited', (int) $target['id'], ($target['username'] ?: ($target['email'] ?: $target['mobile'])) . ': ' . implode(', ', $changes));
         return ['', 'Account updated.'];
     }
 
@@ -156,8 +177,8 @@ class UserManagementService
             return ['', 'The account is already ' . ($active ? 'active' : 'deactivated') . '.'];
         }
         $this->users->setActive((int) $target['id'], $active);
-        $this->audit($admin, $active ? 'Account Activated' : 'Account Deactivated', (int) $target['id'], $target['username']);
-        return ['', $active ? 'Account activated. ' . $target['username'] . ' can sign in again.' : 'Account deactivated. ' . $target['username'] . ' is signed out and can no longer sign in.'];
+        $this->audit($admin, $active ? 'Account Activated' : 'Account Deactivated', (int) $target['id'], ($target['username'] ?: ($target['email'] ?: $target['mobile'])));
+        return ['', $active ? 'Account activated. ' . ($target['username'] ?: ($target['email'] ?: $target['mobile'])) . ' can sign in again.' : 'Account deactivated. ' . ($target['username'] ?: ($target['email'] ?: $target['mobile'])) . ' is signed out and can no longer sign in.'];
     }
 
     /**
@@ -183,8 +204,8 @@ class UserManagementService
             }
             throw $e;
         }
-        $this->audit($admin, 'User Deleted', (int) $target['id'], $target['username'] . ' (' . (User::ROLE_LABELS[$target['role']] ?? $target['role']) . ')');
-        return ['', 'Account ' . $target['username'] . ' deleted.'];
+        $this->audit($admin, 'User Deleted', (int) $target['id'], ($target['username'] ?: ($target['email'] ?: $target['mobile'])) . ' (' . (User::ROLE_LABELS[$target['role']] ?? $target['role']) . ')');
+        return ['', 'Account ' . ($target['username'] ?: ($target['email'] ?: $target['mobile'])) . ' deleted.'];
     }
 
     /** @return array{0: string, 1: string} */
@@ -202,8 +223,11 @@ class UserManagementService
         if ($target['role'] === 'applicant' && ($count = $this->users->applicationCount((int) $target['id'])) > 0) {
             return ['This account has ' . $count . ' application(s) on file, so it must stay a Solo Parent account. Create a separate account for staff work.', ''];
         }
+        if ($newRole !== 'applicant' && empty($target['username'])) {
+            return ['Create a separate personnel account with a username for staff work.', ''];
+        }
         $this->users->setRole((int) $target['id'], $newRole);
-        $this->audit($admin, 'User Role Change', (int) $target['id'], $target['username'] . ': ' . (User::ROLE_LABELS[$target['role']] ?? $target['role']) . ' → ' . User::ROLE_LABELS[$newRole]);
+        $this->audit($admin, 'User Role Change', (int) $target['id'], ($target['username'] ?: ($target['email'] ?: $target['mobile'])) . ': ' . (User::ROLE_LABELS[$target['role']] ?? $target['role']) . ' → ' . User::ROLE_LABELS[$newRole]);
         return ['', 'Role changed to ' . User::ROLE_LABELS[$newRole] . '. It takes effect on their next page load.'];
     }
 
@@ -220,8 +244,8 @@ class UserManagementService
         }
         $temp = self::temporaryPassword();
         $this->users->setTemporaryPassword((int) $target['id'], password_hash($temp, PASSWORD_DEFAULT));
-        $this->audit($admin, 'Access Reset', (int) $target['id'], $target['username'] . ': temporary password issued, lockout cleared');
-        return ['', 'Temporary password for ' . $target['username'] . ': ' . $temp . ' — give it to them in person or by phone. It is shown only once; they must choose a new password when they sign in.'];
+        $this->audit($admin, 'Access Reset', (int) $target['id'], ($target['username'] ?: ($target['email'] ?: $target['mobile'])) . ': temporary password issued, lockout cleared');
+        return ['', 'Temporary password for ' . ($target['username'] ?: ($target['email'] ?: $target['mobile'])) . ': ' . $temp . ' — give it to them in person or by phone. It is shown only once; they must choose a new password when they sign in.'];
     }
 
     /** Clears a lockout without touching the password. @return array{0: string, 1: string} */
@@ -231,7 +255,7 @@ class UserManagementService
             return ['', 'The account is not locked.'];
         }
         $this->users->clearLockout((int) $target['id']);
-        $this->audit($admin, 'Account Unlocked', (int) $target['id'], $target['username']);
+        $this->audit($admin, 'Account Unlocked', (int) $target['id'], ($target['username'] ?: ($target['email'] ?: $target['mobile'])));
         return ['', 'Account unlocked. Failed sign-in attempts were reset.'];
     }
 
@@ -250,8 +274,8 @@ class UserManagementService
             return ['', 'This mobile number is already confirmed.'];
         }
         $this->users->markMobileVerified((int) $target['id']);
-        $this->audit($admin, 'Mobile Verified', (int) $target['id'], $target['username'] . ': number ending ' . substr(preg_replace('/\D/', '', $target['mobile']), -4) . ' confirmed by an administrator');
-        return ['', 'Mobile number confirmed. ' . $target['username'] . ' can now use their account.'];
+        $this->audit($admin, 'Mobile Verified', (int) $target['id'], ($target['username'] ?: ($target['email'] ?: $target['mobile'])) . ': number ending ' . substr(preg_replace('/\D/', '', $target['mobile']), -4) . ' confirmed by an administrator');
+        return ['', 'Mobile number confirmed. ' . ($target['username'] ?: ($target['email'] ?: $target['mobile'])) . ' can now use their account.'];
     }
 
     /** The account's activity (see AuditLog::forAccount). */

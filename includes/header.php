@@ -41,7 +41,7 @@ if (!empty($staff)) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($pageTitle) ?></title>
 <script src="<?= public_asset('js/preferences-init.js') ?>"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+<link rel="stylesheet" href="<?= public_asset('lib/bootstrap/bootstrap.min.css') ?>">
 <link rel="stylesheet" href="<?= public_asset('css/style.css') ?>">
 <?php if ($isPersonnelPortal): ?>
 <link rel="stylesheet" href="<?= public_asset('css/personnel-portal.css') ?>">
@@ -217,11 +217,11 @@ if (!empty($staff)) {
     </a>
     <a href="<?= base_url(!empty($user) ? 'applicant/dashboard.php?section=requirements' : 'portal.php#requirements') ?>" class="nav-drawer-link nav-drawer-link-icon">
       <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 12h7M9 16h7"/></svg>
-      <span>Document Requirements</span>
+      <span data-i18n>Requirements Guide</span>
     </a>
-    <div class="nav-drawer-section-label" data-i18n>Account</div>
-
+    <?php // Visitors sign in or register through the header button and the unified login page; this section is for signed-in applicants only. ?>
     <?php if (!empty($user)): ?>
+    <div class="nav-drawer-section-label" data-i18n>Account</div>
       <a href="<?= base_url('applicant/dashboard.php?section=profile') ?>" class="nav-drawer-link nav-drawer-link-icon">
         <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
         <span data-i18n>My Profile</span>
@@ -233,19 +233,6 @@ if (!empty($staff)) {
           <span data-i18n>Log Out</span>
         </button>
       </form>
-    <?php else: ?>
-      <a href="<?= base_url('login.php') ?>" class="nav-drawer-link nav-drawer-link-icon <?= $navScript === 'login.php' ? 'active" aria-current="page' : '' ?>">
-        <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-        <span>Applicant Log In</span>
-      </a>
-      <a href="<?= base_url('register.php') ?>" class="nav-drawer-link nav-drawer-link-icon <?= $navScript === 'register.php' ? 'active" aria-current="page' : '' ?>">
-        <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
-        <span data-i18n>Create Account</span>
-      </a>
-          <a href="<?= base_url('mswd-login.php') ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navScript === 'mswd-login.php' ? ' active' : '' ?>"<?= $navScript === 'mswd-login.php' ? ' aria-current="page"' : '' ?>>
-        <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v5c0 5-8 9-8 9s-8-4-8-9V7z"/><path d="m8 12 3 3 5-6"/></svg>
-        <span>MSWD Admin &amp; Staff Log In</span>
-      </a>
     <?php endif; ?>
     <?php endif; ?>
   </nav>

@@ -163,17 +163,30 @@ class ReportService
     }
 
     /** A cell for screen/print: dates readable, numbers grouped, empty as a dash. */
-    public static function formatCell(mixed $value, string $format): string
+    public static function formatCell(mixed $value, string $format, ?array $row = null): string
     {
         if ($value === null || $value === '') {
             return '—';
         }
         return match ($format) {
             'datetime' => date('M j, Y g:i A', strtotime((string) $value)),
+            'interview' => interview_schedule_text((string) $value, interview_is_date_only($row), 'M j, Y g:i A', 'M j, Y'),
             'date' => date('M j, Y', strtotime((string) $value)),
             'int' => number_format((int) $value),
             default => (string) $value,
         };
+    }
+
+    /**
+     * A CSV cell: the raw value, except an 'interview' column of a date-only appointment, which is the date
+     * alone (YYYY-MM-DD) with no midnight time. Everything else is exported exactly as before.
+     */
+    public static function csvCell(mixed $value, string $format, ?array $row = null): mixed
+    {
+        if ($format === 'interview' && $value !== null && $value !== '' && interview_is_date_only($row)) {
+            return date('Y-m-d', strtotime((string) $value));
+        }
+        return $value;
     }
 
     /** One line describing the active filters, e.g. 'Submitted Jan 1, 2026 – Mar 31, 2026 · Status: Approved · Search "Cruz"'. */

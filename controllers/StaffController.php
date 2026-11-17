@@ -3,6 +3,9 @@ require_once __DIR__ . '/Controller.php';
 require_once __DIR__ . '/../services/AuthService.php';
 require_once __DIR__ . '/../services/ApplicationReviewService.php';
 require_once __DIR__ . '/../services/AppointmentService.php';
+require_once __DIR__ . '/../services/InterviewDateService.php';
+require_once __DIR__ . '/../services/InterviewInvitationService.php';
+require_once __DIR__ . '/../services/ApplicationNextStepService.php';
 require_once __DIR__ . '/../services/RenewalService.php';
 require_once __DIR__ . '/../services/IdReleaseService.php';
 require_once __DIR__ . '/NotificationController.php';
@@ -49,7 +52,9 @@ class StaffController extends Controller
         $applications = new Application($this->pdo);
         $documents = new Document($this->pdo);
         $appointments = new Appointment($this->pdo);
-        $todays = $appointments->todaysInterviews();
+        // Expected today = active BOOKED appointments on today's Manila date only (cancelled, completed and missed are left out);
+        // the same list feeds the count and the "Today's Appointments" card, so the two always agree.
+        $todays = array_values(array_filter($appointments->todaysInterviews(), fn($iv) => $iv['status'] === 'BOOKED'));
         $this->page('MSWD Dashboard', 'views/staff/dashboard.php', [
             'stats' => [
                 'pending'           => $applications->countWhere("type = 'new' AND status = 'Pending Review'"),
@@ -63,6 +68,7 @@ class StaffController extends Controller
             'docBacklog' => $documents->verificationBacklog(),
             'verificationQueue' => $documents->verificationQueue(5),
             'todaysAppointments' => $todays,
+            'bookingEnabled' => InterviewDateFeature::enabled($this->pdo), // applicants pick their own date: wording only
             'upcomingInterviews' => $appointments->upcomingInterviews(5),
             'recentlyProcessed' => $applications->recentlyReviewed(),
         ]);
@@ -83,6 +89,7 @@ class StaffController extends Controller
             'filters' => $filters,
             'statuses' => Application::STATUSES,
             'apps' => $result['rows'],
+            'nextSteps' => (new ApplicationNextStepService($this->pdo))->forRows($result['rows']),
             'pager' => $result,
         ]);
     }
@@ -104,20 +111,17 @@ class StaffController extends Controller
             $review->startReviewOnOpen($this->staff, $app);
             $app = $applications->findForReview($id);
         }
-        $errors = ['status' => '', 'interview' => '', 'assessment' => '', 'release' => '', 'note' => '', 'documents' => []];
+        $errors = ['status' => '', 'interview' => '', 'invitation' => '', 'assessment' => '', 'release' => '', 'documents' => []];
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_require();
             $errors = $this->handleReviewAction($app) + $errors;
         }
         [$renewalOf, $renewalChanges] = $this->renewalContext($app);
         $appointmentModel = new Appointment($this->pdo);
-        $currentInterview = $appointmentModel->interviewFor($id);
-        $interviewForm = ['interview_date' => $currentInterview ? date('Y-m-d', strtotime($currentInterview['scheduled_at'])) : '', 'interview_time' => $currentInterview ? date('H:i', strtotime($currentInterview['scheduled_at'])) : '', 'location' => $currentInterview['location'] ?? get_setting($this->pdo, 'appointment_location', AppointmentService::DEFAULT_LOCATION), 'sms_message_type' => 'automatic', 'custom_message' => ''];
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_action'] ?? '') === 'schedule_interview') {
-            foreach ($interviewForm as $key => $value) {
-                if (is_string($_POST[$key] ?? null)) { $interviewForm[$key] = $_POST[$key]; }
-            }
-        }
+
+        // Invitation card: nothing is read unless the rollout flag is on and the schema is ready (off: the card is hidden).
+        $invitationState = InterviewDateFeature::flagOn($this->pdo) ? (InterviewDateFeature::schemaReady($this->pdo) ? 'ready' : 'incomplete') : 'off';
+        $invitationPanel = $invitationState === 'ready' ? (new InterviewInvitationService($this->pdo))->panel($id) : null;
 
         $this->page('Application ' . $app['reference_no'], 'views/staff/applications/show.php', [
             'app' => $app,
@@ -126,15 +130,20 @@ class StaffController extends Controller
             'releaseError' => $errors['release'],
             'documentErrors' => $errors['documents'],
             'interviewError' => $errors['interview'],
-            'noteError' => $errors['note'],
+            'invitationError' => $errors['invitation'],
+            'invitationState' => $invitationState,
+            'invitationPanel' => $invitationPanel,
+            'invitationAutoMessage' => $invitationState === 'ready' ? (new SMSService($this->pdo))->interviewBookingOpenMessage((string) $app['reference_no']) : '',
             'flashMessage' => take_flash(),
             'verificationNotice' => (function () { $n = $_SESSION['verification_notice'] ?? null; unset($_SESSION['verification_notice']); return is_array($n) ? $n : null; })(),
             'reviewUndoToken' => $review->reviewUndoToken($id),
+            'correctionSms' => $review->correctionSmsPreview($app),
+            'correctionNotice' => (function () { $n = $_SESSION['correction_sms_notice'] ?? null; unset($_SESSION['correction_sms_notice']); return is_array($n) ? $n : null; })(),
+            'showCorrectionPreview' => $_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['preview_correction_sms'] ?? '') === '1',
             'allowedTransitions' => Application::TRANSITIONS[$app['status']] ?? [],
             'approvalChecklist' => $review->approvalChecklist($app),
             'interview' => $appointmentModel->interviewFor($id),
             'interviewSms' => $appointmentModel->interviewSms($id),
-            'interviewForm' => $interviewForm,
             'idReleaseSchedule' => (new IdReleaseService($this->pdo))->scheduleFor($id),
             'defaultReleaseLocation' => get_setting($this->pdo, 'appointment_location', 'MSWDO Virac office'),
             'children' => $applications->children($id),
@@ -206,17 +215,34 @@ class StaffController extends Controller
                 }
                 $back .= '#id-release';
                 break;
-            case 'schedule_interview':
-                // Staff pick the interview date and time directly; ApplicationReviewService validates them (future, office day and hours).
-                $date = $post('interview_date');
-                $time = substr($post('interview_time'), 0, 5);
-                $scheduledAt = $date . 'T' . $time;
-                $error = $review->scheduleInterview($this->staff, $app, $scheduledAt, $post('location'), $post('notes'), $post('sms_message_type') ?: 'automatic', $post('custom_message'));
+            case 'open_invitation':
+            case 'close_invitation':
+            case 'reopen_invitation':
+            case 'grant_reschedule':
+                // Reads the form only; every rule, lock and audit entry lives in InterviewInvitationService.
+                $invitations = new InterviewInvitationService($this->pdo);
+                $action = $post('form_action');
+                // Automatic message unless staff chose to write their own (null = automatic).
+                $customMessage = $post('sms_message_type') === 'custom' ? $post('invitation_custom_message') : null;
+                $error = match ($action) {
+                    'open_invitation' => $invitations->open($this->staff, $id, '', $customMessage),
+                    'close_invitation' => $invitations->close($this->staff, $id, $post('reason')),
+                    'reopen_invitation' => $invitations->reopen($this->staff, $id, '', $customMessage),
+                    default => $invitations->grantReschedule($this->staff, $id, $post('reason')),
+                };
                 if ($error) {
-                    return ['interview' => $error];
+                    return ['invitation' => $error];
                 }
-                $back .= '#interview';
+                flash(match ($action) {
+                    'open_invitation' => 'Interview booking invitation sent. The applicant was notified to log in and choose an available date.',
+                    'close_invitation' => 'Interview invitation closed.',
+                    'reopen_invitation' => 'Interview booking invitation reopened. The applicant was notified to log in and choose an available date.',
+                    default => 'An extra reschedule was granted.',
+                });
+                $back .= '#invitation';
                 break;
+            // Interviews are no longer assigned a fixed date and time from this page: staff send the interview invitation
+            // (the cases above) and the applicant chooses an available date (InterviewBookingService).
             case 'retry_interview_sms':
                 $appointment = (new Appointment($this->pdo))->interviewFor($id);
                 $sms = new SMSService($this->pdo);
@@ -267,6 +293,7 @@ class StaffController extends Controller
                         'remarks' => is_string($row['remarks'] ?? null) ? $row['remarks'] : '',
                         'expected' => is_string($row['expected'] ?? null) ? trim($row['expected']) : '',
                         'expected_remarks' => is_string($row['expected_remarks'] ?? null) ? $row['expected_remarks'] : null,
+                        'expected_version' => is_string($row['expected_version'] ?? null) ? trim($row['expected_version']) : '',
                     ];
                 }
                 if (!$rows) {
@@ -285,12 +312,17 @@ class StaffController extends Controller
                 $_SESSION['verification_notice'] = ['text' => $notice, 'warning' => $result['notify_failures'] > 0];
                 $back .= '#checklist';
                 break;
-            case 'add_note':
-                $error = $review->addNote($this->staff, $app, $post('note'));
-                if ($error) {
-                    return ['note' => $error];
-                }
-                $back .= '#notes';
+            case 'confirm_correction_sms':
+                // The application comes from the staff page's own ?id= lookup, so the batch token (which embeds the
+                // application id) can only confirm a batch of this record. Applicants cannot reach this controller.
+                $sent = $review->sendCorrectionSms($this->staff, $app, $post('batch_token'));
+                // Shown inside the #correction-sms panel (its own session key, not the Save Verification notice).
+                $_SESSION['correction_sms_notice'] = [
+                    'outcome' => $sent['outcome'],
+                    'test_mode' => !empty($sent['test_mode']),
+                    'text' => $sent['message'],
+                ];
+                $back .= '#correction-sms';
                 break;
             default:
                 $status = $post('status');
@@ -345,6 +377,7 @@ class StaffController extends Controller
         $this->authorize($this->staff, 'appointments.view');
         $canManage = can($this->staff, 'applications.process');
         $error = '';
+        $dateError = '';
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_require();
             $this->authorize($this->staff, 'applications.process', 'staff/appointments.php');
@@ -357,16 +390,42 @@ class StaffController extends Controller
             }
         }
 
+        // 'off' = the rollout flag is off (the card is hidden and no interview-date table is read); 'ready' = flag on and
+        // the whole schema ready; 'incomplete' = flag on but the schema is not ready or could not be checked (fail closed).
+        $dateState = InterviewDateFeature::flagOn($this->pdo) ? (InterviewDateFeature::schemaReady($this->pdo) ? 'ready' : 'incomplete') : 'off';
+        $dateService = new InterviewDateService($this->pdo);
         $appointments = new Appointment($this->pdo);
+        $awaitingSchedule = $canManage ? $appointments->awaitingStaffSchedule() : [];
+        $waitingForDate = [];
+        if ($canManage && $dateState === 'ready') {
+            // With date booking on, "needs an invitation" means: every required document verified and no open invitation yet.
+            // Invited applicants are listed separately, as waiting for the applicant to choose a date.
+            $waitingForDate = (new InterviewInvitation($this->pdo))->waitingForApplicant();
+            $invited = array_flip(array_map('intval', array_column($waitingForDate, 'id')));
+            $applicationModel = new Application($this->pdo);
+            $documentModel = new Document($this->pdo);
+            $awaitingSchedule = array_values(array_filter($awaitingSchedule, function (array $row) use ($invited, $applicationModel, $documentModel): bool {
+                if (isset($invited[(int) $row['id']])) {
+                    return false;
+                }
+                $full = $applicationModel->findForReview((int) $row['id']);
+                return $full !== null && $documentModel->outstandingRequired($full) === [];
+            }));
+        }
         $this->page($this->staff['role'] === 'admin' ? 'Appointment Overview' : 'Appointment Management', 'views/staff/appointments/index.php', [
             'error' => $error,
             'flashMessage' => take_flash(),
             'canManage' => $canManage,
             'awaitingOutcome' => $appointments->awaitingOutcome(),
-            'awaitingSchedule' => $canManage ? $appointments->awaitingStaffSchedule() : [],
-            // Past-but-still-booked ones are already listed under Needs Outcome.
-            'todayAppointments' => array_values(array_filter($appointments->todaysInterviews(), fn($iv) => !($iv['status'] === 'BOOKED' && strtotime($iv['scheduled_at']) < time()))),
+            'awaitingSchedule' => $awaitingSchedule,
+            'waitingForDate' => $waitingForDate,
+            // Past-but-still-booked timed ones are already listed under Needs Outcome; a date-only one stays here all day.
+            'todayAppointments' => array_values(array_filter($appointments->todaysInterviews(), fn($iv) => Appointment::staysOnTodayList($iv))),
             'upcomingByDate' => $appointments->laterInterviewsByDate(),
+            'dateState' => $dateState,
+            'dateError' => $dateError,
+            'interviewDates' => $dateState === 'ready' ? $dateService->upcoming() : [],
+            'defaultCapacity' => $dateState === 'ready' ? $dateService->defaultCapacity() : 0,
         ]);
     }
 

@@ -3,6 +3,7 @@ require_once __DIR__ . '/../models/ApplicantRecord.php';
 require_once __DIR__ . '/../models/Applicant.php';
 require_once __DIR__ . '/../models/Application.php';
 require_once __DIR__ . '/EligibilityService.php';
+require_once __DIR__ . '/ApplicationNextStepService.php';
 
 /**
  * Centralised record management for MSWD staff and administrators
@@ -70,6 +71,23 @@ class RecordService
      * applicant. $applicationId narrows documents, appointments, decisions
      * and status history to one of their applications (ignored if it isn't theirs).
      */
+    /**
+     * Interview booking invitations for these applications (staff open one; the applicant then chooses a date), newest
+     * first. Empty unless date booking is enabled, so nothing new is read while the feature is off.
+     */
+    private function invitations(array $applicationIds): array
+    {
+        if (!$applicationIds || !InterviewDateFeature::enabled($this->pdo)) {
+            return [];
+        }
+        $stmt = $this->pdo->prepare(
+            'SELECT i.*, a.reference_no FROM interview_invitations i JOIN applications a ON a.id = i.application_id
+             WHERE i.application_id IN (' . implode(',', array_fill(0, count($applicationIds), '?')) . ') ORDER BY i.opened_at DESC, i.id DESC'
+        );
+        $stmt->execute($applicationIds);
+        return $stmt->fetchAll();
+    }
+
     public function record(int $userId, int $applicationId, int $historyPage): ?array
     {
         $applicantModel = new Applicant($this->pdo);
@@ -95,6 +113,8 @@ class RecordService
             'selected' => $selected,
             'documents' => $this->records->documents($ids),
             'appointments' => $this->records->appointments($ids),
+            'invitations' => $this->invitations($ids),
+            'nextSteps' => (new ApplicationNextStepService($this->pdo))->forRows($applications),
             'decisions' => $this->records->decisions($ids),
             'history' => $this->records->statusHistory($ids, $historyPage, self::HISTORY_PER_PAGE),
         ];

@@ -58,6 +58,12 @@ class ApplicationController extends Controller
         $submitError = null;
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            // A request larger than post_max_size arrives with $_POST and $_FILES emptied by PHP, which would otherwise
+            // surface as a generic CSRF failure. Only that case is handled here; every other POST is checked as before.
+            if ($this->postExceededLimit()) {
+                flash('The files you chose are larger together than this server accepts in one upload (' . format_mb(self::postMaxBytes() / 1048576) . '). Please upload fewer files at a time.');
+                $this->redirectTo(self::APPLY_URL);
+            }
             csrf_require();
             [$draft, $errors, $submitError] = $this->handleApplyAction($service, $user, $draft);
         }
@@ -99,6 +105,35 @@ class ApplicationController extends Controller
             'draftSavedAt' => $draftInfo['updatedAt'] ?? null,
             'flashMessage' => take_flash(),
         ]];
+    }
+
+    /** php.ini post_max_size in bytes; 0 means no limit (or an unreadable value). */
+    private static function postMaxBytes(): int
+    {
+        $value = trim((string) ini_get('post_max_size'));
+        if ($value === '' || !is_numeric(substr($value, 0, 1))) {
+            return 0;
+        }
+        $bytes = (float) $value;
+        switch (strtolower(substr($value, -1))) {
+            case 'g':
+                $bytes *= 1024;
+                // no break
+            case 'm':
+                $bytes *= 1024;
+                // no break
+            case 'k':
+                $bytes *= 1024;
+        }
+        return $bytes > 0 ? (int) $bytes : 0;
+    }
+
+    /** True when this POST was larger than post_max_size, so PHP discarded its $_POST and $_FILES. */
+    private function postExceededLimit(): bool
+    {
+        $length = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
+        $limit = self::postMaxBytes();
+        return $length > 0 && $limit > 0 && $length > $limit && empty($_POST) && empty($_FILES);
     }
 
     /**
@@ -289,11 +324,5 @@ class ApplicationController extends Controller
             'result' => $result,
             'error' => $error,
         ]);
-    }
-
-    /** Full page wrapped in the site header/footer (the header reads $pageTitle/$user/$staff from scope). */
-    private function renderPage(string $pageTitle, string $view, array $data = []): void
-    {
-        $this->render('views/layouts/page.php', array_merge($data, ['pageTitle' => $pageTitle, 'contentView' => $view]));
     }
 }

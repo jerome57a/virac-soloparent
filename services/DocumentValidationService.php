@@ -17,6 +17,11 @@ class DocumentValidationService
     /** Allowed extension => the only content type it may contain. */
     private const EXT_MIME = ['jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'pdf' => 'application/pdf'];
 
+    /** Image-only mode (applicant Supporting Documents). */
+    public const IMAGE_EXTS = ['jpg', 'jpeg', 'png'];
+    public const IMAGE_MIMES = ['image/jpeg', 'image/png'];
+    public const IMAGE_ONLY_LABEL = 'an image file (JPG, JPEG or PNG only). PDF and other document files are not accepted';
+
     private PDO $pdo;
 
     public function __construct(PDO $pdo)
@@ -28,11 +33,18 @@ class DocumentValidationService
      * Validates one application document and moves it into $destDir.
      * Returns ['ok' => bool, 'error' => string, 'status' => 'VALID'|'INVALID', 'meta' => array|null].
      */
-    public function storeDocument(array $file, string $destDir): array
+    public function storeDocument(array $file, string $destDir, bool $imageOnly = false): array
     {
         $fail = fn(string $msg) => ['ok' => false, 'error' => $msg, 'status' => 'INVALID', 'meta' => null];
 
         $rules = document_rules();
+        if ($imageOnly) {
+            // Applicant Supporting Documents: JPG/JPEG/PNG only, whatever the Document Limits "allowed types" say.
+            // The size limit (max_mb) stays the configurable one from document_rules().
+            $rules['exts'] = self::IMAGE_EXTS;
+            $rules['mimes'] = self::IMAGE_MIMES;
+            $rules['label'] = self::IMAGE_ONLY_LABEL;
+        }
         $maxMb = $rules['max_mb'];
         $uploadError = $this->uploadError($file, 'File is larger than ' . format_mb($maxMb) . '.');
         if ($uploadError !== null) {
@@ -122,9 +134,9 @@ class DocumentValidationService
      * Stores an upload into a draft's folder, replacing any earlier file for
      * the same doc_key. An invalid upload leaves the earlier file in place.
      */
-    public function attachToDraft(array $draft, string $docKey, array $file, string $tmpDir): array
+    public function attachToDraft(array $draft, string $docKey, array $file, string $tmpDir, bool $imageOnly = false): array
     {
-        $result = $this->storeDocument($file, $tmpDir);
+        $result = $this->storeDocument($file, $tmpDir, $imageOnly);
         if ($result['ok']) {
             $this->deleteDraftFile($draft, $docKey);
             $draft['documents'][$docKey] = $result['meta'];
@@ -148,6 +160,10 @@ class DocumentValidationService
         if (!is_dir($dir)) {
             return;
         }
+        if (!storage_dir_confined($dir)) { // testing only: never delete through a link or outside the test storage
+            error_log('Draft folder not deleted: it is outside the validated test storage or reached through a link.');
+            return;
+        }
         foreach (glob($dir . '/*') ?: [] as $file) {
             if (is_file($file)) {
                 @unlink($file);
@@ -159,7 +175,7 @@ class DocumentValidationService
     private function deleteDraftFile(array $draft, string $docKey): void
     {
         $path = $draft['documents'][$docKey]['path'] ?? '';
-        if ($path !== '' && is_file($path)) {
+        if ($path !== '' && storage_dir_confined(dirname($path)) && is_file($path)) {
             @unlink($path);
         }
     }
@@ -229,8 +245,12 @@ class DocumentValidationService
         return $mime;
     }
 
-    private function ensureDir(string $dir): bool
+    /** Creates $dir if needed. Under testing it must be confined to the test storage and reached through no link, before and after. */
+    public function ensureDir(string $dir): bool
     {
-        return is_dir($dir) || mkdir($dir, 0750, true) || is_dir($dir);
+        if (!storage_dir_confined($dir)) {
+            return false;
+        }
+        return (is_dir($dir) || mkdir($dir, 0750, true) || is_dir($dir)) && storage_dir_confined($dir);
     }
 }

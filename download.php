@@ -25,6 +25,14 @@ if (!$doc || (!$staff && (int) $user['id'] !== (int) $doc['user_id']) || ($staff
     die('Document not found.');
 }
 
+// In-system viewer mode (?preview=1&app_id=N), used by the staff review page. It is staff-only, the document must
+// belong to the application being reviewed, and it can never be turned into an attachment download.
+$preview = ($_GET['preview'] ?? '') === '1';
+if ($preview && (!$staff || (int) ($_GET['app_id'] ?? 0) !== (int) $doc['application_id'])) {
+    http_response_code(404);
+    die('Document not found.');
+}
+
 // Staff access to an applicant's document is traced (once per document per session, so previews don't flood the log).
 if ($staff && empty($_SESSION['viewed_docs'][$docId])) {
     $_SESSION['viewed_docs'][$docId] = true;
@@ -47,13 +55,31 @@ $displayName = basename(str_replace('\\', '/', (string) $doc['original_name']));
 $asciiName = preg_replace('/[^A-Za-z0-9._ -]/', '_', $displayName);
 // Only the upload types the system accepts are shown inline; any other stored type is forced to download as opaque bytes.
 $servable = in_array($doc['mime'], ['image/jpeg', 'image/png', 'application/pdf'], true);
-header('Content-Type: ' . ($servable ? $doc['mime'] : 'application/octet-stream'));
+$contentType = $servable ? $doc['mime'] : 'application/octet-stream';
+if ($preview) {
+    // Preview trusts the file's real content, not the stored MIME or the filename extension.
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $detected = $finfo ? (string) finfo_file($finfo, $path) : '';
+    if ($finfo) {
+        finfo_close($finfo);
+    }
+    if (!in_array($detected, ['image/jpeg', 'image/png', 'application/pdf'], true)) {
+        http_response_code(415);
+        header('Content-Type: text/plain; charset=UTF-8');
+        die('This file type cannot be previewed.');
+    }
+    $contentType = $detected;
+    $servable = true;
+    header('Pragma: no-cache');
+    header('Expires: 0');
+}
+header('Content-Type: ' . $contentType);
 header('Content-Length: ' . filesize($path));
-// ?download=1 saves the file instead of opening it in the browser.
-$disposition = (($_GET['download'] ?? '') === '1' || !$servable) ? 'attachment' : 'inline';
+// ?download=1 saves the file instead of opening it in the browser (never in preview mode).
+$disposition = ((!$preview && ($_GET['download'] ?? '') === '1') || !$servable) ? 'attachment' : 'inline';
 header('Content-Disposition: ' . $disposition . '; filename="' . $asciiName . '"; filename*=UTF-8\'\'' . rawurlencode($displayName));
 header('X-Content-Type-Options: nosniff');
-header('Cache-Control: private, no-store');
+header('Cache-Control: ' . ($preview ? 'private, no-store, no-cache, must-revalidate, max-age=0' : 'private, no-store'));
 // Release the session lock so a large file does not block the user's other requests while it streams.
 if (session_status() === PHP_SESSION_ACTIVE) {
     session_write_close();

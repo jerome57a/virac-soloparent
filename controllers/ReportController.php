@@ -44,7 +44,7 @@ class ReportController extends Controller
                 $service->streamCsv(
                     $type . '-report-' . date('Y-m-d') . '.csv',
                     array_column($columns, 0),
-                    array_map(fn($r) => array_map(fn($k) => $r[$k] ?? '', array_keys($columns)), $rows)
+                    array_map(fn($r) => array_map(fn($k) => ReportService::csvCell($r[$k] ?? '', $columns[$k][1], $r), array_keys($columns)), $rows)
                 );
                 exit;
             }

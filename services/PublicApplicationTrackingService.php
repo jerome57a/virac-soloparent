@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/../models/Appointment.php';
+
 /** Builds the limited information shown by reference-only public tracking. */
 class PublicApplicationTrackingService
 {
@@ -22,10 +24,14 @@ class PublicApplicationTrackingService
         $appointment = null;
         if ($releasePending || $interviewPending) {
             $source = $releasePending ? $release : $interview;
+            // Only an interview can be date-only; the ID release schedule always has a time and keeps its own rule.
+            $dateOnly = !$releasePending && interview_is_date_only($interview);
             $appointment = [
                 'label' => $releasePending ? 'ID release appointment' : 'Interview appointment',
                 'scheduled_at' => $source['scheduled_at'], 'location' => $source['location'],
-                'past' => strtotime($source['scheduled_at']) < time(),
+                'date_only' => $dateOnly,
+                // A date-only interview has passed only once its date is before today (Manila).
+                'past' => $dateOnly ? substr((string) $source['scheduled_at'], 0, 10) < Appointment::manilaDate() : strtotime($source['scheduled_at']) < time(),
             ];
             if ($releasePending) {
                 $title = 'Your ID release is scheduled';

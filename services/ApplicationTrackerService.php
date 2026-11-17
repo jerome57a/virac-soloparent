@@ -3,6 +3,7 @@ require_once __DIR__ . '/../models/Application.php';
 require_once __DIR__ . '/../models/Document.php';
 require_once __DIR__ . '/../models/Appointment.php';
 require_once __DIR__ . '/IdReleaseService.php';
+require_once __DIR__ . '/InterviewBookingService.php';
 
 /**
  * Builds the applicant-facing progress tracker for one application
@@ -107,14 +108,22 @@ class ApplicationTrackerService
             $stages[] = ['key' => 'assessment', 'label' => $simplifiedRenewal ? 'Renewal Review' : 'Interview', 'state' => 'done', 'date' => $assessDate,
                 'detail' => $simplifiedRenewal ? 'Renewal documents verified; no new interview is required.' : 'Successful interview recorded.'];
         } else {
+            // Interview date booking: open only when the feature is enabled and InterviewBookingService says the applicant can
+            // choose a date now (it returns null with the feature off, so nothing new is read then).
+            $bookingOpen = !$apptPending && !$simplifiedRenewal
+                && ((new InterviewBookingService($this->pdo))->options(['id' => (int) ($app['user_id'] ?? 0)], $app)['state'] ?? '') === 'open';
             if ($apptPending) {
-                $detail = 'Interview on ' . date('M j, Y g:i A', strtotime($appt['scheduled_at'])) . ' at ' . $appt['location'] . '.';
+                $detail = 'Interview on ' . interview_schedule_text($appt['scheduled_at'], interview_is_date_only($appt), 'M j, Y g:i A') . ' at ' . $appt['location'] . '.';
+            } elseif ($bookingOpen) {
+                $detail = 'Interview booking is open. Choose your interview date under Appointment.';
             } elseif ($appt && $appt['status'] === 'MISSED') {
                 $detail = 'You missed your appointment. Please contact MSWDO for a new schedule.';
             } elseif (Appointment::interviewOutcome($appt) === 'Unsuccessful') {
                 $detail = 'The interview was unsuccessful. Please contact MSWDO for the next steps.';
             } elseif ($simplifiedRenewal) {
                 $detail = 'MSWDO will review your renewal documents. A new interview is not required.';
+            } elseif ($appt && $appt['status'] === 'CANCELLED') {
+                $detail = 'Your interview was cancelled. Please contact MSWDO for a new schedule.';
             } else {
                 $detail = 'Waiting for MSWDO to schedule your interview. Bring your physical documents to the interview.';
             }

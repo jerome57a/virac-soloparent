@@ -111,10 +111,17 @@ class RenewalService
             return ['contact' => (string) ($user['mobile'] ?? '')] + $this->freshDraft($source);
         }
         $draft = $saved['data'] + $this->freshDraft($source);
-        foreach ($draft['documents'] as $key => $meta) {
-            $storedName = basename((string) ($meta['stored_name'] ?? ''));
-            $draft['documents'][$key]['stored_name'] = $storedName;
-            $draft['documents'][$key]['path'] = $this->draftDir((int) $user['id']) . '/' . $storedName;
+        // Same rule as ApplicationService::rebuiltStagedFiles(): only a stored name this system generates (32 hex
+        // characters and a permitted extension) is kept, with its path rebuilt inside this applicant's draft folder.
+        // Anything else is dropped, so the applicant simply uploads that document again.
+        $staged = is_array($draft['documents'] ?? null) ? $draft['documents'] : [];
+        $draft['documents'] = [];
+        foreach ($staged as $key => $meta) {
+            $storedName = is_array($meta) ? basename((string) ($meta['stored_name'] ?? '')) : '';
+            if (!is_string($key) || !preg_match('/\A[a-f0-9]{32}\.(?:jpe?g|png|pdf)\z/', $storedName)) {
+                continue;
+            }
+            $draft['documents'][$key] = ['stored_name' => $storedName, 'path' => $this->draftDir((int) $user['id']) . '/' . $storedName] + $meta;
         }
         $draft['step'] = 1;
         $draft['contact'] = (string) ($user['mobile'] ?? ''); // the confirmed account number, never the form's
@@ -181,7 +188,7 @@ class RenewalService
             $draft['docErrors'][$docKey] = 'That document is not required for this renewal.';
             return $draft;
         }
-        $draft = $this->files()->attachToDraft($draft, $docKey, $file, $this->draftDir((int) $user['id']));
+        $draft = $this->files()->attachToDraft($draft, $docKey, $file, $this->draftDir((int) $user['id']), true); // renewal documents are image-only (JPG/JPEG/PNG)
         if (isset($draft['documents'][$docKey]['stored_name'])) {
             $draft['documents'][$docKey]['path'] = $this->draftDir((int) $user['id']) . '/' . basename((string) $draft['documents'][$docKey]['stored_name']);
         }

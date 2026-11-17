@@ -6,7 +6,6 @@ class InterviewCalendarService
     private array $additionalHolidays;
     private array $closures;
     private array $weekdays;
-    private string $opens;
     private string $closes;
 
     public function __construct(PDO $pdo)
@@ -15,7 +14,6 @@ class InterviewCalendarService
         $this->additionalHolidays = self::dates(get_setting($pdo, 'appointment_holiday_dates', ''));
         $this->closures = self::dates(get_setting($pdo, 'appointment_closure_dates', ''));
         $this->weekdays = explode(',', get_setting($pdo, 'appointment_days', '1,2,3,4,5'));
-        $this->opens = get_setting($pdo, 'appointment_day_start', '08:00');
         $this->closes = get_setting($pdo, 'appointment_day_end', '17:00');
     }
 
@@ -27,40 +25,83 @@ class InterviewCalendarService
     /** Returns the reason this date is closed, or null on an office day. */
     public function dateError(string $date): ?string
     {
+        return $this->classify($date)[1];
+    }
+
+    /**
+     * [status, message]: 'office' (message null), 'closed' (weekend, closure, holiday or a weekday the office does not
+     * use) or 'unknown' (not a real date, or the holiday calendar has no entry for that year, so the day cannot be
+     * judged). The rules and their order are exactly those dateError() has always applied.
+     */
+    private function classify(string $date): array
+    {
         $day = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
         if (!$day || $day->format('Y-m-d') !== $date) {
-            return 'Select a valid interview date.';
+            return ['unknown', 'Select a valid interview date.'];
         }
         if ((int) $day->format('N') >= 6) {
-            return 'No interviews on Saturday or Sunday. Choose an office day.';
+            return ['closed', 'No interviews on Saturday or Sunday. Choose an office day.'];
         }
         if (in_array($date, $this->closures, true)) {
-            return 'The office is closed on this date. Choose another interview date.';
+            return ['closed', 'The office is closed on this date. Choose another interview date.'];
         }
         // RA 11139: October 26 is a non-working holiday throughout Catanduanes.
         if ($day->format('m-d') === '10-26' || in_array($date, $this->additionalHolidays, true)
             || in_array($day->format('m-d'), $this->holidays[(int) $day->format('Y')] ?? [], true)) {
-            return 'No interviews on this holiday. Choose another office day.';
+            return ['closed', 'No interviews on this holiday. Choose another office day.'];
         }
         if (!isset($this->holidays[(int) $day->format('Y')])) {
-            return 'The holiday calendar for this year must be updated before interviews can be booked.';
+            return ['unknown', 'The holiday calendar for this year must be updated before interviews can be booked.'];
         }
         if (!in_array($day->format('N'), $this->weekdays, true)) {
-            return 'The office does not hold interviews on this weekday. Choose an allowed office day.';
+            return ['closed', 'The office does not hold interviews on this weekday. Choose an allowed office day.'];
+        }
+        return ['office', null];
+    }
+
+    /**
+     * The last office day before $date (Y-m-d), looking back at most $maxLookback days, or null when it cannot be
+     * determined reliably: $date is not a real date, a day on the way back cannot be judged (see classify()), or no
+     * office day is found within the limit.
+     */
+    public function previousOfficeDay(string $date, int $maxLookback = 14): ?string
+    {
+        $day = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+        if (!$day || $day->format('Y-m-d') !== $date) {
+            return null;
+        }
+        for ($back = 1; $back <= $maxLookback; $back++) {
+            $candidate = $day->modify('-' . $back . ' day')->format('Y-m-d');
+            $status = $this->classify($candidate)[0];
+            if ($status === 'office') {
+                return $candidate;
+            }
+            if ($status === 'unknown') {
+                return null;
+            }
         }
         return null;
     }
 
-    public function timeError(string $date, string $start, ?string $end = null): ?string
+    /** The office closing time (HH:MM) for the cutoff: the appointment_day_end setting, or null if it is not a valid HH:MM. */
+    public function closingTime(): ?string
     {
-        if ($error = $this->dateError($date)) {
-            return $error;
+        return preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $this->closes) === 1 ? $this->closes : null;
+    }
+
+    /**
+     * When online cancellation of a date-only appointment on $appointmentDate (Y-m-d) closes: the office closing time
+     * on the previous office day, in Manila time. Cancelling is allowed strictly before this instant. Null (fail
+     * closed) when the previous office day or the closing time cannot be determined.
+     */
+    public function cancellationCutoff(string $appointmentDate): ?DateTimeImmutable
+    {
+        $previous = $this->previousOfficeDay($appointmentDate);
+        $closing = $this->closingTime();
+        if ($previous === null || $closing === null) {
+            return null;
         }
-        $start = substr($start, 0, 5);
-        $end = $end !== null ? substr($end, 0, 5) : null;
-        if ($start < $this->opens || $start >= $this->closes || ($end !== null && ($end <= $start || $end > $this->closes))) {
-            return 'Interviews must be within office hours: ' . $this->opens . ' to ' . $this->closes . '.';
-        }
-        return null;
+        $cutoff = DateTimeImmutable::createFromFormat('!Y-m-d H:i', $previous . ' ' . $closing, new DateTimeZone('Asia/Manila'));
+        return $cutoff ?: null;
     }
 }

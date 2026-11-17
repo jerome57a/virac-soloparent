@@ -14,30 +14,7 @@ function current_user(PDO $pdo): ?array
     return (new AuthService($pdo))->currentUser();
 }
 
-function login_user(array $user): void
-{
-    // No $pdo needed for a pure session write, but kept as a standalone
-    // service call for a single source of truth.
-    $service = new AuthService($GLOBALS['pdo']);
-    $service->loginUser($user);
-}
-
-function logout_user(): void
-{
-    (new AuthService($GLOBALS['pdo']))->logoutUser();
-}
-
 function current_staff(PDO $pdo): ?array
 {
     return (new AuthService($pdo))->currentStaff();
-}
-
-function login_staff(array $user): void
-{
-    (new AuthService($GLOBALS['pdo']))->loginStaff($user);
-}
-
-function logout_staff(): void
-{
-    (new AuthService($GLOBALS['pdo']))->logoutStaff();
 }

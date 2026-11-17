@@ -54,6 +54,18 @@ abstract class Controller
     }
 
     /**
+     * An applicant account created before usernames existed signed in with its email or mobile number. It must
+     * choose a username before using anything else: every other page sends it to $choosePage (which is allowed through).
+     */
+    protected function requireUsername(array $account, string $choosePage, bool $onChoosePage): void
+    {
+        if (($account['role'] ?? '') === 'applicant' && empty($account['username']) && !$onChoosePage) {
+            flash('Please choose a username to continue. From now on you will sign in with your username and password.');
+            $this->redirectTo($choosePage);
+        }
+    }
+
+    /**
      * Renders a view file with $data extracted into local variables.
      * Views are plain PHP templates (same convention as the rest of the
      * app), not a separate template language.

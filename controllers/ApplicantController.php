@@ -4,6 +4,7 @@ require_once __DIR__ . '/../services/AuthService.php';
 require_once __DIR__ . '/../services/EligibilityService.php';
 require_once __DIR__ . '/../services/DocumentValidationService.php';
 require_once __DIR__ . '/../services/AppointmentService.php';
+require_once __DIR__ . '/../services/InterviewBookingService.php';
 require_once __DIR__ . '/../services/ApplicantProfileService.php';
 require_once __DIR__ . '/../models/Applicant.php';
 require_once __DIR__ . '/../models/Application.php';
@@ -51,7 +52,12 @@ class ApplicantController extends Controller
         }
         $user = $auth->currentUser();
         if (!$user) {
-            $this->redirectTo('portal.php?tab=login');
+            // Keep a Requirements Guide destination (and its entry) through sign-in; every other section goes to the portal sign-in as before.
+            $next = null;
+            if (($_GET['section'] ?? '') === 'requirements') {
+                $next = 'requirements' . (is_string($_GET['doc'] ?? null) && preg_match('/^[A-Za-z0-9_]{1,50}\z/', $_GET['doc']) ? ':' . $_GET['doc'] : '');
+            }
+            $this->redirectTo($next !== null ? 'login.php?next=' . rawurlencode($next) : 'portal.php?tab=login');
         }
         $this->authorize($user, 'applicant.portal');
         $this->user = $user;
@@ -77,6 +83,7 @@ class ApplicantController extends Controller
             $section = 'dashboard';
         }
         $this->requireOwnPassword($user, 'applicant/dashboard.php?section=profile#password', $section === 'profile');
+        $this->requireUsername($user, 'applicant/dashboard.php?section=profile#username', $section === 'profile');
         $title = self::SECTION_TITLES[$section];
 
         switch ($section) {
@@ -190,6 +197,9 @@ class ApplicantController extends Controller
         $renewal = $this->renewalInfo($idApplication);
         $upcoming = $this->nextAppointment();
         $bookable = (new AppointmentService($this->pdo))->findBookableApplication($this->applications);
+        // Interview date booking: true only when the feature is enabled and the applicant can choose a date now (null/false otherwise).
+        $bookingOptions = $bookable ? (new InterviewBookingService($this->pdo))->options($this->user, $bookable) : null;
+        $bookingOpen = $bookingOptions !== null && $bookingOptions['state'] === 'open';
         $draft = (new ApplicationService($this->pdo))->draftSummary($this->user);
 
         return ['view' => 'dashboard.php', 'data' => [
@@ -203,9 +213,10 @@ class ApplicantController extends Controller
             'upcomingAppointment' => $upcoming,
             'upcomingRequirements' => $upcoming ? (new Document($this->pdo))->checklistForReview((int) $upcoming['id'], $upcoming['category_id'] !== null ? (int) $upcoming['category_id'] : null, $upcoming['type'] === 'renewal') : [],
             'canBookAppointment' => AppointmentService::needsBooking($bookable),
+            'bookingOpen' => $bookingOpen,
             'recentNotifications' => (new Notification($this->pdo))->forUser((int) $this->user['id'], 3),
             'eligibilityCheck' => (new EligibilityService($this->pdo))->latestForUser((int) $this->user['id']),
-            'quickActions' => $this->quickActions($renewal, $bookable, $draft),
+            'quickActions' => $this->quickActions($renewal, $bookable, $draft, $bookingOpen),
             'applicationDraft' => $draft,
         ]];
     }
@@ -237,7 +248,7 @@ class ApplicantController extends Controller
     {
         $next = null;
         foreach ($this->applications as $app) {
-            if ($app['interview_status'] === 'BOOKED' && strtotime($app['interview_at']) >= time()
+            if ($app['interview_status'] === 'BOOKED' && Appointment::isStillAhead($app['interview_at'], interview_is_date_only($app, 'interview_date_only'))
                 && (!$next || $app['interview_at'] < $next['interview_at'])) {
                 $next = $app;
             }
@@ -246,7 +257,7 @@ class ApplicantController extends Controller
     }
 
     /** Shortcuts for what this applicant most likely needs to do next, most urgent first. */
-    private function quickActions(array $renewal, ?array $bookable, ?array $draft): array
+    private function quickActions(array $renewal, ?array $bookable, ?array $draft, bool $bookingOpen = false): array
     {
         $latest = $this->applications[0] ?? null;
         $actions = [];
@@ -259,7 +270,7 @@ class ApplicantController extends Controller
             $actions[] = ['Fix My Documents', base_url('applicant/dashboard.php?section=documents'), 'documents'];
         }
         if (AppointmentService::needsBooking($bookable)) {
-            $actions[] = ['View Interview Status', base_url('applicant/dashboard.php?section=appointment'), 'calendar'];
+            $actions[] = [$bookingOpen ? 'Choose Interview Date' : 'View Interview Status', base_url('applicant/dashboard.php?section=appointment'), 'calendar'];
         }
         if (in_array($renewal['state'], ['due', 'expired'], true)) {
             $actions[] = ['Renew My ID', base_url('applicant/dashboard.php?section=renewal&type=new'), 'renew'];
@@ -304,6 +315,8 @@ class ApplicantController extends Controller
                 if ($profileError) {
                     $formValues = $_POST; // redisplay what they typed
                 }
+            } elseif ($action === 'set_username') {
+                [$profileError, $profileSuccess] = (new AuthService($this->pdo))->chooseUsername($this->user, (string) ($_POST['username'] ?? ''));
             } elseif ($action === 'change_password') {
                 [$profileError, $profileSuccess] = $this->changePassword();
             } elseif ($action === 'upload_photo') {
