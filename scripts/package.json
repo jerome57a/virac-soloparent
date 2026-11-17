@@ -1,0 +1,12 @@
+{
+  "name": "virac-soloparent-ui-tests",
+  "private": true,
+  "description": "Node-only dev dependencies for the scripts/*.cjs UI tests. Not used by the PHP application.",
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "jsdom": "24.1.3",
+    "playwright": "1.49.1"
+  }
+}

@@ -76,7 +76,7 @@ Use synthetic files created inside the throwaway storage.
 Test in Chrome and a second browser. Check desktop and phone widths, and the browser console and network tabs.
 
 - Public Home Page: sidebar, language, login and register links, tracking page. There must be no links to removed pages (Analytics, News, FAQ, Chat, QR, slots).
-- Applicant: register, sign in (username or confirmed mobile), dashboard, new application (all steps, uploading a file for every required document; submission must be refused while one is missing, invalid or replaced by a bad file), submit (submission SMS only), tracking, renewal, profile and mobile change, sign out.
+- Applicant: register, sign in (username, email, confirmed mobile), dashboard, new application (all steps, uploading a file for every required document; submission must be refused while one is missing, invalid or replaced by a bad file), submit (submission SMS only), tracking, renewal, profile and mobile change, sign out.
 - Staff: queue, open an application, review and verify each uploaded file, schedule interview, record result, eligibility, status change, ID release.
 - Administrator: users (create, reset access, confirm mobile), settings (appointment days, holidays, closures), SMS logs and templates, audit log. No retired menu entries.
 - Renewal: simplified renewal (no interview) and full renewal.

@@ -14,16 +14,20 @@ require_once __DIR__ . '/../services/IdReleaseService.php';
 require_once __DIR__ . '/../services/AppointmentService.php';
 require_once __DIR__ . '/../controllers/StaffController.php';
 require_once __DIR__ . '/../includes/csrf.php';
+// Storage safety: config/storage.php already refused to start without a validated TEST_STORAGE_ROOT. These helpers
+// additionally refuse pre-existing folders, track every file this test creates, delete only those exact files and
+// remove folders with rmdir only (no glob, no recursion).
+require_once __DIR__ . '/upload_fixtures.php';
+upload_fixture_require_test_root();
 
 function renewal_assert(bool $ok,string $message): void { if (!$ok) { throw new RuntimeException($message); } }
 $live = $pdo;
 $created = false;
-$cleanupDirs = []; // Files this test stages or stores; removed in `finally`.
 $exitCode = 0;
 try {
     $live->exec('CREATE DATABASE `' . $testDb . '` CHARACTER SET utf8mb4');
     $created = true;
-    $test = new PDO('mysql:host='.DB_HOST.';dbname='.$testDb.';charset=utf8mb4',DB_USER,DB_PASS,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+    $test = new PDO('mysql:host='.DB_HOST.';port='.DB_PORT.';dbname='.$testDb.';charset=utf8mb4',DB_USER,DB_PASS,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
     $test->exec('SET FOREIGN_KEY_CHECKS=0');
     foreach ($live->query("SHOW FULL TABLES WHERE Table_type='BASE TABLE'")->fetchAll(PDO::FETCH_COLUMN) as $table) {
         $test->exec($live->query('SHOW CREATE TABLE `'.$table.'`')->fetch(PDO::FETCH_NUM)[1]);
@@ -71,14 +75,12 @@ try {
     $draft = $service->collectStepInput(1,$draft,['barangay'=>'Updated barangay','address'=>'Updated address','email'=>'','fullName'=>'Forged name','child_name'=>['Forged child'],'checklist'=>['barangayCert','expiredMedical'],'consent'=>'1'],$source);
     renewal_assert(isset($service->validateStep(1,$draft)['documents']),'Missing renewal document uploads passed validation (checkbox ticks must not count).');
     // Stages a valid file the way DocumentValidationService::attachToDraft() does (move_uploaded_file cannot run on the CLI).
-    $cleanupDirs[] = $service->draftDir($applicantId);
     $stage = static function (array $draft, string $key) use ($service,$applicantId): array {
-        $dir = $service->draftDir($applicantId);
-        if (!is_dir($dir)) { mkdir($dir,0750,true); }
-        $bytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
+        $bytes = upload_fixture_png();
         $stored = bin2hex(random_bytes(16)) . '.png';
-        file_put_contents($dir . '/' . $stored,$bytes);
-        $draft['documents'][$key] = ['original_name'=>$key . '.png','stored_name'=>$stored,'path'=>$dir . '/' . $stored,'mime'=>'image/png','size'=>strlen($bytes),'sha256'=>hash('sha256',$bytes),'status'=>'VALID'];
+        // Claims the draft folder (refused if it already exists), tracks the exact file, then writes it.
+        $path = upload_fixture_write($service->draftDir($applicantId),$stored,$bytes);
+        $draft['documents'][$key] = ['original_name'=>$key . '.png','stored_name'=>$stored,'path'=>$path,'mime'=>'image/png','size'=>strlen($bytes),'sha256'=>hash('sha256',$bytes),'status'=>'VALID'];
         return $draft;
     };
     $draft = $stage($draft,'barangayCert');
@@ -109,11 +111,11 @@ try {
     $pendingPlan = $plan; $pendingPlan['configured']=false;
     $html = $renderRenewal(['renewalSource'=>$source,'renewalWindow'=>$service->window($source),'renewalInProgress'=>null,'renewalPlan'=>$pendingPlan]);
     renewal_assert(str_contains($html,'not configured yet') && !str_contains($html,'Submit Renewal'),'Unconfigured category offered an invented renewal checklist.');
-    $ref = $service->submit($user,$source,$draft);
-    $renewal = $applications->findByReference($ref);
+    $firstId = upload_fixture_prepare_application_id($test); // refuses an application folder that already exists
+    try { $ref = $service->submit($user,$source,$draft); } finally { upload_fixture_track_applications($test,$firstId); }
+    $renewal =$applications->findByReference($ref);
     renewal_assert($renewal['renewal_simplified'] && (int) $renewal['renewal_of_id']===$id,'Renewal not linked to its existing ID.');
     renewal_assert($renewal['full_name']==='Fixture Applicant' && $applications->children((int) $renewal['id'])[0]['full_name']==='Existing Child','Identity or children changed from tampered input.');
-    $cleanupDirs[] = STORAGE_PATH . '/' . (int) $renewal['id'];
     $documents = new Document($test);
     $uploadedRows = $documents->uploadedForApplication((int) $renewal['id']);
     renewal_assert(count($uploadedRows)===2 && !array_filter($uploadedRows,fn($row)=>$row['verification_status']!=='FOR_VERIFICATION' || !is_file(STORAGE_PATH.'/'.$row['stored_path'])),'Uploaded renewal files were not stored and queued for staff verification.');
@@ -128,13 +130,14 @@ try {
     $review = new ApplicationReviewService($test);
     $review->startReviewOnOpen($staff,$renewal);
     $renewal = $applications->findForReview((int) $renewal['id']);
-    renewal_assert($review->scheduleInterview($staff,$renewal,'2030-01-01T09:00','Fixture','')!==null,'Staff could schedule an unnecessary renewal interview.');
+    // A simplified renewal needs no interview: the applicant is offered none (asserted above through findBookableApplication).
     renewal_assert(!array_column($review->approvalChecklist($renewal),null,'label')['Required documents']['ok'],'Uploaded but unverified renewal documents already satisfied approval.');
     $verdicts = [];
-    foreach ($uploadedRows as $upload) { $verdicts[(int) $upload['id']] = ['status'=>'VERIFIED','remarks'=>'','expected'=>'FOR_VERIFICATION','expected_remarks'=>'']; }
+    foreach ($uploadedRows as $upload) { $verdicts[(int) $upload['id']] = ['status'=>'VERIFIED','remarks'=>'','expected'=>'FOR_VERIFICATION','expected_remarks'=>'','expected_version'=>Document::versionToken($upload)]; }
     $saved = $review->saveVerification($staff,$renewal,$verdicts);
     renewal_assert(!$saved['errors'] && $saved['changed']===2,'Staff verification of the uploaded renewal documents failed.');
     $renewal = $applications->findForReview((int) $renewal['id']);
+    renewal_assert((new Appointment($test))->interviewFor((int) $renewal['id'])===null && (new AppointmentService($test))->findBookableApplication([$renewal])===null,'A renewal with verified documents was given an interview.');
     renewal_assert($renewal['eligibility_status'] === 'Not Assessed', 'Renewal verification automatically decided eligibility.');
     renewal_assert(!array_filter($review->approvalChecklist($renewal),fn($row)=>!$row['ok']), 'Not assessed still blocks a complete renewal.');
     renewal_assert($review->assessEligibility($staff,$renewal,'Eligible','Renewal reviewed by MSWDO.')===null,'Explicit renewal assessment failed.');
@@ -170,7 +173,8 @@ try {
     $nextSource = $service->sourceApplication($user);
     renewal_assert(!$policies->plan($nextSource)['fresh'],'Accepted, unexpired configured document was requested again.');
     $nextDraft = $service->freshDraft($nextSource); $nextDraft['contact']=$user['mobile']; $nextDraft['consent']=true;
-    $nextRef = $service->submit($user,$nextSource,$nextDraft);
+    $nextFirstId = upload_fixture_prepare_application_id($test);
+    try { $nextRef = $service->submit($user,$nextSource,$nextDraft); } finally { upload_fixture_track_applications($test,$nextFirstId); }
     $next = $applications->findByReference($nextRef);
     $review->startReviewOnOpen($staff,$next); $next=$applications->findForReview((int) $next['id']);
     renewal_assert($review->assessEligibility($staff,$next,'Eligible','Existing documents and renewal reviewed.')===null,'All-reused renewal staff assessment failed.');
@@ -181,10 +185,8 @@ try {
     fwrite(STDERR,$e->getMessage().PHP_EOL); $exitCode=1;
 } finally {
     $pdo=$live;
-    foreach ($cleanupDirs as $dir) { // only folders staged or stored by this test
-        foreach (is_dir($dir) ? (glob($dir.'/*') ?: []) : [] as $file) { if (is_file($file)) { @unlink($file); } }
-        if (is_dir($dir)) { @rmdir($dir); }
-    }
+    // Deletes only the exact files tracked above, then rmdir (never recursive, never glob) on folders this run claimed.
+    upload_fixture_cleanup();
     if ($created) { $live->exec('DROP DATABASE `'.$testDb.'`'); }
 }
 exit($exitCode);

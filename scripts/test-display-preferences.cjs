@@ -1,11 +1,18 @@
 /* Requires jsdom and playwright; run with NODE_PATH pointing to their installation.
  * Exercises display preferences without creating accounts or changing application data.
+ *
+ * The browser half needs VIRAC_TEST_URL: an explicit test-only origin with a port, e.g. http://localhost:8081/virac-soloparent/
+ * (the ordinary http://localhost/virac-soloparent/ and other default-port, https, credentialed or external URLs are
+ * refused). A localhost URL is NOT evidence of isolation: the server behind it must itself be started with
+ * APP_ENV=testing, the isolated test database and TEST_STORAGE_ROOT. See docs/database-tooling-safety.md.
  */
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { JSDOM } = require('jsdom');
 const { chromium } = require('playwright');
+const { screenshotPath, screenshotDir } = require('./lib/test-artifacts.cjs');
+const { parseTestBase, newGuardedContext } = require('./lib/test-origin.cjs');
 const root = path.resolve(__dirname, '..');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -68,12 +75,22 @@ async function testEngine() {
 }
 
 async function testPages() {
+  // Validate the target and TEST_STORAGE_ROOT before any browser is started.
+  const base = parseTestBase(process.env.VIRAC_TEST_URL);
+  screenshotDir(); // validates TEST_STORAGE_ROOT (without reserving a screenshot name) before any browser starts
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {
-    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    // The page talks to the validated test server only; anything cross-origin, non-GET or redirecting is refused.
+    const { context, guard } = await newGuardedContext(browser, base, { viewport: { width: 1280, height: 900 } },
+      { livePages: ['portal.php', 'eligibility.php', 'login.php'] });
+    const page = await context.newPage();
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
-    const base = process.env.VIRAC_TEST_URL || 'http://localhost/virac-soloparent/';
+    // No default URL: this part drives a running copy of the application, whose sessions, logs and database are those
+    // of whatever server answers. VIRAC_TEST_URL must be an explicit test-only origin with a port (for example
+    // http://localhost:8081/virac-soloparent/); the ordinary http://localhost/virac-soloparent/ is rejected. The URL is
+    // only validated for shape: it is NOT proof of isolation. The server behind it must independently run with
+    // APP_ENV=testing, the isolated test database and TEST_STORAGE_ROOT. See scripts/lib/test-origin.cjs.
     await page.goto(base + 'portal.php');
     await page.locator('[data-language-select]').selectOption('tl');
     await page.locator('[data-theme-toggle]').click();
@@ -105,13 +122,14 @@ async function testPages() {
     await page.goto(base + 'portal.php?tab=help');
     await page.waitForTimeout(150);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'mobile page has no horizontal overflow');
-    await page.screenshot({ path: path.join(root, 'storage/preferences-dark-mobile.png'), fullPage: true });
+    await page.screenshot({ path: screenshotPath('preferences-dark-mobile.png'), fullPage: true });
     await page.locator('[data-language-select]').selectOption('en');
     await page.locator('[data-theme-toggle]').click();
     await page.reload();
     assert.equal(await page.evaluate(() => document.documentElement.lang), 'en');
     assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'light');
     assert.deepEqual(errors, []);
+    guard.assertClean(assert);
     await page.setContent(`<html data-theme="dark"><body>
       <div class="verification-id-face"><img></div>
     </body></html>`);

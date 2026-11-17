@@ -3,8 +3,9 @@
  * Disposable-database checks for supporting-document uploads in the new-application wizard.
  * Synthetic data only: no row is copied from any existing database, and no real file is read.
  * Run only in the isolated test environment (see docs/database-tooling-safety.md). It also writes synthetic
- * files under STORAGE_PATH, which the guard does not redirect: upload_fixtures.php refuses any folder that
- * already exists or lies outside the test id range, and deletes only the exact files this run created.
+ * files under STORAGE_PATH, which with APP_ENV=testing is the dedicated TEST_STORAGE_ROOT/uploads (config/storage.php
+ * refuses to start otherwise): upload_fixtures.php refuses any folder that already exists or lies outside the test
+ * id range, and deletes only the exact files this run created.
  */
 if (PHP_SAPI !== 'cli') { http_response_code(403); exit('Command line only.'); }
 require __DIR__ . '/tool_safety.php';
@@ -29,10 +30,10 @@ function upload_assert(bool $ok, string $message): void { if (!$ok) { throw new 
  */
 class FixtureDocumentValidator extends DocumentValidationService
 {
-    public function storeDocument(array $file, string $destDir): array
+    public function storeDocument(array $file, string $destDir, bool $imageOnly = false): array
     {
         if (!isset($file['fixture_bytes'])) {
-            return parent::storeDocument($file, $destDir);
+            return parent::storeDocument($file, $destDir, $imageOnly); // new-application uploads are image-only (see ApplicationService::attachDocument)
         }
         $bytes = (string) $file['fixture_bytes'];
         if (@getimagesizefromstring($bytes) === false) {
@@ -49,12 +50,12 @@ class FixtureDocumentValidator extends DocumentValidationService
 
 $live = $pdo;
 $created = false;
-$cleanupFiles = [];  // temporary files outside STORAGE_PATH that this test creates; removed in `finally`
+$cleanupFiles = [];  // temporary files in TEST_STORAGE_ROOT/tmp (outside STORAGE_PATH) that this test creates; removed in `finally`
 $exitCode = 0;
 try {
     $live->exec('CREATE DATABASE `' . $testDb . '` CHARACTER SET utf8mb4');
     $created = true;
-    $test = new PDO('mysql:host=' . DB_HOST . ';dbname=' . $testDb . ';charset=utf8mb4', DB_USER, DB_PASS, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
+    $test = new PDO('mysql:host=' . DB_HOST . ';port=' . DB_PORT . ';dbname=' . $testDb . ';charset=utf8mb4', DB_USER, DB_PASS, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
     if ($test->query('SELECT DATABASE()')->fetchColumn() !== $testDb) {
         throw new RuntimeException('The test connection is not bound to the generated database.');
     }
@@ -127,7 +128,8 @@ try {
         'tampered arrays' => ['name' => ['b.png'], 'type' => ['image/png'], 'tmp_name' => ['x'], 'error' => [UPLOAD_ERR_OK], 'size' => [1]],
         'corrupt image' => $fixtureFile('b.png', 'not an image at all'),
     ];
-    $notUploaded = tempnam(sys_get_temp_dir(), 'upl');
+    upload_assert(TEST_TMP_PATH !== null && storage_root_still_safe(), 'The test temp folder is not the validated TEST_STORAGE_ROOT/tmp.');
+    $notUploaded = tempnam(TEST_TMP_PATH, 'upl'); // inside the test root, never the system temp folder
     $cleanupFiles[] = $notUploaded;
     file_put_contents($notUploaded, $png);
     $bad['not a real HTTP upload'] = ['name' => 'b.png', 'type' => 'image/png', 'tmp_name' => $notUploaded, 'error' => UPLOAD_ERR_OK, 'size' => strlen($png)];
@@ -172,11 +174,11 @@ try {
     $docDefs = $documents->requirementsFor($category);
     $catOnlyKeys = array_column($documents->categoryOnlyRequirements($category), 'doc_key');
     $viewDraft = $draft;
-    $viewErrors = $service->validateStep(3, $viewDraft) + ['upload_optC' => 'Fixture optional C: File must be a JPG, PNG or PDF.'];
+    $viewErrors = $service->validateStep(3, $viewDraft) + ['upload_optC' => 'Fixture optional C: File must be an image file (JPG, JPEG or PNG only). PDF and other document files are not accepted.'];
     $html = $renderStep(['draft' => $viewDraft, 'errors' => $viewErrors, 'docDefs' => $docDefs, 'catOnlyKeys' => $catOnlyKeys, 'isApplicationWizard' => true]);
     upload_assert(str_contains($html, 'enctype="multipart/form-data"') && str_contains($html, 'name="application_file[reqA]"') && str_contains($html, 'name="application_file[reqB]"') && str_contains($html, 'name="application_file[optC]"'), 'The Documents step has no upload control for a requirement.');
     upload_assert(str_contains($html, 'replacement.png') && str_contains($html, 'Choose another file only to replace it') && str_contains($html, 'File ready to submit'), 'The staged file and the replace hint are not shown.');
-    upload_assert(str_contains($html, 'Fixture requirement B') && str_contains($html, 'Still needed: Fixture requirement B') && str_contains($html, 'File must be a JPG, PNG or PDF.'), 'The missing requirement or the per-file reason is not shown.');
+    upload_assert(str_contains($html, 'Fixture requirement B') && str_contains($html, 'Still needed: Fixture requirement B') && str_contains($html, 'File must be an image file (JPG, JPEG or PNG only)'), 'The missing requirement or the per-file reason is not shown.');
     upload_assert(str_contains($html, 'value="upload"') && str_contains($html, 'value="continue"') && !str_contains($html, 'name="checklist[]"') && !str_contains($html, 'upload the required files from Documents in your applicant portal'), 'The Documents step still shows checklist boxes or the after-submit instruction.');
     $reviewHtml = $renderReview(['draft' => $viewDraft, 'errors' => [], 'docDefs' => $docDefs, 'categoryMap' => [$category => 'Fixture upload category'], 'isApplicationWizard' => true]);
     upload_assert(str_contains($reviewHtml, 'replacement.png') && str_contains($reviewHtml, 'Required — not uploaded yet') && str_contains($reviewHtml, 'Still needed: Fixture requirement B') && !str_contains($reviewHtml, 'upload after submitting'), 'The review step does not show the staged file and the missing requirement.');
@@ -226,7 +228,7 @@ try {
     upload_assert(array_column($documents->outstandingRequired($app), 'doc_key') === ['reqA', 'reqB'], 'Review does not treat the uploaded, unverified required files as outstanding.');
     upload_assert(array_column((new ApplicationReviewService($test))->approvalChecklist($app), 'ok', 'label')['Required documents'] === false, 'Approval would not be blocked until staff verify the uploaded files.');
     $verdict = (new ApplicationReviewService($test))->saveVerification($staff, $app, array_column(array_map(
-        fn($row) => [(int) $row['id'], ['status' => 'VERIFIED', 'remarks' => '', 'expected' => 'FOR_VERIFICATION', 'expected_remarks' => '']], $stored), 1, 0));
+        fn($row) => [(int) $row['id'], ['status' => 'VERIFIED', 'remarks' => '', 'expected' => 'FOR_VERIFICATION', 'expected_remarks' => '', 'expected_version' => Document::versionToken($row)]], $stored), 1, 0));
     upload_assert($verdict['errors'] === [] && $documents->outstandingRequired($app) === [], 'Staff could not verify files of an application that has no checklist rows.');
 
     // ---- 10. Submission refused when a required file is missing, gone or changed ----

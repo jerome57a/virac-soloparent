@@ -1,11 +1,12 @@
 <?php
 /**
- * Submission + staff-entered interview scheduling checks. Called only from the
- * disposable workflow database test (test_staff_review_workflow.php).
+ * Submission, document verification, the interview calendar and its settings. Called only from the disposable workflow
+ * database test (test_staff_review_workflow.php).
  *
- * Interviews are scheduled by staff typing a date and time. There is no applicant
- * self-booking and no appointment_slots capacity; appointments.slot_id stays NULL
- * for every new schedule (the appointment_slots table remains only for history).
+ * Interviews are no longer scheduled by staff through a service call: staff send an invitation and the applicant chooses
+ * an office day (InterviewInvitationService / InterviewBookingService). A booked appointment is created here with
+ * review_book_interview(), a fixture. There is no appointment_slots capacity; appointments.slot_id stays NULL for every new
+ * booking (the appointment_slots table remains only for history).
  */
 function check_staff_assigned_interviews(PDO $test, array $staff, int $category): void
 {
@@ -59,52 +60,45 @@ function check_staff_assigned_interviews(PDO $test, array $staff, int $category)
         review_assert(count($applications->history((int) $app['id'])) === 1, 'Submission added unexpected scheduling history.');
     }
 
+    // Submitted files are awaiting verification and no interview exists yet. (The rule that an invitation needs every
+    // required document verified is enforced by InterviewInvitationService and is checked in the end-to-end run.)
+    $review = new ApplicationReviewService($test);
+    foreach ($results as $submitted) {
+        review_assert($appointments->interviewFor((int) $submitted['id']) === null && $applications->findForReview((int) $submitted['id'])['status'] === 'Pending Review', 'A submitted application already had an interview.');
+    }
+    // Staff verify each application's uploaded files (current file versions), which is what makes an interview possible.
+    foreach ($results as $submitted) {
+        review_verify_all_uploads($test, $review, $staff, $applications->findForReview((int) $submitted['id']));
+        review_assert($applications->findForReview((int) $submitted['id'])['status'] === 'Pending Review' && !(new Document($test))->outstandingRequired($applications->findForReview((int) $submitted['id'])), 'Verifying the uploads did not leave the application ready for an interview.');
+    }
+
     // The applicant-facing booking/slot API must be gone.
     $bookingService = new AppointmentService($test);
     foreach (['book', 'openSlots', 'staffSlots', 'createSlot', 'cancelSlot', 'deleteSlot'] as $removed) {
         review_assert(!method_exists($bookingService, $removed), 'Removed slot/booking method still exists: ' . $removed);
     }
 
-    // Staff enter the date and time directly.
-    $review = new ApplicationReviewService($test);
+    // A booked interview is saved without a slot; saving a new date moves it and resets the reminder.
     $firstApp = $results[0];
-    review_assert($review->scheduleInterview($staff, $firstApp, $date . 'T09:00', 'Fixture Office', '') === null, 'Staff could not assign the first interview.');
+    review_book_interview($test, $staff, (int) $firstApp['id'], $date . ' 09:00:00', 'Fixture Office');
     $firstApp = $applications->findForReview((int) $firstApp['id']);
     $appointment = $appointments->interviewFor((int) $firstApp['id']);
-    review_assert($firstApp['status'] === 'Interview Scheduled' && (int) $appointment['scheduled_by'] === (int) $staff['id'] && $appointment['scheduled_at'] === $date . ' 09:00:00', 'Staff-entered schedule was not saved.');
-    review_assert($appointment['slot_id'] === null, 'Staff-entered schedule must be saved with slot_id NULL.');
-    $sms = $appointments->interviewSms((int) $firstApp['id']);
-    review_assert($sms && str_contains($sms['message'], $firstApp['reference_no']) && str_contains($sms['message'], 'Fixture Office'), 'Staff scheduling SMS was not linked to the interview.');
-
-    // Staff can reschedule an existing appointment; it stays slotless and resets the reminder.
+    review_assert($firstApp['status'] === 'Interview Scheduled' && (int) $appointment['scheduled_by'] === (int) $staff['id'] && $appointment['scheduled_at'] === $date . ' 09:00:00', 'The booked interview was not saved.');
+    review_assert($appointment['slot_id'] === null, 'A booked interview must be saved with slot_id NULL.');
     $test->prepare('UPDATE appointments SET reminder_sent_at = NOW() WHERE application_id = ?')->execute([$firstApp['id']]);
-    review_assert($review->scheduleInterview($staff, $firstApp, $date . 'T10:00', 'Fixture Office', '') === null, 'Staff could not reschedule an existing appointment.');
+    review_book_interview($test, $staff, (int) $firstApp['id'], $date . ' 10:00:00', 'Fixture Office');
     $moved = $appointments->interviewFor((int) $firstApp['id']);
-    review_assert($moved['scheduled_at'] === $date . ' 10:00:00' && $moved['slot_id'] === null && $moved['reminder_sent_at'] === null && $moved['status'] === 'BOOKED', 'Rescheduling did not update the appointment and reset its reminder.');
+    review_assert($moved['scheduled_at'] === $date . ' 10:00:00' && $moved['slot_id'] === null && $moved['reminder_sent_at'] === null && $moved['status'] === 'BOOKED', 'Saving a new date did not update the appointment and reset its reminder.');
 
-    // No capacity limit: another applicant may be scheduled at exactly the same time.
-    $secondApp = $results[1];
-    review_assert($review->scheduleInterview($staff, $secondApp, $date . 'T10:00', 'Fixture Office', '') === null, 'Staff could not schedule despite unchecked requirements / an existing booking at that time.');
+    // The appointment table has no per-time capacity limit (a day's capacity is enforced when an applicant books).
+    review_book_interview($test, $staff, (int) $results[1]['id'], $date . ' 10:00:00', 'Fixture Office');
+    review_assert((int) $test->query("SELECT COUNT(*) FROM appointments WHERE scheduled_at = '" . $date . " 10:00:00'")->fetchColumn() >= 2, 'Two applications could not share the same appointment time.');
 
-    // Invalid input and closed days are rejected and create no appointment.
-    $pendingApp = $results[2];
-    $holidaySet = [$weekend, $holidayDate, $closureDate];
-    foreach ($holidaySet as $blockedDate) {
-        review_assert($review->scheduleInterview($staff, $pendingApp, $blockedDate . 'T09:00', 'Fixture Office', '') !== null, 'Staff scheduled an interview on a closed day: ' . $blockedDate);
+    // Closed days are refused by the shared interview calendar: weekends, declared holidays and the closures saved above.
+    foreach ([$weekend, $holidayDate, $closureDate] as $blockedDate) {
+        review_assert($calendar->dateError($blockedDate) !== null, 'The calendar accepted a closed day: ' . $blockedDate);
     }
-    $invalidInputs = [
-        'malformed date' => ['2026-02-30T09:00', 'Fixture Office'],
-        'missing time' => [$date . 'T', 'Fixture Office'],
-        'past date' => ['2000-01-03T09:00', 'Fixture Office'],
-        'before opening' => [$date . 'T03:00', 'Fixture Office'],
-        'after closing' => [$date . 'T23:00', 'Fixture Office'],
-        'empty location' => [$date . 'T09:00', ''],
-    ];
-    foreach ($invalidInputs as $label => [$when, $location]) {
-        review_assert($review->scheduleInterview($staff, $pendingApp, $when, $location, '') !== null, 'Invalid interview input accepted: ' . $label);
-    }
-    review_assert($review->scheduleInterview($staff, $pendingApp, $date . 'T09:00', str_repeat('x', 256), '') !== null, 'Over-long location accepted.');
-    review_assert($appointments->interviewFor((int) $pendingApp['id']) === null, 'A rejected schedule still created an appointment.');
+    review_assert($calendar->dateError($date) === null, 'The calendar refused an ordinary office day.');
 
     // Settings validation for closures / office days.
     $invalidSettings = $settingsInput;
@@ -116,5 +110,5 @@ function check_staff_assigned_interviews(PDO $test, array $staff, int $category)
     $invalidSettings = $settingsInput;
     $invalidSettings['appointment_closure_dates'] = $date;
     review_assert($settingsService->saveSection($admin, 'appointments', $invalidSettings)[0] !== '' && get_setting($test, 'appointment_closure_dates', '') === $closureDate, 'An office closure was saved over existing bookings without cancellation/rescheduling.');
-    echo "Staff scheduling passed: pending submissions, submission SMS, staff-entered date/time (slot_id NULL), rescheduling, no capacity limit, invalid input and closed-day validation.\n";
+    echo "Interview checks passed: submission SMS and history, upload verification, booked interviews (slot_id NULL, new date resets the reminder), closed-day calendar rules and closure settings.\n";
 }

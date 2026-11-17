@@ -7,8 +7,11 @@ Virac, Catanduanes, Philippines**.
 > **Documentation status.** This README describes the approved project scope.
 > Statements about the implementation were checked against the repository
 > (schema, controllers, services, views, tests). They were not verified by
-> running the application or its tests, and no test or evaluation result is
-> claimed anywhere in this document.
+> running the application or its tests. No real-database, integration,
+> browser or full-application test result is claimed anywhere in this
+> document; the only checks mentioned are PHP lint, source review and, for
+> the earlier stages, the isolated offline checks of the date-only interview
+> work (section 5), described there with their limits.
 >
 > **Database changes are pending.** Prepared migration and cleanup scripts
 > exist in `database/`, but **none of them has been executed** against any
@@ -53,7 +56,7 @@ The system supports:
 | Layer | Technology |
 |---|---|
 | Language | PHP 8.0+ (`composer.json`), no framework; controllers / services / models structure |
-| Database | MySQL / MariaDB (XAMPP), strict SQL mode, prepared statements |
+| Database | MySQL 8.0.16+, strict SQL mode, prepared statements |
 | Web server | Apache (XAMPP) with `.htaccess` protection of non-public folders |
 | Front end | Bootstrap 5 (CDN with Subresource Integrity), JavaScript, project CSS |
 | SMS | Semaphore PH API through `services/SMSService.php` (test mode by default) |
@@ -99,6 +102,146 @@ access on its next request.
 | Essential applicant, staff, and account management | Implemented |
 | Authentication, role permissions, audit logging | Implemented |
 
+### Interview date booking (implemented at source level; not active)
+
+An applicant-selected, **date-only** interview booking workflow has been
+written in stages. **It is not active in any deployment:** the database
+migration (`database/migrate_interview_date_booking.sql`) has not been run,
+the rollout flag `interview_date_booking_enabled` defaults to off and no
+administrator screen switches it on, and the code treats an incomplete or
+unreadable schema as "off" (it fails closed). No screen or workflow can create
+a date-only appointment until the migration (or a fresh install) is in place
+and the flag has been switched on in the database. Today, staff schedule
+interviews with a date, time and location, and applicants can view or cancel
+them (section 8).
+
+The earlier stages make the existing screens, reminders, outcome handling and
+cancellation correct for a date-only appointment. The later stages (2E-2B to
+2E-2F, below) add the staff and applicant workflow itself. All of it is
+implemented at source level only and is inert with the flag off; nothing
+changes for timed appointments. None of it has been run against a real
+database (see "Verification status" below).
+
+**Date-only versus timed.** A date-only appointment has a date but no time of
+day (stored at 00:00:00 with `appointments.date_only = 1`). Every existing
+appointment is timed (`date_only = 0`) and behaves exactly as before.
+
+**Implemented so far (source level; the booking workflow is not active):**
+
+| Stage | What it does |
+|---|---|
+| 1 | Rollout flag plus a fail-closed schema-readiness guard (`services/InterviewDateFeature.php`); date-only-aware formatting helpers in `includes/functions.php` |
+| 2A | The formatting helpers accept a missing date and keep the legacy output; a cached, flag-independent check of the `appointments.date_only` column definition |
+| 2B | Date-only appointments are excluded from the timed reminder job. Column detection is three-state (present / absent / unknown): present excludes them, absent runs the legacy query, unknown sends nothing for that run so it is retried on the next run |
+| 2C | A date-only appointment is "today" all day. Its result can be recorded from the start of its date (still subject to the document-verification gate), and it can be marked missed only after its date has passed (Manila calendar date). The staff appointment lists and the "Needs Outcome" list follow this. Timed appointments are unchanged. No automatic missed processing exists |
+| 2D | Display compatibility: a date-only appointment shows its date without a midnight time on the applicant, staff, administrator, public-tracking, report and applicant-timeline screens, in in-app notification and history text, and in the printed and CSV appointment report (CSV: `YYYY-MM-DD`). Applicant and public views hide the time row; staff lists show "Date only" where only a time is shown. Timed output is unchanged. SMS text is unchanged. The Filipino wording for the "Date only" label has not been written (the English label is used) |
+| 2E-1 | Staff scheduling over an existing date-only appointment converts it to a timed appointment (section 8): `date_only` becomes 0, `booking_source` becomes `STAFF` and the date-booking confirmation SMS link is cleared. The staff form leaves the time blank for a date-only appointment and explains the conversion. The conversion reads the existing row, so it works whether or not the rollout flag is on, and on a table without the date-booking columns it runs the previous statement unchanged |
+| 2E-2A | Date-only online cancellation deadline and date-aware closure-date conflict checking (below) |
+| 2E-2B | Staff interview dates and capacity: staff (permission `applications.process`) open, close and reopen interview dates (valid office days, today or later) from an "Interview dates" card on Appointment Management; administrators can view it only. The default daily capacity is the `interview_default_capacity` setting in the Appointments settings (0 = not configured, 1 to 500), and a date may have its own capacity. BOOKED and COMPLETED appointments use seats; a capacity cannot be set below the seats used, and lowering the default below the bookings on an open date that follows it is refused. Date actions are written to `audit_logs` |
+| 2E-2C | Booking invitations: from a "Booking invitation" card on the staff application page, staff open, close and reopen the one invitation of an application and grant an extra reschedule (one at a time, with a reason, up to 5 in total). Opening or reopening needs an application that is still being processed (not a simplified renewal), every required document verified and unexpired, and no booked or completed interview. Each change writes an `appointment_events` row and an audit entry |
+| 2E-2D | Applicant booking and rescheduling: with an open invitation the applicant chooses a staff-opened date that still has seats (first come, first served; no booking horizon), and only while that date's online-cancellation deadline is still ahead. A first booking never uses the reschedule allowance, and cancelling never does; a replacement booking after the applicant cancelled their own date booking counts as one reschedule. An applicant's cancellation reopens the invitation while allowance is left and otherwise closes it; a staff cancellation or MISSED closes it. A staff-scheduled interview keeps an existing invitation in step (event `BOOKED`, source `STAFF`, no allowance use) |
+| 2E-2E | Staff scheduling and capacity: when the feature is enabled and staff have opened the chosen date, scheduling locks that date and refuses an open date with no seat left (no override). A closed or never-opened date keeps the previous behavior |
+| 2E-2F | Notifications and reminders: an in-app notice to the applicant when staff open or manually reopen booking (the booking SMS is described below); the existing cancellation and MISSED SMS show the date alone for a date-only appointment; the existing hourly reminder job sends one reminder for a date-only appointment at the office closing time on the previous valid office day, with a catch-up until 12:00 noon on the appointment date. Timed SMS and reminders are unchanged |
+
+**Date-only online cancellation (implemented; applies only to date-only appointments).**
+
+- The online deadline is the closing time on the **previous valid office day**
+  before the appointment date, in Manila time. Valid office days come from the
+  same calendar that validates interview dates (weekends, holidays, announced
+  closures and the allowed weekdays are skipped; the search looks back at most
+  14 days).
+- The closing time is the `appointment_day_end` setting ("Latest interview end
+  (office closing time)" in the administrator's Appointments settings; default
+  17:00). The setting therefore also sets this deadline.
+- Cancelling online is allowed strictly before the deadline. At the deadline or
+  later it is refused and the applicant is told to contact MSWDO. The applicant
+  sees the exact deadline while cancelling is still allowed.
+- If the calendar cannot reliably determine the deadline (for example a date in
+  a year missing from the holiday calendar, or no office day within the
+  lookback), online cancellation fails closed and the applicant is told to
+  contact MSWDO.
+- Timed appointments keep the existing two-hour minimum-notice rule, with its
+  existing wording. Staff cancellation is not limited by the deadline.
+
+**Closure and holiday dates (implemented).** When an administrator saves
+closure or holiday dates in the Appointments settings, existing booked
+interviews on those dates block the save. Date-only appointments scheduled
+today or later (Manila date) are now included in that check; timed behavior is
+unchanged. If the application cannot tell whether the `date_only` column
+exists, the save is refused when this check is needed (a save with no closure
+or holiday dates does not run the check). If the column is absent, the previous
+query runs unchanged.
+
+**Fail-closed behavior.** If the application cannot tell whether the
+`date_only` column exists, the reminder query sends nothing and the staff
+"today" and "Needs Outcome" lists are empty until the check succeeds. The
+MISSED refusal for a date-only appointment reads the appointment itself and
+does not depend on that check. The date-only cancellation deadline fails
+closed when the calendar cannot decide it, and the closure-date save is
+refused when the column check is unknown and needed (above).
+
+**Invitation and booking-confirmation SMS (implemented at source level;
+inactive).** Two SMS templates, sent through the existing `SMSService` path:
+
+| Template key | Placeholders | Sent when |
+|---|---|---|
+| `interview_booking_open` | `{ref}` | Staff open an invitation, or manually reopen a closed one, after that action has been saved |
+| `interview_date_booked` | `{ref}`, `{when}`, `{location}` | An applicant successfully books a date, or books a replacement date, after the booking has been saved. `{when}` is the date with its weekday, never a time of day |
+
+- Not sent for: the automatic reopening after an applicant cancels, an extra
+  reschedule granted by staff, an applicant's own cancellation, or an interview
+  that staff schedule with a time (that keeps its existing interview SMS).
+- One message per saved action; there is no suppression between separate manual
+  open or reopen actions.
+- The message goes to the applicant's confirmed number (else the application
+  mobile), is recorded in `sms_logs`, and can be switched on or off in
+  Notification Settings (a switched-off template sends and logs nothing; in test
+  mode it is logged only). The log id is stored in
+  `interview_invitations.sms_log_id` and `appointments.confirmation_sms_log_id`.
+- A failed or switched-off SMS never rolls back a committed booking or
+  invitation action; a failure is written to the server error log, and a failed
+  message can be retried from the administrator SMS log.
+- Inactive until the rollout flag is on and the pending MySQL migration has been
+  applied. The migration adds the two template rows (`INSERT IGNORE`) and a
+  fresh install gets them from `database/seed.sql`; if the rows are missing the
+  built-in text is still used, but it cannot be edited or switched off in the
+  administrator screens. The wording is English only.
+
+**Not implemented or still open** (do not read these as current behavior):
+
+- A way to switch the rollout flag on from the administrator screens.
+- Filipino wording for the two booking SMS templates, and a staff-screen display
+  or retry of them (a failed one can be retried only from the administrator SMS
+  log). `database/testing/seed_test.sql` does not contain the two template rows.
+- The Filipino wording for the "Date only" label (the English label is used).
+- The default daily capacity number has not been chosen. It is 0 (not
+  configured) until an administrator sets it, so until then a date can be
+  opened only with its own capacity.
+- The `COMPLETED` booking event (recording an interview result does not write
+  an `appointment_events` row), and an invitation step when an application is
+  rejected (its invitation is left as it is; a rejected application cannot
+  book).
+- Date-only reminders rely on the existing hourly scheduled task (section 14)
+  running.
+- Real-database verification and a migration rehearsal (see "Verification
+  status" below).
+
+**ID release is not part of this feature and is unchanged.**
+
+**Verification status.** The earlier stages (through 2E-2B) were checked with
+`php -l` and isolated offline checks: stubbed database connections, with some
+SQL also run on a private in-memory SQLite database. Those scripts are kept
+outside the repository. Stages 2E-2C to 2E-2F and the booking SMS were checked
+with `php -l` and source review only; no offline check scripts were run for
+them. None of this
+establishes that the feature works against a real database, in integration, in
+a browser or in the full application, and it is not a claim that the feature is
+ready for production. **No migration has been run, and no real-database test,
+integration test, browser test or full application test has been performed for
+this feature.** Row locking, capacity under concurrent booking, the upserts and
+the reminder timing have never run. The existing database-backed tests have not
+been re-run after these changes. The rollout flag remains off.
+
 ## 6. Public Home Page and Eligibility Checking
 
 The public Home Page (layout, navigation, Solo Parent ID information, and the
@@ -111,7 +254,7 @@ Files: `index.php`, `services.php`, `portal.php`, `login.php`, `register.php`,
 ## 7. Applicant Workflow
 
 1. Registration and login. A new applicant registers with a mobile number;
-   sign-in accepts a legacy username or a **confirmed** mobile number.
+   sign-in accepts email, legacy username, or a **confirmed** mobile number.
    No SMS confirmation code is sent.
 2. Online Solo Parent ID application: personal and children information.
 3. Solo Parent category selection (9 categories, `categories`).
@@ -150,7 +293,7 @@ correction.
 must re-enter their **current password**; a changed number is no longer
 treated as confirmed. Existing legacy accounts whose mobile number was never
 confirmed may need **staff confirmation** before the number can be used to sign
-in (`users.mobile_verified_at`). They can still sign in with their legacy
+in (`users.mobile_verified_at`). They can still sign in with email or legacy
 username.
 
 Applicants do **not** book or choose an appointment slot; interviews are
@@ -158,7 +301,7 @@ scheduled by staff (section 8).
 
 ## 8. MSWD Staff Workflow
 
-1. Staff login (`mswd-login.php` / `staff/`).
+1. Staff sign-in through the unified login page (`login.php`; `mswd-login.php`, `admin/login.php` and `staff/login.php` redirect there).
 2. Application management (queue with status and type filters).
 3. View applicant information.
 4. View and download the files the applicant uploaded.
@@ -167,10 +310,21 @@ scheduled by staff (section 8).
 6. Eligibility assessment.
 7. **Interview scheduling by staff**: staff enter the date, time, and
    location. There is no applicant slot booking and no slot dependency.
+   Interviews are scheduled through this staff workflow; applicant date
+   booking exists at source level but is inactive (section 5).
 8. SMS interview notification (including retry of failed messages).
 9. Approval, rejection, or request for correction.
 10. ID release scheduling and SMS notification.
 11. Application and renewal record management.
+
+**Rescheduling a date-only appointment.** If an existing appointment is
+date-only (a row of the not-yet-active date-booking feature), the scheduling
+form keeps its date, leaves the time blank and says that choosing a time
+converts it to a timed appointment. When staff save a date and time, the
+appointment becomes a timed appointment (`date_only = 0`,
+`booking_source = 'STAFF'`, the date-booking confirmation SMS link cleared),
+with the same resets as any staff reschedule (result, reminder, cancellation
+and interview SMS link). Timed appointments are rescheduled exactly as before.
 
 Applicant and renewal records are browsed from `staff/applicants.php` and
 processed on `staff/application.php`. Approval is refused until required
@@ -249,7 +403,9 @@ account, and the SMS log keeps them masked.
 | Application status change (correction requested, approved, rejected) | Application update | Implemented |
 | Interview scheduled or rescheduled | Interview scheduling | Implemented (incl. retry) |
 | ID release scheduled | ID release scheduling | Implemented (incl. retry) |
-| Interview and renewal reminders (`cron/`) | Operations | Implemented |
+| Interview and renewal reminders (`cron/`) | Operations | Implemented for timed appointments; reminders for date-only appointments are implemented at source level and inactive until the booking workflow is enabled (section 5) |
+| Interview booking opened by staff (date booking) | Interview scheduling | Implemented at source level; inactive until the booking workflow is enabled (section 5) |
+| Interview date booked by the applicant (date booking) | Interview scheduling | Implemented at source level; inactive until the booking workflow is enabled (section 5) |
 | Password-reset codes | Authentication | Implemented |
 
 Configuration (server environment variables or untracked `config/local.php`;
@@ -282,6 +438,7 @@ Tables defined in `schema.sql`, grouped by purpose:
 | Application | `categories`, `document_requirements`, `applications`, `application_drafts`, `application_children`, `application_documents`, `application_document_checklists`, `document_status_history`, `application_status_history`, `application_decisions`, `application_notes` | Core. `application_document_checklists` is live (staff review and renewal snapshots), not an applicant submission method |
 | Renewal | `renewal_requirements`, `renewal_reminders` | Core |
 | Interview / ID release | `appointments`, `id_release_schedules` | Core. `appointments` holds interviews only; `appointments.slot_id` is historical |
+| Interview date booking (not active) | `interview_dates`, `interview_invitations`, `appointment_events` | Defined in `schema.sql` for fresh installs only; an existing database receives them, and the four new `appointments` columns, only through the pending migration below. The application reads and writes these three tables only when the rollout flag is on and the schema is complete; with the flag off, or the schema missing or unreadable, it does not touch them |
 | Eligibility | `eligibility_assessments`, `eligibility_result_views` | Core (staff assessment and public eligibility checking) |
 | SMS / notifications | `sms_logs`, `sms_templates`, `notifications`, `system_broadcasts` | `sms_logs` is core. Use of the others: see section 18 |
 | Audit / config | `audit_logs` (append-only via DB triggers), `system_settings`, `scheduled_job_runs` | Core |
@@ -301,10 +458,18 @@ are pending approval and a rehearsal on an isolated copy:
 | `database/migrate_faq_document_uploads.sql` | Replaces the obsolete "book, reschedule or cancel an appointment" FAQ text in existing databases with a description of uploading supporting documents (matched by exact original text; no row deleted). A fresh install already gets the new text from `seed.sql` |
 | `database/migrate_drop_mobile_code_columns.php` | Removes the obsolete mobile-code columns from `users` (`mobile_code`, `mobile_code_expires_at`, `mobile_code_attempts`); `mobile_verified_at` and the password-reset columns are preserved. Defaults to a read-only `--check`; guarded to the isolated test database |
 | `database/rollback_restore_mobile_code_columns.sql` | Restores the column structure only (values are not recoverable) |
+| `database/migrate_interview_date_booking.sql` | Adds the interview date-booking structures: `interview_dates`, `interview_invitations`, `appointment_events` (append-only via triggers) and the `appointments` columns `interview_date`, `date_only`, `booking_source`, `confirmation_sms_log_id`, plus two `sms_templates` rows (`interview_booking_open`, `interview_date_booked`; `INSERT IGNORE`). Not run; needs an isolated-copy rehearsal first. The application works without it; the date booking workflow then stays inactive and fails closed |
 
 Until these are approved and run, a production database may still contain the
 old FAQ wording and the obsolete mobile-code columns. The application does not
 depend on either.
+
+**No migration or schema change has been executed for the date-only work in
+section 5.** The groundwork code detects whether `appointments.date_only`
+exists and, on a database without it, uses the previous behavior and queries.
+The booking workflow (staff dates, invitations, applicant booking) additionally
+needs the pending migration or a fresh install, and stays off, failing closed,
+without it.
 
 Other `database/migrate_*.sql` files are historical upgrade scripts for older
 versions and must not be bulk-imported. `migrate_step20_chat.sql` provisions
@@ -383,7 +548,8 @@ Existing test assets (not executed during this documentation task):
 | `database/test_simplified_renewal.php` | Renewal rules, document retention, history (disposable DB) |
 | `database/test_new_application_uploads.php` | New-application uploads: required files, invalid and replaced files, server rechecks at submission, rollback, views, staff review with no checklist rows (disposable DB; writes synthetic files under `storage/uploads`) |
 | `database/test_public_tracking.php` | Public status lookup field filtering |
-| `database/test_role_account_creation.php` | Account creation |
+| `database/test_role_account_creation.php`, `test_user_account_actions.php` | Account creation and actions |
+| `database/test_optional_applicant_gmail.php` | Optional applicant email |
 | `database/test_admin_management_layout.php` | Admin list pagination, SMS filters/retry rules |
 | `database/test_eligibility_history.php` | Public eligibility checking and history |
 | `database/appointment_management_checks.php`, `automatic_interview_checks.php`, `checklist_flow_checks.php` | Appointment, automatic interview SMS, upload-based document review and approval checks |
@@ -399,8 +565,18 @@ production database or real applicant data. See
 first, then the broader set. When a feature is retired, archive its test
 rather than silently deleting it.
 
-**Results:** no test results are recorded in this README. Record them only
-from an actual run, with date, command, and outcome.
+**Date-only interview work.** The earlier stages listed in section 5 (through
+2E-2B) were checked with PHP lint and isolated offline checks (stubbed database
+connections, and some SQL on a private in-memory SQLite database). Stages
+2E-2C to 2E-2F and the booking SMS were checked with PHP lint and source review only. Those scripts
+are kept outside the repository and are not in the table above. They do not
+establish behavior on a real database, in integration, in a browser or in the
+full application, and the database-backed tests above have not been re-run
+since these changes.
+
+**Results:** no database-backed, integration, browser or full-application test
+results are recorded in this README. Record them only from an actual run, with
+date, command, and outcome.
 
 ## 16. ISO/IEC 25010:2023 Software Quality Evaluation
 
@@ -463,7 +639,7 @@ scope). Historical database structures and records are retained.
 | Applicant-facing checkbox/checklist document submission | Replaced by actual file uploads. The `application_document_checklists` table is retained for live review and renewal snapshots |
 | Analytics and monitoring dashboards | Pages and models removed |
 | Public News and announcements; system-wide announcement broadcasting | Pages and models removed; `public_announcements` retained as historical data |
-| Applicant self-booking and appointment-slot management | Staff schedule interviews directly. `appointment_slots` and `appointments.slot_id` retained as historical |
+| Applicant self-booking and appointment-slot management | Slot-based applicant booking is retired; staff schedule interviews directly. `appointment_slots` and `appointments.slot_id` retained as historical. The separate date-only booking workflow (section 5) is implemented at source level and inactive |
 | Mobile digit-code verification | No code is texted at registration. Obsolete columns still exist until the pending migration (section 12) is approved |
 | Admin FAQ editing | `admin/faq.php` and the `Faq` model removed. `faqs` is still read by the Help page and portal search |
 | Barangay Distribution reports | Retired |

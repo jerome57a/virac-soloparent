@@ -1,22 +1,32 @@
-/* Requires playwright (Chrome). Fixtures use no database and perform no account writes. */
+/* Requires playwright (Chrome) and VIRAC_TEST_URL (explicit test-only origin with a port; the ordinary application URL
+ * is refused). Fixtures use no database and perform no account writes. Every browser request is decided by the shared
+ * guard (scripts/lib/test-origin.cjs): fixture pages and static assets only, GET only, no redirects, nothing
+ * cross-origin; the one expected search navigation (admin/applications.php, GET) is answered with a stub page. */
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { chromium } = require('playwright');
-const root = path.resolve(__dirname, '..');
+const { screenshotPath, screenshotDir } = require('./lib/test-artifacts.cjs');
+const { parseTestBase, newGuardedContext } = require('./lib/test-origin.cjs');
 const fixture = state => execFileSync('php', [path.join(__dirname, 'fixtures/admin-dashboard.php'), state], { encoding: 'utf8' });
 (async () => {
+  // Validate everything before any PHP fixture or browser runs. No default URL.
+  const base = parseTestBase(process.env.VIRAC_TEST_URL);
+  screenshotDir(); // validates TEST_STORAGE_ROOT
+  const states = ['populated', 'empty', 'clear', 'large'];
+  const fixtures = new Map(states.map(state => [state, fixture(state)]));
+  for (const html of fixtures.values()) assert(!/Warning:|Fatal error:/.test(html), 'PHP fixture renders cleanly');
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {
-    const page = await browser.newPage();
+    const { context, guard } = await newGuardedContext(browser, base, {}, {
+      stubPages: true, // the expected GET search navigation to admin/applications.php gets a placeholder, never the server
+      fixture: (relative, url) => relative === 'admin/dashboard.php' ? fixtures.get(url.searchParams.get('state') || 'populated') : undefined,
+    });
+    const page = await context.newPage();
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
-    await page.route('**/public/css/admin-dashboard.css', route => route.fulfill({ contentType: 'text/css', body: fs.readFileSync(path.join(root, 'public/css/admin-dashboard.css'), 'utf8') }));
-    for (const state of ['populated', 'empty', 'clear', 'large']) {
-      const html = fixture(state);
-      assert(!/Warning:|Fatal error:/.test(html), 'PHP fixture renders cleanly');
-      await page.setContent(html);
+    for (const state of states) {
+      await page.goto(base + 'admin/dashboard.php?state=' + state);
       assert.equal(await page.locator('.ad-metric').count(), 4);
       assert.equal(await page.locator('.ad-status-row').count(), 6);
       assert.equal(await page.locator('.ad-heading.personnel-page-heading').count(), 1, 'shared staff heading panel');
@@ -69,22 +79,26 @@ const fixture = state => execFileSync('php', [path.join(__dirname, 'fixtures/adm
       assert.equal(await page.locator('.ad-details').getAttribute('open'), '');
       assert.equal(await page.locator('.ad-details-grid').isVisible(), true);
     }
-    await page.setContent(fixture('populated'));
+    await page.goto(base + 'admin/dashboard.php?state=populated');
     await page.setViewportSize({ width: 1440, height: 1100 });
-    await page.screenshot({ path: path.join(root, 'storage/admin-dashboard-desktop.png'), fullPage: true });
+    await page.screenshot({ path: screenshotPath('admin-dashboard-desktop.png'), fullPage: true });
     await page.locator('[data-language-select]').selectOption('tl');
     assert.equal(await page.locator('h1').textContent(), 'Dashboard ng Tagapangasiwa');
     const missing = await page.locator('#admin-dashboard [data-i18n]').evaluateAll(elements => elements.flatMap(element => [...element.childNodes].filter(node => node.nodeType === 3).map(node => node.nodeValue.trim()).filter(text => /[a-z]/i.test(text) && !Object.values(window.ViracTranslations).includes(text))));
     assert.deepEqual(missing, [], 'all dashboard labels have Tagalog translations');
     await page.locator('[data-theme-toggle]').click();
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.screenshot({ path: path.join(root, 'storage/admin-dashboard-dark-mobile.png'), fullPage: true });
+    await page.screenshot({ path: screenshotPath('admin-dashboard-dark-mobile.png'), fullPage: true });
     const target = page.waitForRequest(request => new URL(request.url()).pathname.endsWith('/admin/applications.php'));
-    await page.route('**/admin/applications.php?**', route => route.fulfill({ body: 'Search destination' }));
     await page.locator('#admin-application-search').fill('Test reference');
     await page.locator('.ad-search button').click();
-    assert.equal(new URL((await target).url()).searchParams.get('q'), 'Test reference');
+    const searched = new URL((await target).url());
+    assert.equal(searched.searchParams.get('q'), 'Test reference');
+    assert.equal(searched.origin, new URL(base).origin, 'search stays on the test origin');
+    await page.waitForLoadState();
     assert.deepEqual(errors, []);
+    guard.assertClean(assert);
+    assert.deepEqual(guard.external, [], 'no cross-origin requests');
     console.log('PASS: dashboard counts, scoped filters, escaped names, empty states, expandable details, search, both languages/themes, and 320–1440px layouts. No database changes.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

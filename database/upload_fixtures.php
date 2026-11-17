@@ -3,9 +3,11 @@
  * Helpers for disposable-database tests that submit applications with staged upload files.
  * Synthetic bytes only; no real document, applicant record or existing upload is read.
  *
- * STORAGE_PATH is fixed to storage/uploads and is NOT redirected by the test environment guard, and high ids do
- * not prove that nothing exists at those paths. These helpers therefore fail closed instead of assuming:
- *   - a folder is used only if it lies at STORAGE_PATH/<id> or STORAGE_PATH/drafts/<id> with <id> >= 1800000000
+ * Under APP_ENV=testing, STORAGE_PATH is <TEST_STORAGE_ROOT>/uploads (validated by config/storage.php, which refuses
+ * to start without a dedicated test root). These helpers additionally refuse to run at all unless STORAGE_PATH is
+ * that validated test root, and high ids do not prove that nothing exists at those paths, so they fail closed:
+ *   - a folder is used only if it lies at STORAGE_PATH/<id>, STORAGE_PATH/drafts/<id> or
+ *     STORAGE_PATH/drafts/renewal_<id> with <id> >= 1800000000
  *     AND does not exist yet (an existing folder is refused, never reused);
  *   - cleanup deletes only the exact files this run created or recorded (staged files, and the stored files of
  *     applications this run submitted, read from the disposable database), and removes a folder only with rmdir,
@@ -22,15 +24,26 @@ function upload_fixture_norm(string $path): string
     return str_replace('\\', '/', $path);
 }
 
-/** True only for STORAGE_PATH/<id> or STORAGE_PATH/drafts/<id>, with <id> a ten-digit number >= UPLOAD_FIXTURE_MIN_ID. */
+/** Throws unless STORAGE_PATH is the validated, marker-protected test upload root (never production storage). */
+function upload_fixture_require_test_root(): void
+{
+    if (!defined('STORAGE_IS_TEST_ROOT') || STORAGE_IS_TEST_ROOT !== true || !function_exists('storage_root_still_safe') || !storage_root_still_safe()) {
+        throw new RuntimeException('Refusing to touch storage: STORAGE_PATH is not the validated TEST_STORAGE_ROOT upload folder.');
+    }
+}
+
+/** True only for STORAGE_PATH/<id>, STORAGE_PATH/drafts/<id> or STORAGE_PATH/drafts/renewal_<id>, with <id> a ten-digit number >= UPLOAD_FIXTURE_MIN_ID. */
 function upload_fixture_dir_ok(string $dir): bool
 {
+    if (!defined('STORAGE_IS_TEST_ROOT') || STORAGE_IS_TEST_ROOT !== true) {
+        return false;
+    }
     $root = rtrim(upload_fixture_norm(STORAGE_PATH), '/') . '/';
     $dir = upload_fixture_norm($dir);
     if (!str_starts_with($dir, $root)) {
         return false;
     }
-    return preg_match('#\A(?:drafts/)?([1-9][0-9]{9})\z#', substr($dir, strlen($root)), $m) === 1 && (int) $m[1] >= UPLOAD_FIXTURE_MIN_ID;
+    return preg_match('#\A(?:drafts/(?:renewal_)?)?([1-9][0-9]{9})\z#', substr($dir, strlen($root)), $m) === 1 && (int) $m[1] >= UPLOAD_FIXTURE_MIN_ID;
 }
 
 /** A plain, non-hidden file name directly inside an allowed folder. */
@@ -43,6 +56,7 @@ function upload_fixture_file_ok(string $path): bool
 /** Creates (or re-enters, if this run created it) an allowed folder. An existing folder this run did not create is refused. */
 function upload_fixture_claim_dir(string $dir): void
 {
+    upload_fixture_require_test_root();
     if (!upload_fixture_dir_ok($dir)) {
         throw new RuntimeException('Refusing to use a folder outside the test id range: ' . $dir);
     }
@@ -86,6 +100,7 @@ function upload_fixture_isolate_ids(PDO $test): void
  */
 function upload_fixture_prepare_application_id(PDO $test, ?int $id = null): int
 {
+    upload_fixture_require_test_root();
     if ($id === null) {
         $max = (int) $test->query('SELECT COALESCE(MAX(id), 0) FROM applications')->fetchColumn();
         $id = max(1900000000, $max) + random_int(1000, 100000);
@@ -131,6 +146,7 @@ function upload_fixture_submit(PDO $test, ApplicationService $service, array $us
 /** A plain file where an application folder must go, so storing the files fails. Refused if anything is there already. */
 function upload_fixture_make_blocker(int $applicationId): string
 {
+    upload_fixture_require_test_root();
     $path = STORAGE_PATH . '/' . $applicationId;
     if ($applicationId < UPLOAD_FIXTURE_MIN_ID || file_exists($path)) {
         throw new RuntimeException('Refusing to create the blocker: out of range or already present.');
@@ -196,7 +212,7 @@ function upload_fixture_cleanup(): void
         }
     }
     foreach (array_keys($state['blockers']) as $blocker) {
-        if (preg_match('#/([1-9][0-9]{9})\z#', upload_fixture_norm($blocker), $m) === 1 && (int) $m[1] >= UPLOAD_FIXTURE_MIN_ID && is_file($blocker) && !is_link($blocker)) {
+        if (upload_fixture_dir_ok($blocker) && is_file($blocker) && !is_link($blocker)) { // same shape as an application folder under the test root
             @unlink($blocker);
         }
     }

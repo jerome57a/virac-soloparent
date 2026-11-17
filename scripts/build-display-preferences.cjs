@@ -52,7 +52,7 @@ for (const file of templates) {
         return expression.startsWith('<?=') && [...expression.matchAll(/(['"])([^'"\r\n]+)\1/g)]
           .some(literal => Object.hasOwn(catalog, decode(literal[2])));
       });
-      const hasInterfaceCopy = /views[\\/](?:applicant|auth|home)[\\/]|includes[\\/]portal[\\/]|views[\\/]partials[\\/](?:emergency-contact-fields|requirements-preparation)/.test(file) &&
+      const hasInterfaceCopy = /views[\\/](?:applicant|auth|home)[\\/]|includes[\\/]portal[\\/]|views[\\/]partials[\\/]requirements-preparation/.test(file) &&
         [...token.matchAll(/__VIRAC_PHP_(\d+)__/g)].some(match => {
           const expression = php[Number(match[1])];
           return interfaceExpression.test(expression) || publicTrackingCopy.test(expression) ||

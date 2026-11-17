@@ -1,12 +1,27 @@
 <?php
 /** Fail-closed guards for database test and schema tools; does not connect to MySQL. */
 
+/**
+ * Validates an explicit DB_PORT: plain decimal digits only, 1024-65535. Returns an error message or null.
+ * Never defaults, trims or normalizes, so an absent or malformed port can not silently become 3306.
+ */
+function database_port_error($port): ?string
+{
+    if (!is_string($port) || !preg_match('/\A[1-9][0-9]{3,4}\z/', $port) || (int) $port < 1024 || (int) $port > 65535) {
+        return 'DB_PORT must be explicitly set to a decimal port between 1024 and 65535.';
+    }
+    return null;
+}
+
 function database_tool_configuration_error(array $env): ?string
 {
-    foreach (['APP_ENV', 'DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASS', 'SMS_PROVIDER'] as $key) {
+    foreach (['APP_ENV', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASS', 'SMS_PROVIDER'] as $key) {
         if (!array_key_exists($key, $env) || !is_string($env[$key]) || trim($env[$key]) === '') {
             return "Missing explicit {$key} environment setting.";
         }
+    }
+    if (($portError = database_port_error($env['DB_PORT'])) !== null) {
+        return $portError;
     }
     if ($env['APP_ENV'] !== 'testing') {
         return 'APP_ENV must be explicitly set to testing.';
@@ -33,7 +48,7 @@ function database_tool_configuration_error(array $env): ?string
 function require_isolated_database_tool_environment(): void
 {
     $env = [];
-    foreach (['APP_ENV', 'DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASS', 'SMS_PROVIDER'] as $key) {
+    foreach (['APP_ENV', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASS', 'SMS_PROVIDER'] as $key) {
         $value = getenv($key);
         if ($value !== false) {
             $env[$key] = $value;
@@ -68,10 +83,13 @@ function require_temporary_database_opt_in(array $arguments): void
  */
 function temporary_database_tool_configuration_error(array $env): ?string
 {
-    foreach (['APP_ENV', 'DB_HOST', 'DB_USER', 'DB_PASS', 'SMS_PROVIDER'] as $key) {
+    foreach (['APP_ENV', 'DB_HOST', 'DB_PORT', 'DB_USER', 'DB_PASS', 'SMS_PROVIDER'] as $key) {
         if (!array_key_exists($key, $env) || !is_string($env[$key]) || trim($env[$key]) === '') {
             return "Missing explicit {$key} environment setting.";
         }
+    }
+    if (($portError = database_port_error($env['DB_PORT'])) !== null) {
+        return $portError;
     }
     if ($env['APP_ENV'] !== 'testing') {
         return 'APP_ENV must be explicitly set to testing.';
@@ -92,7 +110,7 @@ function temporary_database_tool_configuration_error(array $env): ?string
 function require_isolated_temporary_database_environment(): array
 {
     $env = [];
-    foreach (['APP_ENV', 'DB_HOST', 'DB_USER', 'DB_PASS', 'SMS_PROVIDER'] as $key) {
+    foreach (['APP_ENV', 'DB_HOST', 'DB_PORT', 'DB_USER', 'DB_PASS', 'SMS_PROVIDER'] as $key) {
         $value = getenv($key);
         if ($value !== false) {
             $env[$key] = $value;
@@ -102,7 +120,7 @@ function require_isolated_temporary_database_environment(): array
     if ($error !== null) {
         throw new RuntimeException($error . ' Configure process-level test settings; do not use config/local.php or application credentials for tests.');
     }
-    return ['host' => $env['DB_HOST'], 'user' => $env['DB_USER'], 'pass' => $env['DB_PASS']];
+    return ['host' => $env['DB_HOST'], 'port' => (int) $env['DB_PORT'], 'user' => $env['DB_USER'], 'pass' => $env['DB_PASS']];
 }
 
 /** CREATE DATABASE for the validated, script-generated name only. */

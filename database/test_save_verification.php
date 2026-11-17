@@ -20,7 +20,10 @@ require __DIR__ . '/../includes/functions.php';
 require __DIR__ . '/../services/ApplicationReviewService.php';
 require_once __DIR__ . '/../controllers/StaffController.php';
 require_once __DIR__ . '/../includes/csrf.php';
-ini_set('error_log', sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'save_verification_test.log'); // expected failures are logged here, not on screen
+// Expected failures are logged to <TEST_STORAGE_ROOT>/logs (LOG_PATH under APP_ENV=testing), never the system temp folder or storage/logs.
+if (!STORAGE_IS_TEST_ROOT || !storage_root_still_safe() || ini_set('error_log', LOG_PATH . '/save_verification_test.log') === false) {
+    throw new RuntimeException('Refusing to run: the isolated test log folder is not available.');
+}
 
 function sv_assert(bool $condition, string $message): void
 {
@@ -40,10 +43,10 @@ $server = null; // server-level connection with no database selected; used only 
 $created = false;
 $exitCode = 0;
 try {
-    $server = new PDO('mysql:host=' . $connection['host'] . ';charset=utf8mb4', $connection['user'], $connection['pass'], $pdoOptions);
+    $server = new PDO('mysql:host=' . $connection['host'] . ';port=' . $connection['port'] . ';charset=utf8mb4', $connection['user'], $connection['pass'], $pdoOptions);
     create_temporary_database($server, $testDatabase, 'solo_review_test_');
     $created = true;
-    $test = new PDO('mysql:host=' . $connection['host'] . ';dbname=' . $testDatabase . ';charset=utf8mb4', $connection['user'], $connection['pass'], $pdoOptions);
+    $test = new PDO('mysql:host=' . $connection['host'] . ';port=' . $connection['port'] . ';dbname=' . $testDatabase . ';charset=utf8mb4', $connection['user'], $connection['pass'], $pdoOptions);
     // Application helpers (setting(), nav_notifications()) read the global connection; point it at the temporary database.
     $GLOBALS['pdo'] = $test;
     // Schema comes from schema.sql; any failure aborts immediately (the finally block still drops only $testDatabase).
@@ -100,7 +103,23 @@ try {
     // A posted row: the verdict plus the status/remarks the staff member saw. By default nothing was edited.
     $row = fn(string $status, string $remarks = '', string $expected = 'FOR_VERIFICATION', string $expectedRemarks = '') =>
         ['status' => $status, 'remarks' => $remarks, 'expected' => $expected, 'expected_remarks' => $expectedRemarks];
-    $untouched = fn(int $id) => $row($docs($apps['A'])[$id]['verification_status'], (string) $docs($apps['A'])[$id]['staff_remarks'], $docs($apps['A'])[$id]['verification_status'], (string) $docs($apps['A'])[$id]['staff_remarks']);
+    // Every posted row also carries the FILE VERSION the page showed. Unless a case supplies its own, a row gets the token of the
+    // file currently stored for its document id, which is what a staff page loaded just now would post. Cases about a changed
+    // file (9b) set expected_version explicitly, so stale-file protection is never bypassed.
+    $sv = function (array $who, array $app, array $rows) use ($service, $test): array {
+        $fetch = $test->prepare('SELECT * FROM application_documents WHERE id = ?');
+        foreach ($rows as $documentId => $postedRow) {
+            if (is_array($postedRow) && !array_key_exists('expected_version', $postedRow)) {
+                $fetch->execute([(int) $documentId]);
+                $file = $fetch->fetch();
+                if ($file) {
+                    $rows[$documentId]['expected_version'] = Document::versionToken($file);
+                }
+            }
+        }
+        return $service->saveVerification($who, $app, $rows);
+    };
+    $untouched = fn(int $id) =>$row($docs($apps['A'])[$id]['verification_status'], (string) $docs($apps['A'])[$id]['staff_remarks'], $docs($apps['A'])[$id]['verification_status'], (string) $docs($apps['A'])[$id]['staff_remarks']);
     $reset = function () use ($test, $apps) {
         $test->exec("UPDATE application_documents SET verification_status = 'FOR_VERIFICATION', staff_remarks = NULL, verified_by = NULL, verified_at = NULL WHERE application_id = " . $apps['A']);
         $test->exec("UPDATE applications SET status = 'Under Verification' WHERE id = " . $apps['A']);
@@ -108,7 +127,7 @@ try {
 
     // 1. Single document: status, remarks, verifier, history, audit and in-app notice are written.
     $before = $counts();
-    $r = $service->saveVerification($staff, $appA(), [$aIds[0] => $row('VERIFIED'), $aIds[1] => $untouched($aIds[1]), $aIds[2] => $untouched($aIds[2])]);
+    $r = $sv($staff, $appA(),[$aIds[0] => $row('VERIFIED'), $aIds[1] => $untouched($aIds[1]), $aIds[2] => $untouched($aIds[2])]);
     sv_assert($r['errors'] === [] && $r['changed'] === 1 && $r['notify_failures'] === 0, 'Single change was not saved.');
     $d = $docs($apps['A']);
     sv_assert($d[$aIds[0]]['verification_status'] === 'VERIFIED' && (int) $d[$aIds[0]]['verified_by'] === $staff['id'], 'Single change or verifier not stored.');
@@ -118,7 +137,7 @@ try {
     // 2. Multiple documents together (one Verified, two Needs Correction).
     $reset();
     $before = $counts();
-    $r = $service->saveVerification($staff, $appA(), [
+    $r = $sv($staff, $appA(),[
         $aIds[0] => $row('VERIFIED'),
         $aIds[1] => $row('NEEDS_CORRECTION', 'Photo is blurred.'),
         $aIds[2] => $row('NEEDS_CORRECTION', 'Wrong document.'),
@@ -136,7 +155,7 @@ try {
 
     // 4. Unchanged form: nothing written, nothing sent.
     $before = $counts();
-    $r = $service->saveVerification($staff, $appA(), array_combine($aIds, array_map($untouched, $aIds)));
+    $r = $sv($staff, $appA(),array_combine($aIds, array_map($untouched, $aIds)));
     sv_assert($r['errors'] === [] && $r['changed'] === 0 && $counts() === $before, 'An unchanged form wrote something.');
 
     // 5. Failure while writing the second document rolls everything back (trigger forces the failure).
@@ -144,7 +163,7 @@ try {
     $test->exec('CREATE TRIGGER sv_force_failure BEFORE UPDATE ON application_documents FOR EACH ROW BEGIN IF NEW.id = ' . $aIds[1] . " THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'forced failure'; END IF; END");
     $beforeDocs = $docs($apps['A']);
     $before = $counts();
-    $r = $service->saveVerification($staff, $appA(), [
+    $r = $sv($staff, $appA(),[
         $aIds[0] => $row('NEEDS_CORRECTION', 'Please re-scan.'),
         $aIds[1] => $row('VERIFIED'),
     ]);
@@ -158,7 +177,7 @@ try {
     $reset();
     $test->exec("CREATE TRIGGER sv_notify_failure BEFORE INSERT ON notifications FOR EACH ROW BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'forced notification failure'; END");
     $before = $counts();
-    $r = $service->saveVerification($staff, $appA(), [$aIds[0] => $row('VERIFIED')]);
+    $r = $sv($staff, $appA(),[$aIds[0] => $row('VERIFIED')]);
     $test->exec('DROP TRIGGER sv_notify_failure');
     sv_assert($r['errors'] === [] && $r['changed'] === 1 && $r['notify_failures'] === 1, 'A notification failure was not reported safely.');
     $after = $counts();
@@ -169,7 +188,7 @@ try {
     $test->exec("UPDATE application_documents SET verification_status = 'NEEDS_CORRECTION', staff_remarks = NULL WHERE id = " . $aIds[1]);
     $shown = $docs($apps['A']); // what this staff member's page displayed
     $test->exec("UPDATE application_documents SET verification_status = 'VERIFIED' WHERE id = " . $aIds[2]); // changed by someone else afterwards
-    $r = $service->saveVerification($staff, $appA(), [
+    $r = $sv($staff, $appA(),[
         $aIds[0] => $row('VERIFIED'),
         $aIds[1] => $row('NEEDS_CORRECTION', '', 'NEEDS_CORRECTION', ''),
         $aIds[2] => $row('FOR_VERIFICATION', '', 'FOR_VERIFICATION', ''),
@@ -188,64 +207,83 @@ try {
         'invalid expected' => ['status' => 'VERIFIED', 'remarks' => '', 'expected' => 'BOGUS', 'expected_remarks' => ''],
         'missing expected remarks' => ['status' => 'VERIFIED', 'remarks' => '', 'expected' => 'FOR_VERIFICATION'],
     ] as $label => $bad) {
-        $r = $service->saveVerification($staff, $appA(), [$aIds[0] => $bad, $aIds[1] => $row('VERIFIED')]);
+        $r = $sv($staff, $appA(),[$aIds[0] => $bad, $aIds[1] => $row('VERIFIED')]);
         sv_assert(isset($r['errors'][$aIds[0]]) && $docs($apps['A']) === $before && $counts() === $counted, 'Row with ' . $label . ' was not rejected cleanly (and the batch must stay unsaved).');
     }
 
     // 9. Stale edited rows are rejected (status or remarks changed by someone else).
     $test->exec("UPDATE application_documents SET verification_status = 'VERIFIED' WHERE id = " . $aIds[0]);
     $before = $docs($apps['A']);
-    $r = $service->saveVerification($staff, $appA(), [$aIds[0] => $row('NEEDS_CORRECTION', 'Blurred'), $aIds[1] => $row('VERIFIED')]);
+    $r = $sv($staff, $appA(),[$aIds[0] => $row('NEEDS_CORRECTION', 'Blurred'), $aIds[1] => $row('VERIFIED')]);
     sv_assert(isset($r['errors'][$aIds[0]]) && $docs($apps['A']) === $before, 'A stale status was saved (or the batch partly saved).');
     $reset();
     $test->exec("UPDATE application_documents SET staff_remarks = 'Changed by colleague' WHERE id = " . $aIds[0]);
     $before = $docs($apps['A']);
-    $r = $service->saveVerification($staff, $appA(), [$aIds[0] => $row('VERIFIED')]);
+    $r = $sv($staff, $appA(),[$aIds[0] => $row('VERIFIED')]);
     sv_assert(isset($r['errors'][$aIds[0]]) && $docs($apps['A']) === $before, 'Stale remarks were overwritten.');
+
+    // 9b. The FILE changed after the page was loaded (an applicant replacement keeps status and remarks as they were): a verdict
+    //     built for the earlier file is refused, nothing is written or sent, and a missing or empty version is refused too.
+    $reset();
+    $fetchFile = fn(int $id) => $test->query('SELECT * FROM application_documents WHERE id = ' . $id)->fetch();
+    $shownVersion = Document::versionToken($fetchFile($aIds[0]));
+    $test->exec("UPDATE application_documents SET stored_path = 'x/replaced.png', sha256 = '" . str_repeat('a', 64) . "', uploaded_at = DATE_ADD(uploaded_at, INTERVAL 1 SECOND) WHERE id = " . $aIds[0]);
+    sv_assert(Document::versionToken($fetchFile($aIds[0])) !== $shownVersion, 'Replacing the file did not change its version token.');
+    $before = $docs($apps['A']);
+    $counted = $counts();
+    $r = $sv($staff, $appA(), [$aIds[0] => $row('VERIFIED') + ['expected_version' => $shownVersion], $aIds[1] => $row('VERIFIED')]);
+    sv_assert(isset($r['errors'][$aIds[0]]) && str_contains($r['errors'][$aIds[0]], 'newer file') && $r['changed'] === 0 && !isset($r['errors'][$aIds[1]]) && $docs($apps['A']) === $before && $counts() === $counted,
+        'A verdict for the earlier file was accepted, or the batch partly saved, or notifications were sent.');
+    $r = $sv($staff, $appA(), [$aIds[0] => $row('VERIFIED') + ['expected_version' => '']]);
+    sv_assert(isset($r['errors'][$aIds[0]]) && $docs($apps['A']) === $before && $counts() === $counted, 'An empty file version was accepted.');
+    $r = $service->saveVerification($staff, $appA(), [$aIds[0] => $row('VERIFIED')]); // no version at all, bypassing the helper
+    sv_assert(isset($r['errors'][$aIds[0]]) && $docs($apps['A']) === $before && $counts() === $counted, 'A row without a file version was accepted.');
+    $r = $sv($staff, $appA(), [$aIds[0] => $row('VERIFIED')]); // the version of the file as it is now
+    sv_assert($r['errors'] === [] && $r['changed'] === 1 && $docs($apps['A'])[$aIds[0]]['verification_status'] === 'VERIFIED', 'A verdict for the current file was refused.');
 
     // 10. Legacy / unknown stored statuses are not silently overwritten.
     $reset();
     $test->exec("UPDATE application_documents SET verification_status = 'VALID' WHERE id = " . $aIds[2]);
-    $r = $service->saveVerification($staff, $appA(), [$aIds[0] => $row('VERIFIED'), $aIds[2] => $row('VALID', '', 'VALID', '')]);
+    $r = $sv($staff, $appA(),[$aIds[0] => $row('VERIFIED'), $aIds[2] => $row('VALID', '', 'VALID', '')]);
     sv_assert($r['errors'] === [] && $docs($apps['A'])[$aIds[2]]['verification_status'] === 'VALID', 'A legacy status was changed by an untouched row.');
     $before = $docs($apps['A']);
-    $r = $service->saveVerification($staff, $appA(), [$aIds[2] => $row('VALID', 'just a remark', 'VALID', '')]);
+    $r = $sv($staff, $appA(),[$aIds[2] => $row('VALID', 'just a remark', 'VALID', '')]);
     sv_assert(isset($r['errors'][$aIds[2]]) && $docs($apps['A']) === $before, 'A remarks-only edit overwrote a legacy status.');
-    $r = $service->saveVerification($staff, $appA(), [$aIds[2] => $row('VERIFIED', '', 'VALID', '')]);
+    $r = $sv($staff, $appA(),[$aIds[2] => $row('VERIFIED', '', 'VALID', '')]);
     sv_assert($r['errors'] === [] && $docs($apps['A'])[$aIds[2]]['verification_status'] === 'VERIFIED', 'A deliberate change from a legacy status was refused.');
 
     // 10b. Legacy REJECTED records stay readable and are never overwritten implicitly, but cannot be newly assigned.
     $reset();
     $test->exec("UPDATE application_documents SET verification_status = 'REJECTED', staff_remarks = 'Old rejection.' WHERE id = " . $aIds[2]);
-    $r = $service->saveVerification($staff, $appA(), [$aIds[0] => $row('VERIFIED'), $aIds[2] => $row('REJECTED', 'Old rejection.', 'REJECTED', 'Old rejection.')]);
+    $r = $sv($staff, $appA(),[$aIds[0] => $row('VERIFIED'), $aIds[2] => $row('REJECTED', 'Old rejection.', 'REJECTED', 'Old rejection.')]);
     sv_assert($r['errors'] === [] && $r['changed'] === 1 && $docs($apps['A'])[$aIds[2]]['verification_status'] === 'REJECTED', 'An untouched legacy REJECTED row was changed or blocked the save.');
     $before = $docs($apps['A']);
-    $r = $service->saveVerification($staff, $appA(), [$aIds[2] => $row('REJECTED', 'Edited remark.', 'REJECTED', 'Old rejection.')]);
+    $r = $sv($staff, $appA(),[$aIds[2] => $row('REJECTED', 'Edited remark.', 'REJECTED', 'Old rejection.')]);
     sv_assert(isset($r['errors'][$aIds[2]]) && $docs($apps['A']) === $before, 'A remarks-only edit kept REJECTED as an assignable status.');
-    $r = $service->saveVerification($staff, $appA(), [$aIds[1] => $row('REJECTED', 'Wrong document.')]);
+    $r = $sv($staff, $appA(),[$aIds[1] => $row('REJECTED', 'Wrong document.')]);
     sv_assert(isset($r['errors'][$aIds[1]]) && $docs($apps['A']) === $before, 'REJECTED was newly assigned.');
-    $r = $service->saveVerification($staff, $appA(), [$aIds[2] => $row('NEEDS_CORRECTION', 'Please re-scan.', 'REJECTED', 'Old rejection.')]);
+    $r = $sv($staff, $appA(),[$aIds[2] => $row('NEEDS_CORRECTION', 'Please re-scan.', 'REJECTED', 'Old rejection.')]);
     sv_assert($r['errors'] === [] && $docs($apps['A'])[$aIds[2]]['verification_status'] === 'NEEDS_CORRECTION', 'A legacy REJECTED document could not be moved to a current status.');
 
     // 11. Remarks are required only for edited rows assigned Needs Correction; bad status values are refused.
     $reset();
     $before = $docs($apps['A']);
-    $r = $service->saveVerification($staff, $appA(), [$aIds[0] => $row('NEEDS_CORRECTION', '  ')]);
+    $r = $sv($staff, $appA(),[$aIds[0] => $row('NEEDS_CORRECTION', '  ')]);
     sv_assert(isset($r['errors'][$aIds[0]]) && $docs($apps['A']) === $before, 'NEEDS_CORRECTION was accepted without remarks.');
-    $r = $service->saveVerification($staff, $appA(), [$aIds[0] => $row('REJECTED', '')]);
+    $r = $sv($staff, $appA(),[$aIds[0] => $row('REJECTED', '')]);
     sv_assert(isset($r['errors'][$aIds[0]]) && $docs($apps['A']) === $before, 'REJECTED was accepted as a new status.');
-    $r = $service->saveVerification($staff, $appA(), [$aIds[0] => $row('BOGUS')]);
+    $r = $sv($staff, $appA(),[$aIds[0] => $row('BOGUS')]);
     sv_assert(isset($r['errors'][$aIds[0]]) && $docs($apps['A']) === $before, 'An invalid status was accepted.');
-    $r = $service->saveVerification($staff, $appA(), [$aIds[0] => $row('NEEDS_CORRECTION', str_repeat('x', 501))]);
+    $r = $sv($staff, $appA(),[$aIds[0] => $row('NEEDS_CORRECTION', str_repeat('x', 501))]);
     sv_assert(isset($r['errors'][$aIds[0]]) && $docs($apps['A']) === $before, 'Over-long remarks were accepted.');
 
     // 12. Application / document ownership: another application's document cannot be changed, alone or in a batch.
-    $r = $service->saveVerification($staff, $appA(), [$bFirst => $row('VERIFIED')]);
+    $r = $sv($staff, $appA(),[$bFirst => $row('VERIFIED')]);
     sv_assert(isset($r['errors'][$bFirst]) && $docs($apps['B']) === $bBefore, 'Another application document was modified.');
-    $r = $service->saveVerification($staff, $appA(), [$aIds[0] => $row('VERIFIED'), $bFirst => $row('VERIFIED')]);
+    $r = $sv($staff, $appA(),[$aIds[0] => $row('VERIFIED'), $bFirst => $row('VERIFIED')]);
     sv_assert($r['errors'] !== [] && $docs($apps['B']) === $bBefore && $docs($apps['A']) === $before, 'A mixed batch changed records.');
     $test->exec("UPDATE applications SET status = 'Approved' WHERE id = " . $apps['A']);
-    $r = $service->saveVerification($staff, $appA(), [$aIds[0] => $row('VERIFIED')]);
+    $r = $sv($staff, $appA(),[$aIds[0] => $row('VERIFIED')]);
     sv_assert(isset($r['errors'][$aIds[0]]) && $docs($apps['A']) === $before, 'A finished application accepted document changes.');
     $test->exec("UPDATE applications SET status = 'Under Verification' WHERE id = " . $apps['A']);
 
@@ -258,7 +296,7 @@ try {
     $before = $docs($apps['A']);
     $counted = $counts();
     foreach ([['id' => $ids['applicant'], 'role' => 'applicant', 'full_name' => 'applicant'], ['id' => $ids['admin'], 'role' => 'admin', 'full_name' => 'admin']] as $denied) {
-        $r = $service->saveVerification($denied, $appA(), [$aIds[0] => $row('VERIFIED')]);
+        $r = $sv($denied, $appA(),[$aIds[0] => $row('VERIFIED')]);
         sv_assert(isset($r['errors']['checklist']) && $r['changed'] === 0 && $docs($apps['A']) === $before && $counts() === $counted, $denied['role'] . ' was able to save verification.');
     }
 
@@ -278,6 +316,10 @@ try {
     sv_assert(substr_count($html, 'Save Verification') === 1, 'Page must show exactly one Save Verification button.');
     sv_assert(substr_count($html, 'value="save_verification"') === 1 && !str_contains($html, 'update_document_status') && !str_contains($html, 'Save review'), 'Per-document save controls remain.');
     sv_assert(substr_count($html, '[expected]"') === count($keys) && substr_count($html, '[expected_remarks]"') === count($keys), 'Each document needs both expected fields.');
+    sv_assert(substr_count($html, '[expected_version]"') === count($keys), 'Each document needs its file version field.');
+    foreach ($aIds as $aId) {
+        sv_assert(str_contains($html, 'name="docs[' . $aId . '][expected_version]" value="' . Document::versionToken($fetchFile($aId)) . '"'), 'A document row does not carry the version of the file it displays.');
+    }
     sv_assert(preg_match('/<option value="VALID" selected>[^<]*current status/', $html) === 1, 'The legacy status is not shown as the selected current value.');
     sv_assert(preg_match('/<option value="REJECTED" selected>[^<]*Rejected \(legacy\)[^<]*current status/', $html) === 1 && substr_count($html, 'value="REJECTED"') === 1, 'Legacy REJECTED must show only as the read-only current value, not as a selectable status.');
     sv_assert(str_contains($html, 'download.php?doc_id=' . $aIds[0]), 'Document view/download links are missing.');

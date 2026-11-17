@@ -38,10 +38,8 @@ function check_preparation_flow(PDO $test, array $staff, int $applicantId, int $
     $uploaded = static fn(int $appId): array => array_column($docs->uploadedForApplication($appId), null, 'doc_key');
     $verdict = static function (array $app, string $key, string $status, string $remarks) use ($docs, $review, $staff, $uploaded): array {
         $file = $uploaded((int) $app['id'])[$key];
-        return $review->saveVerification($staff, $app, [(int) $file['id'] => [
-            'status' => $status, 'remarks' => $remarks,
-            'expected' => $file['verification_status'], 'expected_remarks' => trim((string) $file['staff_remarks']),
-        ]]);
+        // The row carries the status, remarks and file version currently stored, as the staff page would post them.
+        return $review->saveVerification($staff, $app, [(int) $file['id'] => review_verdict_row($file, $status, $remarks)]);
     };
     $checklistRows = static fn(int $appId): int => (int) $test->query('SELECT COUNT(*) FROM application_document_checklists WHERE application_id=' . $appId)->fetchColumn();
     $documentHistory = static fn(int $appId): int => (int) $test->query('SELECT COUNT(*) FROM document_status_history WHERE application_id=' . $appId)->fetchColumn();
@@ -107,7 +105,7 @@ function check_preparation_flow(PDO $test, array $staff, int $applicantId, int $
     review_assert(array_column($docs->statusHistoryFor($id)[$fileId], 'to_status') === ['FOR_VERIFICATION'], 'The upload has no status-history entry.');
 
     // ---- Staff verification is separate, authorised, attributed, audited and recorded ----
-    $denied = $review->saveVerification(['id' => $applicantId, 'role' => 'applicant', 'full_name' => 'Preparation Fixture'], $app, [$fileId => ['status' => 'VERIFIED', 'remarks' => '', 'expected' => 'FOR_VERIFICATION', 'expected_remarks' => '']]);
+    $denied = $review->saveVerification(['id' => $applicantId, 'role' => 'applicant', 'full_name' => 'Preparation Fixture'], $app, [$fileId => review_verdict_row(review_document_row($test, $fileId), 'VERIFIED')]);
     review_assert($denied['errors'] !== [] && $denied['changed'] === 0 && $uploaded($id)['fixtureAlreadyAvailable']['verification_status'] === 'FOR_VERIFICATION', 'An applicant could verify a document.');
     $result = $verdict($app, 'fixtureAlreadyAvailable', 'VERIFIED', '');
     review_assert($result['errors'] === [] && $result['changed'] === 1, 'Staff could not verify an uploaded document.');
@@ -124,32 +122,21 @@ function check_preparation_flow(PDO $test, array $staff, int $applicantId, int $
     $missingLabels = $sms->uncheckedRequirementLabels($id);
     review_assert(count($missingLabels) === count($requiredKeys) - 1, 'The not-uploaded list did not shrink after a verified upload.');
 
-    // ---- Staff schedule an interview (staff enter date and time; no slots) ----
+    // ---- An interview booked once the application was ready (staff no longer schedule through a service call) ----
     $apptService = new AppointmentService($test);
     review_assert(!method_exists($apptService, 'book') && !method_exists($apptService, 'createSlot'), 'Applicant booking / slot management methods still exist.');
     $date = review_office_date($test);
     $app = $apps->findForReview($id);
-    review_assert($review->scheduleInterview($staff, $app, $date . 'T09:00', 'Fixture Office', '', 'automatic', '') === null, 'Staff cannot schedule while required documents are still outstanding.');
-    review_assert((new Appointment($test))->interviewFor($id)['slot_id'] === null, 'Staff-entered schedule must be saved with a NULL slot_id.');
+    // What follows needs an existing interview whose documents are NOT all verified. That is a legal state (a document
+    // can become unverified after booking, for example a replacement upload), so the booking is recorded directly.
+    review_book_interview($test, $staff, $id, $date . ' 09:00:00');
+    review_assert((new Appointment($test))->interviewFor($id)['slot_id'] === null, 'A booked interview must be saved with a NULL slot_id.');
     $app = $apps->findForReview($id);
-    review_assert($app['status'] === 'Interview Scheduled' && $app['eligibility_status'] === 'Not Assessed', 'Scheduling changed eligibility.');
-    $count = (int) $test->query('SELECT COUNT(*) FROM sms_logs')->fetchColumn();
-    review_assert($review->scheduleInterview($staff, $app, $date . 'T09:00', 'Fixture Office', '', 'automatic', '') === null, 'Repeat scheduling failed.');
-    review_assert((int) $test->query('SELECT COUNT(*) FROM sms_logs')->fetchColumn() === $count, 'Repeated scheduling sent duplicate SMS.');
-    $interviewSms = (new Appointment($test))->interviewSms($id);
-    review_assert(str_contains($interviewSms['message'], 'Please arrive on time.') && str_contains($interviewSms['message'], 'After your interview, submit missing documents before ID release:') && !str_contains($interviewSms['message'], 'requirements to bring:') && str_contains($interviewSms['message'], $app['reference_no']), 'Interview SMS lacks the correct schedule and document timing.');
-    review_assert(str_contains($interviewSms['message'], $missingLabels[0]) && mb_strlen($interviewSms['message']) <= 500, 'Interview SMS omits document names or exceeds its limit.');
-    review_assert(!str_contains($interviewSms['message'], 'Already Available Fixture Document') && !str_contains($interviewSms['message'], 'Optional Fixture Document'), 'Interview SMS requests a verified or optional document.');
+    review_assert($app['status'] === 'Interview Scheduled' && $app['eligibility_status'] === 'Not Assessed', 'Booking an interview changed eligibility.');
     $longMessage = SMSService::preparationText(array_fill(0, 20, str_repeat('Long document label ', 5)), 200);
     review_assert(mb_strlen($longMessage) <= 200 && str_contains(strtolower($longMessage), 'required uploads online.') && str_contains($longMessage, 'After your interview'), 'Long requirement list loses document timing or the full-list instruction.');
-    $insert->execute(['PREPARATION-FULL-SLOT', $applicantId, $category]);
-    $other = $apps->findForReview((int) $test->lastInsertId());
-    review_assert($review->scheduleInterview($staff, $other, $date . 'T09:00', 'Fixture Office', '', 'automatic', '') === null, 'Slotless scheduling must not impose a per-time capacity limit.');
-    $nextDate = review_office_date($test, $date . ' +1 day');
-    review_assert($review->scheduleInterview($staff, $apps->findForReview($id), $nextDate . 'T09:00', 'Fixture Office', '', 'automatic', '') === null, 'Staff cannot reschedule an interview.');
-    $rescheduled = (new Appointment($test))->interviewFor($id);
-    review_assert($rescheduled['slot_id'] === null && $rescheduled['scheduled_at'] === $nextDate . ' 09:00:00', 'Rescheduled date/time was not saved without a slot.');
-    $date = $nextDate;
+    // Later steps here only need a later office date.
+    $date = review_office_date($test, $date . ' +1 day');
     $app = $apps->findForReview($id);
 
     // ---- Staff page: uploaded files, per-document verification controls, no checklist-era controls ----
@@ -159,12 +146,12 @@ function check_preparation_flow(PDO $test, array $staff, int $applicantId, int $
     (new ReflectionProperty(StaffController::class, 'staff'))->setValue($controller, $staff);
     $_GET = ['id' => $id]; $_SERVER['REQUEST_METHOD'] = 'GET'; $_SERVER['REQUEST_URI'] = '/staff/application.php';
     ob_start(); $controller->application(); $staffHtml = ob_get_clean();
-    review_assert(str_contains($staffHtml, 'Required documents still need review') && str_contains($staffHtml, 'name="docs[' . $fileId . '][status]"') && str_contains($staffHtml, 'download.php?doc_id=' . $fileId) && str_contains($staffHtml, 'Save Verification'), 'Staff page omits the uploaded file, its verification control or the outstanding-documents summary.');
-    review_assert(str_contains($staffHtml, 'name="interview_date"') && str_contains($staffHtml, 'name="interview_time"') && !str_contains($staffHtml, 'name="slot_id"'), 'Staff page omits direct interview date/time inputs or still exposes slot selection.');
+    review_assert(str_contains($staffHtml, 'The interview invitation is locked until all required documents are verified') && str_contains($staffHtml, $missingLabels[0]) && str_contains($staffHtml, 'name="docs[' . $fileId . '][status]"') && str_contains($staffHtml, 'name="docs[' . $fileId . '][expected_version]"') && str_contains($staffHtml, 'download.php?doc_id=' . $fileId) && str_contains($staffHtml, 'Save Verification'), 'Staff page omits the uploaded file, its verification control, its file version or the outstanding-documents summary.');
+    review_assert(!str_contains($staffHtml, 'You can schedule the interview while documents are outstanding') && !str_contains($staffHtml, 'name="interview_date"') && !str_contains($staffHtml, 'name="interview_time"') && !str_contains($staffHtml, 'name="slot_id"'), 'Staff page offers interview scheduling while required documents are outstanding, or still exposes slot selection.');
     review_assert(!str_contains($staffHtml, 'Eligibility is set to Yes automatically'), 'Staff page still claims automatic eligibility.');
     review_assert(!str_contains($staffHtml, 'checklist-verification-form') && !str_contains($staffHtml, '>Verify All</button>') && !str_contains($staffHtml, 'Undo Verification') && !str_contains($staffHtml, 'name="checklist[]"'), 'Staff page still shows checklist-era verification controls.');
     review_assert(!str_contains($staffHtml, 'receive_checklist_document') && !str_contains($staffHtml, 'confirm_all_required_documents'), 'Physical-receipt actions are still offered to staff.');
-    review_assert(method_exists($review, 'receiveChecklistDocument') && method_exists($review, 'confirmAllRequiredDocuments') && method_exists($review, 'verifyAllChecklistItems') && method_exists($review, 'reviewChecklistItems'), 'The legacy checklist review methods were removed.');
+    review_assert(!method_exists($review, 'receiveChecklistDocument') && !method_exists($review, 'confirmAllRequiredDocuments') && !method_exists($review, 'verifyAllChecklistItems') && !method_exists($review, 'reviewChecklistItems'), 'A retired physical-receipt checklist method came back.');
     $appointmentPage = (new AppointmentController($test))->handle(['id' => $applicantId], [$app]);
     $renderAppointment = static function (array $data): string {
         extract($data); ob_start(); require APP_ROOT . '/views/applicant/appointments/index.php'; return ob_get_clean();
@@ -187,22 +174,49 @@ function check_preparation_flow(PDO $test, array $staff, int $applicantId, int $
     $item = $items($id)[$correctionKey];
     review_assert($item['verification_status'] === 'Needs Correction' && $item['staff_remarks'] === 'Scan is blurry', 'The correction request and remarks are not shown to review and the applicant.');
     review_assert(in_array($correctionKey, array_column($docs->outstandingRequired($app), 'doc_key'), true), 'A document needing correction counted as complete.');
-    review_assert(!str_contains($lastSms(), 'Scan is blurry'), 'The correction SMS exposes staff remarks.');
+    $correctionLabel = $items($id)[$correctionKey]['label'];
+    $correctionSms = $lastSms();
+    review_assert(str_contains($correctionSms, '"' . $correctionLabel . '"') && str_contains($correctionSms, $app['reference_no']) && str_contains($correctionSms, 'Supporting Documents') && !str_contains($correctionSms, 'Physical requirements'),
+        'The correction SMS does not name the affected document, the application reference and Supporting Documents.');
+    review_assert(!str_contains($correctionSms, 'Scan is blurry'), 'The correction SMS exposes staff remarks.');
     $existing = $docs->findForApplication($id, $correctionKey);
     $docs->replace($existing, $id, $fileMeta('replacement'), $id . '/replacement.pdf', $applicantActor);
     $replaced = $uploaded($id)[$correctionKey];
     review_assert((int) $replaced['id'] === $correctionFile && $replaced['original_name'] === 'replacement.pdf' && $replaced['verification_status'] === 'FOR_VERIFICATION' && $replaced['staff_remarks'] === null && $replaced['verified_by'] === null, 'Replacing a flagged file did not reset it in place for staff review.');
     review_assert(array_column($docs->statusHistoryFor($id)[$correctionFile], 'to_status') === ['FOR_VERIFICATION', 'NEEDS_CORRECTION', 'FOR_VERIFICATION'], 'The correction and replacement trail is missing from the document history.');
     review_assert(in_array($correctionKey, array_column($docs->outstandingRequired($app), 'doc_key'), true), 'A replaced but unverified file counted as complete.');
-    $sms->notifyDocumentCorrection($id, $app['mobile'], $app['reference_no'], 'Sensitive document', 'Sensitive assessment details');
-    $message = $lastSms();
-    review_assert(!str_contains($message, 'Sensitive') && str_contains($message, 'Log in'), 'Correction SMS exposes document details.');
+    // One verification batch with two documents needing correction sends ONE SMS that names both, never their remarks.
+    $secondKey = array_values(array_diff($requiredKeys, ['fixtureAlreadyAvailable', $correctionKey]))[0];
+    $upload($id, $secondKey);
+    $correctionSmsCount = static fn(): int => (int) $test->query("SELECT COUNT(*) FROM sms_logs WHERE template_key = 'document_correction'")->fetchColumn();
+    $smsBeforeBatch = $correctionSmsCount();
+    $notesBeforeBatch = (int) $test->query("SELECT COUNT(*) FROM notifications WHERE type = 'correction'")->fetchColumn();
+    $currentFiles = $uploaded($id);
+    $twoCorrections = $review->saveVerification($staff, $apps->findForReview($id), [
+        (int) $currentFiles[$correctionKey]['id'] => review_verdict_row($currentFiles[$correctionKey], 'NEEDS_CORRECTION', 'First private remark'),
+        (int) $currentFiles[$secondKey]['id'] => review_verdict_row($currentFiles[$secondKey], 'NEEDS_CORRECTION', 'Second private remark'),
+    ]);
+    review_assert($twoCorrections['errors'] === [] && $twoCorrections['changed'] === 2 && $twoCorrections['notify_failures'] === 0, 'A batch of two correction requests failed.');
+    review_assert($correctionSmsCount() === $smsBeforeBatch + 1, 'A batch with two corrections did not send exactly one SMS.');
+    $batchSms = $lastSms();
+    $secondLabel = $items($id)[$secondKey]['label'];
+    review_assert(str_contains($batchSms, $correctionLabel) && str_contains($batchSms, $secondLabel) && str_contains($batchSms, $app['reference_no']) && str_contains($batchSms, 'log in and open Supporting Documents'),
+        'The batch correction SMS does not list every affected document, the reference and where to find them.');
+    review_assert(!str_contains($batchSms, 'First private remark') && !str_contains($batchSms, 'Second private remark') && !str_contains($batchSms, 'Physical requirements'), 'The batch correction SMS exposes staff remarks.');
+    review_assert((int) $test->query("SELECT COUNT(*) FROM notifications WHERE type = 'correction'")->fetchColumn() === $notesBeforeBatch + 2
+        && (int) $test->query("SELECT COUNT(*) FROM notifications WHERE type = 'correction' AND message LIKE '%First private remark%' AND message LIKE '%Supporting Documents%'")->fetchColumn() === 1,
+        'Each flagged document must get its own in-app notice, with its full remarks and the Supporting Documents instruction.');
 
     // ---- Approval and ID release are blocked until every required file is verified ----
     $test->prepare('UPDATE appointments SET scheduled_at = DATE_SUB(NOW(), INTERVAL 1 DAY) WHERE application_id = ?')->execute([$id]);
-    review_assert($review->recordInterviewOutcome($staff, $id, 'Successful', '') === null, 'Successful interview with documents outstanding failed.');
+    // The interview result cannot be recorded while required documents are outstanding (the full matrix is in
+    // check_interview_result_document_gate()), so approval stays refused here for both reasons.
+    $resultAppointmentBefore = $test->query('SELECT * FROM appointments WHERE application_id = ' . (int) $id)->fetch();
+    $resultRefusal = $review->recordInterviewOutcome($staff, $id, 'Successful', '');
+    review_assert($resultRefusal !== null && str_contains($resultRefusal, 'until all required documents are verified')
+        && $test->query('SELECT * FROM appointments WHERE application_id = ' . (int) $id)->fetch() === $resultAppointmentBefore, 'An interview result was recorded, or the appointment changed, while required documents were outstanding.');
     $app = $apps->findForReview($id);
-    review_assert($review->updateStatus($staff, $app, 'Approved', '') !== null, 'Unverified documents allowed approval after a successful interview.');
+    review_assert($review->updateStatus($staff, $app, 'Approved', '') !== null, 'Unverified documents allowed approval without a successful interview.');
     $incomplete = array_column($review->approvalChecklist($app), null, 'label')['Required documents'];
     $notUploaded = count(array_filter($docs->checklistForReview($id, $category), [Document::class, 'needsPreparation']));
     $complete = count($requiredKeys) - $notUploaded;
@@ -226,7 +240,7 @@ function check_preparation_flow(PDO $test, array $staff, int $applicantId, int $
     $rows = [];
     foreach ($uploaded($id) as $file) {
         if ($file['verification_status'] !== 'VERIFIED') {
-            $rows[(int) $file['id']] = ['status' => 'VERIFIED', 'remarks' => '', 'expected' => $file['verification_status'], 'expected_remarks' => trim((string) $file['staff_remarks'])];
+            $rows[(int) $file['id']] = review_verdict_row($file, 'VERIFIED');
         }
     }
     review_assert(count($rows) === count($requiredKeys) - 1, 'The batch does not cover every unverified required upload.');
@@ -252,6 +266,7 @@ function check_preparation_flow(PDO $test, array $staff, int $applicantId, int $
     review_assert(!isset(array_column($review->approvalChecklist($apps->findForReview($id)), null, 'label')['MSWD eligibility assessment: Eligible']), 'Separate eligibility assessment still gates approval.');
     $review->startReviewOnOpen($staff, $apps->findForReview($id));
     review_assert($apps->findForReview($id)['eligibility_status'] === 'Not Assessed', 'Existing automatic eligibility not reopened for assessment.');
+    review_assert($review->recordInterviewOutcome($staff, $id, 'Successful', '') === null, 'A successful interview could not be recorded after every required document was verified.');
     $app = $apps->findForReview($id);
     review_assert($review->updateStatus($staff, $app, 'Approved', '') === null, 'Verified documents and a successful interview could not be approved.');
     $app = $apps->findForReview($id);
@@ -265,4 +280,194 @@ function check_preparation_flow(PDO $test, array $staff, int $applicantId, int $
     }
     review_assert($docs->outstandingRequired($apps->findForReview($legacyId)) === [], 'Retained legacy checklist evidence is no longer honoured.');
     echo "Upload-based document workflow, staff verification, staff date/time scheduling, duplicate SMS protection, privacy and explicit eligibility passed.\n";
+}
+
+/**
+ * Business rule (D5): once an interview is booked, a later unverified or expired required document leaves the appointment
+ * and its reminders alone, but the interview RESULT can be neither recorded nor changed until every required document is
+ * Verified and unexpired again. Runs in the disposable database from test_staff_review_workflow.php on its own category,
+ * requirements and applications. Every refusal must leave the appointment, the application status, its history, the SMS
+ * log, the notifications and the audit log exactly as they were.
+ */
+function check_interview_result_document_gate(PDO $test, array $staff, int $applicantId): void
+{
+    require_once __DIR__ . '/../services/AppointmentService.php';
+    review_assert(SMSService::testMode(), 'Run workflow tests with SMS_PROVIDER=test.');
+    $GLOBALS['__settings_cache']['sms_enabled'] = '1';
+    $apps = new Application($test);
+    $docs = new Document($test);
+    $appts = new Appointment($test);
+    $review = new ApplicationReviewService($test);
+    $appointmentService = new AppointmentService($test);
+    $applicantActor = ['id' => $applicantId, 'full_name' => 'Result gate fixture', 'role' => 'applicant'];
+
+    $test->exec("INSERT INTO categories (name,description,sort_order) VALUES ('Interview result gate fixture','Fixture',97)");
+    $category = (int) $test->lastInsertId();
+    $requirement = $test->prepare('INSERT INTO document_requirements (category_id,doc_key,label,is_required,sort_order) VALUES (?,?,?,?,?)');
+    foreach ([['resultGateA', 'Result gate document A', 1], ['resultGateB', 'Result gate document B', 1]] as $order => [$key, $label, $required]) {
+        $requirement->execute([$category, $key, $label, $required, $order + 1]);
+    }
+    $labelOf = array_column($docs->requirementsFor($category), 'label', 'doc_key');
+
+    $insert = $test->prepare("INSERT INTO applications (reference_no,user_id,type,full_name,barangay,address,mobile,email,birthdate,sex,civil_status,category_id,consent_at,submitted_at) VALUES (?,?,'new','Result Gate Fixture','Test','Test','09123456789','resultgate@example.test','1990-01-01','Female','Single',?,NOW(),NOW())");
+    $insert->execute(['RESULT-GATE-1', $applicantId, $category]);
+    $id = (int) $test->lastInsertId();
+    review_make_interview_ready($test, $review, $staff, $id, $category);
+    $day = review_office_date($test, '+3 days');
+    review_book_interview($test, $staff, $id, $day . ' 09:00:00', 'Result Gate Office');
+
+    $docId = static fn(string $key): int => (int) $test->query('SELECT id FROM application_documents WHERE application_id = ' . $id . " AND doc_key = '" . $key . "'")->fetchColumn();
+    $docA = $docId('resultGateA');
+    $docB = $docId('resultGateB');
+    $meta = static fn(string $name): array => ['original_name' => $name . '.png', 'mime' => 'image/png', 'size' => 1024, 'sha256' => hash('sha256', $name)];
+    $count = static fn(string $sql): int => (int) $test->query($sql)->fetchColumn();
+    // Everything a refused result must leave untouched, including the whole appointment row (result columns too).
+    $state = static fn(): array => [
+        'appointment' => $test->query("SELECT * FROM appointments WHERE application_id = $id")->fetch() ?: null,
+        'status' => $test->query("SELECT status FROM applications WHERE id = $id")->fetchColumn(),
+        'history' => $count("SELECT COUNT(*) FROM application_status_history WHERE application_id = $id"),
+        'documentHistory' => $count("SELECT COUNT(*) FROM document_status_history WHERE application_id = $id"),
+        'sms' => $count('SELECT COUNT(*) FROM sms_logs'),
+        'notifications' => $count('SELECT COUNT(*) FROM notifications'),
+        'audit' => $count('SELECT COUNT(*) FROM audit_logs'),
+    ];
+    // $verdicts: document id => [status, remarks]; each row carries the status, remarks and file version stored right now.
+    $verdict = static function (array $verdicts) use ($test, $review, $apps, $staff, $id): array {
+        $rows = [];
+        foreach ($verdicts as $fileId => $v) {
+            $rows[(int) $fileId] = review_verdict_row(review_document_row($test, (int) $fileId), $v[0], $v[1] ?? '');
+        }
+        return $review->saveVerification($staff, $apps->findForReview($id), $rows);
+    };
+    $refuse = static function (string $why, array $mustMention, string $outcome = 'Successful', string $notes = '') use ($review, $staff, $id, $state): string {
+        $before = $state();
+        $error = $review->recordInterviewOutcome($staff, $id, $outcome, $notes);
+        review_assert($error !== null && str_contains($error, 'cannot be recorded or changed until all required documents are verified'), 'The interview result was not refused: ' . $why . ' (' . var_export($error, true) . ')');
+        foreach ($mustMention as $text) {
+            review_assert(str_contains($error, $text), 'The refusal does not name "' . $text . '": ' . $why . ' (' . $error . ')');
+        }
+        review_assert($state() === $before, 'A refused result changed the appointment, status, history, SMS log, notifications or audit log: ' . $why);
+        return $error;
+    };
+    $sameBooking = static fn(array $a, array $b): bool => $a['scheduled_at'] === $b['scheduled_at'] && $a['location'] === $b['location'] && $a['status'] === $b['status'] && $a['slot_id'] === $b['slot_id'];
+
+    // 1. A document becomes unverified AFTER booking: the appointment is kept untouched
+    //    and its reminder is still sent normally (once).
+    $test->prepare('UPDATE appointments SET scheduled_at = DATE_ADD(NOW(), INTERVAL 3 HOUR), reminder_sent_at = NULL WHERE application_id = ?')->execute([$id]);
+    $booked = $appts->interviewFor($id);
+    $docs->replace(review_document_row($test, $docB), $id, $meta('resultGateB2'), $id . '/resultGateB-second.png', $applicantActor);
+    review_assert($appts->interviewFor($id) === $booked && $apps->findForReview($id)['status'] === 'Interview Scheduled', 'A document becoming unverified changed the existing appointment or the application status.');
+    $reminderLogs = static fn(): int => $count("SELECT COUNT(*) FROM sms_logs WHERE template_key = 'appointment_reminder'");
+    $logsBefore = $reminderLogs();
+    $first = $appointmentService->sendDueReminders();
+    review_assert(in_array('RESULT-GATE-1', $first['sent'], true) && $reminderLogs() > $logsBefore, 'The appointment reminder was not sent while a document was unverified.');
+    $reminded = $appts->interviewFor($id);
+    review_assert($reminded['reminder_sent_at'] !== null && $sameBooking($reminded, $booked), 'Sending the reminder changed the appointment date, time, location or status.');
+    review_assert(!in_array('RESULT-GATE-1', $appointmentService->sendDueReminders()['sent'], true), 'The reminder was sent twice.');
+
+    // 2. Once the appointment time has passed: a replacement awaiting verification blocks the result, and the page says so.
+    $test->prepare('UPDATE appointments SET scheduled_at = DATE_SUB(NOW(), INTERVAL 1 DAY) WHERE application_id = ?')->execute([$id]);
+    $refuse('the replacement awaits staff verification', [$labelOf['resultGateB'] . ' (Pending)']);
+    $refuse('an unsuccessful result is gated the same way', [$labelOf['resultGateB'] . ' (Pending)'], 'Unsuccessful');
+    $page = review_render_staff($test, $staff, $id);
+    review_assert(str_contains($page, 'Interview result is locked until all required documents are verified') && str_contains($page, $labelOf['resultGateB']) && !str_contains($page, 'id="interview-result-form"') && !str_contains($page, 'name="interview_outcome"'),
+        'The staff page still offers result recording, or does not name the blocking document, while a document is unverified.');
+
+    // 3. Re-verification unlocks the result controls; Needs Correction and Pending block again.
+    $saved = $verdict([$docB => ['VERIFIED']]);
+    review_assert($saved['errors'] === [] && $docs->outstandingRequired($apps->findForReview($id)) === [], 'Staff could not verify the replacement.');
+    $page = review_render_staff($test, $staff, $id);
+    review_assert(str_contains($page, 'id="interview-result-form"') && str_contains($page, 'name="interview_outcome"') && !str_contains($page, 'Interview result is locked'), 'The result controls did not return after every document was verified.');
+    $saved = $verdict([$docB => ['NEEDS_CORRECTION', 'Please retake the photo']]);
+    review_assert($saved['errors'] === [], 'Staff could not request a correction.');
+    $refuse('a document needs correction', [$labelOf['resultGateB'] . ' (Needs Correction)']);
+    $saved = $verdict([$docB => ['FOR_VERIFICATION']]);
+    review_assert($saved['errors'] === [], 'Staff could not return a document to Pending.');
+    $refuse('a document is Pending', [$labelOf['resultGateB'] . ' (Pending)']);
+    $saved = $verdict([$docB => ['VERIFIED']]);
+    review_assert($saved['errors'] === [], 'Staff could not re-verify the document.');
+
+    // 4. A newly required document that has no file blocks the result; so does expired required legacy evidence.
+    $requirement->execute([$category, 'resultGateMissing', 'Result gate missing document', 1, 8]);
+    $refuse('a required document has no file', ['Result gate missing document (not uploaded)']);
+    $test->prepare('DELETE FROM document_requirements WHERE doc_key = ?')->execute(['resultGateMissing']);
+    $requirement->execute([$category, 'resultGateLegacy', 'Result gate legacy evidence', 1, 9]);
+    $test->prepare("INSERT INTO application_document_checklists (application_id,doc_key,applicant_has,verification_status,reviewed_by,reviewed_at,expires_at) VALUES (?,?,1,'Verified',?,NOW(),DATE_SUB(CURDATE(), INTERVAL 1 DAY))")->execute([$id, 'resultGateLegacy', $staff['id']]);
+    $refuse('required legacy evidence has expired', ['Result gate legacy evidence (expired)']);
+    $test->prepare('DELETE FROM application_document_checklists WHERE application_id = ? AND doc_key = ?')->execute([$id, 'resultGateLegacy']);
+    $test->prepare('DELETE FROM document_requirements WHERE doc_key = ?')->execute(['resultGateLegacy']);
+    review_assert($docs->outstandingRequired($apps->findForReview($id)) === [], 'The result-gate fixtures were not cleaned up.');
+
+    // 5. Every required document verified: the result is recorded; the booking itself is unchanged.
+    $before = $state();
+    review_assert($review->recordInterviewOutcome($staff, $id, 'Successful', 'Fine') === null, 'The result could not be recorded after every document was verified.');
+    $recorded = $appts->interviewFor($id);
+    $after = $state();
+    review_assert($recorded['status'] === 'COMPLETED' && $recorded['result'] === 'Successful: Fine' && $recorded['result_recorded_at'] !== null
+        && $recorded['scheduled_at'] === $before['appointment']['scheduled_at'] && $recorded['location'] === $before['appointment']['location']
+        && $after['status'] === $before['status'] && $after['history'] === $before['history'] + 1 && $after['audit'] === $before['audit'] + 1, 'Recording the result changed the wrong data.');
+
+    // 6. Changing an existing result, and resubmitting the identical one, are both gated while a document is unverified.
+    $saved = $verdict([$docB => ['FOR_VERIFICATION']]);
+    review_assert($saved['errors'] === [], 'Staff could not return a document to Pending after the result.');
+    $refuse('changing a recorded result', [$labelOf['resultGateB'] . ' (Pending)'], 'Unsuccessful', 'Changed');
+    $refuse('resubmitting the identical result', [$labelOf['resultGateB'] . ' (Pending)'], 'Successful', 'Fine');
+    review_assert($appts->interviewFor($id)['result'] === 'Successful: Fine', 'A gated change altered the recorded result.');
+    $page = review_render_staff($test, $staff, $id);
+    review_assert(str_contains($page, 'The interview result cannot be changed until all required documents are verified') && str_contains($page, 'Undo Interview Result'), 'The staff page does not explain the locked result, or the Undo control changed.');
+
+    // 7. Replacement versus result recording on two connections to the disposable database (one process cannot run them
+    //    truly in parallel, so both orderings are checked deterministically, exactly like the scheduling check).
+    $saved = $verdict([$docB => ['VERIFIED']]);
+    review_assert($saved['errors'] === [], 'Staff could not re-verify the document.');
+    $testDatabase = (string) $test->query('SELECT DATABASE()')->fetchColumn();
+    review_assert((bool) preg_match('/^solo_review_test_[a-f0-9]{12}$/', $testDatabase), 'The concurrency check requires the disposable database.');
+    $second = new PDO('mysql:host=' . DB_HOST . ';port=' . DB_PORT . ';dbname=' . $testDatabase . ';charset=utf8mb4', DB_USER, DB_PASS,
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, PDO::ATTR_EMULATE_PREPARES => false]);
+    $secondDocs = new Document($second);
+    $second->beginTransaction();
+    $locked = $secondDocs->lockForApplication($id, 'resultGateA'); // exactly what an applicant replacement does first
+    review_assert($locked !== null && $locked['verification_status'] === 'VERIFIED', 'The second connection could not lock the document.');
+    $previousTimeout = (int) $test->query('SELECT @@SESSION.innodb_lock_wait_timeout')->fetchColumn();
+    $beforeBlocked = $state();
+    $test->exec('SET SESSION innodb_lock_wait_timeout = 1');
+    $waited = false;
+    try {
+        $review->recordInterviewOutcome($staff, $id, 'Unsuccessful', 'Changed');
+    } catch (PDOException $e) {
+        $waited = true; // lock wait timeout: the result could not be written while the replacement held its locks
+    } finally {
+        $test->exec('SET SESSION innodb_lock_wait_timeout = ' . $previousTimeout);
+    }
+    review_assert($waited && !$test->inTransaction() && $state() === $beforeBlocked, 'Result recording did not wait for a replacement holding the document locks, or changed data while waiting.');
+    $secondDocs->replace($locked, $id, $meta('resultGateA2'), $id . '/resultGateA-second.png', $applicantActor);
+    $second->commit();
+    $refuse('the replacement committed before the result was written', [$labelOf['resultGateA'] . ' (Pending)'], 'Unsuccessful', 'Changed');
+    $second = null;
+
+    // 8. Re-verification allows changing the result again; an identical resubmission is then a harmless no-op.
+    $saved = $verdict([$docA => ['VERIFIED']]);
+    review_assert($saved['errors'] === [], 'Staff could not verify the concurrent replacement.');
+    review_assert($review->recordInterviewOutcome($staff, $id, 'Unsuccessful', 'Changed') === null && $appts->interviewFor($id)['result'] === 'Unsuccessful: Changed', 'The result could not be changed after every document was verified again.');
+    $before = $state();
+    review_assert($review->recordInterviewOutcome($staff, $id, 'Unsuccessful', 'Changed') === null && $state() === $before, 'An identical resubmission with verified documents changed data.');
+
+    // 9. Staff can still cancel an appointment, or mark a no-show, while documents are unverified.
+    foreach (['RESULT-GATE-2' => 'CANCELLED', 'RESULT-GATE-3' => 'MISSED'] as $reference => $outcome) {
+        $insert->execute([$reference, $applicantId, $category]);
+        $otherId = (int) $test->lastInsertId();
+        review_make_interview_ready($test, $review, $staff, $otherId, $category);
+        review_book_interview($test, $staff, $otherId, $day . ' 10:00:00', 'Result Gate Office');
+        $firstFile = $test->query('SELECT * FROM application_documents WHERE application_id = ' . $otherId . ' ORDER BY id LIMIT 1')->fetch();
+        $docs->replace($firstFile, $otherId, $meta('unverified' . $otherId), $otherId . '/unverified-' . $otherId . '.png', $applicantActor);
+        review_assert($docs->outstandingRequired($apps->findForReview($otherId)) !== [], 'The ' . $reference . ' fixture still has every document verified.');
+        if ($outcome === 'MISSED') {
+            $test->prepare('UPDATE appointments SET scheduled_at = DATE_SUB(NOW(), INTERVAL 1 DAY) WHERE application_id = ?')->execute([$otherId]);
+        }
+        $appointment = $appts->interviewFor($otherId);
+        review_assert($appointmentService->staffSetOutcome($staff, (int) $appointment['id'], $outcome, $outcome === 'CANCELLED' ? 'Fixture cancellation' : '') === null && $appts->interviewFor($otherId)['status'] === $outcome,
+            'Staff could not ' . ($outcome === 'CANCELLED' ? 'cancel' : 'mark a no-show for') . ' an appointment while a document was unverified.');
+    }
+    review_assert((int) $test->query('SELECT COUNT(*) FROM sms_logs WHERE test_mode = 0')->fetchColumn() === 0, 'A live SMS was attempted.');
+    echo "PASS: after booking, unverified documents keep the appointment and reminders but block recording or changing the interview result; refusals change nothing; replacement and result recording are serialized; cancel and no-show stay available.\n";
 }

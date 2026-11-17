@@ -1,12 +1,18 @@
-/* Requires Playwright + Chrome. CLI previews use read-only SQL; browser requests are GET-only fixtures. */
+/* Requires Playwright + Chrome. CLI previews use read-only SQL; browser requests are GET-only fixtures.
+ * Requires VIRAC_TEST_URL (explicit test-only origin with a port); the ordinary application URL is refused. */
 const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const { execFileSync } = require('node:child_process');
 const { chromium } = require('playwright');
+const { screenshotPath, screenshotDir } = require('./lib/test-artifacts.cjs');
+const { parseTestBase, newGuardedContext } = require('./lib/test-origin.cjs');
 const root = path.resolve(__dirname, '..');
 const routes = ['notifications.php', 'applicants.php', 'appointments.php', 'reports.php', 'eligibility_logs.php', 'applications.php', 'users.php', 'sms.php', 'settings.php', 'audit_log.php'];
 (async () => {
+  // No default: VIRAC_TEST_URL must be an explicit test-only origin with a port (see scripts/lib/test-origin.cjs).
+  const base = parseTestBase(process.env.VIRAC_TEST_URL);
+  screenshotDir(); // validates TEST_STORAGE_ROOT before any browser starts
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {
     const previews = new Map();
@@ -16,18 +22,18 @@ const routes = ['notifications.php', 'applicants.php', 'appointments.php', 'repo
       assert(html.includes('admin-workspace-content'), route + ' uses workspace');
       previews.set(route, html);
     }
-    const context = await browser.newContext();
-    await context.route('**/admin/**', route => {
-      assert.equal(route.request().method(), 'GET', 'UI checks never submit a write');
-      const key = new URL(route.request().url()).pathname.split('/').pop();
-      return route.fulfill({ contentType: 'text/html', body: previews.get(key) || '<p>Linked destination</p>' });
+    // Every browser request is decided by the guard: fixtures and static assets only, GET only, no redirects, and
+    // nothing outside the explicit test origin. The ordinary application is never contacted.
+    const { context, guard } = await newGuardedContext(browser, base, {}, {
+      stubPages: true,
+      fixture: relative => relative.startsWith('admin/') ? previews.get(relative.slice(6)) : undefined,
     });
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     for (const route of routes) {
       await page.setViewportSize({ width: 1500, height: 1000 });
-      await page.goto('http://localhost/virac-soloparent/admin/' + route);
+      await page.goto(base + 'admin/' + route);
       await page.waitForFunction(() => !!window.ViracI18n);
       assert.equal(await page.locator('.admin-page-heading h1').count(), 1, route + ' has one page title');
       assert.equal(await page.locator('.admin-workspace-sidebar, .admin-mobile-nav').count(), 0, route + ' preserves original navigation');
@@ -55,10 +61,10 @@ const routes = ['notifications.php', 'applicants.php', 'appointments.php', 'repo
       const valuesAfter = await page.locator('.admin-workspace-content input, .admin-workspace-content select, .admin-workspace-content textarea').evaluateAll(fields => fields.map(field => [field.name, field.value, field.checked]));
       assert.deepEqual(valuesAfter, valuesBefore, route + ' preserves form values while changing language/theme');
       await page.setViewportSize({ width: 1500, height: 1000 });
-      await page.screenshot({ path: path.join(root, 'storage/admin-' + route.replace('.php', '') + '-desktop.png') });
+      await page.screenshot({ path: screenshotPath('admin-' + route.replace('.php', '') + '-desktop.png') });
       console.log('PASS: ' + route + ' heading, navigation, labels, responsive layouts, dark mode and Tagalog.');
     }
-    await page.goto('http://localhost/virac-soloparent/admin/notifications.php');
+    await page.goto(base + 'admin/notifications.php');
     await page.setViewportSize({ width: 390, height: 844 });
     await page.locator('#nav-menu-btn').click();
     assert.equal(await page.locator('#nav-menu-btn').getAttribute('aria-expanded'), 'true');
@@ -70,6 +76,8 @@ const routes = ['notifications.php', 'applicants.php', 'appointments.php', 'repo
       assert.equal(await page.locator('details#documents').getAttribute('open'), '');
     }
     assert.deepEqual(errors, [], 'no browser errors');
+    guard.assertClean(assert);
+    assert.deepEqual(guard.external, [], 'no cross-origin requests');
     console.log('PASS: original mobile menu navigation, and opening linked settings sections. No writes or messages sent.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
