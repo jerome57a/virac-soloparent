@@ -8,6 +8,8 @@
  * @var array $stats              pending, underVerification, forRevision, pendingRenewals, todaysAppointments, approved, rejected
  * @var array $docBacklog         applications, documents (awaiting verification)
  * @var array $verificationQueue  oldest-first applications with unverified documents
+ * @var array $readyToSchedule    documents verified, no interview date yet (first 5; the total is stats[readyToSchedule])
+ * @var array $idReleaseQueue     approved applications waiting for the ID handover (first 5)
  * @var array $todaysAppointments  today's BOOKED appointments only (Manila date); their count is "expected today"
  * @var bool  $bookingEnabled      interview date booking is on (applicants choose their own date)
  * @var array $upcomingInterviews
@@ -23,9 +25,9 @@
     <span style="font-size:14px">Signed in as <b><?= e($staff['full_name']) ?></b></span>
   </div>
 
-  <nav class="staff-section-links" aria-label="Dashboard sections" data-i18n-attrs="aria-label"><a href="#verification-queue" data-i18n>Documents to Verify</a><a href="#staff-today" data-i18n>Today's Appointments</a><a href="#staff-upcoming" data-i18n>Upcoming Interviews</a><a href="#staff-recent" data-i18n>Recently Processed by Staff</a></nav>
+  <nav class="staff-section-links" aria-label="Dashboard sections" data-i18n-attrs="aria-label"><a href="#verification-queue" data-i18n>Documents to Verify</a><a href="#ready-to-schedule">Ready to Schedule</a><a href="#staff-today" data-i18n>Today's Appointments</a><a href="#staff-upcoming" data-i18n>Upcoming Interviews</a><a href="#id-release-queue">ID Release</a><a href="#staff-recent" data-i18n>Recently Processed by Staff</a></nav>
   <div class="dash-section-title">Needs attention</div>
-  <div class="stat-grid">
+  <div class="stat-grid stat-grid-quad">
     <a href="<?= base_url('staff/index.php?type=new&status=Pending Review') ?>" class="stat-tile">
       <div class="stat-label" data-i18n>Pending Review</div>
       <div class="stat-value"><?= (int) $stats['pending'] ?></div>
@@ -41,6 +43,11 @@
       <div class="stat-value <?= (int) $docBacklog['documents'] > 0 ? 'stat-alert' : '' ?>"><?= (int) $docBacklog['documents'] ?></div>
       <div class="stat-sub">across <?= (int) $docBacklog['applications'] ?> application<?= (int) $docBacklog['applications'] === 1 ? '' : 's' ?></div>
     </a>
+    <a href="#ready-to-schedule" class="stat-tile">
+      <div class="stat-label">Ready to Schedule</div>
+      <div class="stat-value <?= (int) $stats['readyToSchedule'] > 0 ? 'stat-alert' : '' ?>"><?= (int) $stats['readyToSchedule'] ?></div>
+      <div class="stat-sub">documents verified, no date yet</div>
+    </a>
     <a href="<?= base_url('staff/index.php?status=For Revision') ?>" class="stat-tile">
       <div class="stat-label">Pending Corrections</div>
       <div class="stat-value"><?= (int) $stats['forRevision'] ?></div>
@@ -55,6 +62,11 @@
       <div class="stat-label">Expected Today</div>
       <div class="stat-value"><?= (int) $stats['todaysAppointments'] ?></div>
       <div class="stat-sub">applicants booked for today</div>
+    </a>
+    <a href="#id-release-queue" class="stat-tile">
+      <div class="stat-label">ID Release</div>
+      <div class="stat-value"><?= (int) $stats['awaitingRelease'] ?></div>
+      <div class="stat-sub">approved, ID not handed over</div>
     </a>
   </div>
 
@@ -90,6 +102,26 @@
       <?php endif; ?>
     </div>
 
+    <div class="review-card" id="ready-to-schedule">
+      <div class="review-card-head"><div class="title">Ready to Schedule</div><a class="small" href="<?= base_url('staff/appointments.php#staff-needs-schedule') ?>">See all (<?= (int) $stats['readyToSchedule'] ?>)</a></div>
+      <div class="small text-muted mb-2">Documents are verified. Open the application and press <b>Schedule Date and Send SMS</b>.</div>
+      <?php if (!$readyToSchedule): ?>
+        <div class="empty-state compact"><div class="empty-state-title">Nothing to schedule</div>Applications appear here once every required document is verified.</div>
+      <?php else: ?>
+        <?php foreach ($readyToSchedule as $r): ?>
+          <a href="<?= base_url('staff/application.php?id=' . (int) $r['id']) ?>#schedule-interview" class="app-card text-decoration-none" style="color:inherit">
+            <div>
+              <div class="app-ref"><?= e($r['reference_no']) ?></div>
+              <div class="app-date"><?= e($r['full_name']) ?> · submitted <?= e(date('M j, Y', strtotime($r['submitted_at']))) ?></div>
+            </div>
+            <span class="status-pill" style="background:#dce8f5;color:#1b3a6b">Schedule</span>
+          </a>
+        <?php endforeach; ?>
+      <?php endif; ?>
+    </div>
+  </div>
+
+  <div class="dash-two-col">
     <div class="review-card" id="staff-today">
       <div class="review-card-head"><div class="title">Today's Appointments</div></div>
       <div class="small text-muted mb-2">Total expected today: <b><?= (int) $stats['todaysAppointments'] ?></b></div>
@@ -100,16 +132,14 @@
           <a href="<?= base_url('staff/application.php?id=' . (int) $iv['application_id']) ?>" class="app-card text-decoration-none" style="color:inherit">
             <div>
               <div class="app-ref"><?= e($iv['reference_no']) ?></div>
-              <div class="app-date"><?= e($iv['full_name']) ?> · <?= e($iv['location']) ?></div>
+              <div class="app-date"><?= e($iv['full_name']) ?> · <?= ($iv['booking_source'] ?? '') === 'STAFF' ? 'scheduled by MSWDO' : 'chosen by the applicant' ?></div>
             </div>
-            <div class="app-date"><?= e(interview_time_text($iv['scheduled_at'], interview_is_date_only($iv))) ?></div>
+            <div class="app-date"><?= e(interview_time_text($iv['scheduled_at'], interview_is_date_only($iv), 'g:i A', 'Any time today')) ?></div>
           </a>
         <?php endforeach; ?>
       <?php endif; ?>
     </div>
-  </div>
 
-  <div class="dash-two-col">
     <div class="review-card" id="staff-upcoming">
       <div class="review-card-head"><div class="title">Upcoming Interviews</div></div>
       <?php if (!$upcomingInterviews): ?>
@@ -119,9 +149,33 @@
           <a href="<?= base_url('staff/application.php?id=' . (int) $iv['application_id']) ?>" class="app-card text-decoration-none" style="color:inherit">
             <div>
               <div class="app-ref"><?= e($iv['reference_no']) ?></div>
-              <div class="app-date"><?= e($iv['full_name']) ?> · <?= e($iv['location']) ?></div>
+              <div class="app-date"><?= e($iv['full_name']) ?> · <?= ($iv['booking_source'] ?? '') === 'STAFF' ? 'scheduled by MSWDO' : 'chosen by the applicant' ?></div>
             </div>
-            <div class="app-date"><?= e(interview_schedule_text($iv['scheduled_at'], interview_is_date_only($iv), 'M j, Y g:i A')) ?></div>
+            <div class="app-date"><?= e(interview_schedule_text($iv['scheduled_at'], interview_is_date_only($iv), 'D, M j, Y g:i A')) ?></div>
+          </a>
+        <?php endforeach; ?>
+      <?php endif; ?>
+    </div>
+  </div>
+
+  <div class="dash-two-col">
+    <div class="review-card" id="id-release-queue">
+      <div class="review-card-head"><div class="title">ID Release</div><a class="small" href="<?= base_url('staff/index.php?status=Approved') ?>">See all (<?= (int) $stats['awaitingRelease'] ?>)</a></div>
+      <div class="small text-muted mb-2">Approved applications waiting for the ID handover. Schedule the release, then confirm the handover.</div>
+      <?php if (!$idReleaseQueue): ?>
+        <div class="empty-state compact"><div class="empty-state-title">No IDs waiting</div>Approved applications appear here until their ID is handed over.</div>
+      <?php else: ?>
+        <?php foreach ($idReleaseQueue as $r): ?>
+          <a href="<?= base_url('staff/application.php?id=' . (int) $r['id']) ?>#id-release" class="app-card text-decoration-none" style="color:inherit">
+            <div>
+              <div class="app-ref"><?= e($r['reference_no']) ?></div>
+              <div class="app-date"><?= e($r['full_name']) ?></div>
+            </div>
+            <?php if ($r['release_at']): ?>
+              <span class="status-pill" style="background:#dcf3e2;color:#1c7a3f">Release <?= e(date('M j, g:i A', strtotime($r['release_at']))) ?></span>
+            <?php else: ?>
+              <span class="status-pill" style="background:#fdf1d6;color:#8a6d1a">Schedule release</span>
+            <?php endif; ?>
           </a>
         <?php endforeach; ?>
       <?php endif; ?>

@@ -302,3 +302,7 @@
 .personnel-portal .app-next-action { color: var(--navy); font-weight: 600; }
 .personnel-portal .app-next-wait { color: var(--warn-text); }
 .personnel-portal .app-next-done { color: var(--success-text2); }
+
+/* eight work-queue tiles: two even rows of four on wide screens */
+.personnel-portal .stat-grid.stat-grid-quad { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 991px) { .personnel-portal .stat-grid.stat-grid-quad { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

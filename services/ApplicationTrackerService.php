@@ -124,10 +124,14 @@ class ApplicationTrackerService
                 $detail = 'MSWDO will review your renewal documents. A new interview is not required.';
             } elseif ($appt && $appt['status'] === 'CANCELLED') {
                 $detail = 'Your interview was cancelled. Please contact MSWDO for a new schedule.';
+            } elseif (!$docsDone) {
+                $detail = 'After your documents are verified, MSWDO will give you an interview date.';
             } else {
                 $detail = 'Waiting for MSWDO to schedule your interview. Bring your physical documents to the interview.';
             }
-            $state = ($appt && $appt['status'] === 'MISSED') || Appointment::interviewOutcome($appt) === 'Unsuccessful' ? 'attention' : ($reviewed ? 'active' : 'pending');
+            // In progress only once every required document is verified (or a date is already set); while a document still needs
+            // action the interview has not started, so it cannot show as in progress next to a stage that needs the applicant.
+            $state = ($appt && $appt['status'] === 'MISSED') || Appointment::interviewOutcome($appt) === 'Unsuccessful' ? 'attention' : (($docsDone || $apptPending) ? 'active' : 'pending');
             $stages[] = ['key' => 'assessment', 'label' => $simplifiedRenewal ? 'Renewal Review' : 'Interview', 'state' => $state, 'date' => null, 'detail' => $detail];
         }
 

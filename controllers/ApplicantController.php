@@ -251,6 +251,8 @@ class ApplicantController extends Controller
             'quickActions' => $this->quickActions($renewal, $bookable, $draft, $bookingOpen),
             'applicationDraft' => $draft,
             'documentsToFix' => $this->documentsToFix(),
+            'staffScheduled' => !empty($bookingOptions['staffAssigned']),
+            'nextStep' => $this->nextStep($this->applications[0] ?? null, isset($this->applications[0]) ? (new ApplicationTrackerService($this->pdo))->track($this->applications[0]) : null, $upcoming, $bookingOpen, !empty($bookingOptions['staffAssigned'])),
         ]];
     }
 
@@ -287,6 +289,54 @@ class ApplicantController extends Controller
             }
         }
         return $next;
+    }
+
+    /**
+     * One sentence on the dashboard saying what happens next (and the button, when the applicant has something to do):
+     * ['tone' => todo|wait|info|done, 'title', 'text', 'button' => [label, url]|null]. Null when nothing needs saying: no
+     * application yet, or documents need a new file (the correction alert covers that).
+     */
+    private function nextStep(?array $latest, ?array $tracker, ?array $upcoming, bool $bookingOpen, bool $staffScheduled): ?array
+    {
+        if (!$latest || $this->documentsToFix()) {
+            return null;
+        }
+        $docsDone = false;
+        foreach ($tracker['stages'] ?? [] as $stage) {
+            if ($stage['key'] === 'documents') {
+                $docsDone = $stage['state'] === 'done';
+            }
+        }
+        $appointmentUrl = base_url('applicant/dashboard.php?section=appointment');
+        switch ($latest['status']) {
+            case 'Pending Review':
+                return ['tone' => 'wait', 'title' => 'We received your application', 'text' => 'MSWDO will check your documents. We will text you if something needs to be fixed.', 'button' => null];
+            case 'Interview Scheduled':
+                if ($upcoming) {
+                    $when = strtotime($upcoming['interview_at']);
+                    $dateOnly = interview_is_date_only($upcoming, 'interview_date_only');
+                    $day = date('Y-m-d', $when) === date('Y-m-d') ? 'today' : (date('Y-m-d', $when) === date('Y-m-d', strtotime('+1 day')) ? 'tomorrow' : 'on ' . date('l, F j, Y', $when));
+                    return ['tone' => 'info', 'title' => 'Your interview is ' . $day,
+                        'text' => ($dateOnly ? 'Come any time from 7:00 AM to 5:00 PM and bring a valid ID.' : 'Come at ' . date('g:i A', $when) . ' and bring a valid ID.')
+                            . ($staffScheduled ? ' MSWDO picked this date for you. You can keep it or choose another day.' : ''),
+                        'button' => $staffScheduled ? ['Choose another day', $appointmentUrl] : ['View appointment', $appointmentUrl]];
+                }
+                return ['tone' => 'wait', 'title' => 'Your interview needs a new date', 'text' => 'Please contact MSWDO or check the Appointment page.', 'button' => ['Open Appointment', $appointmentUrl]];
+            case 'Approved':
+                return ['tone' => 'done', 'title' => 'Your application is approved', 'text' => 'MSWDO will text you when and where to pick up your Solo Parent ID. Bring a valid ID.', 'button' => null];
+            case 'ID Released':
+                return ['tone' => 'done', 'title' => 'Your Solo Parent ID has been released', 'text' => 'You can view your ID details and renewal date any time.', 'button' => ['View my ID', base_url('applicant/dashboard.php?section=myid')]];
+            case 'Rejected':
+                return null;
+        }
+        // Under Verification (or For Revision with nothing left to fix)
+        if ($bookingOpen) {
+            return ['tone' => 'todo', 'title' => 'Choose your interview date', 'text' => 'Your documents are verified. Pick the day you want to come, Monday to Friday.', 'button' => ['Choose interview date', $appointmentUrl]];
+        }
+        if ($docsDone) {
+            return ['tone' => 'wait', 'title' => 'Your documents are verified', 'text' => 'MSWDO will give you an interview date soon. We will text you.', 'button' => null];
+        }
+        return ['tone' => 'wait', 'title' => 'MSWDO is checking your documents', 'text' => 'You do not need to do anything now. We will text you if a document needs to be fixed.', 'button' => null];
     }
 
     /** Shortcuts for what this applicant most likely needs to do next, most urgent first. */

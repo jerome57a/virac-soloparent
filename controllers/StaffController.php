@@ -7,6 +7,7 @@ require_once __DIR__ . '/../services/InterviewDateService.php';
 require_once __DIR__ . '/../services/InterviewInvitationService.php';
 require_once __DIR__ . '/../services/InterviewBookingService.php';
 require_once __DIR__ . '/../services/ApplicationNextStepService.php';
+require_once __DIR__ . '/../services/SchedulingQueueService.php';
 require_once __DIR__ . '/../services/RenewalService.php';
 require_once __DIR__ . '/../services/IdReleaseService.php';
 require_once __DIR__ . '/NotificationController.php';
@@ -56,6 +57,8 @@ class StaffController extends Controller
         // Expected today = active BOOKED appointments on today's Manila date only (cancelled, completed and missed are left out);
         // the same list feeds the count and the "Today's Appointments" card, so the two always agree.
         $todays = array_values(array_filter($appointments->todaysInterviews(), fn($iv) => $iv['status'] === 'BOOKED'));
+        $queues = new SchedulingQueueService($this->pdo);
+        $readyToSchedule = $queues->readyToSchedule();
         $this->page('MSWD Dashboard', 'views/staff/dashboard.php', [
             'stats' => [
                 'pending'           => $applications->countWhere("type = 'new' AND status = 'Pending Review'"),
@@ -64,11 +67,15 @@ class StaffController extends Controller
                 'pendingRenewals'   => $applications->countWhere("type = 'renewal' AND status = 'Pending Review'"),
                 'todaysAppointments' => count($todays),
                 'approved'          => $applications->countWhere("status IN ('Approved','ID Released')"),
+                'readyToSchedule'   => count($readyToSchedule),
+                'awaitingRelease'   => $queues->idReleaseCount(),
                 'rejected'          => $applications->countWhere("status = 'Rejected'"),
             ],
             'docBacklog' => $documents->verificationBacklog(),
             'verificationQueue' => $documents->verificationQueue(5),
             'todaysAppointments' => $todays,
+            'readyToSchedule' => array_slice($readyToSchedule, 0, 5),
+            'idReleaseQueue' => $queues->idReleaseQueue(5),
             'bookingEnabled' => InterviewDateFeature::enabled($this->pdo), // applicants pick their own date: wording only
             'upcomingInterviews' => $appointments->upcomingInterviews(5),
             'recentlyProcessed' => $applications->recentlyReviewed(),
@@ -135,6 +142,9 @@ class StaffController extends Controller
             'invitationState' => $invitationState,
             'invitationPanel' => $invitationPanel,
             'scheduleAutoMessage' => $invitationState === 'ready' ? (new SMSService($this->pdo))->interviewDateAssignedMessage((string) $app['reference_no'], null, get_setting($this->pdo, 'appointment_location', AppointmentService::DEFAULT_LOCATION)) : '',
+            'scheduleDateStyle' => SMSService::compact() ? 'short' : 'long',
+            'idReleaseTemplate' => SMSService::idReleaseTemplate(),
+            'idReleaseCompact' => SMSService::compact(),
             'scheduleMinDate' => date('Y-m-d', strtotime(Appointment::manilaDate() . ' +1 day')),
             'scheduleMaxDate' => date('Y-m-d', strtotime(Appointment::manilaDate() . ' +' . InterviewBookingService::BOOKING_WINDOW_DAYS . ' days')),
             'flashMessage' => take_flash(),
@@ -142,9 +152,6 @@ class StaffController extends Controller
             'reviewUndoToken' => $review->reviewUndoToken($id),
             'correctionSms' => $review->correctionSmsPreview($app),
             'correctionNotice' => (function () { $n = $_SESSION['correction_sms_notice'] ?? null; unset($_SESSION['correction_sms_notice']); return is_array($n) ? $n : null; })(),
-            'scheduleDateStyle' => SMSService::compact() ? 'short' : 'long',
-            'idReleaseTemplate' => SMSService::idReleaseTemplate(),
-            'idReleaseCompact' => SMSService::compact(),
             'showCorrectionPreview' => $_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['preview_correction_sms'] ?? '') === '1',
             'allowedTransitions' => Application::TRANSITIONS[$app['status']] ?? [],
             'approvalChecklist' => $review->approvalChecklist($app),
@@ -387,19 +394,10 @@ class StaffController extends Controller
         $awaitingSchedule = $canManage ? $appointments->awaitingStaffSchedule() : [];
         $waitingForDate = [];
         if ($canManage && $dateState === 'ready') {
-            // With date booking on, "needs an invitation" means: every required document verified and no open invitation yet.
-            // Invited applicants are listed separately, as waiting for the applicant to choose a date.
+            // Ready to schedule: every required document verified, no interview date yet and not already waiting on the applicant
+            // (those are listed separately). The same list feeds the staff dashboard.
             $waitingForDate = (new InterviewInvitation($this->pdo))->waitingForApplicant();
-            $invited = array_flip(array_map('intval', array_column($waitingForDate, 'id')));
-            $applicationModel = new Application($this->pdo);
-            $documentModel = new Document($this->pdo);
-            $awaitingSchedule = array_values(array_filter($awaitingSchedule, function (array $row) use ($invited, $applicationModel, $documentModel): bool {
-                if (isset($invited[(int) $row['id']])) {
-                    return false;
-                }
-                $full = $applicationModel->findForReview((int) $row['id']);
-                return $full !== null && $documentModel->outstandingRequired($full) === [];
-            }));
+            $awaitingSchedule = (new SchedulingQueueService($this->pdo))->readyToSchedule();
         }
         $this->page($this->staff['role'] === 'admin' ? 'Appointment Overview' : 'Appointment Management', 'views/staff/appointments/index.php', [
             'error' => $error,

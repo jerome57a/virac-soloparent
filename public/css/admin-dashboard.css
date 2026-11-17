@@ -171,3 +171,8 @@
   .ad-workspace, .ad-details-grid { display: block; }
   .ad-panel { margin-bottom: 16px; break-inside: avoid; }
 }
+
+/* right column stacks Needs attention and the system details; the activity list gets the full row */
+.ad-stack { display: grid; gap: 20px; align-content: start; min-width: 0; }
+.ad-workspace.ad-single { display: block; }
+.ad-stack .ad-details-grid { grid-template-columns: 1fr; gap: 18px; }

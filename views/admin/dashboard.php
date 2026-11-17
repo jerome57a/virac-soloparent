@@ -20,7 +20,9 @@ $applicationRows = [
     ['Renewals awaiting review', 'pendingRenewals', 'type=renewal&status=Pending+Review', 'amber'],
     ['Under Verification', 'underVerification', 'status=Under+Verification', 'blue'],
     ['Needs Correction', 'forRevision', 'status=For+Revision', 'orange'],
-    ['New applications approved', 'approvedNew', 'type=new&status=Approved', 'green'],
+    ['Interview scheduled', 'interviewScheduled', 'status=Interview+Scheduled', 'blue'],
+    ['Approved, ID not yet released', 'approvedAwaitingId', 'status=Approved', 'green'],
+    ['ID released', 'idReleased', 'status=ID+Released', 'green'],
     ['Rejected', 'rejectedApps', 'status=Rejected', 'red'],
 ];
 $shortcuts = [
@@ -62,15 +64,14 @@ $shortcuts = [
         <div><span data-i18n>Approval Rate</span><strong><?= $summary['approvalRate'] === null ? '—' : (int) $summary['approvalRate'] . '%' ?></strong><small><?php if ($summary['approvalRate'] === null): ?><span data-i18n>No decided applications yet</span><?php else: ?><span data-i18n>Based on decided applications</span><span> (<?= number_format((int) $summary['decided']) ?>)</span><?php endif; ?></small></div>
       </div>
     </section>
+      <div class="ad-stack">
       <section class="ad-panel ad-attention review-card" aria-labelledby="admin-attention-title">
         <div class="ad-panel-heading review-card-head"><div><h2 id="admin-attention-title" data-i18n>Needs attention</h2><p data-i18n>Account access and message delivery.</p></div><span class="ad-attention-count<?= !$attentionCount ? ' is-clear' : '' ?>"><b><?= $attentionCount ?></b><span data-i18n>to check</span></span></div>
         <?php if (!$attentionCount): ?><p class="ad-clear-message" data-i18n>No failed SMS or locked accounts recorded.</p><?php endif; ?>
         <a class="ad-attention-row" href="<?= base_url('admin/sms.php?status=failed') ?>"><span><strong data-i18n>Failed SMS</strong><small data-i18n>Check messages that were not sent.</small></span><b class="<?= $stats['smsFailed'] > 0 ? 'ad-count-warn' : '' ?>"><?= number_format((int) $stats['smsFailed']) ?></b><?= $dashboardIcon('arrow') ?></a>
         <a class="ad-attention-row" href="<?= base_url('admin/users.php?status=locked') ?>"><span><strong data-i18n>Locked accounts</strong><small data-i18n>Review accounts after failed sign-ins.</small></span><b class="<?= $userStats['locked'] > 0 ? 'ad-count-warn' : '' ?>"><?= number_format((int) $userStats['locked']) ?></b><?= $dashboardIcon('arrow') ?></a>
       </section>
-  </div>
-  <div class="ad-workspace ad-secondary-workspace dash-two-col">
-  <details class="ad-panel ad-details review-card">
+  <details class="ad-panel ad-details review-card" open>
     <summary><span><strong data-i18n>System &amp; account details</strong><span data-i18n>Staff accounts, SMS totals, and security activity</span></span><span class="ad-details-toggle" aria-hidden="true">+</span></summary>
     <div class="ad-details-grid">
       <section><h3 data-i18n>Accounts</h3><dl>
@@ -93,6 +94,9 @@ $shortcuts = [
       </dl><a class="ad-text-link" href="<?= base_url('admin/audit_log.php') ?>" data-i18n>Audit Logs</a></section>
     </div>
   </details>
+      </div>
+  </div>
+  <div class="ad-workspace ad-secondary-workspace ad-single">
   <section id="admin-activity" class="ad-panel ad-activity review-card" aria-labelledby="admin-activity-title">
     <div class="ad-panel-heading review-card-head"><div><h2 id="admin-activity-title" data-i18n>Recent Activity</h2><p data-i18n>Latest recorded actions across the system.</p></div><a class="ad-text-link" href="<?= base_url('admin/audit_log.php') ?>"><span data-i18n>View full audit log</span><?= $dashboardIcon('arrow') ?></a></div>
     <?php if (!$recentActivity): ?><div class="ad-empty"><span class="ad-icon ad-blue"><?= $dashboardIcon('clock') ?></span><strong data-i18n>No activity yet.</strong><p data-i18n>Recorded actions will appear here.</p></div><?php else: ?>

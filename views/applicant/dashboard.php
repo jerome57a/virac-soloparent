@@ -13,6 +13,8 @@
  * @var ?array $upcomingAppointment  application row with interview_at / interview_location
  * @var bool   $canBookAppointment
  * @var bool   $bookingOpen          interview date booking is on and the applicant can choose a date now
+ * @var ?array $nextStep             tone/title/text/button for the "what happens next" banner (null = none)
+ * @var bool   $staffScheduled       the booked date was set by MSWD staff (the applicant may keep or change it)
  * @var array  $recentNotifications
  * @var ?array $eligibilityCheck     latest preliminary check: answers, result, checkedAt
  * @var int    $unreadNotificationCount
@@ -61,6 +63,13 @@ $welcomeText = !empty($isFirstLogin) ? 'Welcome' : 'Welcome back';
               </li>
             <?php endforeach; ?>
           </ul>
+        </section>
+      <?php endif; ?>
+
+      <?php if (!empty($nextStep)): ?>
+        <section class="next-banner next-banner--<?= e($nextStep['tone']) ?>" role="status" aria-labelledby="next-banner-title">
+          <div class="next-banner-text"><h2 id="next-banner-title" class="next-banner-title"><?= e($nextStep['title']) ?></h2><p><?= e($nextStep['text']) ?></p></div>
+          <?php if (!empty($nextStep['button'])): ?><a class="btn-navy next-banner-btn" href="<?= e($nextStep['button'][1]) ?>"><?= e($nextStep['button'][0]) ?></a><?php endif; ?>
         </section>
       <?php endif; ?>
 
@@ -146,11 +155,12 @@ $welcomeText = !empty($isFirstLogin) ? 'Welcome' : 'Welcome back';
           <?php if ($upcomingAppointment): ?>
             <div class="dash-home-appointment-date">
               <div class="dash-home-date-tile" aria-hidden="true"><span><?= e(date('M', strtotime($upcomingAppointment['interview_at']))) ?></span><b><?= e(date('j', strtotime($upcomingAppointment['interview_at']))) ?></b></div>
-              <div><div class="dash-home-date-label"><?= e(date('l, F j, Y', strtotime($upcomingAppointment['interview_at']))) ?></div><?php if (!interview_is_date_only($upcomingAppointment, 'interview_date_only')): ?><div class="dash-home-time"><?= e(date('g:i A', strtotime($upcomingAppointment['interview_at']))) ?></div><?php endif; ?></div>
+              <?php $apptDay = date('Y-m-d', strtotime($upcomingAppointment['interview_at'])); $apptIn = (int) round((strtotime($apptDay) - strtotime(date('Y-m-d'))) / 86400); ?>
+              <div><div class="dash-home-date-label"><?= e(date('l, F j, Y', strtotime($upcomingAppointment['interview_at']))) ?> <span class="dash-home-when"><?= $apptIn <= 0 ? 'Today' : ($apptIn === 1 ? 'Tomorrow' : 'In ' . $apptIn . ' days') ?></span></div><?php if (!interview_is_date_only($upcomingAppointment, 'interview_date_only')): ?><div class="dash-home-time"><?= e(date('g:i A', strtotime($upcomingAppointment['interview_at']))) ?></div><?php else: ?><div class="dash-home-note">Come any time, 7:00 AM to 5:00 PM</div><?php endif; ?></div>
             </div>
             <dl class="dash-home-details"><div><dt data-i18n>Location</dt><dd><?= e($upcomingAppointment['interview_location'] ?: 'Contact MSWDO for the location') ?></dd></div><div><dt data-i18n>Application</dt><dd><?= e($upcomingAppointment['reference_no']) ?></dd></div></dl>
             <?php $preparationItems = $upcomingRequirements ?? []; require APP_ROOT . '/views/partials/requirements-preparation.php'; ?>
-            <a href="?section=appointment" class="btn-outline text-decoration-none dash-card-link" data-i18n>View Appointment</a>
+            <a href="?section=appointment" class="btn-outline text-decoration-none dash-card-link"><?= !empty($staffScheduled) ? 'View or change date' : 'View Appointment' ?></a>
           <?php elseif ($canBookAppointment && !empty($bookingOpen)): ?>
             <p class="dash-home-body">Interview booking is open. Choose your interview date from the available dates.</p>
             <a href="?section=appointment" class="btn-navy text-decoration-none dash-card-link">Choose Interview Date</a>
