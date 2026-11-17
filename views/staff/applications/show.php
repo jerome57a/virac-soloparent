@@ -409,7 +409,7 @@ if ($interviewOutcome !== null) {
             const fill = () => {
               if (!dateField) return template;
               const d = dateField.value ? new Date(dateField.value + 'T00:00:00') : null;
-              return template.split('{when}').join(d && !isNaN(d) ? d.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) : '[the date you pick]');
+              return template.split('{when}').join(d && !isNaN(d) ? d.toLocaleDateString('en-US', { weekday: '<?= ($scheduleDateStyle ?? 'long') === 'short' ? 'short' : 'long' ?>', year: 'numeric', month: '<?= ($scheduleDateStyle ?? 'long') === 'short' ? 'short' : 'long' ?>', day: 'numeric' }) : '[the date you pick]');
             };
             let lastAuto = fill();
             const update = () => {
@@ -532,12 +532,15 @@ if ($interviewOutcome !== null) {
               const preview = document.getElementById('release-sms-preview'), wrap = document.getElementById('release-custom-wrap');
               const custom = document.getElementById('release-custom-message');
               const name = <?= json_encode($app['full_name'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+              const idTemplate = <?= json_encode($idReleaseTemplate ?? '', JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
               const automaticMessage = () => {
                 if (!date.value || !time.value || !location.value.trim()) return '';
                 const [y,m,d] = date.value.split('-').map(Number), [h,min] = time.value.split(':').map(Number);
-                const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-                const when = months[m-1] + ' ' + d + ', ' + y + ' at ' + (h % 12 || 12) + ':' + String(min).padStart(2,'0') + (h >= 12 ? ' PM' : ' AM');
-                return 'Hello ' + name + ', your Solo Parent ID is scheduled for release on ' + when + '. Location: ' + location.value.trim() + '. Please visit the MSWDO Virac office at your scheduled time. For inquiries, contact the MSWDO office.';
+                const clock = (h % 12 || 12) + ':' + String(min).padStart(2,'0') + (h >= 12 ? ' PM' : ' AM');
+                const when = <?= !empty($idReleaseCompact) ? 'true' : 'false' ?>
+                  ? new Date(y, m-1, d).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) + ' ' + clock
+                  : ['January','February','March','April','May','June','July','August','September','October','November','December'][m-1] + ' ' + d + ', ' + y + ' at ' + clock;
+                return idTemplate.split('{name}').join(name).split('{when}').join(when).split('{location}').join(location.value.trim());
               };
               const update = () => {
                 const customMode = type.value === 'custom';

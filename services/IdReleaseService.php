@@ -33,7 +33,7 @@ class IdReleaseService
         $when = date('F j, Y', $dateTime->getTimestamp()) . ' at ' . date('g:i A', $dateTime->getTimestamp());
         $message = $messageType === 'custom'
             ? trim($customMessage)
-            : 'Hello ' . $app['full_name'] . ', your Solo Parent ID is scheduled for release on ' . $when . '. Location: ' . $location . '. Please visit the MSWDO Virac office at your scheduled time. For inquiries, contact the MSWDO office.';
+            : SMSService::idReleaseMessage((string) $app['full_name'], $dateTime->getTimestamp(), $location);
         if ($message === '') {
             return 'Enter the custom SMS message before scheduling.';
         }

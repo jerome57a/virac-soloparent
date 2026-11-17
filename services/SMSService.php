@@ -19,20 +19,34 @@ class SMSService
 {
     /** key => [label, fallback text]. Placeholders in braces are filled in by the notify* methods. */
     public const TEMPLATES = [
-        'submitted' => ['Application Submitted', 'MSWDO Virac: Application {ref} received and Pending Review. We will text you when its status changes.'],
+        'submitted' => ['Application Submitted', 'MSWDO Virac: Your Solo Parent ID application {ref} has been received and is Pending Review. We will text you when its status changes.'],
         'status_change' => ['Status Change (approval/rejection/correction/etc.)', 'MSWDO Virac: Application {ref} is now {status}. Note: {remarks}'],
         'interview_scheduled' => ['Interview/Appointment Scheduled', 'Hello {name}, your Solo Parent ID application interview is scheduled on {when}. Location: {location}. Please arrive on time. For inquiries, contact the MSWDO Virac office.'],
+        'renewal_submitted' => ['Renewal Submitted', 'MSWDO Virac: Your Solo Parent ID renewal request {ref} has been received and is Pending Review. We will text you when its status changes.'],
+        'renewal_reminder' => ['Renewal Reminder (auto)', 'MSWDO Virac: Your Solo Parent ID ({ref}) expires on {when}. Please visit MSWDO or apply for renewal online soon to avoid interruption.'],
+        'renewal_expired' => ['Renewal Reminder after Expiry (auto)', 'MSWDO Virac: Your Solo Parent ID ({ref}) expired on {when}. Please renew online or visit MSWDO to keep your benefits.'],
+        'appointment_reminder' => ['Appointment Reminder (auto)', 'MSWDO Virac: Reminder -- your appointment for application {ref} is on {when} at {location}. Please arrive on time and bring a valid ID.'],
+        'appointment_cancelled' => ['Appointment Cancelled', 'MSWDO Virac: Your appointment for application {ref} on {when} was cancelled. Reason: {reason}. Please contact MSWDO for a new schedule.'],
+        'appointment_missed' => ['Appointment Missed', 'MSWDO Virac: You missed your appointment for application {ref} on {when}. Please contact MSWDO for a new schedule.'],
+        'interview_booking_open' => ['Interview Booking Opened', 'MSWDO Virac: Your documents for application {ref} are verified. Please log in to your e-SoloParentID account and pick the date you want to arrive for your interview.'],
+        'interview_date_assigned' => ['Interview Date Scheduled by Staff', 'MSWDO Virac: Your interview for application {ref} is scheduled on {when}, {hours} at {location}. You may come on that date, or log in to your e-SoloParentID account and pick another date.'],
+        'interview_date_booked' => ['Interview Date Booked', 'MSWDO Virac: Your interview for application {ref} is booked for {when} at {location}. Please come during office hours on that date and bring a valid ID.'],
+        'document_correction' => ['Document Needs Correction', 'MSWDO Virac: Your document "{document}" for application {ref} needs correction. Please log in and open Supporting Documents to see what to fix and upload a replacement.'],
+        'password_reset' => ['Password Reset Code', "MSWDO Virac: Your password reset code is {code}. It expires in {minutes} minutes. If you didn't request this, ignore this message."],
+    ];
+    /**
+     * Shortened wording that fits one 160-character text (so one credit) once the gateway's own header is added. It is used
+     * only while SMS_COMPACT_TEXTS is on (a small test token); the full wording above is the default for deployment.
+     * database/sms_wording.php compact|full switches the stored template rows to match.
+     */
+    public const COMPACT_TEMPLATES = [
+        'submitted' => ['Application Submitted', 'MSWDO Virac: Application {ref} received and Pending Review. We will text you when its status changes.'],
         'renewal_submitted' => ['Renewal Submitted', 'MSWDO Virac: Renewal request {ref} received and Pending Review. We will text you when its status changes.'],
         'renewal_reminder' => ['Renewal Reminder (auto)', 'MSWDO Virac: Your Solo Parent ID ({ref}) expires on {when}. Please renew online or visit MSWDO.'],
         'renewal_expired' => ['Renewal Reminder after Expiry (auto)', 'MSWDO Virac: Your Solo Parent ID ({ref}) expired on {when}. Please renew online or visit MSWDO.'],
         'appointment_reminder' => ['Appointment Reminder (auto)', 'MSWDO Virac: Reminder: your interview for {ref} is on {when}. Please bring a valid ID.'],
-        'appointment_cancelled' => ['Appointment Cancelled', 'MSWDO Virac: Your appointment for application {ref} on {when} was cancelled. Reason: {reason}. Please contact MSWDO for a new schedule.'],
-        'appointment_missed' => ['Appointment Missed', 'MSWDO Virac: You missed your appointment for application {ref} on {when}. Please contact MSWDO for a new schedule.'],
-        'interview_booking_open' => ['Interview Booking Opened', 'MSWDO Virac: Your documents for application {ref} are verified. Please log in to your e-SoloParentID account and pick the date you want to arrive for your interview.'],
         'interview_date_assigned' => ['Interview Date Scheduled by Staff', 'MSWDO Virac: Interview for {ref} is on {when}, {hours}. Come then, or log in to e-SoloParentID to pick another date.'],
         'interview_date_booked' => ['Interview Date Booked', 'MSWDO Virac: Interview for {ref} is booked for {when}. Come during office hours with a valid ID.'],
-        'document_correction' => ['Document Needs Correction', 'MSWDO Virac: Your document "{document}" for application {ref} needs correction. Please log in and open Supporting Documents to see what to fix and upload a replacement.'],
-        'password_reset' => ['Password Reset Code', "MSWDO Virac: Your password reset code is {code}. It expires in {minutes} minutes. If you didn't request this, ignore this message."],
     ];
     /** Placeholders each template can use (anything else would be sent literally); the first is required. */
     public const PLACEHOLDERS = [
@@ -58,6 +72,19 @@ class SMSService
     public function __construct(PDO $pdo)
     {
         $this->pdo = $pdo;
+    }
+
+    /** True while the shortened wording is on (SMS_COMPACT_TEXTS): fewer characters, so fewer gateway credits. */
+    public static function compact(): bool
+    {
+        return defined('SMS_COMPACT_TEXTS') && SMS_COMPACT_TEXTS;
+    }
+
+    /** The built-in text for $key in the wording that is switched on (a stored row, when present, still wins). */
+    public static function defaultBody(string $key, ?bool $compact = null): string
+    {
+        $compact = $compact ?? self::compact();
+        return ($compact ? (self::COMPACT_TEMPLATES[$key] ?? null) : null) !== null ? self::COMPACT_TEMPLATES[$key][1] : (self::TEMPLATES[$key][1] ?? '');
     }
 
     /** 'test' or 'iprog' -- an unknown SMS_PROVIDER value is treated as test mode so nothing is sent by accident. */
@@ -269,7 +296,7 @@ class SMSService
         $stmt->execute([$key]);
         $body = trim((string) $stmt->fetchColumn());
         if ($body === '') {
-            $body = self::TEMPLATES[$key][1] ?? '';
+            $body = self::defaultBody($key);
         }
         // An optional placeholder left empty (e.g. no staff remarks) drops the sentence it sits in, so the text
         // never reads "Note: none" or "Note: ." -- unless that sentence also carries other details, in which
@@ -456,18 +483,24 @@ class SMSService
         return $this->send($applicationId, $this->recipientFor($applicationId, $mobile), trim($customMessage), 'interview_booking_custom');
     }
 
-    /** Office hours as short text for an SMS: the fixed opening time to the closing-time setting ("7AM-5PM", or "7AM-4:30PM"). */
+    /** Office hours for an SMS: the fixed opening time to the closing-time setting ("7:00 AM to 5:00 PM"; shortened to "7AM-5PM" in compact wording). */
     public function officeHours(): string
     {
         $closes = get_setting($this->pdo, 'appointment_day_end', '17:00');
         $closes = preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $closes) === 1 ? $closes : '17:00';
-        return '7AM-' . str_replace(':00', '', date('g:iA', strtotime($closes)));
+        return self::compact() ? '7AM-' . str_replace(':00', '', date('g:iA', strtotime($closes))) : '7:00 AM to ' . date('g:i A', strtotime($closes));
+    }
+
+    /** An interview date as SMS text ($date is Y-m-d): "Monday, November 23, 2026", or "Mon, Nov 23, 2026" in compact wording. */
+    public static function dateText(string $date): string
+    {
+        return date(self::compact() ? 'D, M j, Y' : 'l, F j, Y', strtotime($date));
     }
 
     /** The automatic text for a date staff scheduled (what the applicant gets when staff choose Automatic Message). $date is Y-m-d; null keeps a literal {when} for the staff screen's live preview. */
     public function interviewDateAssignedMessage(string $refNumber, ?string $date, string $location): string
     {
-        return $this->render('interview_date_assigned', ['{ref}' => $refNumber, '{when}' => $date === null ? '{when}' : date('D, M j, Y', strtotime($date)), '{hours}' => $this->officeHours(), '{location}' => $location]);
+        return $this->render('interview_date_assigned', ['{ref}' => $refNumber, '{when}' => $date === null ? '{when}' : self::dateText($date), '{hours}' => $this->officeHours(), '{location}' => $location]);
     }
 
     /**
@@ -477,7 +510,7 @@ class SMSService
     public function notifyInterviewDateAssigned(int $applicationId, string $mobile, string $refNumber, string $date, string $location, ?string $customMessage = null): array
     {
         if ($customMessage === null) {
-            return $this->sendTemplate('interview_date_assigned', ['{ref}' => $refNumber, '{when}' => date('D, M j, Y', strtotime($date)), '{hours}' => $this->officeHours(), '{location}' => $location], $applicationId, $mobile);
+            return $this->sendTemplate('interview_date_assigned', ['{ref}' => $refNumber, '{when}' => self::dateText($date), '{hours}' => $this->officeHours(), '{location}' => $location], $applicationId, $mobile);
         }
         if (!$this->templateEnabled('interview_date_assigned')) {
             return ['id' => null, 'status' => 'DISABLED', 'test_mode' => false, 'error' => null];
@@ -504,6 +537,9 @@ class SMSService
      * The staff preview and the confirmed send both use correctionMessage(), so neither can differ from this.
      * The stored row still controls only whether this SMS is switched on (templateEnabled()).
      */
+    /** Shortened correction text (one credit): used only while SMS_COMPACT_TEXTS is on. A count replaces the names when they would not fit. */
+    public const CORRECTION_BODY_COMPACT = 'MSWDO Virac: Your "{document}" needs correction. Log in, open Documents and upload a new file.';
+    public const CORRECTION_COUNT_COMPACT = 'MSWDO Virac: {count} {documents} correction. Log in and open Documents to see why and upload new files.';
     public const CORRECTION_BODY = 'Hello {applicant_name}, your document "{document}" for application {ref} needs correction. Please log in to your Solo Parent ID account, open Supporting Documents, and upload a replacement document. Please check the instructions provided by MSWDO in your account. Thank you.';
 
     /**
@@ -513,7 +549,7 @@ class SMSService
      * truncate. Staff remarks are not a parameter and cannot appear. strtr() substitutes in a single pass, so a
      * name or label that happens to contain "{ref}" or similar is never expanded again.
      */
-    public function correctionMessage(string $applicantName, string $refNumber, array $documentLabels): string
+    public function correctionMessage(string $applicantName, string $refNumber, array $documentLabels, ?bool $compact = null): string
     {
         $clean = static fn($text) => trim((string) preg_replace('/\s+/u', ' ', (string) $text));
         $names = [];
@@ -524,11 +560,38 @@ class SMSService
             }
         }
         $applicant = $clean($applicantName);
+        if ($compact ?? self::compact()) {
+            $short = strtr(self::CORRECTION_BODY_COMPACT, ['{document}' => $names ? implode('", "', $names) : 'Supporting document']);
+            if (mb_strlen($short) <= 146 || !$names) {
+                return $short; // 146 + the gateway header still fits one 160-character text
+            }
+            return strtr(self::CORRECTION_COUNT_COMPACT, ['{count}' => (string) count($names), '{documents}' => count($names) === 1 ? 'document needs' : 'documents need']);
+        }
         return strtr(self::CORRECTION_BODY, [
             '{applicant_name}' => $applicant !== '' ? $applicant : 'Applicant',
             '{document}' => $names ? implode(', ', $names) : 'Supporting document',
             '{ref}' => $refNumber,
         ]);
+    }
+
+    /** Wording of the automatic ID-release text with {name}, {when} and {location} still to fill (the staff screen previews it live). */
+    public static function idReleaseTemplate(?bool $compact = null): string
+    {
+        return ($compact ?? self::compact())
+            ? 'MSWDO Virac: ID release on {when} at {location}. Bring a valid ID.'
+            : 'Hello {name}, your Solo Parent ID is scheduled for release on {when}. Location: {location}. Please visit the MSWDO Virac office at your scheduled time. For inquiries, contact the MSWDO office.';
+    }
+
+    /** The date and time of an ID release as SMS text: "November 27, 2026 at 9:00 AM", or "Fri, Nov 27, 2026 9:00 AM" in compact wording. */
+    public static function idReleaseWhen(int $timestamp, ?bool $compact = null): string
+    {
+        return ($compact ?? self::compact()) ? date('D, M j, Y g:i A', $timestamp) : date('F j, Y', $timestamp) . ' at ' . date('g:i A', $timestamp);
+    }
+
+    /** The automatic ID-release text for an applicant. */
+    public static function idReleaseMessage(string $name, int $timestamp, string $location, ?bool $compact = null): string
+    {
+        return strtr(self::idReleaseTemplate($compact), ['{name}' => $name, '{when}' => self::idReleaseWhen($timestamp, $compact), '{location}' => $location]);
     }
 
     /** The longest SMS text the log (and therefore a confirmed send) can hold without cutting it. */

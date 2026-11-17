@@ -100,6 +100,9 @@ define('SMS_API_URL', (string) $env('SMS_API_URL', 'https://sms.iprogtech.com/ap
 //                        last 10 minutes is always skipped.
 define('SMS_ALLOWED_NUMBERS', (string) $env('SMS_ALLOWED_NUMBERS', ''));
 define('SMS_DAILY_LIMIT', max(0, (int) $env('SMS_DAILY_LIMIT', 0)));
+//   SMS_COMPACT_TEXTS    1 = use the shortened wording (one credit per text); 0 = the full wording (default, for deployment).
+//                        After changing it run: php database/sms_wording.php compact   (or full)   to match the stored templates.
+define('SMS_COMPACT_TEXTS', filter_var($env('SMS_COMPACT_TEXTS', false), FILTER_VALIDATE_BOOLEAN));
 define('SMS_TIMEOUT', max(2, (int) $env('SMS_TIMEOUT', 10)));          // seconds per gateway call
 define('SMS_MAX_ATTEMPTS', max(1, (int) $env('SMS_MAX_ATTEMPTS', 3)));  // a failed SMS can be retried up to this many attempts in total
 

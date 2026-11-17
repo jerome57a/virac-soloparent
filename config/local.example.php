@@ -19,6 +19,8 @@ return [
     // Save credits while testing: only these numbers get real texts, and at most this many per day (0 = no limit).
     'SMS_ALLOWED_NUMBERS' => '',
     'SMS_DAILY_LIMIT' => 0,
+    // true = shortened SMS wording (saves credits while testing); false = full wording (use this for deployment).
+    'SMS_COMPACT_TEXTS' => false,
     'SMS_TIMEOUT' => 10,
     'SMS_MAX_ATTEMPTS' => 3,
 ];
