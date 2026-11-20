@@ -4,7 +4,7 @@ require_once __DIR__ . '/../models/Document.php';
 require_once __DIR__ . '/../models/SmsLog.php';
 
 /**
- * Admin-managed content applicants see: FAQs, document
+ * Admin-managed content applicants see: document
  * requirements per category, and SMS notification templates. Each method
  * validates, writes, audits, and returns [error, success] (one is '').
  */
@@ -16,8 +16,6 @@ class ContentService
     {
         $this->pdo = $pdo;
     }
-
-    // ---- FAQ ----
 
     /** @return array{0: string, 1: string} */
     public function createRequirement(array $admin, ?int $categoryId, string $docKey, string $label, bool $isRequired, int $sortOrder): array

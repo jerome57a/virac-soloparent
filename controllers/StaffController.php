@@ -10,6 +10,9 @@ require_once __DIR__ . '/../services/ApplicationNextStepService.php';
 require_once __DIR__ . '/../services/SchedulingQueueService.php';
 require_once __DIR__ . '/../services/RenewalService.php';
 require_once __DIR__ . '/../services/IdReleaseService.php';
+require_once __DIR__ . '/../services/AutoVerificationService.php';
+require_once __DIR__ . '/../models/ApplicationAutoCheck.php';
+require_once __DIR__ . '/../models/SmsLog.php';
 require_once __DIR__ . '/NotificationController.php';
 require_once __DIR__ . '/ReportController.php';
 require_once __DIR__ . '/../services/RecordService.php';
@@ -91,12 +94,23 @@ class StaffController extends Controller
             'type' => (string) ($_GET['type'] ?? 'ALL'),
             'barangay' => trim((string) ($_GET['barangay'] ?? '')),
             'q' => trim((string) ($_GET['q'] ?? '')),
+            'auto' => in_array($_GET['auto'] ?? '', ['ready', 'review', 'fix'], true) ? $_GET['auto'] : 'ALL',
         ];
-        $result = (new Application($this->pdo))->search($filters, (int) ($_GET['page'] ?? 1), self::PER_PAGE);
+        try {
+            $result = (new Application($this->pdo))->search($filters, (int) ($_GET['page'] ?? 1), self::PER_PAGE);
+        } catch (PDOException $e) {
+            // The saved-results table has not been created yet (database/migrate_auto_verification.sql): list without that filter.
+            if ($filters['auto'] === 'ALL') {
+                throw $e;
+            }
+            $filters['auto'] = 'ALL';
+            $result = (new Application($this->pdo))->search($filters, (int) ($_GET['page'] ?? 1), self::PER_PAGE);
+        }
         $this->page('Applications', 'views/staff/applications/index.php', [
             'filters' => $filters,
             'statuses' => Application::STATUSES,
             'apps' => $result['rows'],
+            'autoChecks' => (new ApplicationAutoCheck($this->pdo))->latestFor(array_column($result['rows'], 'id')),
             'nextSteps' => (new ApplicationNextStepService($this->pdo))->forRows($result['rows']),
             'pager' => $result,
         ]);
@@ -131,8 +145,42 @@ class StaffController extends Controller
         $invitationState = InterviewDateFeature::flagOn($this->pdo) ? (InterviewDateFeature::schemaReady($this->pdo) ? 'ready' : 'incomplete') : 'off';
         $invitationPanel = $invitationState === 'ready' ? (new InterviewInvitationService($this->pdo))->panel($id) : null;
 
+        $children = $applications->children($id);
+        $submittedChecklist = (new Document($this->pdo))->checklistForReview($id, $app['category_id'] !== null ? (int) $app['category_id'] : null, ($app['type'] ?? '') === 'renewal');
+        $autoChecks = new ApplicationAutoCheck($this->pdo);
+        $autoCheck = (new AutoVerificationService($this->pdo))->forApplication($app, $children, $submittedChecklist);
+        // Reading the documents' text (OCR) is slow, so its results come from the evaluation saved at submission.
+        $savedChecks = $autoChecks->latestChecks($id);
+        if ($_SERVER['REQUEST_METHOD'] === 'GET' && AutoVerificationService::ocrAvailable() && $autoChecks->available()) {
+            // Is there an uploaded image whose text has not been read yet? That is so for an application submitted before OCR or the
+            // results table existed, and for a document the applicant replaced after a correction request (a new file, a new checksum).
+            $imageShas = [];
+            foreach ($submittedChecklist as $row) {
+                $doc = $row['uploaded_document'] ?? null;
+                if ($doc && !empty($doc['sha256']) && in_array($doc['mime'] ?? '', ['image/jpeg', 'image/png'], true)) {
+                    $imageShas[$doc['sha256']] = true;
+                }
+            }
+            $readShas = array_flip(array_filter(array_column(array_filter($savedChecks, fn($c) => ($c['key'] ?? '') === 'ocr_name'), 'sha')));
+            $latestSaved = $autoChecks->latestFor([$id])[$id]['created_at'] ?? null;
+            // The pause stops a file that cannot be read from being retried on every page view.
+            $recentlyTried = $latestSaved !== null && strtotime((string) $latestSaved) > time() - 120;
+            if (array_diff_key($imageShas, $readShas) && !$recentlyTried) {
+                // Read the missing ones now (a few seconds) and keep the result, so the next visit is instant.
+                $fresh = (new AutoVerificationService($this->pdo))->snapshot($id, 'review');
+                if ($fresh) {
+                    $savedChecks = $fresh['checks'];
+                }
+            }
+        }
+        $autoCheck = AutoVerificationService::withSavedOcr($autoCheck, $savedChecks, $submittedChecklist);
+        if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+            $autoChecks->record($id, $autoCheck, 'review'); // only when the result has changed
+        }
+
         $this->page('Application ' . $app['reference_no'], 'views/staff/applications/show.php', [
             'app' => $app,
+            'autoCheck' => $autoCheck,
             'statusError' => $errors['status'],
             'assessmentError' => $errors['assessment'],
             'releaseError' => $errors['release'],
@@ -148,6 +196,8 @@ class StaffController extends Controller
             'scheduleMinDate' => date('Y-m-d', strtotime(Appointment::manilaDate() . ' +1 day')),
             'scheduleMaxDate' => date('Y-m-d', strtotime(Appointment::manilaDate() . ' +' . InterviewBookingService::BOOKING_WINDOW_DAYS . ' days')),
             'flashMessage' => take_flash(),
+            'smsNotice' => take_sms_notice(),
+            'smsLogs' => (new SmsLog($this->pdo))->forApplication($id, SMS_MAX_ATTEMPTS),
             'verificationNotice' => (function () { $n = $_SESSION['verification_notice'] ?? null; unset($_SESSION['verification_notice']); return is_array($n) ? $n : null; })(),
             'reviewUndoToken' => $review->reviewUndoToken($id),
             'correctionSms' => $review->correctionSmsPreview($app),
@@ -159,8 +209,8 @@ class StaffController extends Controller
             'interviewSms' => $appointmentModel->interviewSms($id),
             'idReleaseSchedule' => (new IdReleaseService($this->pdo))->scheduleFor($id),
             'defaultReleaseLocation' => get_setting($this->pdo, 'appointment_location', 'MSWDO Virac office'),
-            'children' => $applications->children($id),
-            'submittedChecklist' => (new Document($this->pdo))->checklistForReview($id, $app['category_id'] !== null ? (int) $app['category_id'] : null, ($app['type'] ?? '') === 'renewal'),
+            'children' => $children,
+            'submittedChecklist' => $submittedChecklist,
             'documentHistory' => (new Document($this->pdo))->statusHistoryFor($id),
             'history' => $applications->history($id),
             'decisions' => $applications->decisions($id),
@@ -209,13 +259,7 @@ class StaffController extends Controller
                 if ($retryError) {
                     return ['release' => $retryError];
                 }
-                if ($retryResult['status'] === 'SENT' && !empty($retryResult['test_mode'])) {
-                    flash('SMS retry was logged in test mode and was not sent.');
-                } elseif ($retryResult['status'] === 'SENT') {
-                    flash('The SMS provider accepted the release notification; delivery is not confirmed here.');
-                } else {
-                    flash('SMS retry failed: ' . ($retryResult['error'] ?: 'provider error'));
-                }
+                set_sms_notice(SMSService::outcomeNotice($retryResult, 'Retry of the ID release SMS'));
                 $back .= '#id-release';
                 break;
             case 'confirm_id_release':
@@ -231,11 +275,14 @@ class StaffController extends Controller
             case 'schedule_interview_date':
                 // Staff set the interview date: booked at once, the applicant is texted and may keep it or pick another date.
                 $scheduleDate = $post('interview_date');
-                $error = (new InterviewBookingService($this->pdo))->scheduleForApplicant($this->staff, $id, $scheduleDate, $post('sms_message_type') === 'custom' ? $post('invitation_custom_message') : null);
+                $error = (new InterviewBookingService($this->pdo))->scheduleForApplicant($this->staff, $id, $scheduleDate, $post('sms_message_type') === 'custom' ? $post('invitation_custom_message') : null, $smsResult);
                 if ($error) {
                     return ['invitation' => $error];
                 }
-                flash('Interview scheduled for ' . date('l, F j, Y', strtotime($scheduleDate)) . '. The applicant was texted and can keep that date or pick another one.');
+                $scheduled = 'Interview scheduled for ' . date('l, F j, Y', strtotime($scheduleDate));
+                flash($scheduled . '. The applicant can keep that date or pick another one.');
+                // Tell staff what really happened to the text (sent, failed or not sent), with a Retry button when it failed.
+                set_sms_notice(SMSService::outcomeNotice($smsResult ?? ['status' => 'FAILED', 'error' => 'no SMS result was recorded'], $scheduled));
                 $back .= '#invitation';
                 break;
             // Interviews: staff schedule a date (the case above) and the applicant may keep it or pick another (InterviewBookingService).
@@ -254,12 +301,13 @@ class StaffController extends Controller
                 if ($retryError) {
                     return ['interview' => $retryError];
                 }
-                if ($retryResult['status'] === 'SENT') {
-                    flash(!empty($retryResult['test_mode']) ? 'SMS retry was logged in test mode and was not sent.' : 'The SMS gateway accepted the interview SMS retry.');
-                } else {
-                    flash('SMS retry failed: ' . ($retryResult['error'] ?: 'provider error'));
-                }
+                set_sms_notice(SMSService::outcomeNotice($retryResult, 'Retry of the interview SMS'));
                 $back .= '#interview';
+                break;
+            case 'retry_sms':
+                // Any retryable text about this application; the checks live in retrySms().
+                $this->retrySms($id, (int) $post('sms_log_id'));
+                $back .= '#sms';
                 break;
             case 'record_result':
                 $error = $review->recordInterviewOutcome($this->staff, $id, $post('interview_outcome'), $post('interview_notes'));
@@ -267,15 +315,6 @@ class StaffController extends Controller
                     return ['interview' => $error];
                 }
                 $back .= '#interview';
-                break;
-            case 'assess_eligibility':
-            case 'update_eligibility':
-                $assessmentNotes = $post('assessment_remarks') ?: $post('eligibility_remarks');
-                $error = $review->assessEligibility($this->staff, $app, $post('eligibility_status'), $assessmentNotes);
-                if ($error) {
-                    return ['assessment' => $error];
-                }
-                $back .= '#decision';
                 break;
             case 'save_verification':
                 $rows = [];
@@ -378,9 +417,17 @@ class StaffController extends Controller
             csrf_require();
             $this->authorize($this->staff, 'applications.process', 'staff/appointments.php');
             $post = fn(string $key) => is_string($_POST[$key] ?? null) ? trim($_POST[$key]) : '';
+            if ($post('form_action') === 'retry_sms') {
+                $this->retrySms(null, (int) $post('sms_log_id'));
+                $this->redirectTo('staff/appointments.php');
+            }
             $outcome = ['cancel' => 'CANCELLED', 'missed' => 'MISSED'][$post('action')] ?? '';
-            $error = (new AppointmentService($this->pdo))->staffSetOutcome($this->staff, (int) $post('appointment_id'), $outcome, $post('reason')) ?? '';
+            $smsResult = null;
+            $error = (new AppointmentService($this->pdo))->staffSetOutcome($this->staff, (int) $post('appointment_id'), $outcome, $post('reason'), $smsResult) ?? '';
             if ($error === '') {
+                if ($smsResult !== null) {
+                    set_sms_notice(SMSService::outcomeNotice($smsResult, $outcome === 'CANCELLED' ? 'Appointment cancelled' : 'Interview marked as missed'));
+                }
                 flash($outcome === 'CANCELLED' ? 'Appointment cancelled and the applicant notified.' : 'Appointment marked as missed and the applicant notified.');
                 $this->redirectTo('staff/appointments.php');
             }
@@ -403,7 +450,9 @@ class StaffController extends Controller
             'error' => $error,
             'flashMessage' => take_flash(),
             'canManage' => $canManage,
+            'smsNotice' => take_sms_notice(),
             'awaitingOutcome' => $appointments->awaitingOutcome(),
+            'overdueReleases' => (new IdReleaseService($this->pdo))->overdue(),
             'awaitingSchedule' => $awaitingSchedule,
             'waitingForDate' => $waitingForDate,
             // Past-but-still-booked timed ones are already listed under Needs Outcome; a date-only one stays here all day.
@@ -416,6 +465,51 @@ class StaffController extends Controller
         ]);
     }
 
+    /** staff/sms.php: failed texts to applicants that still need a decision, each with Retry. */
+    public function smsAttention(): void
+    {
+        $this->authorize($this->staff, 'applications.process', 'staff/dashboard.php');
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            csrf_require();
+            $post = fn(string $key) => is_string($_POST[$key] ?? null) ? trim($_POST[$key]) : '';
+            if ($post('form_action') === 'retry_sms') {
+                $this->retrySms(null, (int) $post('sms_log_id'));
+            }
+            $this->redirectTo('staff/sms.php');
+        }
+        $this->page('Failed Texts', 'views/staff/sms/index.php', [
+            'smsNotice' => take_sms_notice(),
+            'rows' => (new SmsLog($this->pdo))->needingAttention(SMS_MAX_ATTEMPTS),
+        ]);
+    }
+
+    /**
+     * Retries one failed text and reports what happened as a notice. $applicationId null = look it up from the text. The text must
+     * belong to that application, have failed, still be the newest of its kind and have attempts left.
+     */
+    private function retrySms(?int $applicationId, int $logId): void
+    {
+        if ($applicationId === null) {
+            $find = $this->pdo->prepare('SELECT application_id FROM sms_logs WHERE id = ?');
+            $find->execute([$logId]);
+            $applicationId = (int) $find->fetchColumn();
+        }
+        $mine = null;
+        foreach ($applicationId > 0 ? (new SmsLog($this->pdo))->forApplication($applicationId, SMS_MAX_ATTEMPTS, 50) : [] as $row) {
+            if ((int) $row['id'] === $logId) {
+                $mine = $row;
+                break;
+            }
+        }
+        if (!$mine || !$mine['can_retry']) {
+            set_sms_notice(['state' => 'failed', 'log_id' => null, 'text' => 'That SMS cannot be retried from here (it was already resent, it used all its attempts, or it is a kind that must be sent afresh).']);
+            return;
+        }
+        [$retryError, $retryResult] = (new SMSService($this->pdo))->retry($logId);
+        set_sms_notice($retryError
+            ? ['state' => 'failed', 'log_id' => $logId, 'text' => 'Retry not possible: ' . $retryError]
+            : SMSService::outcomeNotice($retryResult, 'Retry of the SMS'));
+    }
     /** staff/notifications.php: the signed-in staff member's own notifications. */
     public function notifications(): void
     {

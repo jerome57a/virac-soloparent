@@ -301,7 +301,7 @@ scheduled by staff (section 8).
 
 ## 8. MSWD Staff Workflow
 
-1. Staff sign-in through the unified login page (`login.php`; `mswd-login.php`, `admin/login.php` and `staff/login.php` redirect there).
+1. Staff sign-in through the unified login page (`login.php`; `mswd-login.php` redirects there).
 2. Application management (queue with status and type filters).
 3. View applicant information.
 4. View and download the files the applicant uploaded.
@@ -472,8 +472,7 @@ without it.
 
 Other `database/migrate_*.sql` files are historical upgrade scripts for older
 versions and must not be bulk-imported. `migrate_step20_chat.sql` provisions
-the retired chat feature and must not be run. See
-[Database pruning report](docs/database-pruning-report.md).
+the retired chat feature and must not be run.
 
 ## 13. Security and Data Protection
 
@@ -532,9 +531,7 @@ Defaults: DB `root` / no password (stock XAMPP). Override by copying
 without a reviewed deployment plan, a verified backup, an isolated-copy
 rehearsal, and separate approval (section 17). Migrations may contain
 hardcoded `USE` statements and do not enforce the test guard. Further
-guidance: [Codex cloud setup](docs/codex-cloud.md),
-[Appointment management](docs/appointment-management.md) (staff-entered
-interview scheduling).
+guidance: `docs/database-tooling-safety.md` and `docs/session-changes.md`.
 
 ## 15. Testing and Regression Testing
 

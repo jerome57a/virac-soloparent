@@ -386,6 +386,7 @@ class ApplicantController extends Controller
     {
         $profileError = '';
         $profileSuccess = '';
+        $action = '';
 
         $profiles = new ApplicantProfileService($this->pdo);
         $formValues = null;
@@ -421,6 +422,7 @@ class ApplicantController extends Controller
         return ['view' => 'profile.php', 'data' => [
             'profileError' => $profileError,
             'profileSuccess' => $profileSuccess,
+            'profileAction' => $action,
             'form' => $form,
             'profileUpdatedAt' => $saved['updated_at'] ?? null,
             'civilStatusOptions' => CIVIL_STATUS_OPTIONS,

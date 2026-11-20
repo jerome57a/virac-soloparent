@@ -38,6 +38,10 @@ class AuthController extends Controller
         $authMode = ($_GET['mode'] ?? $defaultMode) === 'signup' ? 'signup' : 'login';
         $authError = '';
         $oldSignup = ['fullName' => '', 'username' => '', 'email' => '', 'mobile' => ''];
+        $codeHint = null;       // the code itself, shown only while the SMS provider is the log-only test provider
+        $authNoticeNow = null;  // a message for this request only (for example "A new code was sent.")
+        $verifyMobile = '';
+        $resendWait = 0;
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_require();
@@ -83,30 +87,68 @@ class AuthController extends Controller
                 }
                 if ($authError === '') {
                     $limiter->hit('register_ip', RateLimiter::clientIp());
-                    ['fullName' => $fullName, 'username' => $newUsername, 'email' => $email, 'mobile' => $mobile] = $oldSignup;
-                    try {
-                        $newUserId = $this->auth->userModel()->createApplicant($fullName, $email, $newUsername, password_hash($password, PASSWORD_DEFAULT), $mobile);
-                    } catch (PDOException $e) {
-                        // SQLSTATE 23000 covers every integrity failure; report a duplicate only if the username now exists
-                        // (taken between the check and the insert). Any other failure is rethrown unchanged.
-                        if ($e->getCode() !== '23000' || !$this->auth->userModel()->usernameExists($newUsername)) {
-                            throw $e;
-                        }
-                        $authError = 'That username is already taken. Please choose another.';
+                    if (MOBILE_VERIFY_BY_SMS) {
+                        // The account is created only after the texted code is entered (the 'verify_mobile' action below).
+                        $authError = $this->sendSignupCode($oldSignup, $password, $codeHint);
+                        $authMode = $authError === '' ? 'verify' : 'signup';
+                    } else {
+                        $authError = $this->createApplicantAccount($oldSignup, password_hash($password, PASSWORD_DEFAULT), false);
                     }
                 }
-                if ($authError === '') {
-                    // Mobile verification is temporarily skipped for self-registration. Mark the
-                    // supplied number usable so the normal applicant login and SMS paths continue.
-                    $this->auth->userModel()->markMobileVerified($newUserId);
-                    $this->auth->loginUser(['id' => $newUserId]);
-                    (new EligibilityService($this->pdo))->claimForUser($newUserId);
-                    audit_log($this->pdo, $newUserId, $fullName, 'applicant', 'Registration', 'user', $newUserId, 'New applicant account');
-                    create_notification($this->pdo, $newUserId, 'registration', 'Welcome to e-SoloParentID! Your account has been created.');
-                    flash('Your account has been created. You can now use your dashboard and apply online.');
-                    $this->redirectTo(take_applicant_return_path());
+            } elseif (in_array($action, ['verify_mobile', 'resend_code', 'cancel_verify'], true)) {
+                $pending = $this->auth->pendingSignup();
+                if (!$pending) {
+                    $authMode = 'signup';
+                    $authError = 'Your sign-up session ended. Please fill in the form again.';
+                } elseif ($action === 'cancel_verify') {
+                    $oldSignup = $pending['form'];
+                    $this->auth->clearPendingSignup();
+                    $authMode = 'signup';
+                } elseif ($action === 'resend_code') {
+                    $authMode = 'verify';
+                    $limiter = new RateLimiter($this->pdo);
+                    $authError = $this->auth->mobileCodeResendError() ?? '';
+                    if ($authError === '' && $limiter->tooMany('verify_sms_ip', RateLimiter::clientIp())) {
+                        $authError = 'Too many codes were requested from this network recently. Please try again later.';
+                    }
+                    if ($authError === '') {
+                        $limiter->hit('verify_sms_ip', RateLimiter::clientIp());
+                        $code = $this->auth->renewMobileCode();
+                        $result = (new SMSService($this->pdo))->notifyMobileVerification($pending['form']['mobile'], $code);
+                        if ($result['status'] === 'SENT') {
+                            $authNoticeNow = 'A new code was sent.';
+                            $codeHint = !empty($result['test_mode']) ? $code : null;
+                        } else {
+                            $authError = 'We could not send the code. Please try again in a moment.';
+                        }
+                    }
+                } else { // verify_mobile
+                    $authMode = 'verify';
+                    $state = $this->auth->checkMobileCode((string) ($_POST['code'] ?? ''));
+                    if ($state === 'ok') {
+                        $authError = $this->createApplicantAccount($pending['form'], $pending['password_hash'], true);
+                        if ($authError !== '') { // not created (for example the username was taken meanwhile): back to the form
+                            $oldSignup = $pending['form'];
+                            $this->auth->clearPendingSignup();
+                            $authMode = 'signup';
+                        }
+                    } elseif ($state === 'locked') {
+                        $oldSignup = $pending['form'];
+                        $this->auth->clearPendingSignup();
+                        $authMode = 'signup';
+                        $authError = 'Too many wrong codes. Please fill in the form again to get a new code.';
+                    } elseif ($state === 'expired') {
+                        $authError = 'That code has expired. Request a new one.';
+                    } else {
+                        $authError = 'That code is not correct. Check the text message and try again.';
+                    }
                 }
             }
+        }
+        if ($authMode === 'verify') {
+            $pendingNow = $this->auth->pendingSignup();
+            $verifyMobile = $pendingNow ? $this->maskMobile((string) $pendingNow['form']['mobile']) : '';
+            $resendWait = $pendingNow ? max(0, (int) $pendingNow['last_sent'] + MOBILE_CODE_RESEND_SECONDS - time()) : 0;
         }
 
         $authNotice = $this->auth->takeAuthNotice();
@@ -117,7 +159,79 @@ class AuthController extends Controller
                 'password_changed' => 'Your password was changed, so you were signed out. Please log in with the new password.',
             ][(string) ($_GET['notice'] ?? '')] ?? null;
         }
-        return compact('authMode', 'authError', 'oldSignup', 'authNotice');
+        $authNotice = $authNoticeNow ?? $authNotice;
+        return compact('authMode', 'authError', 'oldSignup', 'authNotice', 'codeHint', 'verifyMobile', 'resendWait');
+    }
+
+    /**
+     * Texts a verification code for these sign-up details and holds them in the session until it is entered. Returns '' when the
+     * code was sent, else the message to show. $codeHint is set to the code only when the provider is the log-only test one
+     * (nothing is delivered, so the tester could never see it otherwise).
+     */
+    private function sendSignupCode(array $form, string $password, ?string &$codeHint): string
+    {
+        // Like the password-reset code, this is a security message, not a notification: it is sent whatever the "Send SMS
+        // notifications" setting says. If the SMS provider cannot send it, the sign-up stops with a message below.
+        $limiter = new RateLimiter($this->pdo);
+        if ($limiter->tooMany('verify_sms_ip', RateLimiter::clientIp())) {
+            return 'Too many codes were requested from this network recently. Please try again later.';
+        }
+        $limiter->hit('verify_sms_ip', RateLimiter::clientIp());
+        $code = $this->auth->beginMobileVerification($form, $password);
+        $result = (new SMSService($this->pdo))->notifyMobileVerification($form['mobile'], $code);
+        if ($result['status'] !== 'SENT') {
+            $this->auth->clearPendingSignup();
+            return 'We could not send a code to that number. Check the mobile number and try again.';
+        }
+        $codeHint = !empty($result['test_mode']) ? $code : null;
+        return '';
+    }
+
+    /**
+     * Creates the applicant account from checked sign-up details, signs it in and redirects. Returns a message only when the
+     * account could not be created. $numberVerified: the mobile number was confirmed by a texted code; false is the earlier
+     * behaviour (accepted without a code) used when MOBILE_VERIFY_BY_SMS is off.
+     */
+    private function createApplicantAccount(array $form, string $passwordHash, bool $numberVerified): string
+    {
+        $users = $this->auth->userModel();
+        if ($numberVerified) {
+            // Time has passed since the form was checked: make sure nobody registered the same number or Gmail meanwhile.
+            if ($users->mobileExists($form['mobile'])) {
+                return 'That mobile number is already registered. Log in, or use Forgot password if you can\'t remember it.';
+            }
+            if ($form['email'] !== '' && $users->emailExists($form['email'])) {
+                return 'That Gmail address is already registered. Log in, or use Forgot password.';
+            }
+        }
+        try {
+            $newUserId = $users->createApplicant($form['fullName'], $form['email'], $form['username'], $passwordHash, $form['mobile']);
+        } catch (PDOException $e) {
+            // SQLSTATE 23000 covers every integrity failure; report a duplicate only if the username now exists
+            // (taken between the check and the insert). Any other failure is rethrown unchanged.
+            if ($e->getCode() !== '23000' || !$users->usernameExists($form['username'])) {
+                throw $e;
+            }
+            return 'That username is already taken. Please choose another.';
+        }
+        // Without a texted code (MOBILE_VERIFY_BY_SMS off) the supplied number is simply marked usable, as before.
+        $users->markMobileVerified($newUserId);
+        $this->auth->clearPendingSignup();
+        $this->auth->loginUser(['id' => $newUserId]);
+        (new EligibilityService($this->pdo))->claimForUser($newUserId);
+        audit_log($this->pdo, $newUserId, $form['fullName'], 'applicant', 'Registration', 'user', $newUserId,
+            $numberVerified ? 'New applicant account (mobile number confirmed by SMS code)' : 'New applicant account');
+        create_notification($this->pdo, $newUserId, 'registration', 'Welcome to e-SoloParentID! Your account has been created.');
+        flash('Your account has been created. You can now use your dashboard and apply online.');
+        $this->redirectTo(take_applicant_return_path());
+        return '';
+    }
+
+    /** "09171234567" => "0917 *** 4567" (the full number is not repeated on screen). */
+    private function maskMobile(string $mobile): string
+    {
+        $digits = preg_replace('/\D/', '', $mobile);
+        return strlen($digits) >= 8 ? substr($digits, 0, 4) . ' *** ' . substr($digits, -4) : '***';
     }
 
     /** A "requirements:<doc_key>" destination is kept only while that document is still in the Requirements Guide; otherwise the guide's index. */
@@ -198,37 +312,6 @@ class AuthController extends Controller
         return $this->auth->applicantRegistrationError($form, $password, $confirmation);
     }
 
-    /** MSWD staff + admin login (mswd-login.php). Returns the error message to show, if any. */
-    public function handleStaffLogin(): string
-    {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $this->auth->currentUser()) {
-            $this->redirectTo('applicant/dashboard.php');
-        }
-        if ($existing = $this->auth->currentStaff()) {
-            $this->redirectTo($existing['role'] === 'admin' ? 'admin/dashboard.php' : 'staff/dashboard.php');
-        }
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            return '';
-        }
-
-        csrf_require();
-        $username = trim((string) ($_POST['username'] ?? ''));
-        $account = $this->auth->userModel()->findStaffByUsername($username);
-        $expectedRole = AUTH_PORTAL === 'admin' ? 'admin' : 'mswd_social_worker';
-        if ($account && $account['role'] !== $expectedRole) {
-            $account = null;
-        }
-        $error = $this->attemptLogin($account, $username, (string) ($_POST['password'] ?? ''), 'Staff sign-in', 'Please contact your system administrator.');
-        if ($error !== '') {
-            return $error;
-        }
-
-        $this->auth->loginStaff($account);
-        audit_log($this->pdo, (int) $account['id'], $account['full_name'], $account['role'], 'Login', 'user', (int) $account['id'], 'Staff sign-in');
-        $this->redirectTo($account['role'] === 'admin' ? 'admin/dashboard.php' : 'staff/dashboard.php');
-        return '';
-    }
-
     public function logoutApplicant(): void
     {
         if ($staff = $this->auth->currentStaff()) {
@@ -263,6 +346,11 @@ class AuthController extends Controller
     {
         $error = '';
         $success = '';
+        $smsReset = PASSWORD_RESET_BY_SMS;
+        if (!$smsReset) {
+            // Resets are handled by an administrator for now: no code is generated or texted, and nothing is looked up.
+            return compact('error', 'success', 'smsReset');
+        }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_require();
@@ -290,11 +378,14 @@ class AuthController extends Controller
             }
         }
 
-        return compact('error', 'success');
+        return compact('error', 'success', 'smsReset');
     }
 
     public function resetPassword(): array
     {
+        if (!PASSWORD_RESET_BY_SMS) {
+            $this->redirectTo('forgot-password.php');
+        }
         $error = '';
         $success = '';
         $loginUrl = 'login.php';
@@ -314,7 +405,9 @@ class AuthController extends Controller
             if ($lockoutMsg) {
                 $error = $lockoutMsg;
             } elseif (!$account || !$this->auth->verifyResetCode($account, $code)) {
-                if ($account) {
+                // Only an account with a live code is at risk of guessing, so only then does a wrong code count toward
+                // the lockout; otherwise anyone could lock any account (an administrator's included) just by typing its username.
+                if ($account && $this->auth->hasPendingResetCode($account)) {
                     $locked = $this->auth->recordFailedLogin($account);
                     audit_log($this->pdo, (int) $account['id'], $account['full_name'], $account['role'], 'Password Reset Failed', 'user', (int) $account['id'],
                         'Invalid or expired reset code (attempt ' . ((int) $account['failed_login_attempts'] + 1) . ' of ' . LOGIN_LOCKOUT_THRESHOLD . ')');

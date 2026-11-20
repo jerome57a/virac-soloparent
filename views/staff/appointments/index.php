@@ -86,6 +86,7 @@ $row = function (array $iv, string $timeFormat) use ($staff, $canManage, $apptSt
   </div>
   <?php endif; ?>
   <?php if ($error): ?><div class="auth-error mb-3" role="alert"><?= e($error) ?></div><?php endif; ?>
+  <?php if (!empty($smsNotice)) { require APP_ROOT . '/views/staff/applications/sms-notice.php'; } ?>
   <?php if ($flashMessage): ?><div class="info-box" style="max-width:none" role="status"><?= e($flashMessage) ?></div><?php endif; ?>
 
   <?php if ($canManage): ?>
@@ -122,6 +123,22 @@ $row = function (array $iv, string $timeFormat) use ($staff, $canManage, $apptSt
       <?php if ($staff['role'] === 'admin'): ?><div class="admin-list-scroll" role="region" aria-label="Appointments needing an outcome" tabindex="0"><?php endif; ?>
       <?php foreach ($awaitingOutcome as $iv) { $row($iv, 'M j, Y g:i A'); } ?>
       <?php if ($staff['role'] === 'admin'): ?></div><?php endif; ?>
+    </div>
+  <?php endif; ?>
+
+  <?php if (!empty($overdueReleases)): ?>
+    <div class="review-card">
+      <div class="review-card-head"><div class="title"><span data-i18n>ID release date passed</span> (<?= count($overdueReleases) ?>)</div></div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:8px" data-i18n>These applicants have not collected their ID yet. The ID keeps waiting at the office: confirm the release when they come, or set a new date if they ask.</div>
+      <?php foreach ($overdueReleases as $r): ?>
+        <div class="appt-row">
+          <a href="<?= application_url($staff, (int) $r['application_id']) ?>" class="text-decoration-none" style="color:inherit;min-width:0;flex:1 1 220px">
+            <div class="app-ref"><?= e($r['reference_no']) ?> <span style="font-weight:400;color:var(--muted)">· <?= e($r['full_name']) ?></span></div>
+            <div class="app-date">Was <?= e(date('M j, Y g:i A', strtotime($r['scheduled_at']))) ?> · <?= e($r['location']) ?></div>
+          </a>
+          <span class="staff-open-record">Open application</span>
+        </div>
+      <?php endforeach; ?>
     </div>
   <?php endif; ?>
 

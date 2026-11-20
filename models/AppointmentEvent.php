@@ -7,6 +7,14 @@ require_once __DIR__ . '/Model.php';
  */
 class AppointmentEvent extends Model
 {
+    /** How many events of one type an application has (e.g. 'MISSED' = interviews the applicant did not attend). */
+    public function countOf(int $applicationId, string $eventType): int
+    {
+        $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM appointment_events WHERE application_id = ? AND event_type = ?');
+        $stmt->execute([$applicationId, $eventType]);
+        return (int) $stmt->fetchColumn();
+    }
+
     /** Adds one event. $actor is the staff member (id, full_name, role); $source is APPLICANT, STAFF or SYSTEM. */
     public function record(int $applicationId, string $eventType, string $source, array $actor, ?string $reason = null, ?string $details = null, ?int $appointmentId = null, ?string $interviewDate = null): void
     {

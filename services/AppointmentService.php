@@ -135,7 +135,7 @@ class AppointmentService
      * applicant is told by SMS and in-app) or MISSED (only once its time has
      * passed; also told by SMS and in-app). Returns an error message, or null on success.
      */
-    public function staffSetOutcome(array $staff, int $appointmentId, string $outcome, string $reason): ?string
+    public function staffSetOutcome(array $staff, int $appointmentId, string $outcome, string $reason, ?array &$smsResult = null): ?string
     {
         $appt = $this->appointments->findWithApplication($appointmentId);
         if (!$appt) {
@@ -164,7 +164,7 @@ class AppointmentService
         } else {
             return 'Choose a valid action.';
         }
-        if (!$this->closeAppointment($staff, $appt, $outcome, $reason !== '' ? $reason : null, true)) {
+        if (!$this->closeAppointment($staff, $appt, $outcome, $reason !== '' ? $reason : null, true, $smsResult)) {
             return 'This appointment changed. Refresh the page before recording its outcome.';
         }
         return null;
@@ -234,7 +234,7 @@ class AppointmentService
      * (so it can be booked again), and tells the applicant. $appt carries the
      * appointment row plus reference_no, user_id, mobile, application_status.
      */
-    private function closeAppointment(array $actor, array $appt, string $outcome, ?string $reason, bool $byStaff): bool
+    private function closeAppointment(array $actor, array $appt, string $outcome, ?string $reason, bool $byStaff, ?array &$smsResult = null): bool
     {
         $applicationId = (int) $appt['application_id'];
         // Display text only (history note, in-app notification, audit log); SMS reads scheduled_at itself.
@@ -262,7 +262,8 @@ class AppointmentService
                 $this->applications->addHistory($applicationId, $back, $note, $actor['full_name'], (int) $actor['id']);
             }
             // Interview date booking: event + invitation transition in this same transaction (a no-op when the feature is off).
-            (new InterviewInvitationService($this->pdo))->afterAppointmentClosed($actor, $appt, $outcome, $byStaff, $reason);
+            // True when the applicant can now pick a new date themselves.
+            $canRebook = (new InterviewInvitationService($this->pdo))->afterAppointmentClosed($actor, $appt, $outcome, $byStaff, $reason);
             $this->pdo->commit();
         } catch (Throwable $e) {
             $this->pdo->rollBack();
@@ -272,12 +273,15 @@ class AppointmentService
         if ($byStaff) {
             $message = $outcome === 'CANCELLED'
                 ? 'Your appointment for ' . $appt['reference_no'] . ' on ' . $when . ' was cancelled by MSWDO: ' . $reason . '. Please contact MSWDO for a new schedule.'
-                : 'You missed your appointment for ' . $appt['reference_no'] . ' on ' . $when . '. Please contact MSWDO for a new schedule.';
+                : 'You missed your appointment for ' . $appt['reference_no'] . ' on ' . $when . '. '
+                    . ($canRebook ? 'You can choose a new interview date: log in and open Appointment.' : 'Please contact MSWDO for a new schedule.');
             create_notification($this->pdo, (int) $appt['user_id'], 'appointment_confirmation', $message, $applicationId);
             if ($outcome === 'CANCELLED') {
-                (new SMSService($this->pdo))->notifyAppointmentCancelled($applicationId, $appt['mobile'], $appt['reference_no'], $appt['scheduled_at'], (string) $reason, interview_is_date_only($appt));
-            } else {
-                (new SMSService($this->pdo))->notifyAppointmentMissed($applicationId, $appt['mobile'], $appt['reference_no'], $appt['scheduled_at'], interview_is_date_only($appt));
+                $smsResult = (new SMSService($this->pdo))->notifyAppointmentCancelled($applicationId, $appt['mobile'], $appt['reference_no'], $appt['scheduled_at'], (string) $reason, interview_is_date_only($appt));
+            } elseif (!$canRebook) {
+                // To save SMS credit a missed interview is only texted when the applicant must contact MSWDO; otherwise the in-app
+                // notice and the Appointment page tell them to choose a new date.
+                $smsResult = (new SMSService($this->pdo))->notifyAppointmentMissed($applicationId, $appt['mobile'], $appt['reference_no'], $appt['scheduled_at'], interview_is_date_only($appt));
             }
         }
         audit_log($this->pdo, (int) $actor['id'], $actor['full_name'], $actor['role'],

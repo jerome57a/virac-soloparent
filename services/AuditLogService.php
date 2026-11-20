@@ -23,7 +23,7 @@ class AuditLogService
         'appointments' => ['Appointments & interviews', ['Appointment *', 'Interview *']],
         'qr' => ['QR slips & verification', ['QR *']],
         'users' => ['User accounts & profiles', ['User *', 'Account *', 'Access Reset', 'Profile *']],
-        'settings' => ['Settings & content', ['System Settings Updated', 'SMS Template Updated', 'FAQ *', 'Document Requirement *', 'System Announcement Sent']],
+        'settings' => ['Settings & content', ['System Settings Updated', 'SMS Template Updated', 'Document Requirement *']],
         'system' => ['System, data & messaging', ['*']],
     ];
 

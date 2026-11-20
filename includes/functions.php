@@ -47,6 +47,26 @@ function take_flash(): ?string
     return $message;
 }
 
+/**
+ * The result of an SMS that staff just triggered, shown once on the staff page as an alert (SMSService::outcomeNotice builds it):
+ * ['state' => 'sent'|'failed'|'skipped', 'text' => string, 'log_id' => ?int]. A failure is never replaced by a later success
+ * in the same request, so staff always see that something needs a retry.
+ */
+function set_sms_notice(array $notice): void
+{
+    if (($_SESSION['sms_notice']['state'] ?? '') === 'failed' && ($notice['state'] ?? '') !== 'failed') {
+        return;
+    }
+    $_SESSION['sms_notice'] = $notice;
+}
+
+function take_sms_notice(): ?array
+{
+    $notice = $_SESSION['sms_notice'] ?? null;
+    unset($_SESSION['sms_notice']);
+    return is_array($notice) ? $notice : null;
+}
+
 /** Where a staff member should open an application: the MSWD processing page, or the admin's read-only monitoring view. */
 function application_url(array $staff, int $applicationId): string
 {
@@ -483,4 +503,33 @@ function take_applicant_return_path(): string
     $path = applicant_return_path($_SESSION['applicant_return'] ?? null);
     unset($_SESSION['applicant_return']);
     return $path ?? 'applicant/dashboard.php';
+}
+
+/** Headers for pages that must not be indexed by search engines or stored in a cache (public status lookup). */
+function no_index_headers(): array
+{
+    return ['X-Robots-Tag: noindex, nofollow, noarchive', 'Cache-Control: no-store, max-age=0', 'Pragma: no-cache'];
+}
+
+function send_no_index_headers(): void
+{
+    if (!headers_sent()) {
+        foreach (no_index_headers() as $line) {
+            header($line);
+        }
+    }
+}
+
+/** A readable name for an SMS template key (staff failed-text list). */
+function sms_kind_label(?string $key): string
+{
+    $kinds = [
+        'submitted' => 'Application received', 'status_change' => 'Status update', 'interview_scheduled' => 'Interview scheduled',
+        'interview_custom' => 'Interview scheduled (custom)', 'interview_date_assigned' => 'Interview date set by staff',
+        'interview_date_assigned_custom' => 'Interview date set by staff (custom)', 'interview_date_booked' => 'Interview date booked',
+        'appointment_reminder' => 'Appointment reminder', 'appointment_cancelled' => 'Appointment cancelled', 'appointment_missed' => 'Appointment missed',
+        'id_release_scheduled' => 'ID release scheduled', 'id_release_custom' => 'ID release scheduled (custom)', 'renewal_submitted' => 'Renewal received',
+        'renewal_reminder' => 'Renewal reminder', 'renewal_expired' => 'Renewal reminder (expired)', 'document_correction' => 'Document correction',
+    ];
+    return $kinds[(string) $key] ?? ((string) $key !== '' ? ucfirst(str_replace('_', ' ', (string) $key)) : 'Message');
 }

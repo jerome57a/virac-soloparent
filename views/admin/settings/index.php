@@ -174,7 +174,7 @@ $apptHours = (int) $current['appointments']['appointment_reminder_hours'];
     <div class="review-card-head"><div class="title">Server (read-only)</div></div>
     <div class="review-grid">
       <div class="review-row"><div class="k">Base URL</div><div class="v"><?= e(BASE_URL) ?></div></div>
-      <div class="review-row"><div class="k">SMS provider</div><div class="v"><?= e(SMS_PROVIDER) ?> (<?= SMS_PROVIDER === 'test' ? 'test mode — messages are logged, not sent' : (SMS_API_KEY ? 'configured' : 'no API key') ?>)</div></div>
+      <div class="review-row"><div class="k">SMS provider</div><div class="v"><?= e(SMS_PROVIDER) ?><?= SMS_PROVIDER === 'test' ? '' : ' (' . (SMS_API_KEY ? 'configured' : 'no API key') . ')' ?></div></div>
       <div class="review-row"><div class="k">Upload limit (PHP)</div><div class="v"><?= e(format_mb($serverUploadLimitMb)) ?></div></div>
       <div class="review-row"><div class="k">Timezone</div><div class="v"><?= e(date_default_timezone_get()) ?></div></div>
       <div class="review-row"><div class="k">PHP version</div><div class="v"><?= e(PHP_VERSION) ?></div></div>

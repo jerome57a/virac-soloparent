@@ -288,11 +288,12 @@ class ApplicationController extends Controller
     }
 
     /**
-     * Portal "Check Status" tab: reference-only public lookup, name masked.
+     * Portal "Check Status" tab: reference-only public lookup; no name, dates only, not indexed or cached.
      * Failed lookups remain limited per IP.
      */
     public function publicStatus(): void
     {
+        send_no_index_headers();
         $query = is_string($_GET['ref'] ?? null) ? mb_substr(trim($_GET['ref']), 0, 40) : '';
         $result = null;
         $error = '';

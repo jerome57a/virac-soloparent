@@ -30,37 +30,6 @@ class Appointment extends Model
             && self::interviewOutcome($appointment) !== 'Unsuccessful';
     }
 
-    /** Staff (re)schedule an interview directly (no slot); clears any old result/reminder/cancellation. */
-    public function upsertStaffScheduled(int $applicationId, string $scheduledAt, string $location, ?string $notes, int $staffId): void
-    {
-        // An existing date-only row (date_only = 1) is converted to a timed appointment. Whether the row is date-only,
-        // and which of the date-booking columns exist, is read from the row itself (SELECT *), so this needs no schema
-        // probe, ignores the rollout flag, and never names a column the table does not have: an unmigrated table
-        // returns no date_only key and takes the legacy statement below, byte for byte as before.
-        $existing = $this->pdo->prepare('SELECT * FROM appointments WHERE application_id = ? FOR UPDATE');
-        $existing->execute([$applicationId]);
-        $row = $existing->fetch();
-        if (is_array($row) && interview_is_date_only($row)) {
-            $convert = 'date_only = 0'
-                . (array_key_exists('booking_source', $row) ? ", booking_source = 'STAFF'" : '')
-                . (array_key_exists('confirmation_sms_log_id', $row) ? ', confirmation_sms_log_id = NULL' : '');
-            $this->pdo->prepare(
-                'UPDATE appointments SET slot_id = NULL, scheduled_at = ?, location = ?, status = \'BOOKED\', notes = ?, scheduled_by = ?,
-                     result = NULL, result_recorded_at = NULL, reminder_sent_at = NULL, interview_sms_log_id = NULL,
-                     cancelled_at = NULL, cancelled_by = NULL, cancel_reason = NULL, ' . $convert . '
-                 WHERE application_id = ?'
-            )->execute([$scheduledAt, $location, $notes, $staffId, $applicationId]);
-            return;
-        }
-        $this->pdo->prepare(
-            'INSERT INTO appointments (application_id, slot_id, scheduled_at, location, notes, scheduled_by, reminder_sent_at)
-             VALUES (?, NULL, ?, ?, ?, ?, NULL)
-             ON DUPLICATE KEY UPDATE slot_id = NULL, scheduled_at = VALUES(scheduled_at), location = VALUES(location), status = \'BOOKED\',
-                 notes = VALUES(notes), scheduled_by = VALUES(scheduled_by), result = NULL, result_recorded_at = NULL,
-                 reminder_sent_at = NULL, interview_sms_log_id = NULL, cancelled_at = NULL, cancelled_by = NULL, cancel_reason = NULL'
-        )->execute([$applicationId, $scheduledAt, $location, $notes, $staffId]);
-    }
-
     /**
      * The applicant books an interview DATE (no time): the application's single appointment row becomes a BOOKED date-only
      * row at 00:00:00 (source $source), clearing any earlier result, reminder, SMS link and cancellation. interview_date
@@ -112,12 +81,6 @@ class Appointment extends Model
     public function linkConfirmationSms(int $applicationId, ?int $smsLogId): void
     {
         $this->pdo->prepare("UPDATE appointments SET confirmation_sms_log_id = ? WHERE application_id = ? AND status = 'BOOKED' AND date_only = 1")
-            ->execute([$smsLogId, $applicationId]);
-    }
-
-    public function linkSmsLog(int $applicationId, ?int $smsLogId): void
-    {
-        $this->pdo->prepare('UPDATE appointments SET interview_sms_log_id = ? WHERE application_id = ?')
             ->execute([$smsLogId, $applicationId]);
     }
 

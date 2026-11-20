@@ -16,16 +16,14 @@ $actionIcon = require APP_ROOT . '/includes/user-management-icons.php';
 <div class="portal-container">
   <?php require APP_ROOT . '/views/partials/admin-page-heading.php'; ?>
 
+  <?php if ($provider !== 'test'): ?>
   <div class="info-box sms-mode" style="max-width:none">
-    <?php if ($provider === 'test'): ?>
-      <b>Test mode.</b> Messages are logged below but <b>not delivered</b>. To send real SMS, set <code>SMS_PROVIDER=iprog</code> and <code>SMS_API_KEY</code> as server environment variables or in <code>config/local.php</code>.
-    <?php else: ?>
       <b>Live: <?= e(ucfirst($provider)) ?>.</b> Gateway <code><?= e((string) parse_url(SMS_API_URL, PHP_URL_HOST)) ?></code> · API token <?= SMS_API_KEY !== '' ? 'configured' : '<b style="color:var(--error-text)">missing — every message will fail</b>' ?> · up to <?= (int) SMS_MAX_ATTEMPTS ?> attempts per message.
-    <?php endif; ?>
   </div>
+  <?php endif; ?>
 
   <div class="dash-quick-grid sms-stats" style="margin-bottom:24px">
-    <?php foreach (['sent' => 'Sent', 'test' => 'Test mode (not sent)', 'failed' => 'Failed', 'pending' => 'Pending'] as $key => $label): ?>
+    <?php foreach (['sent' => 'Sent', 'failed' => 'Failed', 'pending' => 'Pending'] as $key => $label): ?>
       <a href="?status=<?= $key ?>" class="dash-card text-decoration-none" style="margin-bottom:0;color:inherit"><div class="dash-card-label"><?= e($label) ?></div><div style="font-size:28px;font-weight:700;color:var(--ink)"><?= (int) $totals[$key] ?></div></a>
     <?php endforeach; ?>
   </div>
@@ -40,7 +38,7 @@ $actionIcon = require APP_ROOT . '/includes/user-management-icons.php';
         <form method="get" class="record-filters mb-3" role="search" aria-label="Filter SMS logs">
           <label class="admin-filter-field"><span data-i18n>Search</span><input type="text" name="q" aria-label="Search by reference, mobile or message text" value="<?= e($q) ?>" placeholder="Search reference, mobile or text" class="form-control" style="max-width:260px;padding:8px;border:1px solid var(--input-border);border-radius:6px"></label>
           <label class="admin-filter-field"><span data-i18n>Status</span><select name="status" class="form-select" aria-label="SMS status" style="max-width:190px;padding:8px;border:1px solid var(--input-border);border-radius:6px">
-            <?php foreach (['ALL' => 'All statuses', 'sent' => 'Sent', 'test' => 'Test mode (not sent)', 'failed' => 'Failed', 'pending' => 'Pending'] as $key => $label): ?>
+            <?php foreach (['ALL' => 'All statuses', 'sent' => 'Sent', 'failed' => 'Failed', 'pending' => 'Pending'] as $key => $label): ?>
               <option value="<?= $key ?>" <?= $statusFilter === $key || ($statusFilter === 'skipped' && $key === 'test') ? 'selected' : '' ?>><?= e($label) ?></option>
             <?php endforeach; ?>
           </select></label>
@@ -75,16 +73,24 @@ $actionIcon = require APP_ROOT . '/includes/user-management-icons.php';
               </div>
               <?php if ($l['error']): ?><div class="doc-error"><?= e($l['error']) ?></div><?php endif; ?>
             </details></td>
-            <td><span class="status-pill" style="background:<?= $bg ?>;color:<?= $fg ?>"><?= $l['test_mode'] && $l['status'] === 'SENT' ? 'Test (not sent)' : e(ucfirst(strtolower($l['status']))) . ($l['test_mode'] ? ' (test)' : '') ?></span></td>
+            <td><span class="status-pill" style="background:<?= $bg ?>;color:<?= $fg ?>"><?= e(ucfirst(strtolower($l['status']))) ?></span></td>
             <td>
-              <?php if ($l['status'] === 'FAILED' && (int) $l['attempts'] < SMS_MAX_ATTEMPTS && $l['template_key'] !== 'password_reset' && $l['template_key'] !== 'document_correction'): ?>
+              <?php if ($l['status'] === 'FAILED' && (int) $l['attempts'] < SMS_MAX_ATTEMPTS && !in_array($l['template_key'], ['password_reset', 'mobile_verification', 'document_correction'], true)): ?>
                 <form method="post" class="m-0">
                   <?= csrf_field() ?>
                   <input type="hidden" name="action" value="retry">
                   <input type="hidden" name="log_id" value="<?= (int) $l['id'] ?>">
                   <button type="submit" class="btn-outline" aria-label="Retry SMS <?= (int) $l['id'] ?>"><?= $actionIcon('retry') ?> Retry</button>
                 </form>
-              <?php else: ?><span class="admin-cell-meta">&mdash;</span><?php endif; ?>
+              <?php else:
+                // Say why a failed message has no Retry button, so the administrator knows what to do instead.
+                $noRetry = $l['status'] === 'FAILED'
+                    ? (in_array($l['template_key'], ['password_reset', 'mobile_verification'], true) ? 'The applicant must request a new code.'
+                        : ($l['template_key'] === 'document_correction' ? 'Staff must resend it from the application review page.'
+                            : ((int) $l['attempts'] >= SMS_MAX_ATTEMPTS ? 'Retry limit reached (' . (int) SMS_MAX_ATTEMPTS . ' attempts).' : null)))
+                    : ($l['status'] === 'PENDING' ? 'Outcome not recorded yet.' : null); ?>
+                <span class="admin-cell-meta"><?= $noRetry !== null ? e($noRetry) : '&mdash;' ?></span>
+              <?php endif; ?>
             </td>
           </tr>
         <?php endforeach; ?>
@@ -97,7 +103,7 @@ $actionIcon = require APP_ROOT . '/includes/user-management-icons.php';
     <div class="col-12 col-lg-4">
       <div class="review-card">
         <div class="review-card-head"><div class="title" id="admin-sms-test">Send a Test SMS</div></div>
-        <div style="font-size:13px;color:var(--muted);margin-bottom:10px">Checks the SMS setup end to end with a harmless message. In test mode it is only logged.</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:10px">Checks the SMS setup end to end with a harmless message.</div>
         <form method="post" class="d-flex flex-wrap gap-2">
           <?= csrf_field() ?>
           <input type="hidden" name="action" value="send_test">

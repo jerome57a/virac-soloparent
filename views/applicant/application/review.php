@@ -35,6 +35,16 @@ $missingRequired = array_values(array_map(
 <?php if ($missingRequired): ?>
   <div class="step-alert" role="alert" data-i18n>Upload a file for each required document before you submit. Still needed: <?= e(implode(', ', $missingRequired)) ?>. Use Edit on Supporting Documents to add them.</div>
 <?php endif; ?>
+<?php
+// Automatic pre-check of the draft (advisory). A failure here must never break the review page, so it is skipped on any error.
+try {
+    require_once APP_ROOT . '/services/AutoVerificationService.php';
+    $preCheck =(new AutoVerificationService($pdo ?? ($GLOBALS['pdo'] ?? null)))->forDraft((int) ($user['id'] ?? 0), $draft, $docDefs);
+    require __DIR__ . '/pre-check.php';
+} catch (Throwable $e) {
+    error_log('Automatic pre-check skipped: ' . $e->getMessage());
+}
+?>
 <div class="info-box" style="max-width:none" role="note" data-i18n>Your uploaded files are sent to MSWDO with your application. Staff review each file after you submit; an uploaded file is not verified until staff confirm it.</div>
 
 <?php foreach ($reviewSections as $sec): ?>

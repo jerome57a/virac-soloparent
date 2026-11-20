@@ -105,14 +105,14 @@ $fieldAccessibility = function (string $key, string $hintId = '') use ($errors):
   </section>
 
   <div class="form-nav-buttons personal-info-actions">
-    <button type="submit" name="action" value="continue" class="btn-navy" data-i18n>Continue to Children <span aria-hidden="true">&rarr;</span></button>
+    <button type="submit" name="action" value="continue" class="btn-navy"><span data-i18n>Continue to Children</span><svg class="nav-arrow" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
   </div>
 </form>
 
 <dialog id="application-requirement-dialog" class="application-requirement-dialog" aria-labelledby="application-requirement-title">
   <div class="application-requirement-toolbar">
     <div><h2 id="application-requirement-title" data-i18n>Requirements Guide</h2><p data-i18n>Your application stays open while you read.</p></div>
-    <button type="button" class="btn-navy" id="application-requirement-back" data-i18n>&larr; Back to application</button>
+    <button type="button" class="btn-navy" id="application-requirement-back"><svg class="nav-arrow" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 12H5M11 6l-6 6 6 6"/></svg><span data-i18n>Back to application</span></button>
   </div>
   <div id="application-requirement-content" class="application-requirement-content" aria-busy="false"></div>
 </dialog>

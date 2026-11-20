@@ -26,6 +26,9 @@ $exportQuery = fn(string $output) => base_url($basePath) . '?' . http_build_quer
   <?php require APP_ROOT . '/views/partials/admin-page-heading.php'; ?>
 
 <div class="admin-report-description"><h2><?= e($typeLabels[$type]) ?></h2><p><?= e($description) ?></p></div>
+<?php if (can($staff, 'data.export')): ?>
+<p class="small mb-3" style="color:var(--muted)">Full data export (every record, not the filtered report above): <a href="<?= e(base_url('admin/export_csv.php?export=applications')) ?>">All applications (CSV)</a> &middot; <a href="<?= e(base_url('admin/export_csv.php?export=users')) ?>">All user accounts (CSV)</a>. Each download is recorded in the audit log.</p>
+<?php endif; ?>
 <?php else: ?>
   <?php require APP_ROOT . '/views/partials/staff-page-heading.php'; ?>
   <div class="staff-report-heading review-card">

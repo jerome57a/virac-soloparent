@@ -13,7 +13,7 @@ $userStats = ['applicants' => 312, 'newThisMonth' => 18, 'mswdStaff' => 5, 'admi
 $auditStats = ['eventsToday' => 35, 'loginsToday' => 9, 'accessDenied7d' => 1, 'failedLogins7d' => 4, 'passwordResets7d' => 3];
 $summary = ['thisMonth' => 28, 'lastMonth' => 21, 'approvalRate' => 90, 'decided' => 80];
 $recentActivity = [
-    ['action' => 'Announcement Published', 'actor_name' => 'Example Administrator', 'created_at' => '2026-11-09 10:42:00'],
+    ['action' => 'SMS Template Updated', 'actor_name' => 'Example Administrator', 'created_at' => '2026-11-09 10:42:00'],
     ['action' => 'User Updated', 'actor_name' => 'Example Administrator', 'created_at' => '2026-11-09 10:15:00'],
     ['action' => 'Login', 'actor_name' => 'Example Staff', 'created_at' => '2026-11-09 09:52:00'],
 ];

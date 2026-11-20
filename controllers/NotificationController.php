@@ -13,8 +13,8 @@ class NotificationController extends Controller
     /**
      * Handles the request for $account on the page at $baseUrl (app-relative).
      * Redirects after every action; otherwise returns the list view's data.
-     * $handlePost false: the page's POST belongs to someone else (e.g. the
-     * admin announcement form) -- just build the list.
+     * $handlePost false: the page's POST belongs to someone else (e.g. a
+     * separate form on the same page) -- just build the list.
      */
     public function handle(array $account, string $baseUrl, bool $handlePost = true): array
     {

@@ -143,11 +143,34 @@ class IdReleaseService
             throw $e;
         }
 
-        (new SMSService($this->pdo))->notifyStatusChange($id, $app['mobile'], $app['reference_no'], 'ID Released', 'Your ID handover was confirmed.');
+        $releaseSms = (new SMSService($this->pdo))->notifyStatusChange($id, $app['mobile'], $app['reference_no'], 'ID Released', 'Your ID handover was confirmed.');
+        if (($releaseSms['status'] ?? '') !== 'DISABLED') { // the generic status text may be switched off on purpose
+            set_sms_notice(SMSService::outcomeNotice($releaseSms, 'ID release confirmed'));
+        }
+        $expiresAt = (string) $expires->fetchColumn();
         create_notification($this->pdo, (int) $app['user_id'], 'status_change', 'Application ' . $app['reference_no'] . ' is now ID Released.', $id);
         audit_log($this->pdo, (int) $staff['id'], $staff['full_name'], $staff['role'], 'ID Release Confirmed', 'application', $id, 'Handed to applicant at ' . date('M j, Y g:i A', strtotime($releasedAt)));
-        flash('ID release confirmed. The application is now ID Released.');
+        flash('ID release confirmed. The application is now ID Released.'
+            . ($expiresAt !== '' ? ' The one-year validity starts today: the ID expires on ' . date('F j, Y', strtotime($expiresAt)) . ', and the applicant is reminded automatically before then.' : ''));
         return null;
+    }
+
+    /**
+     * Release dates that have passed with the ID still not handed over, oldest first. There is no deadline: the ID keeps
+     * waiting at the office, so staff confirm the release when the applicant comes, or set a new date on request.
+     */
+    public function overdue(int $limit = 100): array
+    {
+        $stmt = $this->pdo->prepare(
+            "SELECT r.application_id, r.scheduled_at, r.location, a.reference_no, u.full_name
+             FROM id_release_schedules r
+             JOIN applications a ON a.id = r.application_id AND a.status = 'Approved'
+             JOIN users u ON u.id = a.user_id
+             WHERE r.released_at IS NULL AND r.scheduled_at < NOW()
+             ORDER BY r.scheduled_at ASC LIMIT " . max(1, $limit)
+        );
+        $stmt->execute();
+        return $stmt->fetchAll();
     }
 
     public function scheduleFor(int $applicationId): ?array
@@ -168,14 +191,8 @@ class IdReleaseService
 
     private function flashSmsResult(array $sms, string $prefix): void
     {
-        if ($sms['status'] === 'SENT' && !empty($sms['test_mode'])) {
-            flash($prefix . '. SMS was logged in test mode and was not sent.');
-        } elseif ($sms['status'] === 'SENT') {
-            flash($prefix . '. The SMS provider accepted the message; delivery is not confirmed here.');
-        } elseif (($sms['provider_status'] ?? '') === 'disabled') {
-            flash($prefix . ', but SMS notifications are disabled in settings. Enable them and use Retry SMS.');
-        } else {
-            flash($prefix . ', but SMS submission failed: ' . ($sms['error'] ?: 'provider error') . '. Use Retry SMS to retry this message.');
-        }
+        flash($prefix . '.');
+        // The text's outcome is a separate alert (green when sent, red with a Retry button when it failed).
+        set_sms_notice(SMSService::outcomeNotice($sms, $prefix));
     }
 }

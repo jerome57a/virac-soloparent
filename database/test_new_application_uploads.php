@@ -14,6 +14,7 @@ $testDb = 'newapp_upload_test_' . bin2hex(random_bytes(6));
 validate_temporary_database_target($testDb, 'newapp_upload_test_');
 require __DIR__ . '/../config/database.php';
 require __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/data.php';
 require_once __DIR__ . '/../services/ApplicationService.php';
 require_once __DIR__ . '/../services/ApplicationReviewService.php';
 require_once __DIR__ . '/../controllers/ApplicationController.php';

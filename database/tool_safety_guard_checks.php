@@ -574,6 +574,12 @@ foreach (glob(__DIR__ . '/test_*.php') as $path) {
         continue; // The single named exemption; its offline-only design was verified above, and any change to it fails the guard.
     }
     $source = file_get_contents($path);
+    if (in_array(basename($path), ['test_auto_verification.php', 'test_mobile_verification_offline.php', 'test_sms_notice_offline.php'], true)) {
+        // Pure tests: no database. Exempt only while they never load the connector or application config and never open a connection.
+        safety_check(!preg_match('~config/(database|app)\.php|new\s+PDO\((?![\'"]sqlite::memory:)|PDO::connect|mysqli~i', $source),
+            basename($path) . ' is exempt as a pure test but loads a connection or runtime config.');
+        continue;
+    }
     $guardAt = strpos($source, 'require_isolated_database_tool_environment();');
     $connectorAt = strpos($source, "require __DIR__ . '/../config/database.php';");
     safety_check($guardAt !== false && $connectorAt !== false && $guardAt < $connectorAt,

@@ -28,11 +28,11 @@ class SMSService
         'appointment_reminder' => ['Appointment Reminder (auto)', 'MSWDO Virac: Reminder -- your appointment for application {ref} is on {when} at {location}. Please arrive on time and bring a valid ID.'],
         'appointment_cancelled' => ['Appointment Cancelled', 'MSWDO Virac: Your appointment for application {ref} on {when} was cancelled. Reason: {reason}. Please contact MSWDO for a new schedule.'],
         'appointment_missed' => ['Appointment Missed', 'MSWDO Virac: You missed your appointment for application {ref} on {when}. Please contact MSWDO for a new schedule.'],
-        'interview_booking_open' => ['Interview Booking Opened', 'MSWDO Virac: Your documents for application {ref} are verified. Please log in to your e-SoloParentID account and pick the date you want to arrive for your interview.'],
         'interview_date_assigned' => ['Interview Date Scheduled by Staff', 'MSWDO Virac: Your interview for application {ref} is scheduled on {when}, {hours} at {location}. You may come on that date, or log in to your e-SoloParentID account and pick another date.'],
         'interview_date_booked' => ['Interview Date Booked', 'MSWDO Virac: Your interview for application {ref} is booked for {when} at {location}. Please come during office hours on that date and bring a valid ID.'],
         'document_correction' => ['Document Needs Correction', 'MSWDO Virac: Your document "{document}" for application {ref} needs correction. Please log in and open Supporting Documents to see what to fix and upload a replacement.'],
         'password_reset' => ['Password Reset Code', "MSWDO Virac: Your password reset code is {code}. It expires in {minutes} minutes. If you didn't request this, ignore this message."],
+        'mobile_verification' => ['Sign-up Verification Code', "MSWDO Virac: Your e-SoloParentID verification code is {code}. It expires in {minutes} minutes. If you didn't sign up, ignore this message."],
     ];
     /**
      * Shortened wording that fits one 160-character text (so one credit) once the gateway's own header is added. It is used
@@ -59,11 +59,11 @@ class SMSService
         'appointment_reminder' => ['{ref}', '{when}', '{location}'],
         'appointment_cancelled' => ['{ref}', '{when}', '{reason}'],
         'appointment_missed' => ['{ref}', '{when}'],
-        'interview_booking_open' => ['{ref}'],
         'interview_date_booked' => ['{ref}', '{when}', '{location}'],
         'interview_date_assigned' => ['{ref}', '{when}', '{hours}', '{location}'],
         'document_correction' => ['{ref}', '{document}'],
         'password_reset' => ['{code}', '{minutes}'],
+        'mobile_verification' => ['{code}', '{minutes}'],
     ];
     public const PROVIDERS = ['test', 'iprog'];
 
@@ -85,6 +85,24 @@ class SMSService
     {
         $compact = $compact ?? self::compact();
         return ($compact ? (self::COMPACT_TEMPLATES[$key] ?? null) : null) !== null ? self::COMPACT_TEMPLATES[$key][1] : (self::TEMPLATES[$key][1] ?? '');
+    }
+
+    /**
+     * What to tell staff about one SMS result (the array send()/sendTemplate() return): sent, failed or not sent at all.
+     *
+     * @return array{state: string, text: string, log_id: ?int}
+     */
+    public static function outcomeNotice(array $result, string $what): array
+    {
+        $logId = !empty($result['id']) ? (int) $result['id'] : null;
+        $status = (string) ($result['status'] ?? '');
+        if ($status === 'SENT') {
+            return ['state' => 'sent', 'log_id' => $logId, 'text' => $what . ': the SMS to the applicant was accepted by the SMS gateway. Only the applicant\'s phone can confirm it arrived.'];
+        }
+        if ($status === 'DISABLED' || ($result['provider_status'] ?? '') === 'disabled') {
+            return ['state' => 'skipped', 'log_id' => $logId, 'text' => $what . ': NO SMS was sent, because SMS notifications are switched off in Notification Settings. Switch them on, then use Retry SMS.'];
+        }
+        return ['state' => 'failed', 'log_id' => $logId, 'text' => $what . ': the SMS to the applicant FAILED (' . (($result['error'] ?? '') ?: 'provider error') . '). Use Retry SMS to send it again.'];
     }
 
     /** 'test' or 'iprog' -- an unknown SMS_PROVIDER value is treated as test mode so nothing is sent by accident. */
@@ -157,6 +175,9 @@ class SMSService
         }
         if ($log['template_key'] === 'password_reset') {
             return ['Password reset codes cannot be re-sent from the log; the applicant should request a new code.', null];
+        }
+        if ($log['template_key'] === 'mobile_verification') {
+            return ['Sign-up verification codes cannot be re-sent from the log; the applicant should request a new code.', null];
         }
         if (in_array($log['template_key'], ['interview_scheduled', 'interview_custom', 'id_release_scheduled', 'id_release_custom'], true) && !$this->templateEnabled('interview_scheduled')) {
             return ['Appointment SMS notifications are disabled in Notification Settings.', null];
@@ -470,19 +491,6 @@ class SMSService
         return $this->sendTemplate('appointment_cancelled', ['{ref}' => $refNumber, '{when}' => date($dateOnly ? 'F j, Y' : 'F j, Y g:i A', strtotime($scheduledAt)), '{reason}' => $reason], $applicationId, $mobile);
     }
 
-    /** Staff opened or manually reopened interview date booking for this application (interview_booking_open). */
-    public function notifyInterviewBookingOpen(int $applicationId, string $mobile, string $refNumber, ?string $customMessage = null): array
-    {
-        if ($customMessage === null) {
-            return $this->sendTemplate('interview_booking_open', ['{ref}' => $refNumber], $applicationId, $mobile);
-        }
-        // Staff-written text: same on/off switch as the automatic message, logged under its own key.
-        if (!$this->templateEnabled('interview_booking_open')) {
-            return ['id' => null, 'status' => 'DISABLED', 'test_mode' => false, 'error' => null];
-        }
-        return $this->send($applicationId, $this->recipientFor($applicationId, $mobile), trim($customMessage), 'interview_booking_custom');
-    }
-
     /** Office hours for an SMS: the fixed opening time to the closing-time setting ("7:00 AM to 5:00 PM"; shortened to "7AM-5PM" in compact wording). */
     public function officeHours(): string
     {
@@ -622,6 +630,14 @@ class SMSService
     {
         $provider = self::provider();
         return $this->record($logId, $this->dispatch($provider, $number, $message), $provider === 'test');
+    }
+
+    /** Sign-up verification: like the reset code, the number is texted but the log keeps the code masked. */
+    public function notifyMobileVerification(string $mobile, string $code): array
+    {
+        $vars = ['{minutes}' => (string) MOBILE_CODE_MINUTES];
+        return $this->send(null, $mobile, $this->render('mobile_verification', $vars + ['{code}' => $code]), 'mobile_verification',
+            $this->render('mobile_verification', $vars + ['{code}' => '******']));
     }
 
     /** The code is sent but never stored: the log keeps the text with the code masked. */

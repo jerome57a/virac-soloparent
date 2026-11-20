@@ -6,7 +6,7 @@ require_once __DIR__ . '/../models/Notification.php';
  *
  * Applicants hear about their own applications (submitted, documents need
  * correction, appointment confirmed/cancelled, approved, rejected, renewal
- * reminders, system announcements). MSWD staff hear about new work (new
+ * reminders). MSWD staff hear about new work (new
  * applications and renewals, re-uploaded documents, appointments booked or
  * cancelled by applicants). Administrators hear about system problems
  * (failed scheduled jobs, locked accounts).
@@ -27,7 +27,6 @@ class NotificationService
         'rejection' => ['Not approved', '❌'],
         'status_change' => ['Status update', '🔄'],
         'renewal_reminder' => ['Renewal reminder', '🔔'],
-        'announcement' => ['Announcement', '📢'],
         'new_application' => ['New application', '📥'],
         'new_renewal' => ['New renewal', '♻️'],
         'document_resubmitted' => ['Document re-uploaded', '📎'],

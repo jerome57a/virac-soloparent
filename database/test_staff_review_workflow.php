@@ -27,6 +27,47 @@ function review_assert(bool $condition, string $message): void
     }
 }
 
+/** Test fixture: the retired staff-scheduling statement, kept only so tests can create a timed appointment (the app no longer does). */
+function review_upsert_staff_scheduled(PDO $pdo, int $applicationId, string $scheduledAt, string $location, ?string $notes, int $staffId): void
+{
+    // An existing date-only row (date_only = 1) is converted to a timed appointment. Whether the row is date-only,
+    // and which of the date-booking columns exist, is read from the row itself (SELECT *), so this needs no schema
+    // probe, ignores the rollout flag, and never names a column the table does not have: an unmigrated table
+    // returns no date_only key and takes the legacy statement below, byte for byte as before.
+    $existing = $pdo->prepare('SELECT * FROM appointments WHERE application_id = ? FOR UPDATE');
+    $existing->execute([$applicationId]);
+    $row = $existing->fetch();
+    if (is_array($row) && interview_is_date_only($row)) {
+        $convert = 'date_only = 0'
+            . (array_key_exists('booking_source', $row) ? ", booking_source = 'STAFF'" : '')
+            . (array_key_exists('confirmation_sms_log_id', $row) ? ', confirmation_sms_log_id = NULL' : '');
+        $pdo->prepare(
+            'UPDATE appointments SET slot_id = NULL, scheduled_at = ?, location = ?, status = \'BOOKED\', notes = ?, scheduled_by = ?,
+                 result = NULL, result_recorded_at = NULL, reminder_sent_at = NULL, interview_sms_log_id = NULL,
+                 cancelled_at = NULL, cancelled_by = NULL, cancel_reason = NULL, ' . $convert . '
+             WHERE application_id = ?'
+        )->execute([$scheduledAt, $location, $notes, $staffId, $applicationId]);
+        return;
+    }
+    $pdo->prepare(
+        'INSERT INTO appointments (application_id, slot_id, scheduled_at, location, notes, scheduled_by, reminder_sent_at)
+         VALUES (?, NULL, ?, ?, ?, ?, NULL)
+         ON DUPLICATE KEY UPDATE slot_id = NULL, scheduled_at = VALUES(scheduled_at), location = VALUES(location), status = \'BOOKED\',
+             notes = VALUES(notes), scheduled_by = VALUES(scheduled_by), result = NULL, result_recorded_at = NULL,
+             reminder_sent_at = NULL, interview_sms_log_id = NULL, cancelled_at = NULL, cancelled_by = NULL, cancel_reason = NULL'
+    )->execute([$applicationId, $scheduledAt, $location, $notes, $staffId]);
+}
+
+/** Test fixture: records an MSWD eligibility assessment the way the retired manual form did (assessEligibility was removed from the app). */
+function review_set_eligibility(PDO $pdo, array $staff, array $app, string $status, string $remarks): void
+{
+    $notes = trim($remarks) !== '' ? trim($remarks) : null;
+    (new EligibilityAssessment($pdo))->saveMswd((int) $app['id'], (int) $app['user_id'], $status === 'Eligible' ? 'ELIGIBLE' : 'NOT_ELIGIBLE', $notes, (int) $staff['id']);
+    $applications = new Application($pdo);
+    $applications->setEligibility((int) $app['id'], $status, $notes);
+    $applications->addHistory((int) $app['id'], $app['status'], mb_substr('MSWD eligibility assessment: ' . $status . ($notes ? '. ' . $notes : '.'), 0, 500), $staff['full_name'], (int) $staff['id']);
+}
+
 /** The full application_documents row, exactly as the staff review page reads it (the version token is derived from it). */
 function review_document_row(PDO $test, int $documentId): array
 {
@@ -93,7 +134,7 @@ function review_make_interview_ready(PDO $test, ApplicationReviewService $servic
 function review_book_interview(PDO $test, array $staff, int $applicationId, string $scheduledAt, string $location = 'Fixture Office'): void
 {
     $applications = new Application($test);
-    (new Appointment($test))->upsertStaffScheduled($applicationId, $scheduledAt, $location, null, (int) $staff['id']);
+    review_upsert_staff_scheduled($test, $applicationId, $scheduledAt, $location, null, (int) $staff['id']);
     $applications->setReviewedStatus($applicationId, 'Interview Scheduled', (int) $staff['id']);
     $applications->addHistory($applicationId, 'Interview Scheduled', 'Interview at ' . $location, (string) $staff['full_name'], (int) $staff['id']);
 }
@@ -221,7 +262,7 @@ try {
         review_assert($saved['errors'] === [] && $saved['changed'] === 1, 'Complete verification failed.');
         $app = $applications->findForReview($id);
         review_assert($app['eligibility_status'] === 'Not Assessed', 'Physical verification automatically decided eligibility.');
-        review_assert($service->assessEligibility($staff, $app, 'Eligible', 'Interview assessment recorded by staff.') === null, 'Explicit assessment failed.');
+        review_set_eligibility($test, $staff, $app, 'Eligible', 'Interview assessment recorded by staff.');
         $app = $applications->findForReview($id);
         $assessment = new EligibilityAssessment($test);
         review_assert(count($assessment->mswdForApplication($id)) === 1, 'Official assessment was not recorded.');
@@ -234,18 +275,20 @@ try {
         review_assert($stages['assessment']['state'] !== 'done' && $stages['assessment']['date'] === null, 'Eligibility alone completed the MSWD assessment.');
         $assertDecisionsBlocked = static function () use ($service, $staff, $app, $applications, $id): void {
             $before = count($applications->history($id));
-            foreach (['For Revision', 'Approved', 'Rejected'] as $decision) {
+            foreach (['For Revision', 'Approved'] as $decision) { // Rejecting needs no interview (ApplicationReviewService::updateStatus).
                 review_assert($service->updateStatus($staff, $app, $decision, 'Fixture reason') !== null, 'Decision allowed before a successful interview: ' . $decision);
             }
             review_assert(count($applications->history($id)) === $before, 'Blocked decisions changed history.');
         };
         $assertDecisionsBlocked();
+        set_setting($test, InterviewDateFeature::FLAG_KEY, '1'); // the cloned test data has interview date booking switched off
+        (new ReflectionProperty(InterviewDateFeature::class, 'memo'))->setValue(null, null); // drop the remembered 'feature off' answer
         $beforeInterviewHtml = review_render_staff($test, $staff, $id);
         review_assert(!str_contains($beforeInterviewHtml, 'id="application-decision-form"'), 'Decision controls visible before an interview.');
         review_assert(!str_contains($beforeInterviewHtml, 'id="decisions"') && !str_contains($beforeInterviewHtml, 'No approve, reject or correction decision yet.'), 'Empty Decisions history visible before scheduling an interview.');
         review_assert(!str_contains($beforeInterviewHtml, 'id="id-release"') && str_contains($beforeInterviewHtml, 'name="interview_date"'), 'ID release section visible before scheduling an interview.');
         $appointments = new Appointment($test);
-        $appointments->upsertStaffScheduled($id, '2020-01-01 09:00:00', 'Test office', null, $staff['id']);
+        review_upsert_staff_scheduled($test, $id, '2020-01-01 09:00:00', 'Test office', null, $staff['id']);
         $test->prepare("UPDATE application_documents SET verification_status = 'FOR_VERIFICATION', verified_at = NULL, verified_by = NULL, staff_remarks = NULL WHERE id = ?")->execute([$first]);
         $saved = review_save_verdicts($test, $service, $staff, $applications->findForReview($id), [$first => 'VERIFIED']);
         review_assert($saved['errors'] === [] && $saved['changed'] === 1, 'Staff re-verification after scheduling failed.');
@@ -261,7 +304,7 @@ try {
         $appointments->markMissed((int) $appointments->interviewFor($id)['id']);
         $stages = array_column((new ApplicationTrackerService($test))->track($app)['stages'], null, 'key');
         review_assert($stages['assessment']['state'] === 'attention', 'A missed interview completed the MSWD assessment.');
-        $appointments->upsertStaffScheduled($id, '2020-01-01 09:00:00', 'Test office', null, $staff['id']);
+        review_upsert_staff_scheduled($test, $id, '2020-01-01 09:00:00', 'Test office', null, $staff['id']);
         // A result can only be recorded while every required document is verified: the fixture's uploads were all re-verified above.
         review_assert($documents->outstandingRequired($applications->findForReview($id)) === [], 'The interview-result fixtures need every required document verified.');
         review_assert($service->recordInterviewOutcome($staff, $id, 'Invalid', '') !== null, 'Invalid interview outcome was accepted.');
@@ -293,8 +336,7 @@ try {
         review_assert($saved['errors'] === [] && $saved['changed'] === 1, 'Undoing verification failed.');
         $app = $applications->findForReview($id);
         review_assert($app['eligibility_status'] === 'Eligible', 'Document review overwrote an explicit staff assessment.');
-        review_assert($service->assessEligibility($staff, $app, 'Not Eligible', '') !== null, 'No assessment accepted without a reason.');
-        review_assert($service->assessEligibility($staff, $app, 'Not Eligible', 'Staff assessment reason') === null, 'Manual No assessment failed.');
+        review_set_eligibility($test, $staff, $app, 'Not Eligible', 'Staff assessment reason');
         $app = $applications->findForReview($id);
         $saved = review_save_verdicts($test, $service, $staff, $app, $verdicts);
         review_assert($saved['errors'] === [] && $saved['changed'] === 1, 'Verifying every document failed.');
@@ -316,7 +358,7 @@ try {
         review_assert($app['eligibility_status'] === 'Not Assessed', 'Undo did not reopen eligibility assessment.');
         review_assert($service->undoReview($staff, $id, 'eligibility', $undoToken) !== null, 'Repeated undo with an old token was accepted.');
         review_assert(!array_filter($documents->checklistForReview($id, (int) $category, $type === 'renewal'), fn($row) => $row['verification_status'] !== 'Verified'), 'Undoing the eligibility review reopened document verification.');
-        review_assert($service->assessEligibility($staff, $app, 'Eligible', '') === null, 'Assessment after undo failed.');
+        review_set_eligibility($test, $staff, $app, 'Eligible', '');
         review_assert($service->undoReview($staff, $id, 'interview', $service->reviewUndoToken($id)) === null, 'Undo interview failed.');
         $interviewAfterUndo = $appointments->interviewFor($id);
         review_assert($interviewAfterUndo['status'] === 'BOOKED' && $interviewAfterUndo['result'] === null && $interviewAfterUndo['result_recorded_at'] === null, 'Undo did not reopen interview result controls.');
@@ -380,7 +422,9 @@ try {
     $records = new RecordService($test);
     review_assert($records->search($records->filters([]), 1)['total'] === 1, 'Existing applicant record is unavailable to new staff.');
     review_assert($applications->findForReview($id) === $before && $applications->history($id) === $historyBefore, 'Creating staff or reading shared records changed existing work.');
-    review_assert($service->addNote($newStaff, $before, 'Follow-up by new staff.') === null, 'New staff cannot update an existing case.');
+    // The retired note form is gone; a note written by the new staff account is inserted directly to keep this attribution check.
+    $test->prepare('INSERT INTO application_notes (application_id, note, author_id, author_name, author_role) VALUES (?, ?, ?, ?, ?)')
+        ->execute([$id, 'Follow-up by new staff.', $newStaffId, $newStaff['full_name'], $newStaff['role']]);
     $notes = $applications->notes($id);
     review_assert(count($notes) === 1 && (int) $notes[0]['author_id'] === $newStaffId, 'New work was not attributed to new staff.');
     review_assert($applications->history($id) === $historyBefore, 'New staff follow-up overwrote previous status history.');

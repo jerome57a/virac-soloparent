@@ -184,7 +184,7 @@ final class InterviewDateFeature
      *        MySQL error 1054 / SQLSTATE 42S22          => absent (the only way to answer absent);
      *        any other failure                          => unknown.
      * A privilege-hidden metadata row therefore can never read as absent. Remembered per connection under
-     * its own key (cleared by forget()); an 'unknown' result is logged once per remembered result, with the
+     * its own key; an 'unknown' result is logged once per remembered result, with the
      * error numbers only. Does not use the flag.
      */
     public static function dateOnlyColumnPresence(PDO $pdo): string
@@ -223,16 +223,6 @@ final class InterviewDateFeature
         }
         self::remember($pdo, 'date_only_presence', $presence);
         return $presence;
-    }
-
-    /** Clears the remembered answers (one connection, or all), including the date_only column answers. Only needed by verification scripts. */
-    public static function forget(?PDO $pdo = null): void
-    {
-        if ($pdo === null) {
-            self::$memo = null;
-        } elseif (self::$memo !== null) {
-            unset(self::$memo[$pdo]);
-        }
     }
 
     // ---- Inspection ----

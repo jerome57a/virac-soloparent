@@ -75,6 +75,8 @@ if ($interviewOutcome !== null) {
         </div>
       </div>
 
+      <?php if (!empty($autoCheck)): require APP_ROOT . '/views/staff/applications/auto-check.php'; endif; ?>
+
       <div class="review-card" id="checklist">
         <div class="review-card-head"><div class="title" data-i18n>Supporting Documents</div></div>
         <p class="small text-muted" data-i18n>Review each applicant-uploaded file. Record a status and explain any rejection or correction request.</p>
@@ -145,13 +147,13 @@ if ($interviewOutcome !== null) {
           <div class="fw-semibold" data-i18n>Correction SMS</div>
           <?php if (!empty($correctionNotice)):
             $cn = $correctionNotice;
-            $cnLabel = $cn['outcome'] === 'SENT' ? ($cn['test_mode'] ? 'TEST MODE - NOT DELIVERED' : 'SENT') : ($cn['outcome'] === 'PENDING' ? 'PENDING - NOT CONFIRMED' : ($cn['outcome'] === 'FAILED' ? 'FAILED' : ($cn['outcome'] === 'DISABLED' ? 'NOT SENT - SMS DISABLED' : 'NOT SENT'))); ?>
-            <div class="<?= $cn['outcome'] === 'SENT' && !$cn['test_mode'] ? 'info-box' : 'auth-error' ?> my-2" style="max-width:none" role="status" tabindex="-1"><strong><?= e($cnLabel) ?>:</strong> <?= e($cn['text']) ?></div>
+            $cnLabel = $cn['outcome'] === 'SENT' ? 'SENT' : ($cn['outcome'] === 'PENDING' ? 'PENDING - NOT CONFIRMED' : ($cn['outcome'] === 'FAILED' ? 'FAILED' : ($cn['outcome'] === 'DISABLED' ? 'NOT SENT - SMS DISABLED' : 'NOT SENT'))); ?>
+            <div class="<?= $cn['outcome'] === 'SENT' ? 'info-box' : 'auth-error' ?> my-2" style="max-width:none" role="status" tabindex="-1"><strong><?= e($cnLabel) ?>:</strong> <?= e($cn['text']) ?></div>
           <?php endif; ?>
           <p class="small text-muted mb-2" data-i18n>Save Verification does not send an SMS. After you save documents as Needs Correction, review the message below and confirm to send one SMS for the whole batch. Your remarks are never included in the SMS.</p>
           <?php if ($cs['has_batch']): ?>
             <?php if ($csLog): ?>
-              <div class="small mb-2">Latest SMS for this batch: <strong><?= e($csLog['status']) ?></strong> (<?= e(date('M j, Y g:i A', strtotime($csLog['sent_at']))) ?>)<?= $csLog['status'] === 'FAILED' && !empty($csLog['error']) ? ' - ' . e($csLog['error']) : '' ?><?= $csLog['status'] === 'SENT' && !empty($csLog['test_mode']) ? ' - TEST MODE: logged only, NOT delivered to any phone' : '' ?><?= $csLog['status'] === 'PENDING' ? ' - outcome not recorded; this batch stays blocked and needs separate manual investigation' : '' ?></div>
+              <div class="small mb-2">Latest SMS for this batch: <strong><?= e($csLog['status']) ?></strong> (<?= e(date('M j, Y g:i A', strtotime($csLog['sent_at']))) ?>)<?= $csLog['status'] === 'FAILED' && !empty($csLog['error']) ? ' - ' . e($csLog['error']) : '' ?><?= $csLog['status'] === 'PENDING' ? ' - outcome not recorded; this batch stays blocked and needs separate manual investigation' : '' ?></div>
             <?php else: ?>
               <div class="small mb-2 text-muted">No correction SMS has been sent for this batch yet.</div>
             <?php endif; ?>
@@ -163,7 +165,6 @@ if ($interviewOutcome !== null) {
               <div class="small text-muted">Review the message below - nothing has been sent yet</div>
               <div class="fw-semibold"><?= e($cs['applicant']) ?> <span class="text-muted fw-normal">- <?= e($cs['reference']) ?></span></div>
               <div class="small">To: <strong><?= e($cs['recipient']) ?></strong></div>
-              <?php if ($cs['test_mode']): ?><div class="small mt-1" style="color:#8a5a00"><strong>TEST MODE:</strong> the SMS provider is "test". Confirming will log the message but will NOT deliver it to a phone.</div><?php endif; ?>
               <?php if ($cs['has_batch']): ?>
                 <div class="small mt-2">Documents (<?= count($cs['documents']) ?>): <?= e(implode(', ', $cs['documents'])) ?></div>
                 <div class="mt-2 p-2 bg-white border rounded" style="white-space:pre-wrap"><?= e($cs['message']) ?></div>
@@ -221,6 +222,8 @@ if ($interviewOutcome !== null) {
 
     <div class="col-12 col-lg-5">
       <?php if ($flashMessage): ?><div class="info-box" style="max-width:none" role="status"><?= e($flashMessage) ?></div><?php endif; ?>
+      <?php if (!empty($smsNotice)) { require APP_ROOT . '/views/staff/applications/sms-notice.php'; } ?>
+      <?php if (!empty($smsLogs)) { require APP_ROOT . '/views/staff/applications/sms-log.php'; } ?>
 
       <div class="review-card" id="decision">
         <?php if ($statusError): ?><div class="auth-error" role="alert"><?= e($statusError) ?></div><?php endif; ?>
@@ -349,7 +352,7 @@ if ($interviewOutcome !== null) {
           <div class="review-row mb-3">
             <div class="k">Interview SMS · <?= $interviewSms['template_key'] === 'interview_custom' ? 'Custom' : 'Automatic' ?> message</div>
             <div class="v"><b><?= e($interviewSms['status']) ?></b>
-              <?php if (!empty($interviewSms['test_mode'])): ?> · Test mode (not sent)<?php else: ?> · <?= e($interviewSms['provider']) ?><?= $interviewSms['status'] === 'SENT' ? ' accepted the message' : '' ?><?php endif; ?>
+              · <?= e($interviewSms['provider']) ?><?= $interviewSms['status'] === 'SENT' ? ' accepted the message' : '' ?>
               <br><span class="small text-muted">To <?= e($interviewSms['mobile']) ?> · Attempted <?= e(date('M j, Y g:i A', strtotime($interviewSms['sent_at']))) ?></span>
               <?php if ($interviewSms['error']): ?><br><span class="field-error"><?= e($interviewSms['error']) ?></span><?php endif; ?>
               <details class="mt-2"><summary style="cursor:pointer;font-size:12px">Review final message</summary><div class="small mt-1" style="white-space:pre-wrap"><?= e($interviewSms['message']) ?></div></details>
@@ -500,7 +503,7 @@ if ($interviewOutcome !== null) {
               <div class="review-row"><div class="k">Scheduled by</div><div class="v"><?= e($idReleaseSchedule['scheduled_by_name'] ?? 'Former staff') ?></div></div>
             </div>
             <div class="review-row mb-3"><div class="k">SMS submission</div><div class="v">
-              <?php if ($idReleaseSchedule['sms_status']): ?><b><?= e($idReleaseSchedule['sms_status']) ?></b><?php if ($idReleaseSchedule['sms_test_mode']): ?> · Test mode (not sent)<?php elseif ($idReleaseSchedule['sms_status'] === 'SENT'): ?> · Provider accepted; delivery is not confirmed<?php endif; ?>
+              <?php if ($idReleaseSchedule['sms_status']): ?><b><?= e($idReleaseSchedule['sms_status']) ?></b><?php if ($idReleaseSchedule['sms_status'] === 'SENT'): ?> · Provider accepted; delivery is not confirmed<?php endif; ?>
                 <?php if ($idReleaseSchedule['sms_mobile']): ?><br><span class="small text-muted">To ending <?= e(substr((string) $idReleaseSchedule['sms_mobile'], -4)) ?></span><?php endif; ?>
                 <?php if ($idReleaseSchedule['sms_error']): ?><br><span class="field-error"><?= e($idReleaseSchedule['sms_error']) ?></span><?php endif; ?>
               <?php else: ?>No SMS log is linked to this schedule.<?php endif; ?>

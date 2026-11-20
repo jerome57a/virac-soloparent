@@ -48,6 +48,9 @@ $idStatusLabel = $isExpired ? 'Expired' : ($isReleased ? 'ID Released' : 'Releas
             </div>
             <div class="applicant-id-location"><span data-i18n>Location</span><strong><?= e($idReleaseSchedule['location']) ?></strong></div>
           <?php endif; ?>
+          <?php if (!$isReleased && $idReleaseSchedule && strtotime($idReleaseSchedule['scheduled_at']) < time()): ?>
+            <p class="applicant-id-release-note" data-i18n>Your release date has passed, but your ID is still kept at the MSWDO office. You can collect it during office hours. If you would like a new date, contact MSWDO.</p>
+          <?php endif; ?>
           <p class="applicant-id-release-note"><?= $isReleased ? 'Staff has confirmed the physical release of your Solo Parent ID.' : 'Bring a valid government ID. Staff will confirm physical release when you receive your card.' ?></p>
           <?php if ($isExpired): ?><p class="applicant-id-expired-note" data-i18n>Your ID has expired. Check your renewal options to keep your details up to date.</p><a class="btn-outline applicant-id-link" href="<?= base_url('applicant/dashboard.php?section=renewal') ?>" data-i18n>View Renewal Options</a><?php endif; ?>
         </section>

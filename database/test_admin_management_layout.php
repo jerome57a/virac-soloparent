@@ -40,7 +40,7 @@ try {
         layout_assert($page['total'] === $sms->countByStatus($filter), 'SMS status count mismatch.');
         foreach ($page['rows'] as $row) {
             $matches = match ($filter) {
-                'sent' => $row['status'] === 'SENT' && !$row['test_mode'],
+                'sent' => $row['status'] === 'SENT',
                 'test' => $row['status'] === 'SENT' && (bool) $row['test_mode'],
                 'failed' => $row['status'] === 'FAILED',
                 'pending' => $row['status'] === 'PENDING',
@@ -67,7 +67,7 @@ try {
             $retry = $log['status'] === 'FAILED' && $log['attempts'] < SMS_MAX_ATTEMPTS && $log['template_key'] !== 'password_reset';
             layout_assert(str_contains($html, 'aria-label="Retry SMS ' . $log['id'] . '"') === $retry, 'Retry restrictions changed.');
         }
-        if ($filter === 'test') { layout_assert(str_contains($html, 'Test (not sent)'), 'Test messages look delivered.'); }
+        if ($filter === 'test') { layout_assert(!str_contains($html, 'not sent') && !str_contains($html, 'Test mode'), 'Test-mode wording is no longer shown.'); }
         if (!$logs) { layout_assert(str_contains($html, 'No SMS logs match'), 'Empty state missing.'); }
     }
     echo "Admin pagination, SMS filters/search, retry restrictions, test labels and populated/empty rendering passed. No SMS sent or live records changed.\n";

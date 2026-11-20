@@ -173,7 +173,12 @@ class ApplicationReviewService
             throw $e;
         }
 
-        (new SMSService($this->pdo))->notifyStatusChange($id, $app['mobile'], $app['reference_no'], $newStatus, $remarks);
+        $statusSms = (new SMSService($this->pdo))->notifyStatusChange($id, $app['mobile'], $app['reference_no'], $newStatus, $remarks);
+        // A generic status update is an automatic text that is switched off on purpose (Notification Templates), so no warning
+        // for that; a text that WAS tried still reports sent or failed.
+        if (($statusSms['status'] ?? '') !== 'DISABLED') {
+            set_sms_notice(SMSService::outcomeNotice($statusSms, 'Status changed to ' . $newStatus));
+        }
         create_notification(
             $this->pdo, (int) $app['user_id'], self::NOTIFICATION_TYPES[$newStatus] ?? 'status_change',
             'Application ' . $app['reference_no'] . ' is now ' . $newStatus . '.' . ($remarks !== '' ? ' Note: ' . $remarks : ''),
@@ -434,9 +439,7 @@ class ApplicationReviewService
                 . 'A send for this batch (SMS log #' . (int) $log['id'] . ') is PENDING: its outcome was never recorded, so it is not known whether the SMS reached the provider. '
                 . 'This batch stays blocked and cannot be re-sent from this page. It needs separate manual investigation.';
         }
-        return !empty($log['test_mode'])
-            ? ($sending ? 'No duplicate was logged. ' : '') . 'This batch was already logged in test mode (SMS log #' . (int) $log['id'] . '); nothing was delivered to a phone.'
-            : ($sending ? 'No duplicate was sent. ' : '') . 'The correction SMS for this batch was already sent (SMS log #' . (int) $log['id'] . ').';
+        return ($sending ? 'No duplicate was sent. ' : '') . 'The correction SMS for this batch was already sent (SMS log #' . (int) $log['id'] . ').';
     }
 
     /** Writes the staff audit entry for a correction SMS. A failure is logged safely and reported, never thrown. */
@@ -583,9 +586,7 @@ class ApplicationReviewService
             $app['reference_no'] . ' · ' . $docs . ' · ' . $result['status'] . ($result['test_mode'] ? ' (test mode)' : '') . ' · log #' . $logId, $logId, $result['status']);
         $auditNote = $audited ? '' : ' The audit entry could not be written; the SMS log #' . $logId . ' is the record.';
         if ($result['status'] === 'SENT') {
-            return $fail('SENT', ($result['test_mode']
-                ? 'Test mode: the correction SMS was logged but NOT delivered to any phone (SMS provider is "test").'
-                : 'The SMS provider accepted the correction SMS; delivery to the phone is not confirmed here.') . $auditNote, (bool) $result['test_mode']);
+            return $fail('SENT', 'The SMS provider accepted the correction SMS; delivery to the phone is not confirmed here.' . $auditNote, (bool) $result['test_mode']);
         }
         return $fail('FAILED', 'The correction SMS FAILED: ' . ($result['error'] ?: 'provider error') . '. You can confirm it again after checking the number and settings.' . $auditNote, (bool) $result['test_mode']);
     }
@@ -664,63 +665,6 @@ class ApplicationReviewService
                 'detail' => $documentSummary],
             ['label' => !empty($app['renewal_simplified']) ? 'Existing released ID confirmed (no new interview)' : 'Successful interview recorded', 'ok' => !empty($app['renewal_simplified']) ? $this->hasReleasedRenewalSource($app) : (bool) $interviewDone, 'detail' => !empty($app['renewal_simplified']) ? '' : (Appointment::interviewOutcome($appt) === 'Unsuccessful' ? 'Interview marked Unsuccessful. Review the result or schedule another interview.' : $interviewDetail)],
         ];
-    }
-
-    /**
-     * Records MSWD's official eligibility assessment (Eligible / Not
-     * Eligible) as a new eligibility_assessments row -- earlier assessments
-     * are kept -- and updates the application's current snapshot. Notes are
-     * required when not eligible. Returns an error message, or null.
-     */
-    public function assessEligibility(array $staff, array $app, string $status, string $remarks): ?string
-    {
-        if (!in_array($status, ['Eligible', 'Not Eligible'], true)) {
-            return 'Choose Yes or No.';
-        }
-        if (!in_array($app['status'], Application::IN_PROGRESS_STATUSES, true)) {
-            return 'The assessment can only change while the application is being processed (it is ' . $app['status'] . ').';
-        }
-        $remarks = trim($remarks);
-        if (mb_strlen($remarks) > 500) {
-            return 'Assessment notes are too long (up to 500 characters).';
-        }
-        if ($remarks === '' && $status === 'Not Eligible') {
-            return 'Explain why the applicant is not eligible.';
-        }
-        $notes = $remarks !== '' ? $remarks : null;
-        $latest = (new EligibilityAssessment($this->pdo))->mswdForApplication((int) $app['id'])[0] ?? null;
-        $expectedResult = $status === 'Eligible' ? 'ELIGIBLE' : 'NOT_ELIGIBLE';
-        if ($latest && $latest['preliminary_result'] === $expectedResult && $latest['result_reason'] === $notes
-            && $app['eligibility_status'] === $status && ($app['eligibility_remarks'] ?? null) === $notes) {
-            return null;
-        }
-        $this->pdo->beginTransaction();
-        try {
-            (new EligibilityAssessment($this->pdo))->saveMswd((int) $app['id'], (int) $app['user_id'], $status === 'Eligible' ? 'ELIGIBLE' : 'NOT_ELIGIBLE', $notes, (int) $staff['id']);
-            $this->applications->setEligibility((int) $app['id'], $status, $notes);
-            $this->applications->addHistory((int) $app['id'], $app['status'], mb_substr('MSWD eligibility assessment: ' . $status . ($notes ? '. ' . $notes : '.'), 0, 500), $staff['full_name'], (int) $staff['id']);
-            $this->pdo->commit();
-        } catch (Throwable $e) {
-            $this->pdo->rollBack();
-            throw $e;
-        }
-        $this->audit($staff, 'Eligibility Assessment', 'application', (int) $app['id'], $app['reference_no'] . ' → ' . $status . ($notes ? ' (' . $notes . ')' : ''));
-        return null;
-    }
-
-    /** Adds an internal case note (never shown to the applicant). Returns an error message, or null. */
-    public function addNote(array $staff, array $app, string $note): ?string
-    {
-        $note = trim($note);
-        if ($note === '') {
-            return 'Write the note first.';
-        }
-        if (mb_strlen($note) > 1000) {
-            return 'The note is too long (up to 1000 characters).';
-        }
-        $this->applications->addNote((int) $app['id'], $note, $staff);
-        $this->audit($staff, 'Case Note Added', 'application', (int) $app['id'], $app['reference_no']);
-        return null;
     }
 
     public function recordInterviewOutcome(array $staff, int $applicationId, string $outcome, string $notes): ?string

@@ -2,7 +2,7 @@
 --
 -- Applicants (and staff) reserve an interview DATE; there are no time slots. Staff open
 -- dates and set a daily capacity. This file ONLY ADDS structure and two sms_templates rows
--- (interview_booking_open, interview_date_booked; INSERT IGNORE, existing rows untouched):
+-- (interview_date_booked, interview_date_assigned; INSERT IGNORE, existing rows untouched):
 --   * new tables:   interview_dates, interview_invitations, appointment_events (+ 2 triggers)
 --   * appointments: interview_date (generated), date_only, booking_source,
 --                   confirmation_sms_log_id, idx_appt_interview_date, idx_appt_confirm_sms,
@@ -245,7 +245,6 @@ DELIMITER ;
 --    example one an administrator edited) is left exactly as it is; re-running adds nothing.
 -- ---------------------------------------------------------------
 INSERT IGNORE INTO sms_templates (template_key, label, body) VALUES
-('interview_booking_open', 'Interview Booking Opened', 'MSWDO Virac: Your documents for application {ref} are verified. Please log in to your e-SoloParentID account and pick the date you want to arrive for your interview.'),
 ('interview_date_booked', 'Interview Date Booked', 'MSWDO Virac: Your interview for application {ref} is booked for {when} at {location}. Please come during office hours on that date and bring a valid ID.'),
 ('interview_date_assigned', 'Interview Date Scheduled by Staff', 'MSWDO Virac: Your interview for application {ref} is scheduled on {when}, {hours} at {location}. You may come on that date, or log in to your e-SoloParentID account and pick another date.');
 

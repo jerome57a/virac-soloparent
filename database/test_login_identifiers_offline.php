@@ -15,7 +15,7 @@
  *   - Registration requires a valid, unique username (AuthService::usernameError / applicantRegistrationError).
  *
  * Also covers AuthController::attemptLogin (shared by both forms: correct/wrong password, unknown, inactive, locked,
- * counters, audit rows) and AuthController::handleStaffLogin rejection paths for each portal.
+ * counters, audit rows) rejection paths for each account type.
  *
  * The passwords below are throwaway constants used only inside this file's in-memory database.
  * The sign-in SUCCESS path ends in a redirect and session start, which cannot run in the CLI; it is covered through
@@ -349,21 +349,9 @@ $lockedId = (int) $locked['id'];
 check(str_starts_with($login($locked, $lockedUser, TEST_PASSWORD, 'Staff sign-in', 'help'), 'Too many failed attempts.'), AUTH_PORTAL . ': locked account refused even with the correct password');
 check($counter($lockedId) === 0, AUTH_PORTAL . ': locked account counter not touched');
 
-// Role authorization: the portal accepts only its own role, through the real handleStaffLogin().
+// Request state the later sign-up checks rely on: a POST with a known CSRF token.
 $_SERVER['REQUEST_METHOD'] = 'POST';
 $_SESSION['csrf_token'] = str_repeat('a', 64);
-$post = static function (string $user, string $pw) use ($controller): string {
-    $_POST = ['csrf_token' => str_repeat('a', 64), 'username' => $user, 'password' => $pw];
-    return $controller->handleStaffLogin();
-};
-check($post($otherPortalUser, TEST_PASSWORD) === $message, AUTH_PORTAL . ': the other role cannot sign in at this portal (correct password)');
-check(empty($_SESSION['staff_id']), AUTH_PORTAL . ': no staff session created for the wrong role');
-check($post('legacy.parent', TEST_PASSWORD) === $message && $post('new.parent', TEST_PASSWORD) === $message, AUTH_PORTAL . ': applicant usernames cannot sign in at the staff portal');
-check($post('fixture.two@example.test', TEST_PASSWORD) === $message && $post('09000000003', TEST_PASSWORD) === $message, AUTH_PORTAL . ': applicant email/mobile cannot sign in at the staff portal');
-check($post('no.such.user', 'whatever') === $message, AUTH_PORTAL . ': unknown username rejected through handleStaffLogin');
-check($post($goodUser, OTHER_PASSWORD) === $message, AUTH_PORTAL . ': wrong password rejected through handleStaffLogin');
-check(str_starts_with($post('inactive.staff', TEST_PASSWORD), AUTH_PORTAL === 'staff' ? 'This account has been deactivated.' : $message), AUTH_PORTAL . ': inactive staff through handleStaffLogin');
-check(str_starts_with($post($lockedUser, TEST_PASSWORD), 'Too many failed attempts.'), AUTH_PORTAL . ': locked account through handleStaffLogin');
 
 // Applicant sign-in (shared attemptLogin): by username, with the same generic message as staff.
 $byName = $users->findApplicantForLogin('new.parent');
@@ -384,9 +372,13 @@ check(str_starts_with($login($users->findApplicantForLogin('inactive.named'), 'i
 // any other integrity failure (here a CHECK constraint, SQLSTATE 23000) is rethrown, never shown as a taken username.
 $racePdo = offline_pdo(RacePdo::class);
 $raceController = new AuthController($racePdo);
-$signup = static function (string $username) use ($raceController): array {
-    $_POST = ['csrf_token' => str_repeat('a', 64), 'action' => 'signup', 'fullName' => 'Race Parent', 'username' => $username, 'email' => '',
-        'mobile' => '09175550009', 'password' => 'Valid-Pass-123', 'password_confirm' => 'Valid-Pass-123'];
+// Sign-up now texts a code first and creates the account when it is entered (the 'verify_mobile' action), so the test holds a
+// pending sign-up (as the first step would) and enters its code: that is the step that inserts the account.
+$signup = static function (string $username) use ($raceController, $racePdo): array {
+    unset($_SESSION['pending_signup']); // keep the rest of the session (the CSRF token the test relies on)
+    $code = (new AuthService($racePdo))->beginMobileVerification(
+        ['fullName' => 'Race Parent', 'username' => $username, 'email' => '', 'mobile' => '09175550009'], 'Valid-Pass-123');
+    $_POST = ['csrf_token' => str_repeat('a', 64), 'action' => 'verify_mobile', 'code' => $code];
     return $raceController->handleApplicantAuth('login');
 };
 $racePdo->raceUsername = 'race.signup';

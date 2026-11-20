@@ -20,7 +20,7 @@ if (applicant_return_path($returnKey)) {
 <div class="auth-card">
   <div class="d-flex gap-2 mb-3">
     <a href="<?= e($loginTabUrl) ?>" class="auth-tab text-decoration-none text-center <?= $authMode === 'login' ? 'active' : '' ?>"<?= $authMode === 'login' ? ' aria-current="page"' : '' ?> data-i18n>Log In</a>
-    <a href="<?= e($signupTabUrl) ?>" class="auth-tab text-decoration-none text-center <?= $authMode === 'signup' ? 'active' : '' ?>"<?= $authMode === 'signup' ? ' aria-current="page"' : '' ?> data-i18n>Create Account</a>
+    <a href="<?= e($signupTabUrl) ?>" class="auth-tab text-decoration-none text-center <?= $authMode !== 'login' ? 'active' : '' ?>"<?= $authMode !== 'login' ? ' aria-current="page"' : '' ?> data-i18n>Create Account</a>
   </div>
 
   <?php if (!empty($authNotice)): ?>
@@ -30,7 +30,9 @@ if (applicant_return_path($returnKey)) {
     <div class="auth-error" role="alert"><?= e($authError) ?></div>
   <?php endif; ?>
 
-  <?php if ($authMode === 'signup'): ?>
+  <?php if ($authMode === 'verify'): ?>
+    <?php require __DIR__ . '/verify-mobile.php'; ?>
+  <?php elseif ($authMode === 'signup'): ?>
     <?php require __DIR__ . '/register.php'; ?>
   <?php else: ?>
     <p style="font-size:14px;color:var(--muted)" data-i18n>Sign in with your username and password. Applicants, MSWD staff and administrators all use this page.</p>

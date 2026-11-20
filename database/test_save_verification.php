@@ -148,10 +148,10 @@ try {
         && $d[$aIds[1]]['staff_remarks'] === 'Photo is blurred.' && $d[$aIds[2]]['verification_status'] === 'NEEDS_CORRECTION' && $d[$aIds[2]]['staff_remarks'] === 'Wrong document.', 'Saved statuses are wrong after reload.');
     $after = $counts();
     sv_assert($after['history'] === $before['history'] + 3 && $after['audit'] === $before['audit'] + 3, 'History/audit rows missing for the batch.');
-    // 3. One correction SMS per batch (two flagged documents), but one in-app notice per document.
-    sv_assert($after['sms'] === $before['sms'] + 1, 'Expected exactly one correction SMS for the batch, got ' . ($after['sms'] - $before['sms']) . '.');
+    // 3. Saving sends NO correction SMS (staff confirm it as a separate step), but one in-app notice per document.
+    sv_assert($after['sms'] === $before['sms'], 'Saving a verification batch must not send an SMS by itself, but ' . ($after['sms'] - $before['sms']) . ' were logged.');
     sv_assert($after['notifications'] === $before['notifications'] + 3, 'Expected one in-app notice per changed document.');
-    sv_assert($count("SELECT COUNT(*) FROM sms_logs WHERE template_key = 'document_correction'") === 1, 'The SMS was not the correction message.');
+    sv_assert($count("SELECT COUNT(*) FROM sms_logs WHERE template_key = 'document_correction'") === 0, 'A correction SMS was sent without staff confirmation.');
 
     // 4. Unchanged form: nothing written, nothing sent.
     $before = $counts();
@@ -313,7 +313,7 @@ try {
     ob_start();
     $controller->application();
     $html = ob_get_clean();
-    sv_assert(substr_count($html, 'Save Verification') === 1, 'Page must show exactly one Save Verification button.');
+    sv_assert(substr_count($html, '>Save Verification</button>') === 1, 'Page must show exactly one Save Verification button.');
     sv_assert(substr_count($html, 'value="save_verification"') === 1 && !str_contains($html, 'update_document_status') && !str_contains($html, 'Save review'), 'Per-document save controls remain.');
     sv_assert(substr_count($html, '[expected]"') === count($keys) && substr_count($html, '[expected_remarks]"') === count($keys), 'Each document needs both expected fields.');
     sv_assert(substr_count($html, '[expected_version]"') === count($keys), 'Each document needs its file version field.');
@@ -321,7 +321,7 @@ try {
         sv_assert(str_contains($html, 'name="docs[' . $aId . '][expected_version]" value="' . Document::versionToken($fetchFile($aId)) . '"'), 'A document row does not carry the version of the file it displays.');
     }
     sv_assert(preg_match('/<option value="VALID" selected>[^<]*current status/', $html) === 1, 'The legacy status is not shown as the selected current value.');
-    sv_assert(preg_match('/<option value="REJECTED" selected>[^<]*Rejected \(legacy\)[^<]*current status/', $html) === 1 && substr_count($html, 'value="REJECTED"') === 1, 'Legacy REJECTED must show only as the read-only current value, not as a selectable status.');
+    sv_assert(preg_match('/<option value="REJECTED" selected>[^<]*Rejected \(legacy\)[^<]*current status/', $html) === 1 && substr_count($html, '<option value="REJECTED"') === 1, 'Legacy REJECTED must show only as the read-only current value, not as a selectable status.');
     sv_assert(str_contains($html, 'download.php?doc_id=' . $aIds[0]), 'Document view/download links are missing.');
     sv_assert($count('SELECT COUNT(*) FROM application_documents') === count($keys) * 2, 'Document rows were removed.');
     echo "Single Save Verification checks passed.\n";

@@ -9,8 +9,6 @@ require_once __DIR__ . '/Model.php';
 class InterviewInvitation extends Model
 {
     public const STATUSES = ['OPEN', 'BOOKED', 'CLOSED'];
-    /** The most reschedules an application can ever be allowed (the default is 1; staff grant the rest one at a time). */
-    public const MAX_ALLOWED = 5;
 
     /** The invitation for an application, or null. With $lock it is read with FOR UPDATE (inside the caller's transaction). */
     public function find(int $applicationId, bool $lock = false): ?array
@@ -79,12 +77,6 @@ class InterviewInvitation extends Model
         )->fetchAll();
     }
 
-    /** Records the invitation SMS (sms_logs id) on the invitation; the latest one wins. Never changes the status. */
-    public function linkSms(int $applicationId, ?int $smsLogId): void
-    {
-        $this->pdo->prepare('UPDATE interview_invitations SET sms_log_id = ? WHERE application_id = ?')->execute([$smsLogId, $applicationId]);
-    }
-
     /** BOOKED -> OPEN (the applicant cancelled and still has allowance). Never touches reschedules_used. True when it was BOOKED. */
     public function releaseBooking(int $applicationId): bool
     {
@@ -104,17 +96,4 @@ class InterviewInvitation extends Model
         return $stmt->rowCount() === 1;
     }
 
-    /**
-     * Allows one more reschedule. Only a CLOSED invitation whose allowance is used up, and only below the maximum; the
-     * conditions are repeated in the WHERE so a stale caller changes nothing. True when one was added.
-     */
-    public function grantOneReschedule(int $applicationId): bool
-    {
-        $stmt = $this->pdo->prepare(
-            "UPDATE interview_invitations SET reschedules_allowed = reschedules_allowed + 1
-             WHERE application_id = ? AND status = 'CLOSED' AND reschedules_used >= reschedules_allowed AND reschedules_allowed < ?"
-        );
-        $stmt->execute([$applicationId, self::MAX_ALLOWED]);
-        return $stmt->rowCount() === 1;
-    }
 }

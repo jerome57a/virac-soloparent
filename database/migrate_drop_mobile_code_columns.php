@@ -60,7 +60,7 @@ require __DIR__ . '/tool_safety.php';
 try {
     require_isolated_database_tool_environment();
     if ($apply && !in_array('--backup-confirmed', $args, true)) {
-        throw new RuntimeException('--apply needs --backup-confirmed: dump the database copy first (see docs/database-pruning-report.md).');
+        throw new RuntimeException('--apply needs --backup-confirmed: dump the database copy first (mysqldump).');
     }
 } catch (Throwable $e) {
     fwrite(STDERR, $e->getMessage() . PHP_EOL);

@@ -83,7 +83,6 @@ $shortcuts = [
       <section><h3 data-i18n>SMS delivery</h3><dl>
         <div><dt><a href="<?= base_url('admin/sms.php?status=sent') ?>" data-i18n>Sent</a></dt><dd><?= number_format((int) $stats['smsSent']) ?></dd></div>
         <div><dt><a href="<?= base_url('admin/sms.php?status=pending') ?>" data-i18n>Pending</a></dt><dd><?= number_format((int) $stats['smsPending']) ?></dd></div>
-        <div><dt><a href="<?= base_url('admin/sms.php?status=test') ?>" data-i18n>Test messages (not sent)</a></dt><dd><?= number_format((int) $stats['smsLoggedOnly']) ?></dd></div>
       </dl><a class="ad-text-link" href="<?= base_url('admin/sms.php') ?>" data-i18n>View SMS logs</a></section>
       <section><h3 data-i18n>Security activity</h3><dl>
         <div><dt data-i18n>Audit events today</dt><dd><?= number_format((int) $auditStats['eventsToday']) ?></dd></div>

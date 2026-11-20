@@ -1,7 +1,7 @@
 # MariaDB 10.4.32 test-instance runbook
 
 Status: the isolated test instance (`127.0.0.1:3307`) has been set up: it is running, the two dedicated accounts exist, `virac_solo_parent_test` holds the imported schema, and the orphaned `test` privilege rows were removed on 2026-11-16 (section 7). **Not yet performed:** database-connected application tests, fixture imports, migrations, and storage verification (section 4). Phase 2 is not complete. Commands below are for the operator to run by hand, after the checkpoints pass; steps already carried out are recorded for reference.
-Companion to [database-tooling-safety.md](database-tooling-safety.md) and [runtime-test-plan.md](runtime-test-plan.md).
+Companion to [database-tooling-safety.md](database-tooling-safety.md).
 
 ## 0. Prohibitions
 

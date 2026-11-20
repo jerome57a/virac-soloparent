@@ -196,7 +196,7 @@ CREATE TABLE application_documents (
 -- files and their verification status are stored in application_documents.
 -- Still read by Document::checklistForReview(), the verification queue and renewal
 -- planning, and still written by renewal snapshots and staff "undo verification";
--- do not drop or archive it without the dependency review in docs/database-pruning-report.md.
+-- do not drop or archive it without checking what still reads it (renewal snapshots and "undo verification").
 -- Simplified renewals snapshot requirement labels/flags and link accepted
 -- prior evidence through source_checklist_id (informational, not a foreign key).
 CREATE TABLE application_document_checklists (
@@ -329,22 +329,6 @@ CREATE TABLE application_decisions (
   CONSTRAINT fk_decision_staff FOREIGN KEY (decided_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
--- Legacy QR slip storage retained for existing installations and records.
--- The application no longer creates, reads, updates, or deletes these rows.
-CREATE TABLE qr_application_slips (
-  id              INT AUTO_INCREMENT PRIMARY KEY,
-  application_id  INT NOT NULL,
-  token           CHAR(64) NOT NULL UNIQUE,
-  issued_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  issued_by       INT DEFAULT NULL,
-  expires_at      DATETIME DEFAULT NULL,
-  revoked_at      DATETIME DEFAULT NULL,
-  revoke_reason   VARCHAR(100) DEFAULT NULL,
-  KEY idx_qr_app (application_id, revoked_at),
-  CONSTRAINT fk_qr_app FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
-  CONSTRAINT fk_qr_issued_by FOREIGN KEY (issued_by) REFERENCES users(id) ON DELETE SET NULL
-) ENGINE=InnoDB;
-
 -- ---------------------------------------------------------------
 -- Appointments: legacy rows carry a staff-entered interview date AND time
 -- (date_only = 0). New date-booking rows (date_only = 1, applicant- or
@@ -429,17 +413,6 @@ CREATE TABLE notifications (
   KEY idx_notif_user_created (user_id, created_at),
   CONSTRAINT fk_notif_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_notif_app FOREIGN KEY (related_application_id) REFERENCES applications(id) ON DELETE SET NULL
-) ENGINE=InnoDB;
-
--- System announcements an administrator sent as notifications (one notification per recipient).
-CREATE TABLE system_broadcasts (
-  id          INT AUTO_INCREMENT PRIMARY KEY,
-  message     VARCHAR(500) NOT NULL,
-  audience    ENUM('applicants','staff','everyone') NOT NULL,
-  recipients  INT NOT NULL DEFAULT 0,
-  sent_by     INT DEFAULT NULL,
-  sent_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_broadcast_sender FOREIGN KEY (sent_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- One row per released ID per expiry date once its renewal reminder is
@@ -657,24 +630,6 @@ CREATE TABLE sms_templates (
   updated_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
--- Historical: the retired Chat Support feature (applicant conversations with the Help Assistant
--- and MSWDO staff). The application no longer reads or writes this table; rows are kept.
-CREATE TABLE chat_messages (
-  id             INT AUTO_INCREMENT PRIMARY KEY,
-  user_id        INT NOT NULL,
-  sender         ENUM('APPLICANT','ASSISTANT','STAFF') NOT NULL,
-  message        TEXT NOT NULL,
-  topic          VARCHAR(30) DEFAULT NULL,
-  meta           JSON DEFAULT NULL,
-  handoff        TINYINT(1) NOT NULL DEFAULT 0,
-  staff_user_id  INT DEFAULT NULL,
-  created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  KEY idx_chat_user (user_id, created_at),
-  KEY idx_chat_handoff (handoff, created_at),
-  CONSTRAINT fk_chat_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  CONSTRAINT fk_chat_staff FOREIGN KEY (staff_user_id) REFERENCES users(id) ON DELETE SET NULL
-) ENGINE=InnoDB;
-
 -- Applicant Help answers (get_faqs(): Help page and portal search). Active rows only;
 -- there is no admin editor any more, so wording changes are made by a reviewed migration.
 CREATE TABLE faqs (
@@ -748,19 +703,18 @@ CREATE TABLE rate_limit_hits (
   KEY idx_rate_hit_at (hit_at)
 ) ENGINE=InnoDB;
 
--- Admin-managed public news.
-CREATE TABLE IF NOT EXISTS public_announcements (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  title VARCHAR(200) NOT NULL,
-  short_desc VARCHAR(500) NOT NULL,
-  category VARCHAR(80) NOT NULL,
-  details TEXT NOT NULL,
-  status ENUM('draft','published') NOT NULL DEFAULT 'draft',
-  published_at DATETIME NOT NULL,
-  expires_at DATETIME NULL,
-  priority INT NOT NULL DEFAULT 0,
-  image VARCHAR(255) NULL,
-  attachment VARCHAR(255) NULL,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX idx_public_announcements_visibility (status, published_at, expires_at)
+-- Saved results of the automated verification (services/AutoVerificationService.php): the system's recommendation at a
+-- point in time, written on submission and when staff open an application whose result changed. Append-only history.
+CREATE TABLE IF NOT EXISTS application_auto_checks (
+  id             INT AUTO_INCREMENT PRIMARY KEY,
+  application_id INT NOT NULL,
+  verdict        ENUM('ready','review','fix') NOT NULL,
+  pass_count     SMALLINT NOT NULL DEFAULT 0,
+  flag_count     SMALLINT NOT NULL DEFAULT 0,
+  fail_count     SMALLINT NOT NULL DEFAULT 0,
+  checks         JSON NOT NULL,
+  trigger_event  VARCHAR(20) NOT NULL DEFAULT 'submitted',
+  created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_autocheck_app (application_id, id),
+  CONSTRAINT fk_autocheck_app FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

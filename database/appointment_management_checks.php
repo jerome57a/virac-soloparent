@@ -89,7 +89,8 @@ function check_appointment_management(PDO $test, array $staff, int $category): v
 
     // --- SMS retry for the current interview notification (older staff-scheduled interviews still carry one) ---
     $test->prepare("INSERT INTO sms_logs (application_id, mobile, message, status, test_mode, template_key, provider, provider_status, error) VALUES (?, '09123456789', 'Fixture interview SMS', 'FAILED', 1, 'interview_scheduled', 'test', 'test-mode', 'Simulated failure')")->execute([$id]);
-    $appointments->linkSmsLog($id, (int) $test->lastInsertId());
+    $logId = (int) $test->lastInsertId();
+    $test->prepare('UPDATE appointments SET interview_sms_log_id = ? WHERE application_id = ?')->execute([$logId, $id]);
     $interviewSms = $appointments->interviewSms($id);
     review_assert($interviewSms !== null && $interviewSms['status'] === 'FAILED', 'Interview SMS log is missing.');
     if (!class_exists('AppointmentFlowTestController')) {

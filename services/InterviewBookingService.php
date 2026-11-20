@@ -287,8 +287,9 @@ class InterviewBookingService
      * for them if it was not yet). The date is booked at once, like an applicant booking, and the applicant is texted: come
      * on that date, or log in and pick another office day. Returns an error message, or null on success.
      */
-    public function scheduleForApplicant(array $staff, int $applicationId, string $date, ?string $customMessage = null): ?string
+    public function scheduleForApplicant(array $staff, int $applicationId, string $date, ?string $customMessage = null, ?array &$smsResult = null): ?string
     {
+        $smsResult = null; // filled with the SMS outcome (status SENT, FAILED or DISABLED) once the schedule is saved
         if (!can($staff, 'applications.process')) {
             return 'You do not have permission to schedule interviews.';
         }
@@ -411,11 +412,13 @@ class InterviewBookingService
         }
         try {
             $sms = (new SMSService($this->pdo))->notifyInterviewDateAssigned($applicationId, (string) $app['mobile'], (string) $app['reference_no'], $date, $location, $customMessage);
+            $smsResult = $sms;
             if (!empty($sms['id'])) {
                 $this->appointments->linkConfirmationSms($applicationId, (int) $sms['id']);
             }
         } catch (Throwable $e) {
             error_log('Interview schedule SMS failed: ' . $e->getMessage());
+            $smsResult = $smsResult ?? ['status' => 'FAILED', 'id' => null, 'error' => 'the SMS could not be handed to the gateway'];
         }
         return null;
     }

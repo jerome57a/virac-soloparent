@@ -53,6 +53,11 @@ class Application extends Model
             $where .= ' AND a.type = ?';
             $params[] = $filters['type'];
         }
+        if (in_array($filters['auto'] ?? '', ['ready', 'review', 'fix'], true)) {
+            // The latest saved automated-verification result (application_auto_checks).
+            $where .= ' AND (SELECT c.verdict FROM application_auto_checks c WHERE c.application_id = a.id ORDER BY c.id DESC LIMIT 1) = ?';
+            $params[] = $filters['auto'];
+        }
         if (($filters['barangay'] ?? '') !== '') {
             $where .= ' AND a.barangay LIKE ?';
             $params[] = '%' . $filters['barangay'] . '%';
@@ -323,13 +328,6 @@ class Application extends Model
         $stmt = $this->pdo->prepare('SELECT * FROM application_notes WHERE application_id = ? ORDER BY created_at DESC, id DESC');
         $stmt->execute([$applicationId]);
         return $stmt->fetchAll();
-    }
-
-    /** $author: id, full_name, role. */
-    public function addNote(int $applicationId, string $note, array $author): void
-    {
-        $this->pdo->prepare('INSERT INTO application_notes (application_id, note, author_id, author_name, author_role) VALUES (?, ?, ?, ?, ?)')
-            ->execute([$applicationId, $note, $author['id'], $author['full_name'], $author['role']]);
     }
 
     /** $decision is APPROVED, REJECTED or NEEDS_CORRECTION. */

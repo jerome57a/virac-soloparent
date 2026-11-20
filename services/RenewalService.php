@@ -337,6 +337,13 @@ class RenewalService
         (new SMSService($this->pdo))->notifyRenewalSubmitted($applicationId, $fields['mobile'], $refNumber);
         create_notification($this->pdo, (int) $user['id'], 'submission', 'Your renewal request ' . $refNumber . ' has been received and is Pending Review.', $applicationId);
         (new NotificationService($this->pdo))->notifyStaff('new_renewal', 'New renewal request ' . $refNumber . ' from ' . $source['full_name'] . ' (renews ' . $source['reference_no'] . ').', $applicationId);
+        try {
+            // Save the system's recommendation as it stood at submission; the renewal is already saved, so a failure here is only logged.
+            require_once __DIR__ . '/AutoVerificationService.php';
+            (new AutoVerificationService($this->pdo))->snapshot($applicationId, 'submitted');
+        } catch (Throwable $e) {
+            error_log('Automated verification result not saved for the renewal: ' . $e->getMessage());
+        }
         return $refNumber;
     }
 

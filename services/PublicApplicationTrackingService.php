@@ -28,7 +28,7 @@ class PublicApplicationTrackingService
             $dateOnly = !$releasePending && interview_is_date_only($interview);
             $appointment = [
                 'label' => $releasePending ? 'ID release appointment' : 'Interview appointment',
-                'scheduled_at' => $source['scheduled_at'], 'location' => $source['location'],
+                'scheduled_at' => substr((string) $source['scheduled_at'], 0, 10), 'location' => $source['location'], // the date only; the time is shown after login
                 'date_only' => $dateOnly,
                 // A date-only interview has passed only once its date is before today (Manila).
                 'past' => $dateOnly ? substr((string) $source['scheduled_at'], 0, 10) < Appointment::manilaDate() : strtotime($source['scheduled_at']) < time(),
@@ -44,7 +44,7 @@ class PublicApplicationTrackingService
         $releasedAt = $released ? ($release['released_at'] ?? null) : null;
         $timeline = [];
         foreach (array_reverse($history) as $entry) {
-            $timeline[] = ['status' => $entry['status'], 'date' => $entry['changed_at']];
+            $timeline[] = ['status' => $entry['status'] === 'Rejected' ? 'Decision made' : $entry['status'], 'date' => substr((string) $entry['changed_at'], 0, 10)];
             if ($released && !$releasedAt && $entry['status'] === 'ID Released') {
                 $releasedAt = $entry['changed_at'];
             }
@@ -67,7 +67,7 @@ class PublicApplicationTrackingService
             $idSummary['headline'] = $releasePending ? 'ID scheduled for collection' : 'ID being prepared';
             $idSummary['validity'] = 'Your ID has not been handed over yet';
         } elseif ($status === 'Rejected') {
-            $idSummary['headline'] = 'No ID issued';
+            $idSummary = ['headline' => 'A decision was made', 'tone' => 'pending', 'received' => 'Log in to read the decision', 'validity' => 'Log in to read the decision', 'renewal' => 'Log in to read the decision', 'renewal_ref' => null];
         } elseif ($released) {
             $idSummary = [
                 'headline' => $expired ? 'ID expired — renewal needed' : ($renewalDue ? 'ID valid — renewal due' : ($handoverConfirmed ? 'ID received' : 'ID recorded as released')),
@@ -93,13 +93,13 @@ class PublicApplicationTrackingService
                 $instruction = 'Keep your ID safe. You can apply for renewal starting ' . date('F j, Y', strtotime($renewalOpens)) . '.';
             }
         }
-        // Allowlist public fields: no mobile, address, assessment, staff notes, or SMS data.
+        // Allowlist public fields: no name, mobile, address, assessment, staff notes or SMS data; dates only (no time of day); a rejection is shown as "decision made".
         return [
-            'reference_no' => $app['reference_no'], 'masked_name' => mask_name($app['full_name']),
-            'status' => $status, 'type' => $app['type'], 'submitted_at' => $app['submitted_at'],
-            'updated_at' => max($app['updated_at'] ?? $app['submitted_at'], $history[0]['changed_at'] ?? $app['submitted_at']),
+            'reference_no' => $app['reference_no'],
+            'status' => $status === 'Rejected' ? 'Decision made' : $status, 'type' => $app['type'], 'submitted_at' => substr((string) $app['submitted_at'], 0, 10),
+            'updated_at' => substr((string) max($app['updated_at'] ?? $app['submitted_at'], $history[0]['changed_at'] ?? $app['submitted_at']), 0, 10),
             'title' => $title, 'instruction' => $instruction, 'appointment' => $appointment,
-            'released_at' => $releasedAt, 'expires_at' => $expiry, 'expired' => (bool) $expired,
+            'released_at' => $releasedAt !== null ? substr((string) $releasedAt, 0, 10) : null, 'expires_at' => $expiry, 'expired' => (bool) $expired,
             'id_summary' => $idSummary,
             'timeline' => $timeline,
         ];

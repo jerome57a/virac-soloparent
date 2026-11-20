@@ -8,7 +8,7 @@
  * @var array  $nextSteps  application id => ['label', 'tone'] (ApplicationNextStepService)
  * @var array  $pager
  */
-$hasFilters = $filters['q'] !== '' || $filters['barangay'] !== '' || $filters['status'] !== 'ALL' || $filters['type'] !== 'ALL';
+$hasFilters = $filters['q'] !== '' || $filters['barangay'] !== '' || $filters['status'] !== 'ALL' || $filters['type'] !== 'ALL' || ($filters['auto'] ?? 'ALL') !== 'ALL';
 ?>
 <div class="portal-container">
   <?php require APP_ROOT . '/views/partials/staff-page-heading.php'; ?>
@@ -26,6 +26,12 @@ $hasFilters = $filters['q'] !== '' || $filters['barangay'] !== '' || $filters['s
       <option value="ALL" <?= $filters['type'] === 'ALL' ? 'selected' : '' ?>>New + Renewals</option>
       <option value="new" <?= $filters['type'] === 'new' ? 'selected' : '' ?>>New Applications</option>
       <option value="renewal" <?= $filters['type'] === 'renewal' ? 'selected' : '' ?>>Renewals Only</option>
+    </select></label>
+    <label><span data-i18n>Auto-check</span><select name="auto" class="form-select filter-sm" aria-label="Automated check result" data-i18n-attrs="aria-label">
+      <option value="ALL" <?= ($filters['auto'] ?? 'ALL') === 'ALL' ? 'selected' : '' ?>>Any result</option>
+      <option value="ready" <?= ($filters['auto'] ?? '') === 'ready' ? 'selected' : '' ?>>Ready for review</option>
+      <option value="review" <?= ($filters['auto'] ?? '') === 'review' ? 'selected' : '' ?>>Needs a closer look</option>
+      <option value="fix" <?= ($filters['auto'] ?? '') === 'fix' ? 'selected' : '' ?>>Needs the applicant to fix</option>
     </select></label>
     <button type="submit" class="btn-navy" data-i18n>Search</button>
   </form>
@@ -47,6 +53,13 @@ $hasFilters = $filters['q'] !== '' || $filters['barangay'] !== '' || $filters['s
         <div class="app-ref"><?= e($app['reference_no']) ?><?php if ($app['type'] === 'renewal'): ?> <span class="doc-tag" style="vertical-align:middle" data-i18n>RENEWAL</span><?php endif; ?></div>
         <div class="app-date"><?= e($app['full_name']) ?> · <?= e($app['category_name']) ?> · Brgy. <?= e($app['barangay']) ?></div>
         <div class="app-date" data-i18n>Submitted <?= e(date('M j, Y', strtotime($app['submitted_at']))) ?></div>
+        <?php
+        $auto = $autoChecks[(int) $app['id']] ?? null;
+        if ($auto) {
+            $alabel = ['ready' => 'Auto-check: ready', 'review' => 'Auto-check: ' . (int) $auto['flag_count'] . ' to review', 'fix' => 'Auto-check: needs fix'][$auto['verdict']] ?? 'Auto-check';
+            ?><div class="app-date" style="margin-top:4px"><span class="ac-pill is-small is-<?= e($auto['verdict']) ?>"><?= e($alabel) ?></span></div><?php
+        }
+        ?>
         <?php $next = $nextSteps[(int) $app['id']] ?? null; if ($next): ?><div class="app-next app-next-<?= e($next['tone']) ?>"><span>Next:</span> <?= e($next['label']) ?></div><?php endif; ?>
       </div>
       <div class="status-pill" style="background:<?= e($st['bg']) ?>;color:<?= e($st['color']) ?>"><?= e($app['status']) ?></div>

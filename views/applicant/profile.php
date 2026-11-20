@@ -14,24 +14,48 @@ $missing = array_keys(array_filter(['birthdate' => 1, 'sex' => 1, 'civil_status'
 ?>
 <link rel="stylesheet" href="<?= public_asset('css/applicant-account.css') ?>">
 <div class="profile-page">
-      <?php if ($profileError): ?><div class="auth-error mb-3" role="alert" data-i18n><?= e($profileError) ?></div><?php endif; ?>
-      <?php if ($profileSuccess): ?><div class="info-box profile-completion-note" role="status" data-i18n><?= e($profileSuccess) ?></div><?php endif; ?>
+      <?php
+      // The password and username forms show their own result beside the form (they sit far down the page); everything else shows it here.
+      $profileAction = $profileAction ?? '';
+      $ownResult = in_array($profileAction, ['change_password', 'set_username'], true);
+      ?>
+      <?php if ($profileError && !$ownResult): ?><div class="auth-error mb-3" role="alert" data-i18n><?= e($profileError) ?></div><?php endif; ?>
+      <?php if ($profileSuccess && $profileAction !== 'change_password'): ?><div class="info-box profile-completion-note" role="status" data-i18n><?= e($profileSuccess) ?></div><?php endif; ?>
+
+      <?php if (empty($user['username']) || !empty($user['must_change_password'])): ?>
+        <div class="auth-error profile-required" role="alert">
+          <strong data-i18n>Action required</strong>
+          <ul>
+            <?php if (empty($user['username'])): ?><li><a href="#username" data-i18n>Choose your username</a></li><?php endif; ?>
+            <?php if (!empty($user['must_change_password'])): ?><li><a href="#password" data-i18n>Choose a new password</a></li><?php endif; ?>
+          </ul>
+        </div>
+      <?php endif; ?>
 
       <?php if ($missing): ?>
-        <div class="info-box" style="max-width:none">📝 Complete your profile — these details are filled into your application form for you: <?= e(implode(', ', array_map(fn($k) => str_replace('_', ' ', $k), $missing))) ?>.</div>
+        <?php $missingLabels = ['birthdate' => 'Birthdate', 'sex' => 'Sex', 'civil_status' => 'Civil status', 'barangay' => 'Barangay', 'address' => 'Complete address']; ?>
+        <div class="info-box profile-missing">
+          <strong data-i18n>Complete your profile</strong>
+          <span data-i18n>These details are filled into your application form for you:</span>
+          <ul class="profile-chips"><?php foreach ($missing as $k): ?><li data-i18n><?= e($missingLabels[$k] ?? $k) ?></li><?php endforeach; ?></ul>
+        </div>
       <?php endif; ?>
 
   <div class="profile-workspace">
     <aside class="profile-sidebar" aria-label="Profile photo and account details">
-      <div class="profile-identity"><div class="account-eyebrow" data-i18n>APPLICANT PROFILE</div><h3><?= e($user['full_name']) ?></h3><span data-i18n>Solo Parent Applicant</span></div>
+      <div class="profile-identity">
+        <?php if ($user['profile_photo']): ?>
+          <img class="profile-avatar" src="<?= base_url('avatar.php?user_id=' . (int) $user['id']) ?>" alt="Your profile photo">
+        <?php else: ?>
+          <div class="profile-avatar" aria-hidden="true"><?= e(mb_strtoupper(mb_substr(trim($user['full_name']), 0, 1))) ?></div>
+        <?php endif; ?>
+        <div class="account-eyebrow" data-i18n>APPLICANT PROFILE</div><h3><?= e($user['full_name']) ?></h3>
+        <span data-i18n>Solo Parent Applicant</span>
+        <?php if (!empty($user['username'])): ?><span class="profile-handle"><?= e($user['username']) ?></span><?php endif; ?>
+      </div>
       <div class="review-card">
         <div class="review-card-head"><div class="title" data-i18n>Profile Photo</div></div>
         <div class="profile-photo-row">
-          <?php if ($user['profile_photo']): ?>
-            <img src="<?= base_url('avatar.php?user_id=' . (int) $user['id']) ?>" alt="Your profile photo" style="width:72px;height:72px;border-radius:50%;object-fit:cover">
-          <?php else: ?>
-            <div class="dash-user-avatar" style="width:72px;height:72px;font-size:28px;position:static" aria-hidden="true"><?= e(mb_strtoupper(mb_substr(trim($user['full_name']), 0, 1))) ?></div>
-          <?php endif; ?>
           <form method="post" enctype="multipart/form-data" class="profile-photo-form">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="upload_photo">
@@ -56,7 +80,8 @@ $missing = array_keys(array_filter(['birthdate' => 1, 'sex' => 1, 'civil_status'
       <div class="review-card" id="username">
         <div class="review-card-head"><div class="title" data-i18n>Choose your username</div></div>
         <div class="auth-error mb-3" role="alert" data-i18n>Your account was created before usernames were introduced. Choose a username now; you will use it, with your password, to sign in from now on. It cannot be changed later.</div>
-        <form method="post" class="profile-password-form">
+        <?php if ($profileError && $profileAction === 'set_username'): ?><div class="auth-error mb-3" role="alert" data-i18n><?= e($profileError) ?></div><?php endif; ?>
+        <form method="post" action="<?= e(base_url('applicant/dashboard.php?section=profile')) ?>#username" class="profile-password-form">
           <?= csrf_field() ?>
           <input type="hidden" name="action" value="set_username">
           <label class="field-label"><span data-i18n>Username</span><input class="form-control" type="text" name="username" minlength="3" maxlength="30" pattern="[A-Za-z0-9][A-Za-z0-9._\-]*" autocomplete="username" aria-label="Username" placeholder="juan.delacruz" title="3-30 characters: letters, numbers, dots, underscores or hyphens, with at least one letter." required data-i18n-attrs="aria-label placeholder title"></label>
@@ -70,7 +95,8 @@ $missing = array_keys(array_filter(['birthdate' => 1, 'sex' => 1, 'civil_status'
           <?php if (!empty($user['username'])): ?>
           <div class="review-row"><div class="k" data-i18n>Username</div><div class="v"><?= e($user['username']) ?> <span style="color:var(--faint)" data-i18n>(cannot be changed)</span></div></div>
           <?php endif; ?>
-          <div class="review-row"><div class="k" data-i18n>Gmail address or mobile number</div><div class="v"><?= e($user['email'] ?: $user['mobile']) ?></div></div>
+          <div class="review-row"><div class="k" data-i18n>Mobile number</div><div class="v"><?= e((string) $user['mobile']) ?></div></div>
+          <div class="review-row"><div class="k" data-i18n>Gmail address</div><div class="v"><?= $user['email'] ? e($user['email']) : '<span style="color:var(--faint)" data-i18n>Not provided</span>' ?></div></div>
           <div class="review-row"><div class="k" data-i18n>Account type</div><div class="v" data-i18n>Solo Parent</div></div>
         </div>
       </div>
@@ -151,12 +177,17 @@ $missing = array_keys(array_filter(['birthdate' => 1, 'sex' => 1, 'civil_status'
         <?php if (!empty($user['must_change_password'])): ?>
           <div class="auth-error mb-3" role="alert" data-i18n>MSWDO reset your access. Enter the temporary password you were given as your current password, then choose a new one to continue.</div>
         <?php endif; ?>
-        <form method="post" class="profile-password-form">
-          <?= csrf_field() ?>
-          <input type="hidden" name="action" value="change_password">
+        <?php if ($profileAction === 'change_password'): ?>
+          <?php if ($profileError): ?><div class="auth-error mb-3" role="alert" data-i18n><?= e($profileError) ?></div><?php endif; ?>
+          <?php if ($profileSuccess): ?><div class="info-box mb-3" role="status" data-i18n><?= e($profileSuccess) ?></div><?php endif; ?>
+        <?php endif; ?>
+        <form method="post" action="<?= e(base_url('applicant/dashboard.php?section=profile')) ?>#password" class="profile-password-form">
           <label class="field-label"><span data-i18n>Current password</span><input class="form-control" type="password" name="current_password" aria-label="Current password" placeholder="Current password" autocomplete="current-password" required data-i18n-attrs="aria-label placeholder"></label>
           <label class="field-label"><span data-i18n>New password</span><input class="form-control" type="password" name="new_password" aria-label="New password" placeholder="New password" minlength="<?= PASSWORD_MIN_LENGTH ?>" autocomplete="new-password" required data-i18n-attrs="aria-label placeholder"></label>
           <label class="field-label"><span data-i18n>Confirm new password</span><input class="form-control" type="password" name="new_password_confirm" aria-label="Confirm new password" placeholder="Confirm new password" minlength="<?= PASSWORD_MIN_LENGTH ?>" autocomplete="new-password" required data-i18n-attrs="aria-label placeholder"></label>
+          <div class="profile-match" id="password-match" role="status" aria-live="polite" hidden>
+            <span data-match="ok" data-i18n>Passwords match.</span><span data-match="bad" data-i18n>The two passwords do not match.</span>
+          </div>
           <div style="font-size:12px;color:var(--faint)" data-i18n>At least <?= PASSWORD_MIN_LENGTH ?> characters, with at least one letter and one number.</div>
           <button type="submit" class="btn-outline" style="align-self:flex-start" data-i18n>Update Password</button>
         </form>
@@ -164,3 +195,19 @@ $missing = array_keys(array_filter(['birthdate' => 1, 'sex' => 1, 'civil_status'
     </div>
   </div>
 </div>
+<script>
+// Live check while typing the new password twice; the browser also refuses to submit a mismatch.
+(function () {
+  var n = document.querySelector('[name=new_password]'), c = document.querySelector('[name=new_password_confirm]'), box = document.getElementById('password-match');
+  if (!n || !c || !box) { return; }
+  var ok = box.querySelector('[data-match=ok]'), bad = box.querySelector('[data-match=bad]');
+  function check() {
+    if (c.value === '') { box.hidden = true; c.setCustomValidity(''); return; }
+    var same = n.value === c.value;
+    box.hidden = false; ok.hidden = !same; bad.hidden = same;
+    box.className = 'profile-match ' + (same ? 'is-ok' : 'is-bad');
+    c.setCustomValidity(same ? '' : bad.textContent.trim());
+  }
+  n.addEventListener('input', check); c.addEventListener('input', check);
+})();
+</script>

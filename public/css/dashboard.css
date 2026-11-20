@@ -240,6 +240,12 @@ body.application-requirement-open { overflow: hidden; }
 .apply-personal-info .field-label input[readonly] { background: #f3f6fa; border-color: #dce3ed; color: var(--ink); }
 .apply-personal-info .field-label input[aria-invalid="true"], .apply-personal-info .field-label select[aria-invalid="true"] { border-color: var(--red); }
 .apply-personal-info .field-label > .field-error { font-size: 12px; font-weight: 400; color: var(--red); }
+/* Validation messages in every wizard step (the Children step too): red text, and a red border in both themes. */
+.application-wizard .field-label > .field-error { font-size: 12px; font-weight: 400; color: var(--red); }
+.application-wizard .field-label input.is-invalid, .application-wizard .field-label select.is-invalid,
+.application-wizard .field-label input[aria-invalid="true"], .application-wizard .field-label select[aria-invalid="true"] { border-color: var(--red) !important; }
+/* The dark theme forces one border colour on every input (preferences.css); this out-ranks it for fields with an error. */
+html[data-theme="dark"] .application-wizard .field-label :is(input, select):is(.is-invalid, [aria-invalid="true"]):not([type="hidden"]) { border-color: var(--red) !important; }
 .apply-personal-info .field-hint { line-height: 1.6; }
 .apply-personal-info .personal-required { color: var(--red); }
 .apply-personal-info .personal-account-tag { display: inline-block; margin-left: 8px; padding: 3px 7px; border-radius: 5px; background: #edf3fa; color: var(--navy); font-size: 10px; font-weight: 600; }

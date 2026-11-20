@@ -59,8 +59,8 @@ $maxMb = (string) document_rules()['max_mb'];
   </script>
   <div class="form-nav-buttons">
     <?php if (empty($isApplicationWizard)): ?><button type="submit" name="action" value="save_draft" formnovalidate class="btn-outline" data-i18n>Save &amp; finish later</button><?php endif; ?>
-    <button type="submit" name="action" value="back" formnovalidate class="btn-outline" data-i18n>&larr; Children</button>
+    <button type="submit" name="action" value="back" formnovalidate class="btn-outline"><svg class="nav-arrow" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 12H5M11 6l-6 6 6 6"/></svg><span data-i18n>Children</span></button>
     <button type="submit" name="action" value="upload" formnovalidate class="btn-outline" data-i18n>Upload files</button>
-    <button type="submit" name="action" value="continue" class="btn-navy" data-i18n>Continue to Review &rarr;</button>
+    <button type="submit" name="action" value="continue" class="btn-navy"><span data-i18n>Continue to Review</span><svg class="nav-arrow" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
   </div>
 </form>

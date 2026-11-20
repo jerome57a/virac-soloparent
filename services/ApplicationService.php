@@ -521,6 +521,11 @@ class ApplicationService
         $afterCommit(fn() => $this->clearDraft($user));
         $afterCommit(fn() => audit_log($this->pdo, (int) $user['id'], $user['full_name'], $user['role'], 'Application Submission', 'application', $applicationId, $refNumber));
         $afterCommit(fn() => $this->auditDocuments($user, $applicationId, $draft['documents']));
+        // Save the system's recommendation as it stood at submission (for staff and for the evaluation).
+        $afterCommit(function () use ($applicationId) {
+            require_once __DIR__ . '/AutoVerificationService.php';
+            (new AutoVerificationService($this->pdo))->snapshot($applicationId, 'submitted');
+        });
         $afterCommit(fn() => (new SMSService($this->pdo))->notifySubmitted($applicationId, $draft['contact'], $refNumber));
         $afterCommit(fn() => create_notification($this->pdo, (int) $user['id'], 'submission', 'Your application ' . $refNumber . ' has been received and is Pending Review. MSWDO will notify you when your interview can be scheduled or booked.', $applicationId));
         $afterCommit(fn() => (new NotificationService($this->pdo))->notifyStaff('new_application', 'New application ' . $refNumber . ' from ' . $draft['fullName'] . ' is waiting for review.', $applicationId));

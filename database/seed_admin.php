@@ -28,4 +28,4 @@ $stmt->execute([$fullName, $email, $username, $hash, 'admin']);
 echo "Admin account created.\n";
 echo "Username: $username\n";
 echo "Password: $password\n";
-echo "Please log in at /admin/login.php and change this password, then delete database/seed_admin.php.\n";
+echo "Please log in at /login.php and change this password, then delete database/seed_admin.php.\n";

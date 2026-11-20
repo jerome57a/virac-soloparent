@@ -21,6 +21,16 @@ require_once __DIR__ . '/upload_fixtures.php';
 upload_fixture_require_test_root();
 
 function renewal_assert(bool $ok,string $message): void { if (!$ok) { throw new RuntimeException($message); } }
+
+/** Test fixture: records an MSWD eligibility assessment the way the retired manual form did (assessEligibility was removed from the app). */
+function renewal_set_eligibility(PDO $pdo, array $staff, array $app, string $status, string $remarks): void
+{
+    $notes = trim($remarks) !== '' ? trim($remarks) : null;
+    (new EligibilityAssessment($pdo))->saveMswd((int) $app['id'], (int) $app['user_id'], $status === 'Eligible' ? 'ELIGIBLE' : 'NOT_ELIGIBLE', $notes, (int) $staff['id']);
+    $applications = new Application($pdo);
+    $applications->setEligibility((int) $app['id'], $status, $notes);
+    $applications->addHistory((int) $app['id'], $app['status'], mb_substr('MSWD eligibility assessment: ' . $status . ($notes ? '. ' . $notes : '.'), 0, 500), $staff['full_name'], (int) $staff['id']);
+}
 $live = $pdo;
 $created = false;
 $exitCode = 0;
@@ -140,7 +150,7 @@ try {
     renewal_assert((new Appointment($test))->interviewFor((int) $renewal['id'])===null && (new AppointmentService($test))->findBookableApplication([$renewal])===null,'A renewal with verified documents was given an interview.');
     renewal_assert($renewal['eligibility_status'] === 'Not Assessed', 'Renewal verification automatically decided eligibility.');
     renewal_assert(!array_filter($review->approvalChecklist($renewal),fn($row)=>!$row['ok']), 'Not assessed still blocks a complete renewal.');
-    renewal_assert($review->assessEligibility($staff,$renewal,'Eligible','Renewal reviewed by MSWDO.')===null,'Explicit renewal assessment failed.');
+    renewal_set_eligibility($test,$staff,$renewal,'Eligible','Renewal reviewed by MSWDO.');
     $renewal = $applications->findForReview((int) $renewal['id']);
     renewal_assert(!array_filter($review->approvalChecklist($renewal),fn($row)=>!$row['ok']),'Approval requires a new interview.');
     $stages = array_column((new ApplicationTrackerService($test))->track($renewal)['stages'],null,'key');
@@ -171,13 +181,18 @@ try {
     $test->prepare('UPDATE renewal_requirements SET always_refresh=0 WHERE category_id=?')->execute([$categoryA]);
     $test->prepare('UPDATE applications SET id_expires_at=CURDATE() WHERE id=?')->execute([$renewal['id']]);
     $nextSource = $service->sourceApplication($user);
+    // An uploaded document is not remembered for the next renewal: the applicant presents the configured documents again.
+    renewal_assert(array_column($policies->plan($nextSource)['fresh'],'doc_key')===['barangayCert'],'An uploaded document was carried to the next renewal; it must be presented again.');
+    // A verified record carried over from the older paper checklist is still reused while it is unexpired.
+    $test->prepare("INSERT INTO application_document_checklists (application_id,doc_key,applicant_has,verification_status,reviewed_by,reviewed_at) VALUES (?,'barangayCert',1,'Verified',?,NOW()) ON DUPLICATE KEY UPDATE applicant_has=1,verification_status='Verified',expires_at=NULL")->execute([$renewal['id'],$staff['id']]);
+    $nextSource = $service->sourceApplication($user);
     renewal_assert(!$policies->plan($nextSource)['fresh'],'Accepted, unexpired configured document was requested again.');
     $nextDraft = $service->freshDraft($nextSource); $nextDraft['contact']=$user['mobile']; $nextDraft['consent']=true;
     $nextFirstId = upload_fixture_prepare_application_id($test);
     try { $nextRef = $service->submit($user,$nextSource,$nextDraft); } finally { upload_fixture_track_applications($test,$nextFirstId); }
     $next = $applications->findByReference($nextRef);
     $review->startReviewOnOpen($staff,$next); $next=$applications->findForReview((int) $next['id']);
-    renewal_assert($review->assessEligibility($staff,$next,'Eligible','Existing documents and renewal reviewed.')===null,'All-reused renewal staff assessment failed.');
+    renewal_set_eligibility($test,$staff,$next,'Eligible','Existing documents and renewal reviewed.');
     $next=$applications->findForReview((int) $next['id']);
     renewal_assert(!array_filter($review->approvalChecklist($next),fn($row)=>!$row['ok']),'All-reused renewal cannot reach approval.');
     echo "Simplified renewal passed: required file uploads (no checkbox submission), staff verification of uploads, retained history, no repeated form/interview, approval and one-year release.\n";

@@ -366,6 +366,93 @@ class AuthService
         return ['', 'Your username is saved. From now on, sign in with your username and password.'];
     }
 
+    // ---- Mobile number verification at sign-up ----
+    // The details are held in the session (the password only as a hash) while a 6-digit code is texted; the account is created
+    // only when the code is entered correctly. The code itself is never stored, only its hash.
+
+    /** Starts (or restarts) verification for these sign-up details and returns the plain code to text. */
+    public function beginMobileVerification(array $form, string $password, ?int $now = null): string
+    {
+        $now ??= time();
+        $code = (string) random_int(100000, 999999);
+        $old = $_SESSION['pending_signup'] ?? null;
+        $sameNumber = is_array($old) && ($old['form']['mobile'] ?? null) === ($form['mobile'] ?? '');
+        $_SESSION['pending_signup'] = [
+            'form' => [
+                'fullName' => (string) $form['fullName'], 'username' => (string) $form['username'],
+                'email' => (string) $form['email'], 'mobile' => (string) $form['mobile'],
+            ],
+            'password_hash' => password_hash($password, PASSWORD_DEFAULT),
+            'code_hash' => password_hash($code, PASSWORD_DEFAULT),
+            'expires' => $now + MOBILE_CODE_MINUTES * 60,
+            'attempts' => 0,
+            'sent' => ($sameNumber ? (int) $old['sent'] : 0) + 1,
+            'last_sent' => $now,
+        ];
+        return $code;
+    }
+
+    /** The sign-up waiting for its code, or null. */
+    public function pendingSignup(): ?array
+    {
+        $pending = $_SESSION['pending_signup'] ?? null;
+        return is_array($pending) && isset($pending['form'], $pending['code_hash'], $pending['password_hash']) ? $pending : null;
+    }
+
+    public function clearPendingSignup(): void
+    {
+        unset($_SESSION['pending_signup']);
+    }
+
+    /** Why another code cannot be sent now, or null if it can. */
+    public function mobileCodeResendError(?int $now = null): ?string
+    {
+        $now ??= time();
+        $pending = $this->pendingSignup();
+        if (!$pending) {
+            return 'Your sign-up session ended. Please fill in the form again.';
+        }
+        if ((int) $pending['sent'] >= MOBILE_CODE_MAX_SENDS) {
+            return 'Too many codes were sent for this sign-up. Please start again later, or contact MSWDO.';
+        }
+        $wait = (int) $pending['last_sent'] + MOBILE_CODE_RESEND_SECONDS - $now;
+        return $wait > 0 ? 'Please wait ' . $wait . ' second' . ($wait === 1 ? '' : 's') . ' before asking for another code.' : null;
+    }
+
+    /** A fresh code for the pending sign-up (the old one stops working). Returns the plain code to text. */
+    public function renewMobileCode(?int $now = null): string
+    {
+        $now ??= time();
+        $code = (string) random_int(100000, 999999);
+        $_SESSION['pending_signup']['code_hash'] = password_hash($code, PASSWORD_DEFAULT);
+        $_SESSION['pending_signup']['expires'] = $now + MOBILE_CODE_MINUTES * 60;
+        $_SESSION['pending_signup']['attempts'] = 0;
+        $_SESSION['pending_signup']['sent'] = (int) $_SESSION['pending_signup']['sent'] + 1;
+        $_SESSION['pending_signup']['last_sent'] = $now;
+        return $code;
+    }
+
+    /** 'ok', 'wrong', 'expired', 'locked' (too many wrong entries; start again) or 'none' (nothing pending). A wrong entry is counted. */
+    public function checkMobileCode(string $code, ?int $now = null): string
+    {
+        $now ??= time();
+        $pending = $this->pendingSignup();
+        if (!$pending) {
+            return 'none';
+        }
+        if ((int) $pending['attempts'] >= MOBILE_CODE_MAX_ATTEMPTS) {
+            return 'locked';
+        }
+        if ($now > (int) $pending['expires']) {
+            return 'expired';
+        }
+        if (preg_match('/\A\d{6}\z/', trim($code)) === 1 && password_verify(trim($code), (string) $pending['code_hash'])) {
+            return 'ok';
+        }
+        $_SESSION['pending_signup']['attempts'] = (int) $pending['attempts'] + 1;
+        return (int) $_SESSION['pending_signup']['attempts'] >= MOBILE_CODE_MAX_ATTEMPTS ? 'locked' : 'wrong';
+    }
+
     public function passwordPolicyError(string $password, ?string $confirmation = null): ?string
     {
         if (strlen($password) < PASSWORD_MIN_LENGTH || !preg_match('/[A-Za-z]/', $password) || !preg_match('/\d/', $password)) {
@@ -449,6 +536,13 @@ class AuthService
         $expiresAt = date('Y-m-d H:i:s', time() + PASSWORD_RESET_CODE_MINUTES * 60);
         $this->userModel->setResetCode((int) $account['id'], password_hash($code, PASSWORD_DEFAULT), $expiresAt);
         return $code;
+    }
+
+    /** True while a texted reset code exists and has not expired (only then can a wrong guess be an attack on that code). */
+    public function hasPendingResetCode(array $account): bool
+    {
+        return !empty($account['password_reset_code']) && !empty($account['password_reset_expires_at'])
+            && strtotime($account['password_reset_expires_at']) >= time();
     }
 
     public function verifyResetCode(array $account, string $code): bool

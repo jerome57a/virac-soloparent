@@ -12,6 +12,7 @@ class RateLimiter
         'login_ip' => [50, 900],        // failed sign-ins from one IP (any accounts), per 15 minutes
         'register_ip' => [10, 3600],    // new accounts from one IP, per hour
         'reset_ip' => [10, 3600],       // forgot-password requests from one IP, per hour
+        'verify_sms_ip' => [10, 3600],  // sign-up verification codes texted for one IP, per hour (SMS cost)
         'reset_account' => [3, 900],    // reset SMS to one account, per 15 minutes (a code lasts 15 minutes)
         'status_ip' => [10, 900],       // failed public status lookups from one IP, per 15 minutes
     ];

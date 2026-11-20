@@ -96,7 +96,7 @@ $apptStyles = [
             <?php elseif ($status === 'COMPLETED'): ?>
               <div class="appt-help" data-i18n>Your interview is done. MSWDO will update your application status.</div>
             <?php elseif ($status === 'MISSED'): ?>
-              <div class="appt-help appt-help-error" data-i18n>This appointment was marked as missed. Please contact MSWDO for a new schedule.</div>
+              <div class="appt-help appt-help-error" data-i18n><?= ($booking['state'] ?? '') === 'open' ? 'This appointment was marked as missed. You can choose a new interview date below.' : 'This appointment was marked as missed. Please contact MSWDO for a new schedule.' ?></div>
             <?php elseif ($status === 'CANCELLED'): ?>
               <div class="appt-help">Cancelled<?= $appointment['cancel_reason'] ? ': ' . e($appointment['cancel_reason']) : '' ?>. <?= ($booking['state'] ?? '') === 'open' ? 'You can choose a new date below.' : 'Please contact MSWDO for a new schedule.' ?></div>
             <?php endif; ?>

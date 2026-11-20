@@ -28,7 +28,7 @@
         <span class="public-track-eyebrow" data-i18n>Your ID status</span>
         <h3 id="track-id-status-title" data-i18n><?= e($idSummary['headline']) ?></h3>
         <dl class="public-track-details">
-          <div><dt data-i18n>Have I received my ID?</dt><dd data-i18n><?= e($idSummary['received']) ?><?php if ($result['released_at']): ?><small>Released on <?= e(date('F j, Y g:i A', strtotime($result['released_at']))) ?></small><?php endif; ?></dd></div>
+          <div><dt data-i18n>Have I received my ID?</dt><dd data-i18n><?= e($idSummary['received']) ?><?php if ($result['released_at']): ?><small>Released on <?= e(date('F j, Y', strtotime($result['released_at']))) ?></small><?php endif; ?></dd></div>
           <div><dt data-i18n>Is my ID still valid?</dt><dd data-i18n><?= e($idSummary['validity']) ?></dd></div>
           <div class="public-track-wide"><dt data-i18n>Do I need to renew?</dt><dd data-i18n><?= e($idSummary['renewal']) ?></dd></div>
         </dl>
@@ -44,7 +44,7 @@
           <h3 id="track-appointment-title" data-i18n><?= e($appointment['label']) ?></h3>
           <dl class="public-track-details">
             <div><dt data-i18n>Date</dt><dd><?= e(date('l, F j, Y', strtotime($appointment['scheduled_at']))) ?></dd></div>
-            <?php if (empty($appointment['date_only'])): ?><div><dt data-i18n>Time</dt><dd><?= e(date('g:i A', strtotime($appointment['scheduled_at']))) ?></dd></div><?php endif; ?>
+            <?php if (empty($appointment['date_only'])): ?><div><dt data-i18n>Time</dt><dd data-i18n>Log in to see the exact time.</dd></div><?php endif; ?>
             <div class="public-track-wide"><dt data-i18n>Location</dt><dd><?= e($appointment['location'] ?: 'Contact MSWDO to confirm the location.') ?></dd></div>
           </dl>
           <?php if ($appointment['past']): ?><p class="public-track-note" data-i18n>The scheduled time has passed. If you have not attended or collected your ID, contact MSWDO to confirm the next available schedule.</p><?php endif; ?>
@@ -56,10 +56,10 @@
         <summary data-i18n>Application details</summary>
         <div style="margin-top:16px">
       <dl class="public-track-details">
-        <div><dt data-i18n>Applicant</dt><dd><?= e($result['masked_name']) ?></dd></div>
+        
         <div><dt data-i18n>Application type</dt><dd data-i18n><?= $result['type'] === 'renewal' ? 'ID renewal' : 'New Solo Parent ID' ?></dd></div>
         <div><dt data-i18n>Submitted</dt><dd><?= e(date('F j, Y', strtotime($result['submitted_at']))) ?></dd></div>
-        <div><dt data-i18n>Latest recorded update</dt><dd><?= e(date('F j, Y g:i A', strtotime($result['updated_at']))) ?></dd></div>
+        <div><dt data-i18n>Latest recorded update</dt><dd><?= e(date('F j, Y', strtotime($result['updated_at']))) ?></dd></div>
         <div><dt data-i18n>Application status</dt><dd data-i18n><?= e($result['status']) ?></dd></div>
       </dl>
         </div>
@@ -69,7 +69,7 @@
           <summary data-i18n>Application status history</summary>
           <ol>
             <?php foreach (array_reverse($result['timeline']) as $event): ?>
-              <li><strong data-i18n><?= e($event['status']) ?></strong><time datetime="<?= e(date('c', strtotime($event['date']))) ?>"><?= e(date('F j, Y g:i A', strtotime($event['date']))) ?></time></li>
+              <li><strong data-i18n><?= e($event['status']) ?></strong><time datetime="<?= e(date('Y-m-d', strtotime($event['date']))) ?>"><?= e(date('F j, Y', strtotime($event['date']))) ?></time></li>
             <?php endforeach; ?>
           </ol>
         </details>

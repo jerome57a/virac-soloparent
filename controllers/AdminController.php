@@ -356,7 +356,7 @@ class AdminController extends Controller
                 [$error, $result] = (new SMSService($this->pdo))->retry($logId);
                 if (!$error) {
                     $this->auditSystem('SMS Retried', 'sms_logs #' . $logId . ' -> ' . $result['status']);
-                    $success = $result['status'] === 'SENT' ? 'The message was sent' . ($result['test_mode'] ? ' (test mode: logged only).' : '.') : 'The retry failed: ' . $result['error'];
+                    $success = $result['status'] === 'SENT' ? 'The message was sent.' : 'The retry failed: ' . $result['error'];
                 }
             } elseif ($action === 'send_test') {
                 if (SMSService::normalizeNumber($post('mobile')) === null) {
@@ -365,7 +365,7 @@ class AdminController extends Controller
                     $result = (new SMSService($this->pdo))->send(null, $post('mobile'), 'MSWDO Virac: Test message from e-SoloParentID (' . date('M j, Y g:i A') . '). No action needed.', 'test_message');
                     $this->auditSystem('SMS Test Sent', SMSService::normalizeNumber($post('mobile')) . ' -> ' . $result['status']);
                     $success = $result['status'] === 'SENT'
-                        ? ($result['test_mode'] ? 'Test message logged (test mode — nothing was sent).' : 'Test message sent. Check the phone.')
+                        ? 'Test message sent. Check the phone.'
                         : '';
                     $error = $result['status'] === 'SENT' ? '' : 'The test message failed: ' . $result['error'];
                 }
