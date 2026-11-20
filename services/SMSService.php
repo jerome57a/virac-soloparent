@@ -97,12 +97,12 @@ class SMSService
         $logId = !empty($result['id']) ? (int) $result['id'] : null;
         $status = (string) ($result['status'] ?? '');
         if ($status === 'SENT') {
-            return ['state' => 'sent', 'log_id' => $logId, 'text' => $what . ': the SMS to the applicant was accepted by the SMS gateway. Only the applicant\'s phone can confirm it arrived.'];
+            return ['state' => 'sent', 'log_id' => $logId, 'text' => $what . ': the SMS to the Solo Parent was accepted by the SMS gateway. Only the Solo Parent\'s phone can confirm it arrived.'];
         }
         if ($status === 'DISABLED' || ($result['provider_status'] ?? '') === 'disabled') {
             return ['state' => 'skipped', 'log_id' => $logId, 'text' => $what . ': NO SMS was sent, because SMS notifications are switched off in Notification Settings. Switch them on, then use Retry SMS.'];
         }
-        return ['state' => 'failed', 'log_id' => $logId, 'text' => $what . ': the SMS to the applicant FAILED (' . (($result['error'] ?? '') ?: 'provider error') . '). Use Retry SMS to send it again.'];
+        return ['state' => 'failed', 'log_id' => $logId, 'text' => $what . ': the SMS to the Solo Parent FAILED (' . (($result['error'] ?? '') ?: 'provider error') . '). Use Retry SMS to send it again.'];
     }
 
     /** 'test' or 'iprog' -- an unknown SMS_PROVIDER value is treated as test mode so nothing is sent by accident. */
@@ -174,10 +174,10 @@ class SMSService
             return ['Correction SMS cannot be retried from the SMS log. Staff must confirm it again from the application review page.', null];
         }
         if ($log['template_key'] === 'password_reset') {
-            return ['Password reset codes cannot be re-sent from the log; the applicant should request a new code.', null];
+            return ['Password reset codes cannot be re-sent from the log; the Solo Parent should request a new code.', null];
         }
         if ($log['template_key'] === 'mobile_verification') {
-            return ['Sign-up verification codes cannot be re-sent from the log; the applicant should request a new code.', null];
+            return ['Sign-up verification codes cannot be re-sent from the log; the Solo Parent should request a new code.', null];
         }
         if (in_array($log['template_key'], ['interview_scheduled', 'interview_custom', 'id_release_scheduled', 'id_release_custom'], true) && !$this->templateEnabled('interview_scheduled')) {
             return ['Appointment SMS notifications are disabled in Notification Settings.', null];
@@ -576,7 +576,7 @@ class SMSService
             return strtr(self::CORRECTION_COUNT_COMPACT, ['{count}' => (string) count($names), '{documents}' => count($names) === 1 ? 'document needs' : 'documents need']);
         }
         return strtr(self::CORRECTION_BODY, [
-            '{applicant_name}' => $applicant !== '' ? $applicant : 'Applicant',
+            '{applicant_name}' => $applicant !== '' ? $applicant : 'Solo Parent',
             '{document}' => $names ? implode(', ', $names) : 'Supporting document',
             '{ref}' => $refNumber,
         ]);

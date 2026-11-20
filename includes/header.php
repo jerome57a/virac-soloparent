@@ -123,7 +123,7 @@ if (!empty($staff)) {
       <?php if (can($staff, 'applicants.view')): ?>
       <a href="<?= base_url(role_portal_path($staff, 'applicants.php')) ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive('staff/applicants.php', 'staff/applicant_view.php', 'admin/applicants.php', 'admin/applicant_view.php') ?>">
         <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-        <span data-i18n>Applicant Records</span>
+        <span data-i18n>Solo Parent Records</span>
       </a>
       <?php endif; ?>
       <?php if (can($staff, 'appointments.view')): ?>

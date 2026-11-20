@@ -62,7 +62,7 @@
       <?php endif; ?>
     </table>
   <?php endif; ?>
-  <footer>Confidential: contains personal information of applicants. Handle according to the Data Privacy Act of 2012 (RA 10173).</footer>
+  <footer>Confidential: contains personal information of Solo Parents. Handle according to the Data Privacy Act of 2012 (RA 10173).</footer>
   <script>window.addEventListener('load', function () { window.print(); });</script>
 </body>
 </html>

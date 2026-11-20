@@ -59,7 +59,7 @@ $st = status_style($app['status']);
             <div class="review-row"><div class="k">Scheduled</div><div class="v"><?= e(interview_schedule_text($interview['scheduled_at'], interview_is_date_only($interview))) ?></div></div>
             <div class="review-row"><div class="k" data-i18n>Location</div><div class="v"><?= e($interview['location']) ?></div></div>
             <div class="review-row"><div class="k" data-i18n>Status</div><div class="v"><?= e(ucfirst(strtolower($interview['status']))) ?><?= $interview['cancel_reason'] ? ' — ' . e($interview['cancel_reason']) : '' ?></div></div>
-            <div class="review-row"><div class="k">Booked by</div><div class="v"><?= $interview['scheduled_by'] ? 'MSWDO staff' : (($interview['notes'] ?? '') === 'Interview automatically scheduled on application submission.' ? 'System (automatically scheduled)' : 'Applicant (self-booked)') ?></div></div>
+            <div class="review-row"><div class="k">Booked by</div><div class="v"><?= $interview['scheduled_by'] ? 'MSWDO staff' : (($interview['notes'] ?? '') === 'Interview automatically scheduled on application submission.' ? 'System (automatically scheduled)' : 'Solo Parent (self-booked)') ?></div></div>
             <?php if ($interview['result']): ?><div class="review-row"><div class="k">Result</div><div class="v"><?= e($interview['result']) ?></div></div><?php endif; ?>
           </div>
         </div>

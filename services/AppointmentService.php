@@ -121,7 +121,7 @@ class AppointmentService
             return 'Your appointment is less than ' . $this->minNoticeHours() . ' hour(s) away and can no longer be cancelled online. Please contact the MSWDO office.';
         }
         $current += ['reference_no' => $application['reference_no'], 'user_id' => $user['id'], 'mobile' => $application['mobile'], 'application_status' => $application['status']];
-        if (!$this->closeAppointment($user, $current, 'CANCELLED', 'Cancelled by the applicant', false)) {
+        if (!$this->closeAppointment($user, $current, 'CANCELLED', 'Cancelled by the Solo Parent', false)) {
             return 'This appointment changed. Refresh the page before cancelling.';
         }
         (new NotificationService($this->pdo))->notifyStaff('appointment_update', $application['reference_no'] . ' (' . $user['full_name'] . ') cancelled their appointment on ' . interview_schedule_text($current['scheduled_at'], interview_is_date_only($current), 'M j, Y g:i A') . '.', (int) $application['id']);
@@ -150,7 +150,7 @@ class AppointmentService
         }
         if ($outcome === 'CANCELLED') {
             if ($reason === '') {
-                return 'Give a reason for cancelling -- it is sent to the applicant.';
+                return 'Give a reason for cancelling -- it is sent to the Solo Parent.';
             }
         } elseif ($outcome === 'MISSED') {
             if (interview_is_date_only($appt)) {

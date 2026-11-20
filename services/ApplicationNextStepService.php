@@ -63,7 +63,7 @@ class ApplicationNextStepService
                     ? $this->step('ID release on ' . date('M j, Y', strtotime((string) $release['scheduled_at'])) . ': confirm the hand-over once done', 'wait')
                     : $this->step('Schedule the ID release', 'action');
             case 'For Revision':
-                return $this->step('Waiting for the applicant to upload corrections', 'wait');
+                return $this->step('Waiting for the Solo Parent to upload corrections', 'wait');
             case 'Pending Review':
                 return $this->step('Open it to start the review', 'action');
         }
@@ -101,10 +101,10 @@ class ApplicationNextStepService
             return $this->step('Documents verified: schedule the interview', 'action');
         }
         if (is_array($invitation) && $invitation['status'] === 'OPEN') {
-            return $this->step('Waiting for the applicant to choose a new date (or schedule one)', 'wait');
+            return $this->step('Waiting for the Solo Parent to choose a new date (or schedule one)', 'wait');
         }
         if (is_array($invitation) && $invitation['status'] === 'CLOSED') {
-            return $this->step('Booking closed: schedule a date for the applicant', 'action');
+            return $this->step('Booking closed: schedule a date for the Solo Parent', 'action');
         }
         return $this->step('Documents verified: schedule the interview date', 'action');
     }

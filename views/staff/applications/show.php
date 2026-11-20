@@ -209,7 +209,7 @@ if ($interviewOutcome !== null) {
       </div>
       <script src="<?= public_asset('js/document-viewer.js') ?>" defer></script>
       <div class="review-card">
-        <div class="review-card-head"><div class="title">Applicant Declaration</div></div>
+        <div class="review-card-head"><div class="title">Solo Parent Declaration</div></div>
         <div class="staff-applicant-list">
           <div class="review-row">
             <div class="k">Truth and data processing confirmation</div>
@@ -293,8 +293,8 @@ if ($interviewOutcome !== null) {
             </div>
             <?php /* The reason is asked for only when the chosen action needs one (reject / request corrections). */ ?>
             <label id="decision-reason-wrap" class="d-none mt-2" style="font-size:13px;font-weight:600;color:var(--ink)">
-              <span id="decision-reason-label">Reason for the applicant</span>
-              <textarea name="remarks" id="decision-reason" aria-label="Reason for the applicant" rows="3" maxlength="500" placeholder="Required. This reason is sent to the applicant by SMS." class="form-control mt-1" style="padding:10px;border:1px solid var(--input-border);border-radius:6px"></textarea>
+              <span id="decision-reason-label">Reason for the Solo Parent</span>
+              <textarea name="remarks" id="decision-reason" aria-label="Reason for the Solo Parent" rows="3" maxlength="500" placeholder="Required. This reason is sent to the Solo Parent by SMS." class="form-control mt-1" style="padding:10px;border:1px solid var(--input-border);border-radius:6px"></textarea>
               <span class="small text-muted d-block mt-1">Fill this in, then press the same button again to confirm.</span>
             </label>
           </form>
@@ -307,7 +307,7 @@ if ($interviewOutcome !== null) {
                 if (wrap.classList.contains('d-none') || !box.value.trim()) {
                   event.preventDefault();
                   wrap.classList.remove('d-none'); box.required = true;
-                  label.textContent = 'What does the applicant need to correct?';
+                  label.textContent = 'What does the Solo Parent need to correct?';
                   box.focus();
                   return;
                 }
@@ -339,7 +339,7 @@ if ($interviewOutcome !== null) {
           <div class="review-grid mb-3">
             <div class="review-row"><div class="k">Scheduled</div><div class="v"><?= e(interview_schedule_text($interview['scheduled_at'], interview_is_date_only($interview))) ?></div></div>
             <div class="review-row"><div class="k" data-i18n>Location</div><div class="v"><?= e($interview['location']) ?></div></div>
-            <div class="review-row"><div class="k">Booked by</div><div class="v"><?= $interview['scheduled_by'] ? 'MSWDO staff' : (($interview['notes'] ?? '') === 'Interview automatically scheduled on application submission.' ? 'System (automatically scheduled)' : 'Applicant (self-booked)') ?></div></div>
+            <div class="review-row"><div class="k">Booked by</div><div class="v"><?= $interview['scheduled_by'] ? 'MSWDO staff' : (($interview['notes'] ?? '') === 'Interview automatically scheduled on application submission.' ? 'System (automatically scheduled)' : 'Solo Parent (self-booked)') ?></div></div>
             <?php if ($interview['notes']): ?><div class="review-row"><div class="k">Notes</div><div class="v"><?= e($interview['notes']) ?></div></div><?php endif; ?>
             <?php if ($ivStatus === 'CANCELLED'): ?><div class="review-row"><div class="k">Cancelled</div><div class="v"><?= e(date('M j, Y g:i A', strtotime($interview['cancelled_at']))) ?><?= $interview['cancel_reason'] ? ' — ' . e($interview['cancel_reason']) : '' ?></div></div><?php endif; ?>
           </div>
@@ -375,10 +375,10 @@ if ($interviewOutcome !== null) {
             <div class="info-box" style="max-width:none" role="status">
               <b>Scheduling the interview is locked until all required documents are verified</b>
               <ul><?php foreach ($outstandingRequirements as $item): $expiredItem = !empty($item['expires_at']) && $item['expires_at'] < date('Y-m-d'); ?><li><?= e($item['label']) ?><?= $expiredItem ? ' - expired' : (!empty($item['uploaded_document']) ? ' - ' . e(document_status_label($item['uploaded_document']['verification_status'])) : ' - no file uploaded') ?></li><?php endforeach; ?></ul>
-              Staff must verify every required document before scheduling the interview. When the applicant uploads a replacement, verify it above to unlock it.
+              Staff must verify every required document before scheduling the interview. When the Solo Parent uploads a replacement, verify it above to unlock it.
             </div>
           <?php else: ?>
-            <div class="info-box" style="max-width:none"><b>All required documents are verified</b> <?php if (($invitationState ?? 'off') !== 'ready'): ?>Interview scheduling is not available until interview date booking is enabled.<?php else: ?>Pick the interview date in <b>Schedule the interview date</b> below. The applicant is texted the date and can keep it or log in to pick another day; the booking then appears here and in the staff dashboard's Expected Today list.<?php endif; ?></div>
+            <div class="info-box" style="max-width:none"><b>All required documents are verified</b> <?php if (($invitationState ?? 'off') !== 'ready'): ?>Interview scheduling is not available until interview date booking is enabled.<?php else: ?>Pick the interview date in <b>Schedule the interview date</b> below. The Solo Parent is texted the date and can keep it or log in to pick another day; the booking then appears here and in the staff dashboard's Expected Today list.<?php endif; ?></div>
           <?php endif; ?>
         <?php endif; ?>
 
@@ -446,22 +446,22 @@ if ($interviewOutcome !== null) {
           <div class="info-box" style="max-width:none" role="status">Interview scheduling is not available because its setup is incomplete. Please contact the system administrator.</div>
         <?php elseif ($invState === 'ready' && $invPanel !== null): ?>
           <?php if ($ivNow === 'BOOKED'): ?>
-            <div class="small text-muted">An interview date is already set (shown above). The applicant can keep it or pick another day from their own account. To change it yourself, the applicant must cancel it first.</div>
+            <div class="small text-muted">An interview date is already set (shown above). The Solo Parent can keep it or pick another day from their own account. To change it yourself, the Solo Parent must cancel it first.</div>
           <?php elseif ($ivNow === 'COMPLETED'): ?>
             <div class="small text-muted">The interview has been held. Record the result and decide on the application below.</div>
           <?php elseif (($invProblems['open'] ?? null) !== null && !$inv): ?>
             <div class="small text-muted"><?= e($invProblems['open']) ?></div>
           <?php else: ?>
-            <div class="small text-muted mb-2">Pick a Monday to Friday office day (office hours 7:00 AM to 5:00 PM). The date is booked right away and the applicant is texted: they can come on that date, or log in and pick a different day.</div>
+            <div class="small text-muted mb-2">Pick a Monday to Friday office day (office hours 7:00 AM to 5:00 PM). The date is booked right away and the Solo Parent is texted: they can come on that date, or log in and pick a different day.</div>
             <?php if ($inv): ?>
               <div class="review-grid mb-2">
-                <div class="review-row"><div class="k">Reschedules used</div><div class="v"><?= (int) $inv['reschedules_used'] ?> of <?= (int) $inv['reschedules_allowed'] ?> by the applicant</div></div>
+                <div class="review-row"><div class="k">Reschedules used</div><div class="v"><?= (int) $inv['reschedules_used'] ?> of <?= (int) $inv['reschedules_allowed'] ?> by the Solo Parent</div></div>
                 <?php if ($inv['status'] === 'CLOSED'): ?>
-                  <div class="review-row"><div class="k">Applicant booking</div><div class="v">Closed<?= !empty($inv['close_reason']) ? ' — ' . e($inv['close_reason']) : '' ?>. Scheduling a date here reopens it for this booking.</div></div>
+                  <div class="review-row"><div class="k">Solo Parent booking</div><div class="v">Closed<?= !empty($inv['close_reason']) ? ' — ' . e($inv['close_reason']) : '' ?>. Scheduling a date here reopens it for this booking.</div></div>
                 <?php endif; ?>
               </div>
             <?php endif; ?>
-            <form method="post" class="d-flex flex-column gap-2 mb-2" onsubmit="return confirm('Schedule this interview date and text the applicant?');">
+            <form method="post" class="d-flex flex-column gap-2 mb-2" onsubmit="return confirm('Schedule this interview date and text the Solo Parent?');">
               <?= csrf_field() ?><input type="hidden" name="form_action" value="schedule_interview_date">
               <label style="font-size:13px;font-weight:600;color:var(--ink)">Interview date
                 <input type="date" name="interview_date" id="schedule-date" class="form-control mt-1" min="<?= e($scheduleMinDate ?? '') ?>" max="<?= e($scheduleMaxDate ?? '') ?>" required>
@@ -492,7 +492,7 @@ if ($interviewOutcome !== null) {
           <div class="review-row"><div class="k">Handed over</div><div class="v"><?= $idReleaseSchedule && $idReleaseSchedule['released_at'] ? e(date('F j, Y g:i A', strtotime($idReleaseSchedule['released_at']))) : 'Recorded in application status history.' ?></div></div>
           <?php if ($idReleaseSchedule && $idReleaseSchedule['released_by_name']): ?><div class="small text-muted">Confirmed by <?= e($idReleaseSchedule['released_by_name']) ?></div><?php endif; ?>
         <?php elseif ($outstandingRequirements): ?>
-          <div class="checklist-attention-summary" role="status">Remind the applicant to submit the highlighted required documents before ID release can be scheduled.</div>
+          <div class="checklist-attention-summary" role="status">Remind the Solo Parent to submit the highlighted required documents before ID release can be scheduled.</div>
         <?php elseif ($app['status'] !== 'Approved'): ?>
           <div class="small text-muted">An ID release appointment can be scheduled after the application is approved.</div>
         <?php else: ?>
@@ -561,7 +561,7 @@ if ($interviewOutcome !== null) {
           </script>
           <?php if ($idReleaseSchedule): ?>
             <div class="info-box" style="max-width:none">Scheduling the appointment does not mark the ID as released.</div>
-            <form method="post" onsubmit="return confirm('Confirm that the Solo Parent ID was physically handed to this applicant? This will record ID Released.');">
+            <form method="post" onsubmit="return confirm('Confirm that the Solo Parent ID was physically handed to this Solo Parent? This will record ID Released.');">
               <?= csrf_field() ?><input type="hidden" name="form_action" value="confirm_id_release"><input type="hidden" name="confirm_handover" value="1">
               <button type="submit" class="btn-navy review-button-success is-selected review-release-action">Confirm ID Released</button>
             </form>

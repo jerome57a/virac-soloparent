@@ -15,7 +15,7 @@ USE virac_solo_parent;
 INSERT INTO roles (id, role_key, code, name, description) VALUES
 (1, 'admin',              'ADMINISTRATOR', 'System Administrator',       'Manages users, settings, analytics, reports, SMS and audit logs.'),
 (2, 'mswd_social_worker', 'MSWD_STAFF',    'MSWD Staff / Social Worker', 'Reviews and decides applications, verifies documents, manages appointments.'),
-(3, 'applicant',          'SOLO_PARENT',   'Solo Parent Applicant',      'Applies for and renews their own Solo Parent ID.');
+(3, 'applicant',          'SOLO_PARENT',   'Solo Parent',      'Applies for and renews their own Solo Parent ID.');
 
 -- ---------------------------------------------------------------
 -- Initial administrator (password: Admin@Virac2026 -- change it)
@@ -27,15 +27,15 @@ INSERT INTO users (full_name, email, username, password_hash, role) VALUES
 -- Solo parent categories (RA 8972 / RA 11861, Section 3)
 -- ---------------------------------------------------------------
 INSERT INTO categories (name, description, sort_order) VALUES
-('Abandonment by the spouse', 'The spouse has abandoned the applicant and child/children.', 1),
+('Abandonment by the spouse', 'The spouse has abandoned the Solo Parent and child/children.', 1),
 ('Declaration of nullity or annulment of marriage', 'A judicial declaration of nullity or annulment, including recognition of a foreign divorce.', 2),
-('Legal guardian, adoptive parent, or foster parent', 'The applicant is the child’s legal guardian, adoptive parent, or foster parent.', 3),
+('Legal guardian, adoptive parent, or foster parent', 'The Solo Parent is the child’s legal guardian, adoptive parent, or foster parent.', 3),
 ('Unmarried father or mother who keeps and rears the child/children', 'An unmarried father or mother keeps and rears the child/children.', 4),
 ('Detention or imprisonment of the spouse', 'The spouse is detained or serving a sentence for at least three months.', 5),
 ('Child/children as a consequence of rape', 'The child/children were conceived as a consequence of rape.', 6),
-('Death of the spouse', 'The applicant’s spouse has died.', 7),
+('Death of the spouse', 'The Solo Parent’s spouse has died.', 7),
 ('Legal or de facto separation of spouse for at least six months', 'The spouses have been legally or de facto separated for at least six months.', 8),
-('Spouse or family member of an OFW', 'The applicant is the spouse or family member of an overseas Filipino worker.', 9);
+('Spouse or family member of an OFW', 'The Solo Parent is the spouse or family member of an overseas Filipino worker.', 9);
 
 -- ---------------------------------------------------------------
 -- Standard document requirements (category_id NULL = applies to all)
@@ -55,7 +55,7 @@ FROM categories c
 JOIN (
   SELECT 'Abandonment by the spouse' category_name, 'photo1x1' doc_key, 'Two 1x1 ID pictures' label, 1 sort_order UNION ALL
   SELECT 'Abandonment by the spouse', 'birthCert', 'Photocopy of the child''s/children''s birth certificate(s)', 2 UNION ALL
-  SELECT 'Abandonment by the spouse', 'marriageOrAffidavit', 'Marriage certificate or affidavit of the applicant', 3 UNION ALL
+  SELECT 'Abandonment by the spouse', 'marriageOrAffidavit', 'Marriage certificate or affidavit of the Solo Parent', 3 UNION ALL
   SELECT 'Abandonment by the spouse', 'witnessAffidavit', 'Affidavit of two disinterested persons attesting to abandonment', 4 UNION ALL
   SELECT 'Abandonment by the spouse', 'abandonmentRecord', 'Police or barangay record of abandonment', 5 UNION ALL
   SELECT 'Abandonment by the spouse', 'barangayCareAffidavit', 'Barangay official''s affidavit confirming residency and parental care/support', 6 UNION ALL
@@ -109,7 +109,7 @@ JOIN (
 -- ---------------------------------------------------------------
 INSERT INTO faqs (question, answer, sort_order) VALUES
 ('Who can apply for a Solo Parent ID?', 'Any solo parent residing in Virac, Catanduanes who solely provides parental care to a child (below 22, or of any age if the child has a disability) under one of the circumstances in RA 8972 / RA 11861 -- e.g. widowed, abandoned, separated, or an unwed parent. Not sure yet? Before you sign up, the Eligibility Checker on the public Home page gives a quick preliminary result. Once you are logged in you can apply directly -- there is no need to check again.', 1),
-('What documents do I need?', 'The Required Documents Checklist shows the documentary requirements for your selected category. Renewal applicants see the renewal checklist for their existing record.', 2),
+('What documents do I need?', 'The Required Documents Checklist shows the documentary requirements for your selected category. Renewal Solo Parents see the renewal checklist for their existing record.', 2),
 ('How long does processing take?', 'Once submitted, your application is Pending Review, then moves to Under Verification. If needed, MSWDO may schedule a short interview/assessment. Most applications are resolved within a few weeks, but this can vary depending on document completeness and MSWDO office workload.', 3),
 ('What if my application needs correction?', 'If information or a document requirement needs correction, your application status will show "For Revision" with remarks from MSWDO staff. Open My Applications or Document Checklist to review the remarks, update your information or checklist as requested, and prepare the documents for MSWDO review.', 4),
 ('How do I renew my Solo Parent ID?', 'Your Solo Parent ID is valid for one year. Once it is close to expiring (or already expired), go to ID Renewal in the menu -- your previous information is pre-filled, and you only need to reconfirm your standard documents and submit.', 5),

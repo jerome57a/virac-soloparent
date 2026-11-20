@@ -56,7 +56,7 @@ class AuthController extends Controller
                 $account = $staffAccount ?? $this->auth->userModel()->findApplicantForLogin($username);
                 $authError = $staffAccount
                     ? $this->attemptLogin($account, $username, (string) ($_POST['password'] ?? ''), 'Staff sign-in', 'Please contact your system administrator.')
-                    : $this->attemptLogin($account, $username, (string) ($_POST['password'] ?? ''), 'Applicant sign-in', 'Please contact MSWDO Virac for assistance.');
+                    : $this->attemptLogin($account, $username, (string) ($_POST['password'] ?? ''), 'Solo Parent sign-in', 'Please contact MSWDO Virac for assistance.');
                 if ($authError === '' && $staffAccount) {
                     // Staff and administrators keep their own session cookie; move to it before signing in.
                     $this->auth->enterPortalSession($account['role'] === 'admin' ? 'admin' : 'staff');
@@ -68,7 +68,7 @@ class AuthController extends Controller
                     $this->auth->loginUser($account);
                     (new EligibilityService($this->pdo))->claimForUser((int) $account['id']);
                     audit_log($this->pdo, (int) $account['id'], $account['full_name'], $account['role'], 'Login', 'user', (int) $account['id'],
-                        empty($account['username']) ? 'Applicant sign-in (no username yet; signed in with email or mobile number)' : 'Applicant sign-in');
+                        empty($account['username']) ? 'Solo Parent sign-in (no username yet; signed in with email or mobile number)' : 'Solo Parent sign-in');
                     $this->redirectTo(take_applicant_return_path());
                 }
             } elseif ($action === 'signup') {
@@ -220,7 +220,7 @@ class AuthController extends Controller
         $this->auth->loginUser(['id' => $newUserId]);
         (new EligibilityService($this->pdo))->claimForUser($newUserId);
         audit_log($this->pdo, $newUserId, $form['fullName'], 'applicant', 'Registration', 'user', $newUserId,
-            $numberVerified ? 'New applicant account (mobile number confirmed by SMS code)' : 'New applicant account');
+            $numberVerified ? 'New Solo Parent account (mobile number confirmed by SMS code)' : 'New Solo Parent account');
         create_notification($this->pdo, $newUserId, 'registration', 'Welcome to e-SoloParentID! Your account has been created.');
         flash('Your account has been created. You can now use your dashboard and apply online.');
         $this->redirectTo(take_applicant_return_path());
@@ -320,7 +320,7 @@ class AuthController extends Controller
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_require();
             if ($user = $this->auth->currentUser()) {
-                audit_log($this->pdo, (int) $user['id'], $user['full_name'], $user['role'], 'Logout', 'user', (int) $user['id'], 'Applicant sign-out');
+                audit_log($this->pdo, (int) $user['id'], $user['full_name'], $user['role'], 'Logout', 'user', (int) $user['id'], 'Solo Parent sign-out');
             }
             $this->auth->logoutUser();
         }

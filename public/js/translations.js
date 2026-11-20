@@ -9,12 +9,12 @@ window.ViracTranslations = Object.fromEntries([
   ['Appointment Overview', 'Pangkalahatang-ideya ng mga Appointment'],
   ['Monitor interview schedules, available capacity and appointments awaiting a staff outcome.', 'Subaybayan ang mga iskedyul ng panayam, bakanteng kapasidad at mga appointment na naghihintay ng resulta mula sa kawani.'],
   ['As administrator, you monitor appointments and manage the interview dates, times and capacity available to the office.', 'Bilang tagapangasiwa, sinusubaybayan mo ang mga appointment at pinamamahalaan ang mga petsa, oras at kapasidad ng panayam sa opisina.'],
-  ['MSWD staff assign applicants to slots, handle individual appointment changes and record interview results or missed appointments.', 'Ang mga kawani ng MSWD ang nagtatalaga ng iskedyul sa mga aplikante, humahawak ng pagbabago sa bawat appointment at nagtatala ng resulta ng panayam o hindi pagdalo.'],
+  ['MSWD staff assign Solo Parents to slots, handle individual appointment changes and record interview results or missed appointments.', 'Ang mga kawani ng MSWD ang nagtatalaga ng iskedyul sa mga Solo Parent, humahawak ng pagbabago sa bawat appointment at nagtatala ng resulta ng panayam o hindi pagdalo.'],
   ['Manage Available Slots', 'Pamahalaan ang mga Bakanteng Iskedyul'],
   ['Awaiting MSWD Staff Outcome', 'Naghihintay ng Resulta mula sa Kawani ng MSWD'],
   ['Back to Appointment Overview', 'Bumalik sa Pangkalahatang-ideya ng mga Appointment'],
-  ['Manage office availability here. MSWD staff assign individual applicants and record interview outcomes.', 'Pamahalaan dito ang mga bakanteng iskedyul ng opisina. Ang mga kawani ng MSWD ang nagtatalaga ng iskedyul sa bawat aplikante at nagtatala ng resulta ng panayam.'],
-  ['Cancelling a booked slot cancels all appointments in that slot and notifies the affected applicants. MSWD staff then assign replacement schedules.', 'Ang pagkansela ng naka-book na iskedyul ay nagkakansela ng lahat ng appointment dito at nag-aabiso sa mga apektadong aplikante. Pagkatapos, ang mga kawani ng MSWD ang magtatalaga ng kapalit na iskedyul.'],
+  ['Manage office availability here. MSWD staff assign individual Solo Parents and record interview outcomes.', 'Pamahalaan dito ang mga bakanteng iskedyul ng opisina. Ang mga kawani ng MSWD ang nagtatalaga ng iskedyul sa bawat Solo Parent at nagtatala ng resulta ng panayam.'],
+  ['Cancelling a booked slot cancels all appointments in that slot and notifies the affected Solo Parents. MSWD staff then assign replacement schedules.', 'Ang pagkansela ng naka-book na iskedyul ay nagkakansela ng lahat ng appointment dito at nag-aabiso sa mga apektadong Solo Parent. Pagkatapos, ang mga kawani ng MSWD ang magtatalaga ng kapalit na iskedyul.'],
   ['Gmail address (optional)', 'Gmail address (opsyonal)'],
   ['Gmail address or mobile number', 'Gmail address o numero ng mobile'],
   ['Gmail, username or mobile number', 'Gmail, username o numero ng mobile'],
@@ -29,10 +29,10 @@ window.ViracTranslations = Object.fromEntries([
   ['Enter a Gmail address ending in @gmail.com, or leave this blank.', 'Maglagay ng Gmail address na nagtatapos sa @gmail.com, o iwan itong blangko.'],
   ['Solo Parent ID Services', 'Mga Serbisyo para sa Solo Parent ID'],
   ['Home', 'Pangunahing Pahina'], ['Main', 'Pangunahing Menu'],
-  ['Dashboard', 'Pangkalahatang-ideya'], ['Applicant Portal', 'Portal ng Aplikante'],
-  ['Solo Parent Applicant', 'Aplikanteng Solo Parent'], ['Administrator', 'Tagapangasiwa'],
+  ['Dashboard', 'Pangkalahatang-ideya'], ['Solo Parent Portal', 'Portal ng Solo Parent'],
+  ['Solo Parent', 'Solo Parent'], ['Administrator', 'Tagapangasiwa'],
   ['MSWD Staff', 'Kawani ng MSWD'], ['Administration', 'Pangangasiwa'],
-  ['Applications', 'Mga Aplikasyon'], ['Applicant Records', 'Mga Talaan ng Aplikante'],
+  ['Applications', 'Mga Aplikasyon'], ['Solo Parent Records', 'Mga Talaan ng Solo Parent'],
   ['Notifications', 'Mga Abiso'], ['My Account', 'Aking Account'], ['My account', 'Aking account'],
   ['My Profile', 'Aking Profile'], ['My Application', 'Aking Aplikasyon'],
   ['My Applications', 'Aking Mga Aplikasyon'], ['My applications', 'Aking mga aplikasyon'],
@@ -128,15 +128,15 @@ window.ViracTranslations = Object.fromEntries([
   ['Death of the spouse', 'Pagkamatay ng asawa'],
   ['Legal or de facto separation of spouse for at least six months', 'Legal o aktuwal na paghihiwalay ng mag-asawa nang hindi bababa sa anim na buwan'],
   ['Spouse or family member of an OFW', 'Asawa o kapamilya ng isang OFW'],
-  ['The spouse has abandoned the applicant and child/children.', 'Inabandona ng asawa ang aplikante at ang anak o mga anak.'],
+  ['The spouse has abandoned the Solo Parent and child/children.', 'Inabandona ng asawa ang Solo Parent at ang anak o mga anak.'],
   ['A judicial declaration of nullity or annulment, including recognition of a foreign divorce.', 'May desisyon ng hukuman na nagpapawalang-bisa sa kasal, kabilang ang pagkilala sa diborsiyo mula sa ibang bansa.'],
-  ['The applicant is the child’s legal guardian, adoptive parent, or foster parent.', 'Ang aplikante ang legal na tagapag-alaga, umampon, o foster parent ng bata.'],
+  ['The Solo Parent is the child’s legal guardian, adoptive parent, or foster parent.', 'Ang Solo Parent ang legal na tagapag-alaga, umampon, o foster parent ng bata.'],
   ['An unmarried father or mother keeps and rears the child/children.', 'Isang ama o inang walang asawa ang nag-aalaga at nagpapalaki ng anak o mga anak.'],
   ['The spouse is detained or serving a sentence for at least three months.', 'Nakakulong o nagsisilbi ng sentensiya ang asawa nang hindi bababa sa tatlong buwan.'],
   ['The child/children were conceived as a consequence of rape.', 'Ang anak o mga anak ay bunga ng panggagahasa.'],
-  ['The applicant’s spouse has died.', 'Pumanaw na ang asawa ng aplikante.'],
+  ['The Solo Parent’s spouse has died.', 'Pumanaw na ang asawa ng Solo Parent.'],
   ['The spouses have been legally or de facto separated for at least six months.', 'Legal o aktuwal na hiwalay ang mag-asawa nang hindi bababa sa anim na buwan.'],
-  ['The applicant is the spouse or family member of an overseas Filipino worker.', 'Ang aplikante ay asawa o kapamilya ng isang overseas Filipino worker.'],
+  ['The Solo Parent is the spouse or family member of an overseas Filipino worker.', 'Ang Solo Parent ay asawa o kapamilya ng isang overseas Filipino worker.'],
   ['Contact MSWDO for the requirements for this category.', 'Makipag-ugnayan sa MSWDO para sa mga kinakailangan sa kategoryang ito.'],
   ['How to Apply via e-SoloParentID', 'Paano Mag-apply sa e-SoloParentID'],
   ["Follow these steps to apply for your Solo Parent ID online through the MSWDO of Virac's e-SoloParentID system:", 'Sundin ang mga hakbang na ito para mag-apply online para sa Solo Parent ID sa e-SoloParentID ng MSWDO Virac:'],
@@ -172,9 +172,9 @@ window.ViracTranslations = Object.fromEntries([
   ['📱 New: Through the e-SoloParentID system, solo parents in Virac can complete the application form, tick available documents in the checklist, and track their application online. Follow MSWDO instructions for document review, interviews, and ID claiming.', '📱 Bago: Sa e-SoloParentID, maaaring punan ng mga solo parent sa Virac ang form, lagyan ng tsek ang mga dokumentong mayroon sila, at subaybayan ang aplikasyon online. Sundin ang mga tagubilin ng MSWDO para sa pagsusuri ng dokumento, panayam, at pagkuha ng ID.'],
   ['💡 Not sure if you qualify? Use the Eligibility Checker below, or visit the MSWDO Office for a personal assessment.', '💡 Hindi sigurado kung kwalipikado ka? Gamitin ang Pagsusuri ng Kwalipikasyon o bumisita sa MSWDO para sa personal na pagtatasa.'],
   ['Username or mobile number', 'Username o numero ng mobile'],
-  ['Applicant Log In — use your public applicant account.', 'Pag-log in ng Aplikante — gamitin ang iyong account bilang aplikante.'],
-  ['Sign In', 'Mag-sign In'], ['Back to log in', 'Bumalik sa pag-log in'], ['New applicant?', 'Bagong aplikante?'],
-  ['Sign in with your username and password. Applicants, MSWD staff and administrators all use this page.', 'Mag-sign in gamit ang iyong username at password. Ang mga aplikante, kawani ng MSWD at administrator ay gumagamit ng pahinang ito.'],
+  ['Solo Parent Log In — use your public Solo Parent account.', 'Pag-log in ng Solo Parent — gamitin ang iyong account bilang Solo Parent.'],
+  ['Sign In', 'Mag-sign In'], ['Back to log in', 'Bumalik sa pag-log in'], ['New Solo Parent?', 'Bagong Solo Parent?'],
+  ['Sign in with your username and password. Solo Parents, MSWD staff and administrators all use this page.', 'Mag-sign in gamit ang iyong username at password. Ang mga Solo Parent, kawani ng MSWD at administrator ay gumagamit ng pahinang ito.'],
   ['MSWD staff and administrators: reset codes are sent only to a mobile number on your account. If you have none, ask your system administrator to reset your password.', 'Mga kawani ng MSWD at administrator: ang mga reset code ay ipinapadala lamang sa numero ng mobile sa inyong account. Kung wala kayo nito, hilingin sa inyong system administrator na i-reset ang inyong password.'],
   ['Password resets are handled by the MSWDO office. Contact MSWDO Virac and give your username. An administrator will confirm who you are and give you a temporary password. You will be asked to choose a new password the next time you log in.', 'Ang MSWDO office ang nag-aasikaso ng pag-reset ng password. Makipag-ugnayan sa MSWDO Virac at ibigay ang inyong username. Kukumpirmahin ng administrator kung sino kayo at bibigyan kayo ng pansamantalang password. Hihilingin sa inyong pumili ng bagong password sa susunod na pag-log in.'],
   ['MSWD staff and administrators: ask your system administrator to reset your password.', 'Mga kawani ng MSWD at administrator: hilingin sa inyong system administrator na i-reset ang inyong password.'],
@@ -182,7 +182,7 @@ window.ViracTranslations = Object.fromEntries([
   ['This appointment was marked as missed. You can choose a new interview date below.', 'Namarkahan na hindi kayo sumipot sa appointment na ito. Maaari kayong pumili ng bagong petsa ng interview sa ibaba.'],
   ['Your release date has passed, but your ID is still kept at the MSWDO office. You can collect it during office hours. If you would like a new date, contact MSWDO.', 'Lumipas na ang petsa ng release, ngunit nasa MSWDO office pa rin ang inyong ID. Maaari ninyo itong kunin sa oras ng opisina. Kung nais ninyo ng bagong petsa, makipag-ugnayan sa MSWDO.'],
   ['ID release date passed', 'Lumipas na ang petsa ng release ng ID'],
-  ['These applicants have not collected their ID yet. The ID keeps waiting at the office: confirm the release when they come, or set a new date if they ask.', 'Hindi pa nakukuha ng mga aplikanteng ito ang kanilang ID. Nakahanda pa rin ang ID sa opisina: kumpirmahin ang release kapag dumating sila, o magtakda ng bagong petsa kung hihilingin nila.'],
+  ['These Solo Parents have not collected their ID yet. The ID keeps waiting at the office: confirm the release when they come, or set a new date if they ask.', 'Hindi pa nakukuha ng mga Solo Parent na ito ang kanilang ID. Nakahanda pa rin ang ID sa opisina: kumpirmahin ang release kapag dumating sila, o magtakda ng bagong petsa kung hihilingin nila.'],
   ['We sent a 6-digit code by SMS to', 'Nagpadala kami ng 6-digit na code sa pamamagitan ng SMS sa'], ['Enter it below to finish creating your account.', 'Ilagay ito sa ibaba upang matapos ang paggawa ng inyong account.'],
   ['SMS is not delivered on this server. Your code is:', 'Hindi ipinapadala ang SMS sa server na ito. Ang inyong code ay:'], ['Verification code', 'Verification code'],
   ['Verify and create account', 'I-verify at gawin ang account'], ['Send a new code', 'Magpadala ng bagong code'], ['Change my details', 'Baguhin ang aking mga detalye'],
@@ -217,7 +217,7 @@ window.ViracTranslations = Object.fromEntries([
   ['Question progress', 'Progreso ng mga tanong'],
   ['Open your category below to see the configured requirements used by the application checklist. Tick the documents you have available when applying; checking a box does not mean MSWDO has verified the document. Bring originals and photocopies as instructed for document review and your interview.', 'Buksan ang iyong kategorya sa ibaba upang makita ang mga kinakailangang dokumento sa checklist. Lagyan ng tsek ang mga dokumentong mayroon ka; hindi nangangahulugan ang tsek na nakumpirma na ng MSWDO ang dokumento. Dalhin ang mga orihinal at photocopy ayon sa tagubilin para sa pagsusuri at panayam.'],
   ['Your answers and result views are recorded for authorized MSWDO monitoring. Guest checks use an anonymous session identifier and are retained for 30 days unless linked to your account when you log in or register.', 'Itinatala ang iyong mga sagot at pagtingin sa resulta para sa awtorisadong pagsubaybay ng MSWDO. Gumagamit ang mga pagsusuri ng bisita ng hindi nagpapakilalang session identifier at itinatago sa loob ng 30 araw, maliban kung maiugnay sa iyong account kapag nag-log in o nagparehistro.'],
-  ['ONLINE SERVICES', 'MGA ONLINE NA SERBISYO'], ['APPLICANT PORTAL', 'PORTAL NG APLIKANTE']
+  ['ONLINE SERVICES', 'MGA ONLINE NA SERBISYO'], ['SOLO PARENT PORTAL', 'PORTAL NG SOLO PARENT']
 ]);
 
 // Applicant instructions and account workflows.
@@ -315,8 +315,8 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "Walang nakatalang kinakailangang dokumento para sa aplikasyong ito."
   ],
   [
-    "Applicant marked available",
-    "Minarkahan ng aplikante na mayroon na"
+    "Solo Parent marked available",
+    "Minarkahan ng Solo Parent na mayroon na"
   ],
   [
     "Verified by staff",
@@ -871,8 +871,8 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "BAGO"
   ],
   [
-    "APPLICANT PROFILE",
-    "PROFILE NG APLIKANTE"
+    "SOLO PARENT PROFILE",
+    "PROFILE NG SOLO PARENT"
   ],
   [
     "Profile Photo",
@@ -983,8 +983,8 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "Mga detalye ng aplikasyon"
   ],
   [
-    "Applicant",
-    "Aplikante"
+    "Solo Parent",
+    "Solo Parent"
   ],
   [
     "Application type",
@@ -1283,8 +1283,8 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "Katayuang sibil *"
   ],
   [
-    "A document-by-document guide for applicants in Virac, Catanduanes. Start with MSWDO to confirm the documents for your category, then use the office routes and request steps below.",
-    "Gabay sa bawat dokumento para sa mga aplikante sa Virac, Catanduanes. Kumpirmahin muna sa MSWDO ang kailangan para sa iyong kategorya, saka sundin ang mga hakbang at tanggapang nakalista sa ibaba."
+    "A document-by-document guide for Solo Parents in Virac, Catanduanes. Start with MSWDO to confirm the documents for your category, then use the office routes and request steps below.",
+    "Gabay sa bawat dokumento para sa mga Solo Parent sa Virac, Catanduanes. Kumpirmahin muna sa MSWDO ang kailangan para sa iyong kategorya, saka sundin ang mga hakbang at tanggapang nakalista sa ibaba."
   ],
   [
     "Before visiting PSA Virac",
@@ -1367,16 +1367,16 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "Ipadala ang reset code"
   ],
   [
-    "Back to applicant log in",
-    "Bumalik sa pag-log in ng aplikante"
+    "Back to Solo Parent log in",
+    "Bumalik sa pag-log in ng Solo Parent"
   ],
   [
     "MSWD admin and staff log in",
     "Pag-log in ng admin at kawani ng MSWD"
   ],
   [
-    "Applicant Log In — use your public applicant account.",
-    "Pag-log In ng Aplikante — gamitin ang iyong account bilang aplikante."
+    "Solo Parent Log In — use your public Solo Parent account.",
+    "Pag-log In ng Solo Parent — gamitin ang iyong account bilang Solo Parent."
   ],
   [
     "Go to log in",
@@ -1639,12 +1639,12 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "Buod ng mga Kinakailangang Dokumento at Pagkumpirma"
   ],
   [
-    "Applicant selections indicate availability only. Staff verification is recorded separately.",
-    "Ipinapakita lamang ng tsek ng aplikante na mayroon na siyang dokumento. Hiwalay ang pagkumpirma ng kawani."
+    "Solo Parent selections indicate availability only. Staff verification is recorded separately.",
+    "Ipinapakita lamang ng tsek ng Solo Parent na mayroon na siyang dokumento. Hiwalay ang pagkumpirma ng kawani."
   ],
   [
-    "Applicant selection:",
-    "Pinili ng aplikante:"
+    "Solo Parent selection:",
+    "Pinili ng Solo Parent:"
   ],
   [
     "Staff status:",
@@ -1877,7 +1877,7 @@ Object.assign(window.ViracTranslations, {
   "Photocopy of the child's/children's birth certificate(s)": "Photocopy ng sertipiko ng kapanganakan ng anak o mga anak",
   "Child's/children's birth certificate(s), photocopy": "Photocopy ng sertipiko ng kapanganakan ng anak o mga anak",
   "Child's/children's birth certificate(s)": "Sertipiko ng kapanganakan ng anak o mga anak",
-  "Marriage certificate or affidavit of the applicant": "Sertipiko ng kasal o sinumpaang salaysay ng aplikante",
+  "Marriage certificate or affidavit of the Solo Parent": "Sertipiko ng kasal o sinumpaang salaysay ng Solo Parent",
   "Affidavit of two disinterested persons attesting to abandonment": "Sinumpaang salaysay ng dalawang taong walang pansariling interes na nagpapatunay ng pag-abandona",
   "Police or barangay record of abandonment": "Tala ng pulis o barangay tungkol sa pag-abandona",
   "Barangay official's affidavit confirming residency and parental care/support": "Sinumpaang salaysay ng opisyal ng barangay na nagpapatunay ng paninirahan at pag-aalaga o pagsuporta sa anak",
@@ -2163,8 +2163,8 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "Pambansang kinakailangan; kumpirmahin ang lokal na paraan ng pagsasagawa"
   ],
   [
-    "Do not sign in place of the barangay official. An applicant’s own affidavit and the official’s affidavit are different documents.",
-    "Huwag lumagda para sa opisyal ng barangay. Magkaiba ang salaysay ng aplikante at salaysay ng opisyal."
+    "Do not sign in place of the barangay official. A Solo Parent’s own affidavit and the official’s affidavit are different documents.",
+    "Huwag lumagda para sa opisyal ng barangay. Magkaiba ang salaysay ng Solo Parent at salaysay ng opisyal."
   ],
   [
     "The barangay office or police station where the incident was recorded. For a Virac report, ask the relevant barangay or Virac Municipal Police Station.",
@@ -2527,8 +2527,8 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "PSA para sa naaangkop na tala ng civil registry; MSWDO para sa ibang tinatanggap na patunay ng relasyon."
   ],
   [
-    "OFW’s and applicant’s names, relationship, and the relevant birth or marriage details.",
-    "Pangalan ng OFW at aplikante, relasyon, at kaugnay na detalye ng kapanganakan o kasal."
+    "OFW’s and Solo Parent’s names, relationship, and the relevant birth or marriage details.",
+    "Pangalan ng OFW at Solo Parent, relasyon, at kaugnay na detalye ng kapanganakan o kasal."
   ],
   [
     "Requester ID and any required authority to obtain another person’s record.",
@@ -2635,8 +2635,8 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "Employer o payroll para sa tala ng kita; BIR para sa dokumento sa buwis; MSWDO o barangay para sa tinatanggap na patunay kung walang trabaho o tax return."
   ],
   [
-    "The applicant spouse/family member’s income records and ID.",
-    "Tala ng kita at ID ng aplikanteng asawa o kapamilya."
+    "The Solo Parent spouse/family member’s income records and ID.",
+    "Tala ng kita at ID ng Solo Parent na asawa o kapamilya."
   ],
   [
     "MSWDO’s accepted-document list for your employment situation.",
@@ -2955,7 +2955,7 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "Anong mga dokumento ang kailangan ko?"
   ],
   [
-    "The Required Documents Checklist shows the documentary requirements for your selected category. Renewal applicants see the renewal checklist for their existing record.",
+    "The Required Documents Checklist shows the documentary requirements for your selected category. Renewal Solo Parents see the renewal checklist for their existing record.",
     "Ipinapakita ng Checklist ng mga Kinakailangang Dokumento ang mga kailangan para sa iyong napiling kategorya. Ang nagpaparenew ay makakakita ng checklist sa pag-renew para sa kasalukuyang tala."
   ],
   [
@@ -3156,7 +3156,7 @@ Object.assign(window.ViracTranslations, {
   "Explore analytics": "Tingnan ang pagsusuri ng datos",
   "See trends and detailed statistics.": "Tingnan ang mga pagbabago at detalyadong bilang.",
   "Common administration tasks": "Karaniwang gawain sa pangangasiwa",
-  "Find an applicant and view their records.": "Maghanap ng aplikante at tingnan ang mga tala.",
+  "Find a Solo Parent and view their records.": "Maghanap ng Solo Parent at tingnan ang mga tala.",
   "Manage accounts, roles, and access.": "Pamahalaan ang mga account, tungkulin, at access.",
   "Set available interview dates and times.": "Itakda ang mga bakanteng petsa at oras ng panayam.",
   "Publish updates and reminders.": "Maglathala ng mga balita at paalala.",
@@ -3186,19 +3186,19 @@ Object.assign(window.ViracTranslations, {
 // Administration workspace navigation and guidance.
 Object.assign(window.ViracTranslations, {
   "Review your notifications and send an announcement to a selected group.": "Basahin ang iyong mga abiso at magpadala ng anunsyo sa napiling grupo.",
-  "Find an applicant, check their application history, and open their complete record.": "Maghanap ng aplikante, suriin ang kasaysayan ng aplikasyon, at buksan ang kumpletong tala.",
+  "Find a Solo Parent, check their application history, and open their complete record.": "Maghanap ng Solo Parent, suriin ang kasaysayan ng aplikasyon, at buksan ang kumpletong tala.",
   "Check interview schedules and available slots. MSWD staff record interview outcomes.": "Tingnan ang iskedyul at bakanteng oras ng panayam. Mga kawani ng MSWD ang nagtatala ng resulta.",
   "Choose a report, narrow the results, then print or download the records you need.": "Pumili ng ulat, salain ang mga resulta, at i-print o i-download ang mga talang kailangan mo.",
-  "Manage the news and reminders that applicants see on the public portal.": "Pamahalaan ang mga balita at paalalang nakikita ng mga aplikante sa pampublikong portal.",
+  "Manage the news and reminders that Solo Parents see on the public portal.": "Pamahalaan ang mga balita at paalalang nakikita ng mga Solo Parent sa pampublikong portal.",
   "Review preliminary eligibility checks and their results. These are guidance, not application decisions.": "Suriin ang mga paunang pagsusuri ng kwalipikasyon at resulta. Mga gabay lamang ito at hindi desisyon sa aplikasyon.",
   "Track submitted applications and renewals. MSWD staff handle approval, corrections, and rejection.": "Subaybayan ang naisumiteng aplikasyon at pag-renew. Mga kawani ng MSWD ang humahawak ng pag-apruba, pagwawasto, at pagtanggi.",
   "Find accounts, manage access, and create accounts for new users.": "Maghanap ng account, pamahalaan ang access, at gumawa ng account para sa mga bagong user.",
-  "Choose a period to understand application trends, applicant demographics, and appointment activity.": "Pumili ng panahon upang makita ang pagbabago sa mga aplikasyon, impormasyon ng mga aplikante, at aktibidad ng appointment.",
+  "Choose a period to understand application trends, Solo Parent demographics, and appointment activity.": "Pumili ng panahon upang makita ang pagbabago sa mga aplikasyon, impormasyon ng mga Solo Parent, at aktibidad ng appointment.",
   "Check message delivery, review failed messages, and manage notification templates.": "Suriin ang pagpapadala at mga bigong mensahe, at pamahalaan ang mga modelo ng abiso.",
   "Choose a settings section and save it separately. Changes are recorded in the audit log.": "Pumili ng bahagi ng mga setting at i-save ito nang hiwalay. Itinatala sa audit log ang mga pagbabago.",
   "Check database storage, create or download backups, and review recent system activity.": "Suriin ang imbakan ng database, gumawa o mag-download ng backup, at tingnan ang mga kamakailang gawain sa sistema.",
   "Find who performed an action and when. Audit records are permanent and cannot be edited here.": "Alamin kung sino ang nagsagawa ng gawain at kailan. Permanente ang mga tala at hindi maaaring baguhin dito.",
-  "Keep applicant help answers clear and up to date. Hidden answers stay available here for reuse.": "Panatilihing malinaw at napapanahon ang sagot para sa mga aplikante. Nananatili rito ang mga itinagong sagot upang magamit muli.",
+  "Keep Solo Parent help answers clear and up to date. Hidden answers stay available here for reuse.": "Panatilihing malinaw at napapanahon ang sagot para sa mga Solo Parent. Nananatili rito ang mga itinagong sagot upang magamit muli.",
   "Skip to page content": "Dumiretso sa nilalaman ng pahina",
   "Administration pages": "Mga pahina ng pangangasiwa",
   "Page sections": "Mga bahagi ng pahina",
@@ -3207,7 +3207,7 @@ Object.assign(window.ViracTranslations, {
   "Inbox": "Mga natanggap na abiso",
   "Send announcement": "Magpadala ng anunsyo",
   "Search records": "Maghanap ng tala",
-  "Applicant list": "Listahan ng aplikante",
+  "Solo Parent list": "Listahan ng Solo Parent",
   "Today": "Ngayong araw",
   "Upcoming": "Paparating",
   "Report types": "Mga uri ng ulat",
@@ -3289,15 +3289,15 @@ Object.assign(window.ViracTranslations, {
 Object.assign(window.ViracTranslations, {
   "Choose the account role first. The form will match the selected role.": "Piliin muna ang tungkulin ng account. Ang form ay aangkop sa napiling tungkulin.",
   "Choose account role": "Piliin ang tungkulin ng account",
-  "For a Solo Parent applying for services. Uses mobile registration and the applicant portal.": "Para sa Solo Parent na nag-aaplay para sa mga serbisyo. Gumagamit ng pagpaparehistro sa mobile at ng portal ng aplikante.",
-  "For MSWD personnel who review applications, manage appointments and assist applicants.": "Para sa mga kawani ng MSWD na sumusuri ng aplikasyon, namamahala ng appointment at tumutulong sa mga aplikante.",
+  "For a Solo Parent applying for services. Uses mobile registration and the Solo Parent portal.": "Para sa Solo Parent na nag-aaplay para sa mga serbisyo. Gumagamit ng pagpaparehistro sa mobile at ng portal ng Solo Parent.",
+  "For MSWD personnel who review applications, manage appointments and assist Solo Parents.": "Para sa mga kawani ng MSWD na sumusuri ng aplikasyon, namamahala ng appointment at tumutulong sa mga Solo Parent.",
   "For personnel who manage users, system settings, announcements and monitoring.": "Para sa mga namamahala ng mga user, setting ng sistema, anunsyo at pagsubaybay.",
-  "The applicant must confirm their mobile number after signing in. Create the account here; complete the Solo Parent application separately.": "Kailangang kumpirmahin ng aplikante ang numero ng mobile matapos mag-sign in. Gawin ang account dito; hiwalay na kumpletuhin ang aplikasyon bilang Solo Parent.",
+  "The Solo Parent must confirm their mobile number after signing in. Create the account here; complete the Solo Parent application separately.": "Kailangang kumpirmahin ng Solo Parent ang numero ng mobile matapos mag-sign in. Gawin ang account dito; hiwalay na kumpletuhin ang aplikasyon bilang Solo Parent.",
   "4 to 30 characters: letters, numbers, dots, or underscores, with at least one letter.": "4 hanggang 30 karakter: mga letra, numero, tuldok o underscore, na may kahit isang letra.",
   "3 to 50 characters: letters, numbers, dots, dashes or underscores.": "3 hanggang 50 karakter: mga letra, numero, tuldok, gitling o underscore.",
   "Initial password": "Panimulang password",
   "Require a new password at first sign-in": "Hilinging palitan ang password sa unang pag-sign in",
-  "New MSWD staff can continue working with existing applicant records. Previous staff history is preserved.": "Maaaring ipagpatuloy ng bagong kawani ng MSWD ang pagproseso sa mga umiiral na tala ng aplikante. Nananatili ang kasaysayan ng dating kawani.",
+  "New MSWD staff can continue working with existing Solo Parent records. Previous staff history is preserved.": "Maaaring ipagpatuloy ng bagong kawani ng MSWD ang pagproseso sa mga umiiral na tala ng Solo Parent. Nananatili ang kasaysayan ng dating kawani.",
   "Administrators manage the system and monitor applications. Application reviews and decisions remain with MSWD staff.": "Pinamamahalaan ng mga administrator ang sistema at sinusubaybayan ang mga aplikasyon. Ang pagsusuri at pagpapasya sa mga aplikasyon ay para sa mga kawani ng MSWD."
 });
 Object.assign(window.ViracTranslations, {

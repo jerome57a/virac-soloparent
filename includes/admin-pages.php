@@ -2,7 +2,7 @@
 /** Presentation metadata only. Controllers remain responsible for authorization and data. */
 return [
     'notifications.php' => ['Notifications', 'Review your notifications.', 'Main', ['Inbox' => 'admin-inbox']],
-    'applicants.php' => ['Applicant Records', 'Find an applicant, check their application history, and open their complete record.', 'Main', ['Search records' => 'admin-record-filters', 'Applicant list' => 'admin-record-list']],
+    'applicants.php' => ['Solo Parent Records', 'Find a Solo Parent, check their application history, and open their complete record.', 'Main', ['Search records' => 'admin-record-filters', 'Solo Parent list' => 'admin-record-list']],
     'appointments.php' => ['Appointment Overview', 'Monitor interview schedules and appointments awaiting a staff outcome.', 'Main', ["Today" => 'admin-appointments-today', 'Upcoming' => 'admin-appointments-upcoming']],
     'reports.php' => ['Reports', 'Choose a report, narrow the results, then print or download the records you need.', 'Main', ['Report types' => 'admin-report-types', 'Filters' => 'admin-report-filters', 'Results' => 'admin-report-results']],
     'eligibility_logs.php' => ['Eligibility Logs', 'Review preliminary eligibility checks and their results. These are guidance, not application decisions.', 'Administration', ['Filters' => 'admin-eligibility-filters', 'Results' => 'admin-eligibility-results']],

@@ -116,7 +116,7 @@ class InterviewInvitationService
                 if (!$this->invitations->releaseBooking($applicationId)) {
                     throw new RuntimeException('The interview invitation changed while the appointment was being closed.');
                 }
-                $details = 'Reopened after a missed interview (' . $missed . ' of ' . self::MISSED_LIMIT . ' allowed). The applicant may choose a new date.';
+                $details = 'Reopened after a missed interview (' . $missed . ' of ' . self::MISSED_LIMIT . ' allowed). The Solo Parent may choose a new date.';
                 $this->events->record($applicationId, 'INVITATION_REOPENED', 'SYSTEM', $actor, null, $details, $appointmentId);
                 $this->auditFor($actor, $applicationId, 'Interview Invitation Reopened', $details);
                 return true;
@@ -127,7 +127,7 @@ class InterviewInvitationService
                 // Impossible while the invitation row is locked by this transaction; if it ever happens, roll the caller back.
                 throw new RuntimeException('The interview invitation changed while the appointment was being closed.');
             }
-            $details = 'Reopened automatically after the applicant cancelled. Reschedules used ' . $used . ' of ' . $allowed . '.';
+            $details = 'Reopened automatically after the Solo Parent cancelled. Reschedules used ' . $used . ' of ' . $allowed . '.';
             $this->events->record($applicationId, 'INVITATION_REOPENED', 'APPLICANT', $actor, null, $details, $appointmentId);
             $this->auditFor($actor, $applicationId, 'Interview Invitation Reopened', $details);
             return true;

@@ -96,7 +96,7 @@ $apptHours = (int) $current['appointments']['appointment_reminder_hours'];
           <div class="settings-note">Weekends, holidays and listed office closures are excluded from interview scheduling. Add closure dates here when an office closure is announced. Existing interviews must be cancelled or rescheduled first on the Appointment pages.</div>
         <?php elseif ($sectionKey === 'notifications'): ?>
           <fieldset class="user-label mt-1">
-            <legend style="font-size:13px;font-weight:600;margin:0">SMS messages sent to applicants</legend>
+            <legend style="font-size:13px;font-weight:600;margin:0">SMS messages sent to Solo Parents</legend>
             <?php foreach ($smsTemplates as $tKey => [$tLabel, $tOn, $tLocked]): ?>
               <?php $checked = $errorSection === 'notifications' ? ($tLocked || !empty($posted['sms_template'][$tKey])) : $tOn; ?>
               <label class="settings-check"><input type="checkbox" name="sms_template[<?= e($tKey) ?>]" value="1" <?= $checked ? 'checked' : '' ?> <?= $tLocked ? 'disabled' : '' ?>> <?= e($tLabel) ?><?= $tLocked ? ' <span class="opt">(always sent — needed to sign in)</span>' : '' ?></label>
@@ -122,7 +122,7 @@ $apptHours = (int) $current['appointments']['appointment_reminder_hours'];
       <div class="review-card settings-card">
         <div class="review-card-head"><div class="title">Renewal Reminders</div></div>
         <div style="font-size:13px;color:var(--muted);margin-bottom:14px">
-          Sends an in-app notification and an SMS to every applicant whose released ID expires within <?= $renewalDays ?> day(s) — once per ID per expiry date, never twice. IDs with a renewal already filed and deactivated accounts are skipped; an ID whose window was missed gets a catch-up reminder after it expires.
+          Sends an in-app notification and an SMS to every Solo Parent whose released ID expires within <?= $renewalDays ?> day(s) — once per ID per expiry date, never twice. IDs with a renewal already filed and deactivated accounts are skipped; an ID whose window was missed gets a catch-up reminder after it expires.
           Schedule <code>cron/renewal-reminders.php</code> to run daily (Task Scheduler: <code>C:\xampp\php\php.exe</code> with that file as the argument), or run it now:
         </div>
         <form method="post" class="mb-3">
@@ -151,7 +151,7 @@ $apptHours = (int) $current['appointments']['appointment_reminder_hours'];
       <div class="review-card settings-card">
         <div class="review-card-head"><div class="title">Appointment Reminders</div></div>
         <div style="font-size:13px;color:var(--muted);margin-bottom:14px">
-          Automatically texts every applicant with an interview/appointment starting within <?= $apptHours ?> hour(s), once per scheduled time (rescheduling resets it). Runs via a scheduled task
+          Automatically texts every Solo Parent with an interview/appointment starting within <?= $apptHours ?> hour(s), once per scheduled time (rescheduling resets it). Runs via a scheduled task
           (<code>cron/appointment-reminders.php</code>, e.g. hourly), or trigger it manually below.
         </div>
         <form method="post" class="mb-3">

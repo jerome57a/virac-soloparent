@@ -367,6 +367,6 @@ class Document extends Model
         $documentId = (int) $existing['id'];
         $this->pdo->prepare("UPDATE application_documents SET original_name=?, stored_path=?, mime=?, size_bytes=?, sha256=?, verification_status='FOR_VERIFICATION', staff_remarks=NULL, verified_by=NULL, verified_at=NULL, uploaded_at=NOW() WHERE id=?")
             ->execute([$meta['original_name'], $relativePath, $meta['mime'], $meta['size'], $meta['sha256'] ?? null, $documentId]);
-        $this->addStatusHistory($documentId, $applicationId, $existing['doc_key'], $existing['verification_status'], 'FOR_VERIFICATION', 'File replaced by applicant.', $actor);
+        $this->addStatusHistory($documentId, $applicationId, $existing['doc_key'], $existing['verification_status'], 'FOR_VERIFICATION', 'File replaced by Solo Parent.', $actor);
     }
 }

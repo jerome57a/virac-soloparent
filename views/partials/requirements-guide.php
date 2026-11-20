@@ -14,7 +14,7 @@ $visibleGuides = $selectedGuideKey !== null ? [$selectedGuideKey => $requirement
 <div class="requirements-guide">
   <div class="requirements-guide-intro">
     <h2 data-i18n>How to get your requirements</h2>
-    <p data-i18n>A document-by-document guide for applicants in Virac, Catanduanes. Start with MSWDO to confirm the documents for your category, then use the office routes and request steps below.</p>
+    <p data-i18n>A document-by-document guide for Solo Parents in Virac, Catanduanes. Start with MSWDO to confirm the documents for your category, then use the office routes and request steps below.</p>
     <p class="requirements-guide-reviewed">Sources reviewed <?= e(format_date_long(RequirementGuideService::REVIEWED_ON)) ?>. Each guide identifies confirmed national procedures and local arrangements you need to check. Follow your application checklist; these instructions do not add requirements.</p>
     <div class="requirements-guide-advisory"><strong data-i18n>Before visiting PSA Virac</strong><p data-i18n>From April 6, 2026, an online CRS appointment is required, including for National ID holders. The appointment must be under the actual requester's name. <a href="https://appointment.psa.gov.ph/" target="_blank" rel="noopener" data-i18n>Book through PSA</a> or read the <a href="https://rsso05.psa.gov.ph/content/full-implementation-civil-registration-service-appointment-system-crs-outlet-virac" target="_blank" rel="noopener" data-i18n>official Virac advisory</a>.</p></div>
     <a href="<?= e($guideContactUrl) ?>" class="requirements-guide-contact" data-i18n>Contact MSWDO for help &rarr;</a>

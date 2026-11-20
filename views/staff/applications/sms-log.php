@@ -17,7 +17,7 @@ $kinds = [
 $words = ['SENT' => ['Sent', 'pass'], 'FAILED' => ['Failed', 'fail'], 'PENDING' => ['Pending', 'flag']];
 ?>
 <div class="review-card" id="sms">
-  <div class="review-card-head"><div class="title" data-i18n>SMS to the applicant</div></div>
+  <div class="review-card-head"><div class="title" data-i18n>SMS to the Solo Parent</div></div>
   <ul class="ac-list mb-0">
     <?php foreach ($smsLogs as $l): [$word, $tone] = $words[$l['status']] ?? [ucfirst(strtolower((string) $l['status'])), 'flag']; ?>
       <li>
@@ -34,7 +34,7 @@ $words = ['SENT' => ['Sent', 'pass'], 'FAILED' => ['Failed', 'fail'], 'PENDING' 
               <button type="submit" class="btn-outline" style="padding:3px 12px;font-size:12px">Retry SMS</button>
             </form>
           <?php elseif ($l['status'] === 'FAILED'): ?>
-            <br><span class="small text-muted"><?= e($l['template_key'] === 'document_correction' ? 'Confirm the correction text again from the document review card.' : ((int) $l['attempts'] >= SMS_MAX_ATTEMPTS ? 'All ' . SMS_MAX_ATTEMPTS . ' attempts were used. Contact the applicant another way.' : (in_array($l['template_key'], SmsLog::NOT_RETRYABLE, true) ? 'The applicant must request a new code.' : 'A newer text of this kind was already sent, so this one is not retried.'))) ?></span>
+            <br><span class="small text-muted"><?= e($l['template_key'] === 'document_correction' ? 'Confirm the correction text again from the document review card.' : ((int) $l['attempts'] >= SMS_MAX_ATTEMPTS ? 'All ' . SMS_MAX_ATTEMPTS . ' attempts were used. Contact the Solo Parent another way.' : (in_array($l['template_key'], SmsLog::NOT_RETRYABLE, true) ? 'The Solo Parent must request a new code.' : 'A newer text of this kind was already sent, so this one is not retried.'))) ?></span>
           <?php endif; ?>
         </span>
       </li>

@@ -79,7 +79,7 @@ $guides['barangayCareAffidavit'] = $guide('Your Virac barangay official, coordin
     'Take the accepted format to the barangay secretary and request verification by the appropriate official.',
     'Provide the household details and supporting records requested by the barangay.',
     'Ask how the official will execute the oath and obtain the correctly signed/sworn copy for MSWDO.',
-], ['Solo-parent requirements and barangay affidavit' => $law, 'Traditional notarization guidance' => $notarial], 'National requirement; local execution arrangements to confirm', ['Do not sign in place of the barangay official. An applicant’s own affidavit and the official’s affidavit are different documents.']);
+], ['Solo-parent requirements and barangay affidavit' => $law, 'Traditional notarization guidance' => $notarial], 'National requirement; local execution arrangements to confirm', ['Do not sign in place of the barangay official. A Solo Parent’s own affidavit and the official’s affidavit are different documents.']);
 
 $guides['abandonmentRecord'] = $guide('The barangay office or police station where the incident was recorded. For a Virac report, ask the relevant barangay or Virac Municipal Police Station.', ['Your ID; parties’ names, incident/report date, and entry number if known.', 'The checklist wording and any copy of an existing report.'], [
     'Check which office holds the existing entry and ask for its records/duty officer.',
@@ -154,7 +154,7 @@ $guides['marriageOrCenomar'] = $guide('PSA CRS Outlet Virac or PSA’s linked on
     'Complete the selected record request, present the required identity/authority documents, and pay the assessed fee.',
     'Collect/check the document and prepare the copy named in your checklist.',
 ], ['PSA marriage records' => 'https://psa.gov.ph/marriage-certificate', 'PSA CENOMAR' => 'https://psa.gov.ph/cenomar', 'Virac appointment advisory' => $psaLocal, 'PSA online channels' => $psaRequests], 'PSA routes; confirm which civil-status record the checklist requires');
-$guides['ofwRelationshipProof'] = $guide('PSA for the applicable civil-registry record; MSWDO for another accepted relationship document.', ['OFW’s and applicant’s names, relationship, and the relevant birth or marriage details.', 'Requester ID and any required authority to obtain another person’s record.'], [
+$guides['ofwRelationshipProof'] = $guide('PSA for the applicable civil-registry record; MSWDO for another accepted relationship document.', ['OFW’s and Solo Parent’s names, relationship, and the relevant birth or marriage details.', 'Requester ID and any required authority to obtain another person’s record.'], [
     'Ask MSWDO which record demonstrates your relationship to the OFW.',
     'For a birth/marriage record, use the corresponding PSA guide and book the Virac outlet or use PSA’s linked delivery channels.',
     'If the checklist allows another form of proof, obtain MSWDO’s accepted-document instructions first.',
@@ -173,7 +173,7 @@ $guides['ofwPassportProof'] = $guide('The OFW’s passport/travel documents; Bur
     'Submit the completed form and attachments, pay against the Order of Payment, and retain the official receipt.',
     'Follow BI’s submission/claim-stub instructions and collect on the stated return date. Check the certified period.',
 ], ['BI travel-record certification: form, checklist, steps and fees' => 'https://immigration.gov.ph/services/travel-records-certification/'], 'BI national procedure; no Virac issuing counter was confirmed', ['A travel record shows movements. MSWDO decides whether the documents establish the overseas-work period required by your category.']);
-$guides['ofwIncomeProof'] = $guide('Your employer/payroll office for income records; BIR for tax-document questions; MSWDO/your barangay for accepted evidence when unemployed or without a return.', ['The applicant spouse/family member’s income records and ID.', 'MSWDO’s accepted-document list for your employment situation.'], [
+$guides['ofwIncomeProof'] = $guide('Your employer/payroll office for income records; BIR for tax-document questions; MSWDO/your barangay for accepted evidence when unemployed or without a return.', ['The Solo Parent spouse/family member’s income records and ID.', 'MSWDO’s accepted-document list for your employment situation.'], [
     'Ask MSWDO whose income and which period/document your checklist requires.',
     'If employed, request the specified income/employment certification or tax form from HR/payroll.',
     'If a tax document is required, use your filed record or ask the relevant BIR office about obtaining the accepted copy.',

@@ -136,7 +136,7 @@ class UserManagementService
         $this->audit($admin, 'User Creation', $newId, $accountLabel . ' (' . User::ROLE_LABELS[$role] . ')' . ($mustChange ? ', must change password at first sign-in' : ''));
         $success = 'Account created for ' . $accountLabel . '.';
         if ($role === 'mswd_social_worker') {
-            $success .= ' They can access and continue updating all existing applicant records when they sign in. Previous staff history is preserved.';
+            $success .= ' They can access and continue updating all existing Solo Parent records when they sign in. Previous staff history is preserved.';
         }
         if ($role === 'applicant') {
             $success .= ' They sign in with this username and the password you set; their mobile number and Gmail address are contact details only. This creates an account only; the Solo Parent application is completed separately.';
@@ -268,7 +268,7 @@ class UserManagementService
     public function confirmMobile(array $admin, array $target): array
     {
         if ($target['role'] !== 'applicant' || empty($target['mobile'])) {
-            return ['Only an applicant account with a mobile number can be confirmed.', ''];
+            return ['Only a Solo Parent account with a mobile number can be confirmed.', ''];
         }
         if (!empty($target['mobile_verified_at'])) {
             return ['', 'This mobile number is already confirmed.'];

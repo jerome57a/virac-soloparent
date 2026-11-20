@@ -134,7 +134,7 @@ try {
     ob_start(); $controller->smsAttention(); $html = ob_get_clean();
     sa_assert(str_contains($html, 'Failed Texts') && substr_count($html, 'Retry SMS') === 1, 'The page should offer exactly one Retry (the other two failures cannot be retried).');
     sa_assert(str_contains($html, 'Application #902') && str_contains($html, 'Application #906') && !str_contains($html, 'Application #901'), 'The page lists the wrong applications.');
-    sa_assert(str_contains($html, 'Contact the applicant another way') && str_contains($html, 'confirm the correction text again'), 'The page does not explain the texts that cannot be retried.');
+    sa_assert(str_contains($html, 'Contact the Solo Parent another way') && str_contains($html, 'confirm the correction text again'), 'The page does not explain the texts that cannot be retried.');
     sa_assert(str_contains($html, '3 failed texts'), 'The page does not show the count.');
     foreach ([$l902, $l906, $l908] as $id) { $test->exec('UPDATE sms_logs SET status = \'SENT\' WHERE id = ' . $id); }
     ob_start(); $controller->smsAttention(); $html = ob_get_clean();

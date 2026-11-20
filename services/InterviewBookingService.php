@@ -240,7 +240,7 @@ class InterviewBookingService
             }
             $when = $day->format('l, F j, Y');
             $this->applications->setStatus($applicationId, 'Interview Scheduled');
-            $this->applications->addHistory($applicationId, 'Interview Scheduled', 'Interview date ' . $when . ' booked by the applicant', (string) $user['full_name'], (int) $user['id']);
+            $this->applications->addHistory($applicationId, 'Interview Scheduled', 'Interview date ' . $when . ' booked by the Solo Parent', (string) $user['full_name'], (int) $user['id']);
             $saved = $this->appointments->interviewFor($applicationId);
             $details = $counted
                 ? 'Replacement booking for ' . $date . ' (previous date ' . substr((string) $appointment['scheduled_at'], 0, 10) . '). Reschedules used '
@@ -341,7 +341,7 @@ class InterviewBookingService
             }
             if (($invitation !== null && $invitation['status'] === 'BOOKED') || ($appointment !== null && in_array($appointment['status'], ['BOOKED', 'COMPLETED'], true))) {
                 $this->pdo->rollBack();
-                return 'This applicant already has an interview date.';
+                return 'This Solo Parent already has an interview date.';
             }
             if ($error = $calendar->dateError($date)) {
                 $this->pdo->rollBack();
@@ -350,7 +350,7 @@ class InterviewBookingService
             $today = new DateTimeImmutable(Appointment::manilaDate());
             if ($date <= $today->format('Y-m-d')) {
                 $this->pdo->rollBack();
-                return 'Choose a date after today so the applicant can be told in time.';
+                return 'Choose a date after today so the Solo Parent can be told in time.';
             }
             if ($date > $today->modify('+' . self::BOOKING_WINDOW_DAYS . ' days')->format('Y-m-d')) {
                 $this->pdo->rollBack();
@@ -391,7 +391,7 @@ class InterviewBookingService
             $this->applications->setStatus($applicationId, 'Interview Scheduled');
             $this->applications->addHistory($applicationId, 'Interview Scheduled', 'Interview date ' . $when . ' scheduled by MSWD staff', (string) $staff['full_name'], (int) $staff['id']);
             $saved = $this->appointments->interviewFor($applicationId);
-            $details = 'Scheduled ' . $date . ' by staff' . ($invitation === null ? ' (invitation opened with it)' : ($reopened ? ' (closed booking reopened with it)' : '')) . '. The applicant may keep it or choose another date.';
+            $details = 'Scheduled ' . $date . ' by staff' . ($invitation === null ? ' (invitation opened with it)' : ($reopened ? ' (closed booking reopened with it)' : '')) . '. The Solo Parent may keep it or choose another date.';
             $this->events->record($applicationId, 'STAFF_SCHEDULED', 'STAFF', $staff, null, $details, $saved !== null ? (int) $saved['id'] : null, $date);
             audit_log($this->pdo, (int) $staff['id'], (string) $staff['full_name'], (string) $staff['role'], 'Interview Date Scheduled by Staff', 'application', $applicationId, $app['reference_no'] . ' · ' . $details);
             $this->pdo->commit();

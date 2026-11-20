@@ -63,7 +63,7 @@ class ContentService
             return ['That requirement no longer exists.', ''];
         }
         if ($documents->requirementInUse($requirement)) {
-            return ['Applicants have already submitted this document, so it can\'t be removed. Mark it optional instead.', ''];
+            return ['Solo Parents have already submitted this document, so it can\'t be removed. Mark it optional instead.', ''];
         }
         $documents->deleteRequirement($id);
         $this->audit($admin, 'Document Requirement Deleted', 'document_requirement', $id, $requirement['doc_key']);

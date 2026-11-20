@@ -49,8 +49,8 @@ $missing = array_keys(array_filter(['birthdate' => 1, 'sex' => 1, 'civil_status'
         <?php else: ?>
           <div class="profile-avatar" aria-hidden="true"><?= e(mb_strtoupper(mb_substr(trim($user['full_name']), 0, 1))) ?></div>
         <?php endif; ?>
-        <div class="account-eyebrow" data-i18n>APPLICANT PROFILE</div><h3><?= e($user['full_name']) ?></h3>
-        <span data-i18n>Solo Parent Applicant</span>
+        <div class="account-eyebrow" data-i18n>SOLO PARENT PROFILE</div><h3><?= e($user['full_name']) ?></h3>
+        <span data-i18n>Solo Parent</span>
         <?php if (!empty($user['username'])): ?><span class="profile-handle"><?= e($user['username']) ?></span><?php endif; ?>
       </div>
       <div class="review-card">

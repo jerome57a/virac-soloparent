@@ -28,7 +28,7 @@
         <button class="btn-navy" type="submit">Save Renewal Requirement</button>
       </form>
       <p class="opt">Saving an existing category and document key updates its rule. Unchecked means reuse a verified document while unexpired; request a copy if none is accepted or it has expired.</p>
-      <?php if (!$renewalRequirements): ?><div class="info-box">Category renewal requirements have not been configured. Applicants will be directed to MSWDO instead of receiving the new-application checklist.</div><?php endif; ?>
+      <?php if (!$renewalRequirements): ?><div class="info-box">Category renewal requirements have not been configured. Solo Parents will be directed to MSWDO instead of receiving the new-application checklist.</div><?php endif; ?>
       <?php foreach ($renewalRequirements as $requirement): ?>
         <div class="review-row"><div class="k"><?= e($requirement['category_name']) ?></div><div class="v"><?= e($requirement['label']) ?> (<?= e($requirement['doc_key']) ?>): <?= $requirement['always_refresh'] ? 'Fresh copy required' : 'Reuse accepted, unexpired record' ?></div>
           <form method="post" class="mt-2" onsubmit="return confirm('Remove this renewal requirement for future requests? Existing submitted checklists are preserved.');"><?= csrf_field() ?><input type="hidden" name="action" value="delete_renewal_requirement"><input type="hidden" name="renewal_requirement_id" value="<?= (int) $requirement['id'] ?>"><button class="btn-danger-outline" type="submit">Remove Renewal Requirement</button></form>

@@ -14,7 +14,7 @@ $booking = $booking ?? null;
 $dateBooked = $status === 'BOOKED' && interview_is_date_only($appointment) && ($booking['invitation'] ?? null) !== null;
 $reschedulesLeft = $booking['reschedulesLeft'] ?? null;
 $cancelConfirm = $dateBooked
-    ? 'Cancel this appointment? Your date will be released and may be taken by another applicant. '
+    ? 'Cancel this appointment? Your date will be released and may be taken by another Solo Parent. '
         . ((int) $reschedulesLeft > 0 ? 'If one is still available, you can then choose a new date.' : 'You have no reschedules left, so you would need to contact MSWDO to book again.')
     : (($booking['invitation'] ?? null) !== null
         ? 'Cancel this appointment? If you still have a reschedule left, you can then choose a new date.'
@@ -86,7 +86,7 @@ $apptStyles = [
                 <?php elseif ($dateBooked): ?>
                   <div class="appt-help">To change your date, cancel this booking first, then choose another available date.
                     <?= (int) $reschedulesLeft > 0 ? 'You can reschedule ' . (int) $reschedulesLeft . ' more time' . ((int) $reschedulesLeft === 1 ? '' : 's') . '.' : 'You have no reschedules left.' ?>
-                    The date you cancel is released and may be taken by another applicant.</div>
+                    The date you cancel is released and may be taken by another Solo Parent.</div>
                 <?php endif; ?>
               <?php elseif (!empty($cancelWindow['dateOnly'])): ?>
                 <div class="appt-help"><?= e(AppointmentService::dateOnlyCancellationNotice($cancelWindow)) ?></div>

@@ -91,7 +91,7 @@ START TRANSACTION;
 INSERT INTO roles (id, role_key, code, name, description) VALUES
 (1, 'admin',              'ADMINISTRATOR', 'System Administrator',       'Test fixture role.'),
 (2, 'mswd_social_worker', 'MSWD_STAFF',    'MSWD Staff / Social Worker', 'Test fixture role.'),
-(3, 'applicant',          'SOLO_PARENT',   'Solo Parent Applicant',      'Test fixture role.');
+(3, 'applicant',          'SOLO_PARENT',   'Solo Parent',      'Test fixture role.');
 
 -- ---------------------------------------------------------------
 -- Accounts: 1 administrator, 1 staff, 2 applicants (explicit ids keep FKs stable)

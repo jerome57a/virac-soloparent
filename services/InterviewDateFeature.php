@@ -404,7 +404,7 @@ final class InterviewDateFeature
             $row = $columns['booking_source'];
             if (strtolower((string) $row['column_type']) !== self::ENUM_TYPES['appointments.booking_source']
                 || strtoupper((string) $row['nullable']) !== 'NO' || strcasecmp((string) $default($row), 'LEGACY') !== 0) {
-                $problems[] = "Column appointments.booking_source is not enum('LEGACY','STAFF','APPLICANT') NOT NULL DEFAULT 'LEGACY'.";
+                $problems[] = "Column appointments.booking_source is not enum('LEGACY','STAFF','SOLO PARENT') NOT NULL DEFAULT 'LEGACY'.";
             }
         }
         if (isset($columns['confirmation_sms_log_id'])) {

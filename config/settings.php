@@ -12,7 +12,7 @@
 const SETTINGS_REGISTRY = [
     'general' => [
         'title' => 'Basic System Information',
-        'note' => 'Shown in page titles, the footer, Help, and applicant pages.',
+        'note' => 'Shown in page titles, the footer, Help, and Solo Parent pages.',
         'keys' => [
             'system_name' => ['label' => 'System name', 'type' => 'text', 'default' => 'Virac Solo Parent ID Online Portal', 'max' => 120],
             'office_name' => ['label' => 'Office name', 'type' => 'text', 'default' => 'MSWDO Virac', 'max' => 100],
@@ -33,7 +33,7 @@ const SETTINGS_REGISTRY = [
     ],
     'appointments' => [
         'title' => 'Appointments',
-        'note' => 'Applicants choose their own interview day after MSWD staff send an invitation. These rules decide which days are offered and the hours used for cancellation deadlines.',
+        'note' => 'Solo Parents choose their own interview day after MSWD staff send an invitation. These rules decide which days are offered and the hours used for cancellation deadlines.',
         'keys' => [
             'appointment_location' => ['label' => 'Default appointment location', 'type' => 'text', 'default' => 'MSWDO Office, Municipal Building, Salvacion, Virac, Catanduanes', 'max' => 255],
             'appointment_days' => ['label' => 'Days the office holds interviews', 'type' => 'list', 'default' => '1,2,3,4,5',
@@ -43,10 +43,10 @@ const SETTINGS_REGISTRY = [
             'appointment_closure_dates' => ['label' => 'Announced office closure dates', 'type' => 'dates', 'default' => '', 'max' => 2500,
                 'help' => 'Enter every closed date as YYYY-MM-DD, separated by commas. Include dates from office closure announcements. Cancel or reschedule existing interviews on these dates first.'],
             'appointment_day_end' => ['label' => 'Office closing time', 'type' => 'time', 'default' => '17:00',
-                'help' => 'The office closing time. Applicants can cancel a booked interview day online until this time on the previous office day.'],
+                'help' => 'The office closing time. Solo Parents can cancel a booked interview day online until this time on the previous office day.'],
             'appointment_min_notice_hours' => ['label' => 'Minimum notice to cancel online (hours)', 'type' => 'int', 'default' => '2', 'min' => 0, 'max' => 168],
-            'interview_default_capacity' => ['label' => 'Default daily interview capacity (applicants per interview day)', 'type' => 'int', 'default' => '0', 'min' => 0, 'max' => 500,
-                'help' => 'How many applicants can book each interview day (1 to 500). 0 means not configured: no day can accept bookings until a number is set. It cannot be lowered below the seats already used on an upcoming day that follows it.'],
+            'interview_default_capacity' => ['label' => 'Default daily interview capacity (Solo Parents per interview day)', 'type' => 'int', 'default' => '0', 'min' => 0, 'max' => 500,
+                'help' => 'How many Solo Parents can book each interview day (1 to 500). 0 means not configured: no day can accept bookings until a number is set. It cannot be lowered below the seats already used on an upcoming day that follows it.'],
             'appointment_reminder_hours' => ['label' => 'Send the appointment reminder (hours before)', 'type' => 'int', 'default' => '24', 'min' => 1, 'max' => 168],
         ],
     ],
@@ -60,9 +60,9 @@ const SETTINGS_REGISTRY = [
     ],
     'notifications' => [
         'title' => 'Notification Settings',
-        'note' => 'In-app notifications to applicants are always kept: they are the record of what happened to an application.',
+        'note' => 'In-app notifications to Solo Parents are always kept: they are the record of what happened to an application.',
         'keys' => [
-            'sms_enabled' => ['label' => 'Send SMS notifications to applicants', 'type' => 'bool', 'default' => '1'],
+            'sms_enabled' => ['label' => 'Send SMS notifications to Solo Parents', 'type' => 'bool', 'default' => '1'],
             'notify_staff_new_work' => ['label' => 'Alert MSWD staff in-app about new work (new applications and renewals, re-uploaded documents, appointment changes)', 'type' => 'bool', 'default' => '1'],
         ],
     ],

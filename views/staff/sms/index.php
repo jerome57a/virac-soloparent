@@ -33,7 +33,7 @@
                   <button type="submit" class="btn-outline" style="padding:3px 12px;font-size:12px">Retry SMS</button>
                 </form>
               <?php else: ?>
-                <br><span class="small text-muted"><?= e($r['template_key'] === 'document_correction' ? 'Open the application and confirm the correction text again from the document review card.' : ((int) $r['attempts'] >= SMS_MAX_ATTEMPTS ? 'All ' . SMS_MAX_ATTEMPTS . ' attempts were used. Contact the applicant another way.' : 'This kind of text cannot be resent from here.')) ?></span>
+                <br><span class="small text-muted"><?= e($r['template_key'] === 'document_correction' ? 'Open the application and confirm the correction text again from the document review card.' : ((int) $r['attempts'] >= SMS_MAX_ATTEMPTS ? 'All ' . SMS_MAX_ATTEMPTS . ' attempts were used. Contact the Solo Parent another way.' : 'This kind of text cannot be resent from here.')) ?></span>
               <?php endif; ?>
             </span>
           </li>

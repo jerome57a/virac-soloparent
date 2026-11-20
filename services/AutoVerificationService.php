@@ -191,13 +191,13 @@ class AutoVerificationService
         // Applicant's birthdate.
         $birth = self::date((string) ($app['birthdate'] ?? ''));
         if ($birth === null || $birth > $today) {
-            $add('birthdate', 'application', self::FAIL, 'Applicant birthdate', 'The birthdate is missing, not a real date or in the future.');
+            $add('birthdate', 'application', self::FAIL, 'Solo Parent birthdate', 'The birthdate is missing, not a real date or in the future.');
         } else {
             $age = self::years($birth, $today);
             if ($age < self::MIN_APPLICANT_AGE || $age > self::MAX_APPLICANT_AGE) {
-                $add('birthdate', 'application', self::FLAG, 'Applicant age', 'Age ' . $age . ' is outside the expected range (' . self::MIN_APPLICANT_AGE . '-' . self::MAX_APPLICANT_AGE . '). Please confirm the birthdate.');
+                $add('birthdate', 'application', self::FLAG, 'Solo Parent age', 'Age ' . $age . ' is outside the expected range (' . self::MIN_APPLICANT_AGE . '-' . self::MAX_APPLICANT_AGE . '). Please confirm the birthdate.');
             } else {
-                $add('birthdate', 'application', self::PASS, 'Applicant age', 'Age ' . $age . ' is within the expected range.');
+                $add('birthdate', 'application', self::PASS, 'Solo Parent age', 'Age ' . $age . ' is within the expected range.');
             }
         }
 
@@ -255,7 +255,7 @@ class AutoVerificationService
                     $problems[] = 'The same file is also used for ' . implode(', ', $others) . '.';
                 }
                 if (!empty($duplicates['otherApplications'][$sha])) {
-                    $problems[] = 'The same file appears in another applicant\'s application.';
+                    $problems[] = 'The same file appears in another Solo Parent\'s application.';
                 }
             }
             $measured = $quality($doc);
@@ -282,7 +282,7 @@ class AutoVerificationService
                 } elseif ($best >= self::NAME_MATCH_MIN) {
                     $add('ocr_name', $scope, self::PASS, $label . ' (name)', 'A name from the application was found on the document.', $extra);
                 } else {
-                    $add('ocr_name', $scope, self::FLAG, $label . ' (name)', 'No name from the application (the applicant\'s or a child\'s) was clearly found on this document. Check that it belongs to the applicant.', $extra);
+                    $add('ocr_name', $scope, self::FLAG, $label . ' (name)', 'No name from the application (the Solo Parent\'s or a child\'s) was clearly found on this document. Check that it belongs to the Solo Parent.', $extra);
                 }
             }
         }

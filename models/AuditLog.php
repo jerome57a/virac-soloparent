@@ -4,7 +4,7 @@ require_once __DIR__ . '/Model.php';
 /**
  * Read side of audit_logs (writes go through audit_log() in includes/functions.php).
  * Records are never edited or deleted: the database refuses UPDATE and DELETE
- * on the table (triggers in database/migrate_step26_audit.sql).
+ * on the table (triggers in database/schema.sql).
  */
 class AuditLog extends Model
 {

@@ -101,15 +101,15 @@ class EligibilityService
     public static function circumstances(): array
     {
         return [
-            ['title' => 'Abandonment by the spouse', 'desc' => 'The spouse has abandoned the applicant and child/children.'],
+            ['title' => 'Abandonment by the spouse', 'desc' => 'The spouse has abandoned the Solo Parent and child/children.'],
             ['title' => 'Declaration of nullity or annulment of marriage', 'desc' => 'A judicial declaration of nullity or annulment, including recognition of a foreign divorce.'],
-            ['title' => 'Legal guardian, adoptive parent, or foster parent', 'desc' => 'The applicant is the child’s legal guardian, adoptive parent, or foster parent.'],
+            ['title' => 'Legal guardian, adoptive parent, or foster parent', 'desc' => 'The Solo Parent is the child’s legal guardian, adoptive parent, or foster parent.'],
             ['title' => 'Unmarried father or mother who keeps and rears the child/children', 'desc' => 'An unmarried father or mother keeps and rears the child/children.'],
             ['title' => 'Detention or imprisonment of the spouse', 'desc' => 'The spouse is detained or serving a sentence for at least three months.'],
             ['title' => 'Child/children as a consequence of rape', 'desc' => 'The child/children were conceived as a consequence of rape.'],
-            ['title' => 'Death of the spouse', 'desc' => 'The applicant’s spouse has died.'],
+            ['title' => 'Death of the spouse', 'desc' => 'The Solo Parent’s spouse has died.'],
             ['title' => 'Legal or de facto separation of spouse for at least six months', 'desc' => 'The spouses have been legally or de facto separated for at least six months.'],
-            ['title' => 'Spouse or family member of an OFW', 'desc' => 'The applicant is the spouse or family member of an overseas Filipino worker.'],
+            ['title' => 'Spouse or family member of an OFW', 'desc' => 'The Solo Parent is the spouse or family member of an overseas Filipino worker.'],
         ];
     }
 

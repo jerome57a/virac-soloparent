@@ -41,7 +41,7 @@ $decisionLabels = ['APPROVED' => ['Approved', '#dcf3e2', '#1c7a3f'], 'REJECTED' 
 
 <?php if ($showCaseNotes ?? true): ?>
 <div class="review-card" id="notes">
-  <div class="review-card-head"><div class="title">Case Notes <span style="font-weight:400;font-size:12px;color:var(--muted)">· internal, not shown to the applicant</span></div></div>
+  <div class="review-card-head"><div class="title">Case Notes <span style="font-weight:400;font-size:12px;color:var(--muted)">· internal, not shown to the Solo Parent</span></div></div>
   <?php if (!$notes): ?><div style="font-size:13px;color:var(--muted)">No case notes yet.</div><?php endif; ?>
   <?php foreach ($notes as $n): ?>
     <div class="case-entry">

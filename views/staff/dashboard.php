@@ -51,7 +51,7 @@
     <a href="<?= base_url('staff/index.php?status=For Revision') ?>" class="stat-tile">
       <div class="stat-label">Pending Corrections</div>
       <div class="stat-value"><?= (int) $stats['forRevision'] ?></div>
-      <div class="stat-sub">waiting on applicant</div>
+      <div class="stat-sub">waiting on Solo Parent</div>
     </a>
     <a href="<?= base_url('staff/index.php?type=renewal&status=Pending Review') ?>" class="stat-tile">
       <div class="stat-label">Pending Renewals</div>
@@ -61,7 +61,7 @@
     <a href="<?= base_url('staff/appointments.php') ?>" class="stat-tile">
       <div class="stat-label">Expected Today</div>
       <div class="stat-value"><?= (int) $stats['todaysAppointments'] ?></div>
-      <div class="stat-sub">applicants booked for today</div>
+      <div class="stat-sub">Solo Parents booked for today</div>
     </a>
     <a href="#id-release-queue" class="stat-tile">
       <div class="stat-label">ID Release</div>
@@ -126,13 +126,13 @@
       <div class="review-card-head"><div class="title">Today's Appointments</div></div>
       <div class="small text-muted mb-2">Total expected today: <b><?= (int) $stats['todaysAppointments'] ?></b></div>
       <?php if (!$todaysAppointments): ?>
-        <div class="empty-state compact">No applicants are booked for today.</div>
+        <div class="empty-state compact">No Solo Parents are booked for today.</div>
       <?php else: ?>
         <?php foreach ($todaysAppointments as $iv): ?>
           <a href="<?= base_url('staff/application.php?id=' . (int) $iv['application_id']) ?>" class="app-card text-decoration-none" style="color:inherit">
             <div>
               <div class="app-ref"><?= e($iv['reference_no']) ?></div>
-              <div class="app-date"><?= e($iv['full_name']) ?> · <?= ($iv['booking_source'] ?? '') === 'STAFF' ? 'scheduled by MSWDO' : 'chosen by the applicant' ?></div>
+              <div class="app-date"><?= e($iv['full_name']) ?> · <?= ($iv['booking_source'] ?? '') === 'STAFF' ? 'scheduled by MSWDO' : 'chosen by the Solo Parent' ?></div>
             </div>
             <div class="app-date"><?= e(interview_time_text($iv['scheduled_at'], interview_is_date_only($iv), 'g:i A', 'Any time today')) ?></div>
           </a>
@@ -143,13 +143,13 @@
     <div class="review-card" id="staff-upcoming">
       <div class="review-card-head"><div class="title">Upcoming Interviews</div></div>
       <?php if (!$upcomingInterviews): ?>
-        <div class="empty-state compact"><?= !empty($bookingEnabled) ? 'No upcoming interviews. Interviews appear here once applicants book a date or staff assign a schedule.' : 'No upcoming interviews. Interviews appear here once MSWDO staff assign a schedule.' ?></div>
+        <div class="empty-state compact"><?= !empty($bookingEnabled) ? 'No upcoming interviews. Interviews appear here once Solo Parents book a date or staff assign a schedule.' : 'No upcoming interviews. Interviews appear here once MSWDO staff assign a schedule.' ?></div>
       <?php else: ?>
         <?php foreach ($upcomingInterviews as $iv): ?>
           <a href="<?= base_url('staff/application.php?id=' . (int) $iv['application_id']) ?>" class="app-card text-decoration-none" style="color:inherit">
             <div>
               <div class="app-ref"><?= e($iv['reference_no']) ?></div>
-              <div class="app-date"><?= e($iv['full_name']) ?> · <?= ($iv['booking_source'] ?? '') === 'STAFF' ? 'scheduled by MSWDO' : 'chosen by the applicant' ?></div>
+              <div class="app-date"><?= e($iv['full_name']) ?> · <?= ($iv['booking_source'] ?? '') === 'STAFF' ? 'scheduled by MSWDO' : 'chosen by the Solo Parent' ?></div>
             </div>
             <div class="app-date"><?= e(interview_schedule_text($iv['scheduled_at'], interview_is_date_only($iv), 'D, M j, Y g:i A')) ?></div>
           </a>
@@ -203,7 +203,7 @@
   <div class="d-flex flex-wrap gap-2" style="margin-top:8px">
     <a href="<?= base_url('staff/index.php') ?>" class="btn-navy text-decoration-none">View All Applications</a>
     <a href="<?= base_url('staff/appointments.php') ?>" class="btn-outline text-decoration-none" data-i18n>Appointment Management</a>
-    <a href="<?= base_url('staff/applicants.php') ?>" class="btn-outline text-decoration-none" data-i18n>Applicant Records</a>
+    <a href="<?= base_url('staff/applicants.php') ?>" class="btn-outline text-decoration-none" data-i18n>Solo Parent Records</a>
     <a href="<?= base_url('staff/reports.php') ?>" class="btn-outline text-decoration-none" data-i18n>Reports</a>
   </div>
 </div>

@@ -37,7 +37,7 @@ $empty = fn(string $text) => '<div style="font-size:13px;color:var(--muted)">' .
 <div class="portal-container">
   <a href="<?= e(base_url(role_portal_path($staff, 'applicants.php'))) ?>" class="staff-back-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5m7-7-7 7 7 7"/></svg><span data-i18n>Back</span></a>
   <h1 class="font-heading mt-2 mb-0" style="font-size:26px"><?= e($applicant['full_name']) ?></h1>
-  <div style="font-size:13px;color:var(--muted)">Applicant record · @<?= e($applicant['username']) ?></div>
+  <div style="font-size:13px;color:var(--muted)">Solo Parent record · @<?= e($applicant['username']) ?></div>
 
   <nav class="record-nav mt-3" aria-label="Record sections">
     <a href="#profile">Profile</a><a href="#applications" data-i18n>Applications</a><a href="#renewals">Renewals</a><a href="#documents" data-i18n>Documents</a>
@@ -176,7 +176,7 @@ $empty = fn(string $text) => '<div style="font-size:13px;color:var(--muted)">' .
         <thead><tr><th>Application</th><th>Status</th><th>Sent</th><th>Reschedules</th><th>Details</th></tr></thead>
         <tbody>
           <?php foreach ($invitations as $inv):
-              $invLabels = ['OPEN' => ['Open', '#dcf3e2', '#1c7a3f', 'Waiting for the applicant to choose a date.'], 'BOOKED' => ['Booked', '#dce8f5', '#1b3a6b', 'The applicant chose a date (see Appointments above).'], 'CLOSED' => ['Closed', '#f1f1f1', '#555', '']];
+              $invLabels = ['OPEN' => ['Open', '#dcf3e2', '#1c7a3f', 'Waiting for the Solo Parent to choose a date.'], 'BOOKED' => ['Booked', '#dce8f5', '#1b3a6b', 'The Solo Parent chose a date (see Appointments above).'], 'CLOSED' => ['Closed', '#f1f1f1', '#555', '']];
               [$il, $ibg, $ifg, $itext] = $invLabels[$inv['status']] ?? ['—', '#f1f1f1', '#555', ''];
           ?>
             <tr>

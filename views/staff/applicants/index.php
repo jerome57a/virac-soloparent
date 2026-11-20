@@ -20,7 +20,7 @@ $field = 'padding:9px;border:1px solid var(--input-border);border-radius:6px;fon
 
 <?php endif; ?>
 
-  <form method="get" class="record-filters mb-3" id="admin-record-filters" role="search" aria-label="Search applicant records">
+  <form method="get" class="record-filters mb-3" id="admin-record-filters" role="search" aria-label="Search Solo Parent records">
     <label class="admin-filter-field"><span data-i18n>Search</span><input type="text" name="q" value="<?= e($filters['q']) ?>" maxlength="100" placeholder="Name, reference no., username, email or mobile" aria-label="Name, reference number, username, email or mobile" style="<?= $field ?>;flex:2 1 260px"></label>
     <label class="admin-filter-field"><span data-i18n>Barangay</span><select name="barangay" aria-label="Barangay" style="<?= $field ?>" data-i18n-attrs="aria-label">
       <option value="">All barangays</option>
@@ -47,12 +47,12 @@ $field = 'padding:9px;border:1px solid var(--input-border);border-radius:6px;fon
   </form>
 
   <div id="admin-record-list" style="font-size:13px;color:var(--muted);margin-bottom:12px" role="status">
-    <?= (int) $pager['total'] ?> applicant record<?= (int) $pager['total'] === 1 ? '' : 's' ?><?= $active ? ' match these filters' : '' ?>.
+    <?= (int) $pager['total'] ?> Solo Parent record<?= (int) $pager['total'] === 1 ? '' : 's' ?><?= $active ? ' match these filters' : '' ?>.
     <?php if ($filters['status'] !== '' && $filters['status'] !== 'NONE' || $filters['type'] !== ''): ?>Applications shown are the ones that match.<?php endif; ?>
   </div>
 
   <?php if (!$applicants): ?>
-    <div class="empty-state">No applicant records match this search.</div>
+    <div class="empty-state">No Solo Parent records match this search.</div>
   <?php endif; ?>
 
   <?php foreach ($applicants as $a): ?>

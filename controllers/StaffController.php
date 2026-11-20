@@ -264,7 +264,7 @@ class StaffController extends Controller
                 break;
             case 'confirm_id_release':
                 if ($post('confirm_handover') !== '1') {
-                    return ['release' => 'Confirm that the physical ID was handed to the applicant before recording release.'];
+                    return ['release' => 'Confirm that the physical ID was handed to the Solo Parent before recording release.'];
                 }
                 $error = (new IdReleaseService($this->pdo))->confirmRelease($this->staff, $app);
                 if ($error) {
@@ -280,7 +280,7 @@ class StaffController extends Controller
                     return ['invitation' => $error];
                 }
                 $scheduled = 'Interview scheduled for ' . date('l, F j, Y', strtotime($scheduleDate));
-                flash($scheduled . '. The applicant can keep that date or pick another one.');
+                flash($scheduled . '. The Solo Parent can keep that date or pick another one.');
                 // Tell staff what really happened to the text (sent, failed or not sent), with a Retry button when it failed.
                 set_sms_notice(SMSService::outcomeNotice($smsResult ?? ['status' => 'FAILED', 'error' => 'no SMS result was recorded'], $scheduled));
                 $back .= '#invitation';
@@ -342,7 +342,7 @@ class StaffController extends Controller
                     ? 'Verification saved: ' . $result['changed'] . ' document' . ($result['changed'] === 1 ? '' : 's') . ' updated.'
                     : 'No changes to save. Verification is already up to date.';
                 if ($result['notify_failures'] > 0) {
-                    $notice .= ' The changes are saved, but ' . $result['notify_failures'] . ' applicant notification' . ($result['notify_failures'] === 1 ? '' : 's') . ' could not be sent. Check the SMS log.';
+                    $notice .= ' The changes are saved, but ' . $result['notify_failures'] . ' Solo Parent notification' . ($result['notify_failures'] === 1 ? '' : 's') . ' could not be sent. Check the SMS log.';
                 }
                 $_SESSION['verification_notice'] = ['text' => $notice, 'warning' => $result['notify_failures'] > 0];
                 $back .= '#checklist';
@@ -365,7 +365,7 @@ class StaffController extends Controller
                 if ($error) {
                     return ['status' => $error];
                 }
-                flash('Application is now ' . $status . '. The applicant was notified.');
+                flash('Application is now ' . $status . '. The Solo Parent was notified.');
                 $back .= '#decision';
         }
         $this->redirectTo($back);
@@ -378,7 +378,7 @@ class StaffController extends Controller
         $records = new RecordService($this->pdo);
         $filters = $records->filters($_GET);
         $result = $records->search($filters, (int) ($_GET['page'] ?? 1), $this->staff['role'] === 'admin' ? 10 : RecordService::PER_PAGE);
-        $this->page('Applicant Records', 'views/staff/applicants/index.php', [
+        $this->page('Solo Parent Records', 'views/staff/applicants/index.php', [
             'filters' => $filters,
             'barangays' => $records->barangays(),
             'statuses' => Application::STATUSES,
@@ -398,9 +398,9 @@ class StaffController extends Controller
         $record = (new RecordService($this->pdo))->record((int) ($_GET['id'] ?? 0), (int) ($_GET['app'] ?? 0), (int) ($_GET['hpage'] ?? 1));
         if (!$record) {
             http_response_code(404);
-            die('Applicant not found.');
+            die('Solo Parent not found.');
         }
-        $this->page($record['applicant']['full_name'] . ' — Applicant Record', 'views/staff/applicants/show.php', $record);
+        $this->page($record['applicant']['full_name'] . ' — Solo Parent Record', 'views/staff/applicants/show.php', $record);
     }
 
     /**
@@ -428,7 +428,7 @@ class StaffController extends Controller
                 if ($smsResult !== null) {
                     set_sms_notice(SMSService::outcomeNotice($smsResult, $outcome === 'CANCELLED' ? 'Appointment cancelled' : 'Interview marked as missed'));
                 }
-                flash($outcome === 'CANCELLED' ? 'Appointment cancelled and the applicant notified.' : 'Appointment marked as missed and the applicant notified.');
+                flash($outcome === 'CANCELLED' ? 'Appointment cancelled and the Solo Parent notified.' : 'Appointment marked as missed and the Solo Parent notified.');
                 $this->redirectTo('staff/appointments.php');
             }
         }

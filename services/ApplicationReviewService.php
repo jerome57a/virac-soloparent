@@ -101,7 +101,7 @@ class ApplicationReviewService
     public function updateStatus(array $staff, array $app, string $newStatus, string $remarks, string $expectedStatus = ''): ?string
     {
         if ($newStatus === 'ID Released') {
-            return 'Use the ID release section to confirm that the ID was handed to the applicant.';
+            return 'Use the ID release section to confirm that the ID was handed to the Solo Parent.';
         }
         if (!in_array($newStatus, Application::STATUSES, true)) {
             return 'Select a valid status.';
@@ -125,8 +125,8 @@ class ApplicationReviewService
         }
         if ($remarks === '' && in_array($newStatus, Application::REASON_REQUIRED, true)) {
             return $newStatus === 'Rejected'
-                ? 'Give the reason for rejecting -- it is sent to the applicant.'
-                : 'Say what the applicant needs to correct -- it is sent to them.';
+                ? 'Give the reason for rejecting -- it is sent to the Solo Parent.'
+                : 'Say what the Solo Parent needs to correct -- it is sent to them.';
         }
         if ($newStatus === 'Approved') {
             $unmet = array_filter($this->approvalChecklist($app), fn($item) => !$item['ok']);
@@ -272,7 +272,7 @@ class ApplicationReviewService
                     } elseif (mb_strlen($row['remarks']) > 500) {
                         $errors[$documentId] = 'Remarks are too long (up to 500 characters).';
                     } elseif ($row['remarks'] === '' && in_array($row['status'], self::REMARKS_REQUIRED, true)) {
-                        $errors[$documentId] = 'Add a remark telling the applicant what is wrong with the document.';
+                        $errors[$documentId] = 'Add a remark telling the Solo Parent what is wrong with the document.';
                     }
                 }
                 if (!$errors) {
@@ -491,7 +491,7 @@ class ApplicationReviewService
         } elseif (!$preview['enabled']) {
             $preview['block'] = 'SMS notifications, or the Document Needs Correction message, are switched off in Notification Settings. Nothing can be sent.';
         } elseif ($number === null) {
-            $preview['block'] = 'The applicant\'s mobile number is not a valid Philippine number. Correct it before sending.';
+            $preview['block'] = 'The Solo Parent\'s mobile number is not a valid Philippine number. Correct it before sending.';
         } elseif ($preview['length'] > SMSService::CORRECTION_MAX_LENGTH) {
             $preview['block'] = 'The message is ' . $preview['length'] . ' characters, over the ' . SMSService::CORRECTION_MAX_LENGTH . ' character limit. Names are never cut, so it cannot be sent as is.';
         } elseif ($blocking) {
@@ -539,15 +539,15 @@ class ApplicationReviewService
             }
             if ($token === '' || !hash_equals($this->correctionToken($applicationId, $batch, (string) $app['full_name'], $message, $ctx['recipient']), $token)) {
                 $this->pdo->rollBack();
-                return $fail('BLOCKED', 'The documents, the applicant name, the message wording or the recipient number changed after you previewed. No SMS was sent; preview it again.');
+                return $fail('BLOCKED', 'The documents, the Solo Parent name, the message wording or the recipient number changed after you previewed. No SMS was sent; preview it again.');
             }
             if (!$sms->templateEnabled('document_correction')) {
                 $this->pdo->rollBack();
-                return $fail('DISABLED', 'SMS is switched off in Notification Settings, so the correction SMS was NOT sent. The applicant has only the in-app notice.');
+                return $fail('DISABLED', 'SMS is switched off in Notification Settings, so the correction SMS was NOT sent. The Solo Parent has only the in-app notice.');
             }
             if ($number === null) {
                 $this->pdo->rollBack();
-                return $fail('BLOCKED', 'The applicant\'s mobile number is not valid, so no SMS was sent.');
+                return $fail('BLOCKED', 'The Solo Parent\'s mobile number is not valid, so no SMS was sent.');
             }
             if (mb_strlen($message) > SMSService::CORRECTION_MAX_LENGTH) {
                 $this->pdo->rollBack();
@@ -616,7 +616,7 @@ class ApplicationReviewService
                 $this->pdo->rollBack();
                 return false;
             }
-            $this->applications->addHistory($id, 'Under Verification', 'Corrections submitted by the applicant.', $applicant['full_name'], (int) $applicant['id']);
+            $this->applications->addHistory($id, 'Under Verification', 'Corrections submitted by the Solo Parent.', $applicant['full_name'], (int) $applicant['id']);
             $this->pdo->commit();
         } catch (Throwable $e) {
             $this->pdo->rollBack();
@@ -659,7 +659,7 @@ class ApplicationReviewService
         $interviewDone = Appointment::interviewSuccessful($appt);
         $interviewDetail = $interviewDone ? '' : ($appt && $appt['status'] === 'BOOKED'
             ? 'Interview booked. Record the result after the interview.'
-            : ($appt && $appt['status'] === 'MISSED' ? 'Interview missed. Send a new interview booking invitation.' : 'Send an interview booking invitation and wait for the applicant to book a date, then record the result after the interview.'));
+            : ($appt && $appt['status'] === 'MISSED' ? 'Interview missed. Send a new interview booking invitation.' : 'Send an interview booking invitation and wait for the Solo Parent to book a date, then record the result after the interview.'));
         return [
             ['label' => 'Required documents', 'ok' => !$unverified,
                 'detail' => $documentSummary],

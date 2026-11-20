@@ -30,7 +30,7 @@
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
     <div class="dash-topbar-text">
-      <div class="dash-topbar-portal" data-i18n>Applicant Portal</div>
+      <div class="dash-topbar-portal" data-i18n>Solo Parent Portal</div>
       <h1 class="dash-topbar-title" data-i18n><?= e($sectionTitle) ?></h1>
     </div>
     <a href="?section=notifications" class="nav-icon-btn nav-bell dash-topbar-notifications" title="Notifications" aria-label="Notifications<?= $unreadNotificationCount > 0 ? ' (' . (int) $unreadNotificationCount . ' unread)' : '' ?>"<?= $section === 'notifications' ? ' aria-current="page"' : '' ?> data-i18n-attrs="title">
@@ -47,7 +47,7 @@
       <?php endif; ?>
       <div class="dash-topbar-user-text">
         <div class="dash-user-name"><?= e($user['full_name']) ?></div>
-        <div class="dash-user-role" data-i18n>Solo Parent Applicant</div>
+        <div class="dash-user-role" data-i18n>Solo Parent</div>
       </div>
     </a>
     <?php require APP_ROOT . '/includes/preferences-controls.php'; ?>
@@ -70,7 +70,7 @@
       </button>
     </div>
 
-    <nav class="nav-drawer-list" aria-label="Applicant Portal" data-i18n-attrs="aria-label">
+    <nav class="nav-drawer-list" aria-label="Solo Parent Portal" data-i18n-attrs="aria-label">
       <div class="nav-drawer-section-label" data-i18n>Main</div>
 
       <a href="?section=dashboard" class="nav-drawer-link nav-drawer-link-icon <?= $section === 'dashboard' ? 'active" aria-current="page' : '' ?>">
@@ -153,7 +153,7 @@
 
 <?php
 $footerAbout = 'e-SoloParentID System — Municipal Social Welfare and Development Office (MSWDO), Virac, Catanduanes.';
-$footerListTitle = 'APPLICANT PORTAL';
+$footerListTitle = 'SOLO PARENT PORTAL';
 $footerList = [
     ['Help & Support', base_url('applicant/dashboard.php?section=help')],
     ['Contact', base_url('applicant/dashboard.php?section=help#help-contact')],

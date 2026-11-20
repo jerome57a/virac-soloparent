@@ -45,7 +45,7 @@ $row = function (array $iv, string $timeFormat) use ($staff, $canManage, $apptSt
             <form method="post" class="d-flex flex-column gap-2 mt-2">
               <?= csrf_field() ?>
               <input type="hidden" name="appointment_id" value="<?= (int) $iv['id'] ?>">
-              <input type="text" name="reason" aria-label="Reason for cancelling (sent to the applicant)" maxlength="255" required placeholder="Reason (sent to the applicant)" class="form-control" style="font-size:13px;padding:6px 10px">
+              <input type="text" name="reason" aria-label="Reason for cancelling (sent to the Solo Parent)" maxlength="255" required placeholder="Reason (sent to the Solo Parent)" class="form-control" style="font-size:13px;padding:6px 10px">
               <button type="submit" name="action" value="cancel" class="btn-red" style="padding:6px 12px;font-size:12px">Cancel &amp; notify</button>
             </form>
           </details>
@@ -75,7 +75,7 @@ $row = function (array $iv, string $timeFormat) use ($staff, $canManage, $apptSt
   <?php if (($staff['role'] ?? '') === 'admin'): ?>
   <div class="info-box" style="max-width:none">
     <p class="mb-2" data-i18n>As administrator, you monitor interview appointments.</p>
-    <p class="mb-0" data-i18n>MSWD staff schedule each applicant's interview day; the applicant can keep it or pick another day. MSWD staff handle individual appointment changes and record interview results or missed appointments.</p>
+    <p class="mb-0" data-i18n>MSWD staff schedule each Solo Parent's interview day; the Solo Parent can keep it or pick another day. MSWD staff handle individual appointment changes and record interview results or missed appointments.</p>
   </div>
   <?php endif; ?>
   <?php if (($staff['role'] ?? '') === 'admin'): ?>
@@ -92,7 +92,7 @@ $row = function (array $iv, string $timeFormat) use ($staff, $canManage, $apptSt
   <?php if ($canManage): ?>
   <div class="review-card" id="staff-needs-schedule">
     <div class="review-card-head"><div class="title">Needs an interview date</div></div>
-    <p class="small text-muted">Once an applicant's required documents are verified, open the application and schedule the interview date: the applicant is texted and can keep it or pick another day. Oldest applications first, up to 100.</p>
+    <p class="small text-muted">Once a Solo Parent's required documents are verified, open the application and schedule the interview date: the Solo Parent is texted and can keep it or pick another day. Oldest applications first, up to 100.</p>
     <?php if (empty($awaitingSchedule)): ?><div class="empty-state compact" data-i18n>No applications are waiting for a schedule.</div><?php endif; ?>
     <?php foreach ($awaitingSchedule ?? [] as $waiting): ?>
       <a href="<?= e(application_url($staff, (int) $waiting['id']) . '#schedule-interview') ?>" class="app-card text-decoration-none" style="color:inherit">
@@ -105,8 +105,8 @@ $row = function (array $iv, string $timeFormat) use ($staff, $canManage, $apptSt
 
   <?php if ($canManage && !empty($waitingForDate)): ?>
   <div class="review-card" id="staff-waiting-for-date">
-    <div class="review-card-head"><div class="title">Waiting for the applicant to choose a new date (<?= count($waitingForDate) ?>)</div></div>
-    <p class="small text-muted">These applicants can pick a date themselves (for example after cancelling). You can also schedule one for them. Their booking appears under Upcoming appointments as soon as it is set.</p>
+    <div class="review-card-head"><div class="title">Waiting for the Solo Parent to choose a new date (<?= count($waitingForDate) ?>)</div></div>
+    <p class="small text-muted">These Solo Parents can pick a date themselves (for example after cancelling). You can also schedule one for them. Their booking appears under Upcoming appointments as soon as it is set.</p>
     <?php foreach ($waitingForDate as $waiting): ?>
       <a href="<?= e(application_url($staff, (int) $waiting['id']) . '#schedule-interview') ?>" class="app-card text-decoration-none" style="color:inherit">
         <div><div class="app-ref"><?= e($waiting['reference_no']) ?> &middot; <?= e($waiting['full_name']) ?></div><div class="app-date">Invited <?= e(date('M j, Y g:i A', strtotime($waiting['opened_at']))) ?><?= (int) $waiting['reschedules_used'] > 0 ? ' · rescheduling' : '' ?></div></div>
@@ -129,7 +129,7 @@ $row = function (array $iv, string $timeFormat) use ($staff, $canManage, $apptSt
   <?php if (!empty($overdueReleases)): ?>
     <div class="review-card">
       <div class="review-card-head"><div class="title"><span data-i18n>ID release date passed</span> (<?= count($overdueReleases) ?>)</div></div>
-      <div style="font-size:13px;color:var(--muted);margin-bottom:8px" data-i18n>These applicants have not collected their ID yet. The ID keeps waiting at the office: confirm the release when they come, or set a new date if they ask.</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:8px" data-i18n>These Solo Parents have not collected their ID yet. The ID keeps waiting at the office: confirm the release when they come, or set a new date if they ask.</div>
       <?php foreach ($overdueReleases as $r): ?>
         <div class="appt-row">
           <a href="<?= application_url($staff, (int) $r['application_id']) ?>" class="text-decoration-none" style="color:inherit;min-width:0;flex:1 1 220px">
@@ -179,9 +179,9 @@ $row = function (array $iv, string $timeFormat) use ($staff, $canManage, $apptSt
     <?php if ($dateState === 'incomplete'): ?>
       <div class="info-box" style="max-width:none" role="status">Interview date booking is not available because its setup is incomplete. Please contact the system administrator.</div>
     <?php else: ?>
-      <p class="small text-muted mb-2">Dates do not need to be opened. When you schedule a date the applicant can keep it or choose any office day (Monday to Friday) in the next 45 days. Weekends, holidays and announced office closures are never offered. Each day takes up to <?= $defaultCapacity >= 1 ? (int) $defaultCapacity : '0 (not configured: set it under System Settings)' ?> applicants; only BOOKED and COMPLETED interviews use a seat.<?php if (($staff['role'] ?? '') === 'admin'): ?> Capacity, holidays and closures are managed under <a href="<?= base_url('admin/settings.php') ?>">System Settings</a>.<?php endif; ?></p>
+      <p class="small text-muted mb-2">Dates do not need to be opened. When you schedule a date the Solo Parent can keep it or choose any office day (Monday to Friday) in the next 45 days. Weekends, holidays and announced office closures are never offered. Each day takes up to <?= $defaultCapacity >= 1 ? (int) $defaultCapacity : '0 (not configured: set it under System Settings)' ?> Solo Parents; only BOOKED and COMPLETED interviews use a seat.<?php if (($staff['role'] ?? '') === 'admin'): ?> Capacity, holidays and closures are managed under <a href="<?= base_url('admin/settings.php') ?>">System Settings</a>.<?php endif; ?></p>
       <?php $bookedDays = array_values(array_filter($interviewDates, fn($d) => (int) $d['seats_used'] > 0)); ?>
-      <?php if (!$bookedDays): ?><div style="font-size:13px;color:var(--muted)">No applicant has booked an upcoming interview day yet.</div><?php endif; ?>
+      <?php if (!$bookedDays): ?><div style="font-size:13px;color:var(--muted)">No Solo Parent has booked an upcoming interview day yet.</div><?php endif; ?>
       <?php foreach ($bookedDays as $d): ?>
         <div class="appt-row">
           <div style="flex:1 1 240px;min-width:0">

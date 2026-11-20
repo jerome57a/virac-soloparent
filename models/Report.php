@@ -14,7 +14,7 @@ require_once __DIR__ . '/../services/InterviewDateFeature.php';
 class Report extends Model
 {
     public const TYPES = [
-        'applicant'   => 'Applicant Report',
+        'applicant'   => 'Solo Parent Report',
         'application' => 'Application Report',
         'approval'    => 'Approval Report',
         'rejection'   => 'Rejection Report',
@@ -193,7 +193,7 @@ class Report extends Model
                                    CASE i.status WHEN 'BOOKED' THEN 'Booked' WHEN 'COMPLETED' THEN 'Completed' WHEN 'MISSED' THEN 'Missed' ELSE 'Cancelled' END AS status_label,
                                    CASE WHEN i.scheduled_by IS NOT NULL THEN 'Staff'
                                         WHEN i.notes = 'Interview automatically scheduled on application submission.' THEN 'System'
-                                        ELSE 'Applicant' END AS booked_by,
+                                        ELSE 'Solo Parent' END AS booked_by,
                                    COALESCE(i.result, i.cancel_reason, '') AS outcome
                                  FROM appointments i JOIN applications a ON a.id = i.application_id",
                     'dateColumn' => 'i.scheduled_at', 'dateLabel' => 'Scheduled',

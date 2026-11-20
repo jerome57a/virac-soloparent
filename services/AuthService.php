@@ -341,7 +341,7 @@ class AuthService
     {
         $username = trim($username);
         if (($account['role'] ?? '') !== 'applicant') {
-            return ['Only applicant accounts can choose a username here.', ''];
+            return ['Only Solo Parent accounts can choose a username here.', ''];
         }
         if (!empty($account['username'])) {
             return ['Your username is already set and cannot be changed.', ''];

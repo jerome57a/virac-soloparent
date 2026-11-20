@@ -26,7 +26,7 @@ $applicationRows = [
     ['Rejected', 'rejectedApps', 'status=Rejected', 'red'],
 ];
 $shortcuts = [
-    ['Applicant Records', 'Find an applicant and view their records.', 'applicants.php', 'id'],
+    ['Solo Parent Records', 'Find a Solo Parent and view their records.', 'applicants.php', 'id'],
     ['User Management', 'Manage accounts, roles, and access.', 'users.php', 'users'],
     ['Reports', 'View reports and export records.', 'reports.php', 'reports'],
     ['System Settings', 'Update service settings and requirements.', 'settings.php', 'settings'],

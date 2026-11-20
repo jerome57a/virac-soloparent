@@ -112,3 +112,35 @@ Documents only; no system file was changed. `questionnaires/evaluation-questionn
 objectives, using the 2023 names: functional suitability (A, B), performance efficiency (C), reliability (D), security (E) and interaction capability (F, called
 usability in the 2011 edition). 21 items, compatibility dropped. `title-defense.md` gained a section mapping the three objectives to the system (sections
 renumbered) and `automated-verification-evaluation.md` names the 2023 edition. Copies of the earlier versions: `C:\dev\backups\docs-before-iso2023`.
+
+## 12. Database folder cleanup (2026-11-20)
+34 old `migrate_*.sql` scripts (the step-by-step upgrade history, already contained in `schema.sql`, including the four for retired features) and the two
+redirect stubs `send_appointment_reminders.php` / `send_renewal_reminders.php` were moved to `C:\dev\archive\virac-soloparent-database-20261120` (36 files, moved not deleted).
+Kept in `database/`: the five recent ones (`migrate_auto_verification`, `migrate_renewal_requirements`, `migrate_drop_unused_tables`, `migrate_interview_date_booking`,
+`migrate_drop_mobile_code_columns.php`), `migrate_fixed_id_validity.sql` (a test loads it) and three FAQ-text scripts (`migrate_faq_document_uploads`,
+`migrate_refresh_help_faq`, `migrate_retire_qr_faq`) until it is confirmed they were applied to the live database. The README sentence about the old migrations
+and one comment in `models/AuditLog.php` were updated. Inspection result: all 33 tables are used; only `application_notes.author_id/author_role` and
+`appointment_slots` (retired, history only) are unused and were left in place.
+
+## 13. Help (FAQ) wording corrected in the live database (2026-11-20)
+Three FAQ rows still carried wording for removed features and were updated (one row each, matched by exact old text, nothing deleted): #12 is now "How do I upload my
+supporting documents?" (was about booking a slot), #13 "Where can I find my application reference?" (was the QR application slip) and #15 "Does the Eligibility Checker
+approve my application?" (was the online assistant). Backup before: `C:\dev\backups\virac_solo_parent-before-faq-update-20261120-223514.sql`. The three scripts
+(`migrate_faq_document_uploads`, `migrate_refresh_help_faq`, `migrate_retire_qr_faq`) were then moved to `C:\dev\archive\virac-soloparent-database-20261120`.
+Also checked: the retired `appointment_slots` table has 2 rows that 2 appointments still reference, so it stays.
+
+## 14. "Applicant" is now "Solo Parent" everywhere people read it (2026-11-20)
+Pages, messages, settings descriptions, the Filipino dictionary (`public/js/translations.js`, both the English keys and the Filipino text), the seed file and
+the stored role name, category descriptions, one document label and one Help answer (`database/migrate_solo_parent_wording.sql`, applied; backup
+`C:\dev\backups\virac_solo_parent-before-wording-20261120-224856.sql`). 199+ wording changes in about 49 files, made by a rewrite tool that only edits text people
+read and was tested in a separate copy first.
+Not changed on purpose (internal names that would break the system): the role key `applicant` (33 accounts), the `applicant/` folder and URLs, `ApplicantController`
+and other class names, the `applicants` table, permission names, SQL, code comments, and history records (audit log, status history, old notifications).
+Documents in `docs/` were not changed. Filipino sentences now say "Solo Parent" where they said "aplikante": have a Filipino speaker review the grammar.
+
+## 15. README brought up to date (2026-11-20)
+`README.md` was rewritten section by section to match the running system (it still described an earlier state: date booking "not active", staff booking controls,
+email and mobile login, sign-up and status texts as sent, dropped tables, Bootstrap from a CDN, "nothing verified"). New or rewritten: status header, automated
+verification, interview day booking (section 5.1, replacing a 140-line section), public status page rules, SMS (what is automatic, failures, settings), the 33-table
+structure, the real test list, ISO/IEC 25010:2023 (five rated characteristics) and the retired features. The old README is kept at
+`C:\dev\archive\virac-soloparent-docs-20261120\README.before-update-20261120.md`. Every file named in it was checked to exist.

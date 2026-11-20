@@ -85,7 +85,7 @@ $actionIcon = require APP_ROOT . '/includes/user-management-icons.php';
               <?php else:
                 // Say why a failed message has no Retry button, so the administrator knows what to do instead.
                 $noRetry = $l['status'] === 'FAILED'
-                    ? (in_array($l['template_key'], ['password_reset', 'mobile_verification'], true) ? 'The applicant must request a new code.'
+                    ? (in_array($l['template_key'], ['password_reset', 'mobile_verification'], true) ? 'The Solo Parent must request a new code.'
                         : ($l['template_key'] === 'document_correction' ? 'Staff must resend it from the application review page.'
                             : ((int) $l['attempts'] >= SMS_MAX_ATTEMPTS ? 'Retry limit reached (' . (int) SMS_MAX_ATTEMPTS . ' attempts).' : null)))
                     : ($l['status'] === 'PENDING' ? 'Outcome not recorded yet.' : null); ?>
@@ -121,7 +121,7 @@ $actionIcon = require APP_ROOT . '/includes/user-management-icons.php';
           <details class="admin-editor">
           <summary><?= e($t['label']) ?> <span class="admin-cell-meta">(system-managed)</span></summary>
           <div class="admin-editor-content d-flex flex-column gap-2">
-            <div class="admin-cell-meta"><strong>System-managed, read-only.</strong> This is the exact approved wording sent to applicants. It is fixed in the system and is not read from the stored template, so it cannot be edited here. The applicant name, document names and application reference are filled in automatically, and staff remarks are never included.</div>
+            <div class="admin-cell-meta"><strong>System-managed, read-only.</strong> This is the exact approved wording sent to Solo Parents. It is fixed in the system and is not read from the stored template, so it cannot be edited here. The Solo Parent name, document names and application reference are filled in automatically, and staff remarks are never included.</div>
             <div class="admin-cell-meta">Placeholders filled in: <code>{applicant_name}</code> <code>{document}</code> <code>{ref}</code></div>
             <div class="sms-message-text" aria-label="Approved correction SMS wording"><?= e(SMSService::compact() ? SMSService::CORRECTION_BODY_COMPACT : SMSService::CORRECTION_BODY) ?></div>
             <div class="admin-cell-meta">Staff send it one batch at a time from the application review page, after previewing and confirming it. You can switch this message on or off under Settings &rarr; Notifications.</div>

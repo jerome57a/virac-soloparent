@@ -31,7 +31,7 @@ $hasFilters = $filters['q'] !== '' || $filters['barangay'] !== '' || $filters['s
       <option value="ALL" <?= ($filters['auto'] ?? 'ALL') === 'ALL' ? 'selected' : '' ?>>Any result</option>
       <option value="ready" <?= ($filters['auto'] ?? '') === 'ready' ? 'selected' : '' ?>>Ready for review</option>
       <option value="review" <?= ($filters['auto'] ?? '') === 'review' ? 'selected' : '' ?>>Needs a closer look</option>
-      <option value="fix" <?= ($filters['auto'] ?? '') === 'fix' ? 'selected' : '' ?>>Needs the applicant to fix</option>
+      <option value="fix" <?= ($filters['auto'] ?? '') === 'fix' ? 'selected' : '' ?>>Needs the Solo Parent to fix</option>
     </select></label>
     <button type="submit" class="btn-navy" data-i18n>Search</button>
   </form>
@@ -44,7 +44,7 @@ $hasFilters = $filters['q'] !== '' || $filters['barangay'] !== '' || $filters['s
   <?php if (!$apps): ?>
     <div class="empty-state">
       <div class="empty-state-title"><?= $hasFilters ? 'No applications match your search' : 'No applications yet' ?></div>
-      <?= $hasFilters ? 'Check the reference number or name spelling, or clear the filters to see every application.' : 'New applications will appear here as soon as applicants submit them.' ?>
+      <?= $hasFilters ? 'Check the reference number or name spelling, or clear the filters to see every application.' : 'New applications will appear here as soon as Solo Parents submit them.' ?>
     </div>
   <?php endif; ?>
   <?php foreach ($apps as $app): $st = status_style($app['status']); ?>

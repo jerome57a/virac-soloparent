@@ -35,7 +35,7 @@ if (applicant_return_path($returnKey)) {
   <?php elseif ($authMode === 'signup'): ?>
     <?php require __DIR__ . '/register.php'; ?>
   <?php else: ?>
-    <p style="font-size:14px;color:var(--muted)" data-i18n>Sign in with your username and password. Applicants, MSWD staff and administrators all use this page.</p>
+    <p style="font-size:14px;color:var(--muted)" data-i18n>Sign in with your username and password. Solo Parents, MSWD staff and administrators all use this page.</p>
     <form method="post" class="d-flex flex-column gap-3">
       <?= csrf_field() ?>
       <input type="hidden" name="action" value="login">
@@ -49,6 +49,6 @@ if (applicant_return_path($returnKey)) {
       <button type="submit" class="btn-navy" data-i18n>Sign In</button>
     </form>
     <a href="<?= base_url('forgot-password.php') ?>" style="display:inline-block;font-size:13px;margin-top:12px" data-i18n>Forgot password?</a>
-    <div style="font-size:13px;margin-top:12px"><span data-i18n>New applicant?</span> <a href="<?= e($signupTabUrl) ?>" data-i18n>Create Account</a></div>
+    <div style="font-size:13px;margin-top:12px"><span data-i18n>New Solo Parent?</span> <a href="<?= e($signupTabUrl) ?>" data-i18n>Create Account</a></div>
   <?php endif; ?>
 </div>
