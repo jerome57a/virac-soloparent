@@ -493,7 +493,7 @@ class AuthService
             $_SESSION[$kind . '_auth_version'] = $this->userModel->authVersion((int) $account['id']);
         }
         audit_log($this->pdo, (int) $account['id'], $account['full_name'], $account['role'], 'Password Changed', 'user', (int) $account['id'],
-            empty($stored['must_change_password']) ? 'Changed own password' : 'Replaced the temporary password issued by an administrator');
+            empty($stored['must_change_password']) ? 'Changed own password' : 'Replaced the temporary password issued by an MSWDO admin');
         return ['', 'Your password has been updated. Any other device signed in to this account has been signed out.'];
     }
 

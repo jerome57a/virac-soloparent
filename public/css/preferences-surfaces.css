@@ -236,3 +236,51 @@ html[data-theme="dark"] .staff-application-review [role="group"] { border: 1px s
 html[data-theme="dark"] .staff-application-review .review-saved-action { border: 1px solid var(--border) !important; background: var(--theme-card) !important; color: var(--ink) !important; }
 html[data-theme="dark"] .staff-application-review .review-button-undo { background: var(--theme-card) !important; }
 }
+
+/* ------------------------------------------------------------------------------------------------------------------------
+   Dark-mode contrast fixes. Each spot below drew dark text on a dark surface, or light text on a light one, because a component
+   stylesheet hard-coded a light-theme colour (or re-declared a theme token with a light value, which beats the dark value).
+   They were found by measuring every piece of text in a real browser (scripts/test-dark-mode-contrast.cjs); every text must reach
+   4.5:1 (3:1 for large text) against the surface behind it.
+   ------------------------------------------------------------------------------------------------------------------------ */
+@media screen {
+  /* Staff / administrator portals and the Solo Parent shell re-declared these tokens with light-theme values. */
+  html[data-theme="dark"] .personnel-portal,
+  html[data-theme="dark"] .dash-body { --staff-border: var(--border); --staff-muted: var(--muted); --staff-shadow: none; }
+
+  /* Document review panels on the staff application page: white boxes holding light text. */
+  html[data-theme="dark"] .personnel-portal #checklist .review-row.doc-item { background: var(--theme-card); }
+  html[data-theme="dark"] .doc-item .doc-controls { background: var(--surface-alt); }
+  html[data-theme="dark"] .doc-item .doc-filename { color: var(--ink); }
+  html[data-theme="dark"] .doc-item :is(.doc-meta, .doc-controls-title, .doc-history-title, .doc-history-item) { color: var(--muted); }
+
+  /* Report and audit-log filter pills. */
+  html[data-theme="dark"] .filter-pill { background: var(--surface); color: var(--ink); border: 1px solid var(--border); }
+  html[data-theme="dark"] .filter-pill.is-active { background: var(--navy); color: #0f1b2d; border-color: var(--navy); }
+
+  /* Solo Parent dashboard: progress stages (the text colour and the marker background move together). */
+  html[data-theme="dark"] .applicant-home .dash-home-stage.done { --stage-color: #7fdca5; --stage-background: #1b3b30; border-color: #4fae7b; }
+  html[data-theme="dark"] .applicant-home .dash-home-stage.active { --stage-color: var(--navy); --stage-background: #223953; }
+  html[data-theme="dark"] .applicant-home .dash-home-stage.attention { --stage-color: #f2c46d; --stage-background: #3d321d; border-color: #b8860b; }
+  html[data-theme="dark"] .applicant-home .dash-home-stage.stopped { --stage-color: #ffb1b1; --stage-background: #42252e; border-color: #d4686f; }
+
+  /* Solo Parent documents page group headings. */
+  html[data-theme="dark"] .docs-group-title--fix { color: #ffb1b1; }
+  html[data-theme="dark"] .docs-group-title--fix span { background: #42252e; color: #ffb1b1; }
+  html[data-theme="dark"] .docs-group-title--ok span { background: #1b3b30; color: #7fdca5; }
+
+  /* Bootstrap's default blue outline button (View Document) was 3.3:1 on a dark card. */
+  html[data-theme="dark"] .btn-outline-primary { color: var(--link-blue); border-color: var(--link-blue); }
+  html[data-theme="dark"] .btn-outline-primary:hover { background: #223953; color: #fff; border-color: var(--link-blue); }
+
+  /* Icon tiles: a translucent WHITE tile behind an icon coloured with the (light blue) dark-mode navy made the icon vanish (1.1:1).
+     The tile is dark here, so the light-blue icon stands out. Affects the home benefit cards and the active side-menu item. */
+  html[data-theme="dark"] .portal-home .benefit-icon { background: #223953; color: var(--navy); }
+  html[data-theme="dark"] .nav-drawer-link.active .nav-drawer-icon { background: #223953; color: var(--navy); }
+
+  /* Two benefit cards kept a light yellow/orange outline from the light theme; all six now use the same border. */
+  html[data-theme="dark"] .benefit-grid .benefit-card:is(:nth-child(4), :nth-child(6)) { border-color: var(--border) !important; }
+
+  /* Disabled buttons stay clearly readable (they were 50% opaque). */
+  html[data-theme="dark"] :is(.btn-navy, .btn-red, .btn-outline, .btn-danger-outline):disabled { opacity: .7; }
+}

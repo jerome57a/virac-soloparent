@@ -74,7 +74,7 @@ $isApplicant = $createRole === 'applicant';
           <td class="user-status-cell"><span class="user-mobile-label" aria-hidden="true" data-i18n>Status</span><div class="user-status-badges">
             <span class="status-pill" style="background:<?= $u['is_active'] ? '#dcf3e2' : '#fde8e8' ?>;color:<?= $u['is_active'] ? '#1c7a3f' : '#a51c1c' ?>" data-i18n><?= $u['is_active'] ? 'Active' : 'Deactivated' ?></span>
             <?php if ($isLocked): ?><span class="status-pill" style="background:#fde8e8;color:#a51c1c">Locked out</span><?php endif; ?>
-            <?php if ($u['must_change_password']): ?><span class="status-pill" style="background:#fdf1d6;color:#8a6d1a">Temporary password</span><?php endif; ?>
+            <?php if ($u['must_change_password']): ?><span class="status-pill" style="background:#fdf1d6;color:#7a5f12">Temporary password</span><?php endif; ?>
           </div></td>
           <td><div class="user-table-actions">
           <a href="<?= e(base_url('admin/user_edit.php?id=' . (int) $u['id'])) ?>" class="btn-outline user-action" aria-label="Edit account <?= e($u['username'] ?: $u['full_name']) ?>" data-i18n><?= $userIcon('edit') ?> Edit</a>

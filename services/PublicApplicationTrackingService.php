@@ -12,7 +12,7 @@ class PublicApplicationTrackingService
         $interviewPending = !in_array($status, ['Approved', 'ID Released', 'Rejected'], true)
             && $interview && $interview['status'] === 'BOOKED';
         $guidance = [
-            'Pending Review' => ['Waiting for review', 'MSWDO has received your application. Check here for updates while staff reviews it.'],
+            'Pending Review' => ['Waiting for review', 'MSWDO has received your application. Check here for updates while MSWDO staff reviews it.'],
             'Under Verification' => ['Your application is being reviewed', 'MSWDO is checking your information and documents. Monitor your account for any requests.'],
             'For Revision' => ['Corrections are needed', 'Log in to My Applications to read the requested corrections and update your information or upload replacement documents.'],
             'Interview Scheduled' => ['Prepare for your interview', 'Check your appointment below. Bring your application reference, a valid ID, and the documents requested by MSWDO.'],
@@ -35,7 +35,7 @@ class PublicApplicationTrackingService
             ];
             if ($releasePending) {
                 $title = 'Your ID release is scheduled';
-                $instruction = 'Visit MSWDO at the date, time, and location below. Bring your application reference and a valid ID. Your status becomes ID Released after staff confirms handover.';
+                $instruction = 'Visit MSWDO at the date, time, and location below. Bring your application reference and a valid ID. Your status becomes ID Released after MSWDO staff confirms handover.';
             }
         } elseif ($interview && in_array($interview['status'], ['MISSED', 'CANCELLED'], true) && !in_array($status, ['Approved', 'ID Released', 'Rejected'], true)) {
             $title = 'Arrange another interview';
@@ -72,7 +72,7 @@ class PublicApplicationTrackingService
             $idSummary = [
                 'headline' => $expired ? 'ID expired — renewal needed' : ($renewalDue ? 'ID valid — renewal due' : ($handoverConfirmed ? 'ID received' : 'ID recorded as released')),
                 'tone' => $renewalDue ? 'attention' : 'received',
-                'received' => $handoverConfirmed ? 'Yes — staff confirmed handover' : 'Recorded as released by MSWDO',
+                'received' => $handoverConfirmed ? 'Yes — MSWDO staff confirmed handover' : 'Recorded as released by MSWDO',
                 'validity' => $expiry ? ($expired ? 'Expired on ' : 'Valid until ') . date('F j, Y', strtotime($expiry)) : 'Expiry date not recorded. Confirm with MSWDO.',
                 'renewal' => $renewalDue ? 'Renewal needed. Log in to start or check your renewal.' : ($renewalOpens ? 'Not needed yet. Renewal opens on ' . date('F j, Y', strtotime($renewalOpens)) . '.' : 'Confirm your ID expiry date with MSWDO.'),
                 'renewal_ref' => null,

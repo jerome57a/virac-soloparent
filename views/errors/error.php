@@ -7,7 +7,7 @@
  * @var ?string $debugDetail  only set when APP_DEBUG is on
  */
 $messages = [
-    403 => ['Access denied', 'Your account does not have permission to use this page. If you think this is a mistake, contact the system administrator.'],
+    403 => ['Access denied', 'Your account does not have permission to use this page. If you think this is a mistake, contact the MSWDO admin.'],
     404 => ['Page not found', 'The page you were looking for does not exist.'],
     503 => ['Service unavailable', 'The system cannot reach its database right now. Please try again in a few minutes.'],
 ];

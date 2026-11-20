@@ -6,7 +6,7 @@
     <span class="account-role" data-i18n><?= e($roleLabels[$staff['role']] ?? $staff['role']) ?></span>
   </header>
   <?php if (!empty($staff['must_change_password'])): ?>
-    <div class="auth-error account-feedback" role="alert" data-i18n>An administrator reset your access. Choose a new password to continue using the system.</div>
+    <div class="auth-error account-feedback" role="alert" data-i18n>An MSWDO admin reset your access. Choose a new password to continue using the system.</div>
   <?php endif; ?>
   <?php if ($error): ?><div class="auth-error account-feedback" role="alert"><?= e($error) ?></div><?php endif; ?>
   <?php if ($success): ?><div class="info-box account-feedback" role="status"><?= e($success) ?></div><?php endif; ?>
@@ -21,7 +21,7 @@
         <div><dt data-i18n>Mobile number</dt><dd><?= e($staff['mobile'] ?: '—') ?></dd></div>
         <div><dt data-i18n>Last sign-in</dt><dd><?= $staff['last_login_at'] ? e(date('M j, Y g:i A', strtotime($staff['last_login_at']))) : '—' ?></dd></div>
       </dl>
-      <p class="account-note" data-i18n>To change your name, email or mobile number, ask an administrator.</p>
+      <p class="account-note" data-i18n>To change your name, email or mobile number, ask an MSWDO admin.</p>
     </section>
     <section class="account-panel" id="password" aria-labelledby="account-password-title">
       <div class="account-panel-heading"><h2 id="account-password-title" data-i18n>Change password</h2><p data-i18n>Use a password you do not use for other accounts.</p></div>

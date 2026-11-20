@@ -173,7 +173,7 @@ function mask_name(string $fullName): string
 function status_style(string $status): array
 {
     $map = [
-        'Pending Review'      => ['bg' => '#fdf1d6', 'color' => '#8a6d1a'],
+        'Pending Review'      => ['bg' => '#fdf1d6', 'color' => '#7a5f12'],
         'Under Verification'  => ['bg' => '#dce8f5', 'color' => '#1b3a6b'],
         'For Revision'        => ['bg' => '#fde8e8', 'color' => '#a51c1c'],
         'Interview Scheduled' => ['bg' => '#f0eafe', 'color' => '#5b3a9e'],
@@ -356,7 +356,7 @@ function document_status_style(string $status): array
 {
     $map = [
         'VALID'            => ['bg' => '#dce8f5', 'color' => '#1b3a6b'],
-        'FOR_VERIFICATION' => ['bg' => '#fdf1d6', 'color' => '#8a6d1a'],
+        'FOR_VERIFICATION' => ['bg' => '#fdf1d6', 'color' => '#7a5f12'],
         'VERIFIED'         => ['bg' => '#dcf3e2', 'color' => '#1c7a3f'],
         'NEEDS_CORRECTION' => ['bg' => '#fde8e8', 'color' => '#a51c1c'],
         'INVALID'          => ['bg' => '#fde8e8', 'color' => '#a51c1c'],
@@ -525,8 +525,8 @@ function sms_kind_label(?string $key): string
 {
     $kinds = [
         'submitted' => 'Application received', 'status_change' => 'Status update', 'interview_scheduled' => 'Interview scheduled',
-        'interview_custom' => 'Interview scheduled (custom)', 'interview_date_assigned' => 'Interview date set by staff',
-        'interview_date_assigned_custom' => 'Interview date set by staff (custom)', 'interview_date_booked' => 'Interview date booked',
+        'interview_custom' => 'Interview scheduled (custom)', 'interview_date_assigned' => 'Interview date set by MSWDO staff',
+        'interview_date_assigned_custom' => 'Interview date set by MSWDO staff (custom)', 'interview_date_booked' => 'Interview date booked',
         'appointment_reminder' => 'Appointment reminder', 'appointment_cancelled' => 'Appointment cancelled', 'appointment_missed' => 'Appointment missed',
         'id_release_scheduled' => 'ID release scheduled', 'id_release_custom' => 'ID release scheduled (custom)', 'renewal_submitted' => 'Renewal received',
         'renewal_reminder' => 'Renewal reminder', 'renewal_expired' => 'Renewal reminder (expired)', 'document_correction' => 'Document correction',

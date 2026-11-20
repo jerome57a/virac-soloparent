@@ -11,7 +11,7 @@
       <div class="review-row"><div class="k" data-i18n>ID expires</div><div class="v"><?= $w['expiresAt'] ? e(format_date_long($w['expiresAt'])) : 'Not recorded' ?></div></div>
       <div class="review-row"><div class="k" data-i18n>Children on file</div><div class="v"><?= e(implode(', ',array_column($renewalSource['children'],'full_name'))) ?></div></div>
     </div>
-    <p class="mt-3" data-i18n>Your existing identity, children and accepted documents stay on file. Provide only the category renewal documents and replacements for expired documents. Staff review and approve renewal; a new interview is not required.</p>
+    <p class="mt-3" data-i18n>Your existing identity, children and accepted documents stay on file. Provide only the category renewal documents and replacements for expired documents. MSWDO staff review and approve renewal; a new interview is not required.</p>
   </div>
   <?php if ($renewalInProgress): ?>
     <div class="info-box" data-i18n>Renewal <?= e($renewalInProgress['reference_no']) ?> is already being processed. <a href="?section=renewal&amp;type=status" data-i18n>View Renewal Status</a>.</div>
@@ -51,7 +51,7 @@
           <span class="opt" data-i18n><?= $uploaded ? 'Choose another file only to replace it.' : 'Choose a file to upload.' ?> Accepted formats: PNG, JPG and JPEG only. Maximum size: <?= e((string) document_rules()['max_mb']) ?> MB.</span>
         </div>
       <?php endforeach; ?>
-      <p class="opt" data-i18n>Each required document must be uploaded as a file before you can submit. Staff review the uploaded files and may ask you to replace one; an uploaded file is not verified until staff confirm it. Document expiry uses recorded dates; no unrecorded expiry is assumed.</p>
+      <p class="opt" data-i18n>Each required document must be uploaded as a file before you can submit. MSWDO staff review the uploaded files and may ask you to replace one; an uploaded file is not verified until MSWDO staff confirm it. Document expiry uses recorded dates; no unrecorded expiry is assumed.</p>
       <label data-i18n><input type="checkbox" name="consent" value="1" <?= !empty($draft['consent']) ? 'checked' : '' ?> required> My existing record remains correct and I consent to this renewal. Contact MSWDO if my identity, category or children need changes.</label>
       <div class="d-flex flex-wrap gap-2"><button type="submit" name="action" value="save_draft" formnovalidate class="btn-outline" data-i18n>Save draft</button><button type="submit" name="action" value="submit" class="btn-navy" data-i18n>Submit Renewal</button></div>
     </form>

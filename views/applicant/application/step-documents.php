@@ -16,7 +16,7 @@ $maxMb = (string) document_rules()['max_mb'];
 <form method="post" enctype="multipart/form-data" class="apply-step-form"<?= !empty($isApplicationWizard) ? ' id="application-step-form"' : '' ?>>
   <?= csrf_field() ?>
   <?php if (!empty($isApplicationWizard)): ?><input type="hidden" name="wizard_step" value="3"><?php endif; ?>
-  <div class="info-box apply-checklist-notice" role="note" data-i18n>Upload a clear scan or photo of each required document (Accepted formats: PNG, JPG and JPEG only; up to <?= e($maxMb) ?> MB). Your files are submitted with your application. MSWDO staff review each file afterwards and may ask you to replace one; an uploaded file is not verified until staff confirm it.</div>
+  <div class="info-box apply-checklist-notice" role="note" data-i18n>Upload a clear scan or photo of each required document (Accepted formats: PNG, JPG and JPEG only; up to <?= e($maxMb) ?> MB). Your files are submitted with your application. MSWDO staff review each file afterwards and may ask you to replace one; an uploaded file is not verified until MSWDO staff confirm it.</div>
   <?php if (!empty($errors['documents'])): ?><div class="field-error mb-2" role="alert" data-i18n><?= e($errors['documents']) ?></div><?php endif; ?>
   <?php foreach ($groups as $group): if (!$group['items']) continue; ?>
     <section class="checklist-card mb-3" aria-label="<?= e($group['title']) ?>">

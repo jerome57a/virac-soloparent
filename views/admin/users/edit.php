@@ -24,8 +24,8 @@ $userIcon = require APP_ROOT . '/includes/user-management-icons.php';
     <div class="d-flex flex-wrap gap-1">
       <span class="status-pill" style="background:<?= $target['is_active'] ? '#dcf3e2' : '#fde8e8' ?>;color:<?= $target['is_active'] ? '#1c7a3f' : '#a51c1c' ?>" data-i18n><?= $target['is_active'] ? 'Active' : 'Deactivated' ?></span>
       <?php if ($locked): ?><span class="status-pill" style="background:#fde8e8;color:#a51c1c">Locked out</span><?php endif; ?>
-      <?php if ($target['must_change_password']): ?><span class="status-pill" style="background:#fdf1d6;color:#8a6d1a">Temporary password</span><?php endif; ?>
-      <?php if ($target['role'] === 'applicant' && $target['mobile'] && !$target['mobile_verified_at']): ?><span class="status-pill" style="background:#fdf1d6;color:#8a6d1a">Mobile not confirmed</span><?php endif; ?>
+      <?php if ($target['must_change_password']): ?><span class="status-pill" style="background:#fdf1d6;color:#7a5f12">Temporary password</span><?php endif; ?>
+      <?php if ($target['role'] === 'applicant' && $target['mobile'] && !$target['mobile_verified_at']): ?><span class="status-pill" style="background:#fdf1d6;color:#7a5f12">Mobile not confirmed</span><?php endif; ?>
     </div>
   </div>
 
@@ -39,7 +39,7 @@ $userIcon = require APP_ROOT . '/includes/user-management-icons.php';
       <div class="review-row"><div class="k">Last sign-in</div><div class="v"><?= $target['last_login_at'] ? e($when($target['last_login_at'])) : 'Never' ?></div></div>
       <div class="review-row"><div class="k">Failed sign-in attempts</div><div class="v"><?= (int) $target['failed_login_attempts'] ?><?= $locked ? ' · locked until ' . e(date('g:i A', strtotime($target['locked_until']))) : '' ?></div></div>
       <?php if ($target['role'] === 'applicant'): ?>
-        <div class="review-row"><div class="k" data-i18n>Mobile number</div><div class="v"><?php if (!$target['mobile']): ?>None<?php elseif ($target['mobile_verified_at']): ?><?= e($target['mobile']) ?> · confirmed <?= e($when($target['mobile_verified_at'])) ?><?php else: ?><?= e($target['mobile']) ?> · <b>not confirmed</b> — sign-in by mobile number stays disabled until an administrator confirms it (the username and password still work)<?php endif; ?></div></div>
+        <div class="review-row"><div class="k" data-i18n>Mobile number</div><div class="v"><?php if (!$target['mobile']): ?>None<?php elseif ($target['mobile_verified_at']): ?><?= e($target['mobile']) ?> · confirmed <?= e($when($target['mobile_verified_at'])) ?><?php else: ?><?= e($target['mobile']) ?> · <b>not confirmed</b> — sign-in by mobile number stays disabled until an MSWDO admin confirms it (the username and password still work)<?php endif; ?></div></div>
         <div class="review-row"><div class="k" data-i18n>Applications</div><div class="v"><?= $applicationCount ?><?php if (can($staff, 'applicants.view')): ?> · <a href="<?= e(base_url('admin/applicant_view.php?id=' . (int) $target['id'])) ?>">Solo Parent record</a><?php endif; ?></div></div>
       <?php endif; ?>
     </div>
@@ -62,7 +62,7 @@ $userIcon = require APP_ROOT . '/includes/user-management-icons.php';
   <?php if ($isSelf): ?>
     <div class="review-card">
       <div class="review-card-head"><div class="title">Role, status &amp; access</div></div>
-      <div style="font-size:14px;color:var(--muted)">You can't change your own role, deactivate yourself or reset your own access — another administrator can. To change your password, use <a href="<?= e(base_url('admin/account.php')) ?>" data-i18n>My Account</a>.</div>
+      <div style="font-size:14px;color:var(--muted)">You can't change your own role, deactivate yourself or reset your own access — another MSWDO admin can. To change your password, use <a href="<?= e(base_url('admin/account.php')) ?>" data-i18n>My Account</a>.</div>
     </div>
   <?php else: ?>
     <div class="row g-3 mb-3">
@@ -77,7 +77,7 @@ $userIcon = require APP_ROOT . '/includes/user-management-icons.php';
             </select>
             <button type="submit" class="btn-outline user-action" onclick="return confirm('Change this account\'s role? It takes effect on their next page load.')"><?= $userIcon('role') ?> Assign Role</button>
           </form>
-          <div style="font-size:12px;color:var(--faint);margin-top:8px">Administrator: system management. MSWD Staff: processes applications. Solo Parent: applies for their own ID.<?= $applicationCount ? ' This account has applications on file, so it stays a Solo Parent account.' : '' ?></div>
+          <div style="font-size:12px;color:var(--faint);margin-top:8px">MSWDO Admin: system management. MSWDO Staff: processes applications. Solo Parent: applies for their own ID.<?= $applicationCount ? ' This account has applications on file, so it stays a Solo Parent account.' : '' ?></div>
         </div>
       </div>
       <div class="col-12 col-md-6">

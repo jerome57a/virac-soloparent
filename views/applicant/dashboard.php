@@ -132,11 +132,11 @@ $welcomeText = !empty($isFirstLogin) ? 'Welcome' : 'Welcome back';
             <div style="font-size:14px;color:var(--ink);margin:8px 0 4px">
               Your preliminary eligibility check (<?= e(date('M j, Y', strtotime($eligibilityCheck['checkedAt']))) ?>):
               <?php if (($eligibilityCheck['result']['status'] ?? '') === 'NEEDS_GUIDANCE'): ?>
-                <span class="status-pill" style="background:#fdf1d6;color:#8a6d1a" data-i18n>MSWDO guidance needed</span>
+                <span class="status-pill" style="background:#fdf1d6;color:#7a5f12" data-i18n>MSWDO guidance needed</span>
               <?php elseif ($eligibilityCheck['result']['eligible']): ?>
                 <span class="status-pill" style="background:#dcf3e2;color:#1c7a3f" data-i18n>May be eligible</span>
               <?php else: ?>
-                <span class="status-pill" style="background:#fdf1d6;color:#8a6d1a" data-i18n>May not meet the criteria</span>
+                <span class="status-pill" style="background:#fdf1d6;color:#7a5f12" data-i18n>May not meet the criteria</span>
               <?php endif; ?>
             </div>
             <div style="font-size:12px;color:var(--faint);margin-bottom:14px" data-i18n>Preliminary only — final eligibility is decided by MSWD.</div>
@@ -165,7 +165,7 @@ $welcomeText = !empty($isFirstLogin) ? 'Welcome' : 'Welcome back';
             <p class="dash-home-body">Interview booking is open. Choose your interview date from the available dates.</p>
             <a href="?section=appointment" class="btn-navy text-decoration-none dash-card-link">Choose Interview Date</a>
           <?php elseif ($canBookAppointment): ?>
-            <p class="dash-home-body" data-i18n>MSWDO will arrange your interview after all required documents are uploaded and verified. Replace any document that needs correction; staff must verify the replacement before your interview can be scheduled. You can view your interview schedule in your account.</p>
+            <p class="dash-home-body" data-i18n>MSWDO will arrange your interview after all required documents are uploaded and verified. Replace any document that needs correction; MSWDO staff must verify the replacement before your interview can be scheduled. You can view your interview schedule in your account.</p>
             <a href="?section=appointment" class="btn-navy text-decoration-none dash-card-link" data-i18n>View Interview Status</a>
           <?php else: ?>
             <div class="dash-home-empty"><h3 data-i18n>No upcoming appointment</h3><p data-i18n>MSWDO will notify you when your interview is scheduled.</p></div>

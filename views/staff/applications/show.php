@@ -104,7 +104,7 @@ if ($interviewOutcome !== null) {
                   <?php if (!empty($file['verifier_name']) || !empty($file['verified_at'])): ?><span class="doc-meta"><?php if (!empty($file['verifier_name'])): ?>by <?= e($file['verifier_name']) ?><?php endif; ?><?php if (!empty($file['verified_at'])): ?> on <?= e(date('M j, Y g:i A', strtotime($file['verified_at']))) ?><?php endif; ?></span><?php endif; ?>
                 </div>
                 <?php if (!empty($documentErrors[$file['id']])): ?><div class="field-error" role="alert"><?= e($documentErrors[$file['id']]) ?></div><?php endif; ?>
-                <?php if (!empty($file['staff_remarks'])): ?><div class="doc-remark"><b>Staff remarks:</b> <?= e($file['staff_remarks']) ?></div><?php endif; ?>
+                <?php if (!empty($file['staff_remarks'])): ?><div class="doc-remark"><b>MSWDO Staff remarks:</b> <?= e($file['staff_remarks']) ?></div><?php endif; ?>
                 <?php if ($canVerifyDocs):
                   $stored = (string) $file['verification_status'];
                   $storedRemarks = (string) ($file['staff_remarks'] ?? '');
@@ -250,7 +250,7 @@ if ($interviewOutcome !== null) {
             <div class="info-box mb-3" id="interview-result-locked" style="max-width:none" role="status">
               <b>Interview result is locked until all required documents are verified</b>
               <ul><?php foreach ($outstandingRequirements as $item): $expiredItem = !empty($item['expires_at']) && $item['expires_at'] < date('Y-m-d'); ?><li><?= e($item['label']) ?><?= $expiredItem ? ' - expired' : (!empty($item['uploaded_document']) ? ' - ' . e(document_status_label($item['uploaded_document']['verification_status'])) : ' - no file uploaded') ?></li><?php endforeach; ?></ul>
-              Staff must verify every required document before recording the interview result. The appointment and its reminders are not affected; verify the documents above to unlock the result.
+              MSWDO staff must verify every required document before recording the interview result. The appointment and its reminders are not affected; verify the documents above to unlock the result.
               <?php if ($interview['status'] === 'BOOKED' && strtotime((string) $interview['scheduled_at']) > time()): ?>
                 <div class="small text-muted mt-2">The interview result can be recorded on or after <?= e(interview_schedule_text($interview['scheduled_at'], interview_is_date_only($interview))) ?>.</div>
               <?php endif; ?>
@@ -375,10 +375,10 @@ if ($interviewOutcome !== null) {
             <div class="info-box" style="max-width:none" role="status">
               <b>Scheduling the interview is locked until all required documents are verified</b>
               <ul><?php foreach ($outstandingRequirements as $item): $expiredItem = !empty($item['expires_at']) && $item['expires_at'] < date('Y-m-d'); ?><li><?= e($item['label']) ?><?= $expiredItem ? ' - expired' : (!empty($item['uploaded_document']) ? ' - ' . e(document_status_label($item['uploaded_document']['verification_status'])) : ' - no file uploaded') ?></li><?php endforeach; ?></ul>
-              Staff must verify every required document before scheduling the interview. When the Solo Parent uploads a replacement, verify it above to unlock it.
+              MSWDO staff must verify every required document before scheduling the interview. When the Solo Parent uploads a replacement, verify it above to unlock it.
             </div>
           <?php else: ?>
-            <div class="info-box" style="max-width:none"><b>All required documents are verified</b> <?php if (($invitationState ?? 'off') !== 'ready'): ?>Interview scheduling is not available until interview date booking is enabled.<?php else: ?>Pick the interview date in <b>Schedule the interview date</b> below. The Solo Parent is texted the date and can keep it or log in to pick another day; the booking then appears here and in the staff dashboard's Expected Today list.<?php endif; ?></div>
+            <div class="info-box" style="max-width:none"><b>All required documents are verified</b> <?php if (($invitationState ?? 'off') !== 'ready'): ?>Interview scheduling is not available until interview date booking is enabled.<?php else: ?>Pick the interview date in <b>Schedule the interview date</b> below. The Solo Parent is texted the date and can keep it or log in to pick another day; the booking then appears here and in the MSWDO staff dashboard's Expected Today list.<?php endif; ?></div>
           <?php endif; ?>
         <?php endif; ?>
 
@@ -443,7 +443,7 @@ if ($interviewOutcome !== null) {
         <?php if (!empty($invitationError)): ?><div class="auth-error" role="alert"><?= e($invitationError) ?></div><?php endif; ?>
 
         <?php if ($invState === 'incomplete'): ?>
-          <div class="info-box" style="max-width:none" role="status">Interview scheduling is not available because its setup is incomplete. Please contact the system administrator.</div>
+          <div class="info-box" style="max-width:none" role="status">Interview scheduling is not available because its setup is incomplete. Please contact the MSWDO admin.</div>
         <?php elseif ($invState === 'ready' && $invPanel !== null): ?>
           <?php if ($ivNow === 'BOOKED'): ?>
             <div class="small text-muted">An interview date is already set (shown above). The Solo Parent can keep it or pick another day from their own account. To change it yourself, the Solo Parent must cancel it first.</div>
@@ -500,7 +500,7 @@ if ($interviewOutcome !== null) {
             <div class="review-grid mb-3">
               <div class="review-row"><div class="k">Release date and time</div><div class="v"><?= e(date('F j, Y g:i A', strtotime($idReleaseSchedule['scheduled_at']))) ?></div></div>
               <div class="review-row"><div class="k" data-i18n>Location</div><div class="v"><?= e($idReleaseSchedule['location']) ?></div></div>
-              <div class="review-row"><div class="k">Scheduled by</div><div class="v"><?= e($idReleaseSchedule['scheduled_by_name'] ?? 'Former staff') ?></div></div>
+              <div class="review-row"><div class="k">Scheduled by</div><div class="v"><?= e($idReleaseSchedule['scheduled_by_name'] ?? 'Former MSWDO staff') ?></div></div>
             </div>
             <div class="review-row mb-3"><div class="k">SMS submission</div><div class="v">
               <?php if ($idReleaseSchedule['sms_status']): ?><b><?= e($idReleaseSchedule['sms_status']) ?></b><?php if ($idReleaseSchedule['sms_status'] === 'SENT'): ?> · Provider accepted; delivery is not confirmed<?php endif; ?>

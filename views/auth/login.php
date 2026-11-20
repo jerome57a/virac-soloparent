@@ -35,7 +35,7 @@ if (applicant_return_path($returnKey)) {
   <?php elseif ($authMode === 'signup'): ?>
     <?php require __DIR__ . '/register.php'; ?>
   <?php else: ?>
-    <p style="font-size:14px;color:var(--muted)" data-i18n>Sign in with your username and password. Solo Parents, MSWD staff and administrators all use this page.</p>
+    <p style="font-size:14px;color:var(--muted)" data-i18n>Sign in with your username and password. Solo Parents, MSWDO staff and MSWDO admins all use this page.</p>
     <form method="post" class="d-flex flex-column gap-3">
       <?= csrf_field() ?>
       <input type="hidden" name="action" value="login">

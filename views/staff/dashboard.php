@@ -25,7 +25,7 @@
     <span style="font-size:14px">Signed in as <b><?= e($staff['full_name']) ?></b></span>
   </div>
 
-  <nav class="staff-section-links" aria-label="Dashboard sections" data-i18n-attrs="aria-label"><a href="#verification-queue" data-i18n>Documents to Verify</a><a href="#ready-to-schedule">Ready to Schedule</a><a href="#staff-today" data-i18n>Today's Appointments</a><a href="#staff-upcoming" data-i18n>Upcoming Interviews</a><a href="#id-release-queue">ID Release</a><a href="#staff-recent" data-i18n>Recently Processed by Staff</a></nav>
+  <nav class="staff-section-links" aria-label="Dashboard sections" data-i18n-attrs="aria-label"><a href="#verification-queue" data-i18n>Documents to Verify</a><a href="#ready-to-schedule">Ready to Schedule</a><a href="#staff-today" data-i18n>Today's Appointments</a><a href="#staff-upcoming" data-i18n>Upcoming Interviews</a><a href="#id-release-queue">ID Release</a><a href="#staff-recent" data-i18n>Recently Processed by MSWDO Staff</a></nav>
   <div class="dash-section-title">Needs attention</div>
   <div class="stat-grid stat-grid-quad">
     <a href="<?= base_url('staff/index.php?type=new&status=Pending Review') ?>" class="stat-tile">
@@ -96,7 +96,7 @@
               <div class="app-ref"><?= e($q['reference_no']) ?></div>
               <div class="app-date"><?= e($q['full_name']) ?> · waiting since <?= e(date('M j, Y', strtotime($q['oldest_upload']))) ?></div>
             </div>
-            <span class="status-pill" style="background:#fdf1d6;color:#8a6d1a"><?= (int) $q['pending_docs'] ?> to verify</span>
+            <span class="status-pill" style="background:#fdf1d6;color:#7a5f12"><?= (int) $q['pending_docs'] ?> to verify</span>
           </a>
         <?php endforeach; ?>
       <?php endif; ?>
@@ -143,7 +143,7 @@
     <div class="review-card" id="staff-upcoming">
       <div class="review-card-head"><div class="title">Upcoming Interviews</div></div>
       <?php if (!$upcomingInterviews): ?>
-        <div class="empty-state compact"><?= !empty($bookingEnabled) ? 'No upcoming interviews. Interviews appear here once Solo Parents book a date or staff assign a schedule.' : 'No upcoming interviews. Interviews appear here once MSWDO staff assign a schedule.' ?></div>
+        <div class="empty-state compact"><?= !empty($bookingEnabled) ? 'No upcoming interviews. Interviews appear here once Solo Parents book a date or MSWDO staff assign a schedule.' : 'No upcoming interviews. Interviews appear here once MSWDO staff assign a schedule.' ?></div>
       <?php else: ?>
         <?php foreach ($upcomingInterviews as $iv): ?>
           <a href="<?= base_url('staff/application.php?id=' . (int) $iv['application_id']) ?>" class="app-card text-decoration-none" style="color:inherit">
@@ -174,7 +174,7 @@
             <?php if ($r['release_at']): ?>
               <span class="status-pill" style="background:#dcf3e2;color:#1c7a3f">Release <?= e(date('M j, g:i A', strtotime($r['release_at']))) ?></span>
             <?php else: ?>
-              <span class="status-pill" style="background:#fdf1d6;color:#8a6d1a">Schedule release</span>
+              <span class="status-pill" style="background:#fdf1d6;color:#7a5f12">Schedule release</span>
             <?php endif; ?>
           </a>
         <?php endforeach; ?>
@@ -182,9 +182,9 @@
     </div>
 
     <div class="review-card" id="staff-recent">
-      <div class="review-card-head"><div class="title">Recently Processed by Staff</div></div>
+      <div class="review-card-head"><div class="title">Recently Processed by MSWDO Staff</div></div>
       <?php if (!$recentlyProcessed): ?>
-        <div class="empty-state compact">No applications have been processed yet. Recent staff activity will be listed here.</div>
+        <div class="empty-state compact">No applications have been processed yet. Recent MSWDO staff activity will be listed here.</div>
       <?php else: ?>
         <?php foreach ($recentlyProcessed as $app): $st = status_style($app['status']); ?>
           <a href="<?= base_url('staff/application.php?id=' . (int) $app['id']) ?>" class="app-card text-decoration-none" style="color:inherit">

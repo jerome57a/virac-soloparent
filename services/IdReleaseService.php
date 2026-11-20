@@ -132,7 +132,7 @@ class IdReleaseService
             $actual = $this->pdo->prepare('SELECT released_at FROM id_release_schedules WHERE application_id = ?');
             $actual->execute([$id]);
             $releasedAt = (string) $actual->fetchColumn();
-            $this->applications->addHistory($id, 'ID Released', 'Staff confirmed the Solo Parent ID was handed to the Solo Parent on ' . date('F j, Y g:i A', strtotime($releasedAt)) . '.', $staff['full_name'], (int) $staff['id']);
+            $this->applications->addHistory($id, 'ID Released', 'MSWDO staff confirmed the Solo Parent ID was handed to the Solo Parent on ' . date('F j, Y g:i A', strtotime($releasedAt)) . '.', $staff['full_name'], (int) $staff['id']);
             $expires = $this->pdo->prepare('SELECT id_expires_at FROM applications WHERE id = ?');
             $expires->execute([$id]);
             $this->pdo->commit();

@@ -6,8 +6,8 @@
  * @var array $autoCheck verdict, checks, counts
  */
 $verdicts = [
-    'ready'  => ['Ready for review', 'Every automated check passed. Staff still verify each document.'],
-    'review' => ['Needs a closer look', 'The system flagged items below for staff to confirm.'],
+    'ready'  => ['Ready for review', 'Every automated check passed. MSWDO staff still verify each document.'],
+    'review' => ['Needs a closer look', 'The system flagged items below for MSWDO staff to confirm.'],
     'fix'    => ['Needs the Solo Parent to fix', 'The system found problems the Solo Parent must correct.'],
 ];
 [$title, $summary] = $verdicts[$autoCheck['verdict']] ?? $verdicts['review'];

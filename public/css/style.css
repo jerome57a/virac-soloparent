@@ -11,7 +11,7 @@
   --surface-alt: #f4f6f9;
   --info: #dce8f5;
   --warn-bg: #fdf1d6;
-  --warn-text: #8a6d1a;
+  --warn-text: #7a5f12;
   --error-bg: #fde8e8;
   --error-text: #a51c1c;
   --success-bg: #e3f3e6;
@@ -711,7 +711,7 @@ a.stat-tile:hover { border-color: var(--navy); }
 .tracker-dot { flex: none; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; background: #fff; border: 2px solid var(--border); color: var(--muted); }
 .tracker-step.done .tracker-dot { background: #1c7a3f; border-color: #1c7a3f; color: #fff; }
 .tracker-step.active .tracker-dot { border-color: var(--navy); color: var(--navy); font-size: 20px; line-height: 1; }
-.tracker-step.attention .tracker-dot { background: #fdf1d6; border-color: #b8860b; color: #8a6d1a; }
+.tracker-step.attention .tracker-dot { background: #fdf1d6; border-color: #b8860b; color: #7a5f12; }
 .tracker-step.stopped .tracker-dot { background: var(--surface-alt); color: var(--faint); }
 .tracker-body { min-width: 0; padding-top: 3px; }
 .tracker-label { font-size: 14px; font-weight: 600; color: var(--ink); }
@@ -719,7 +719,7 @@ a.stat-tile:hover { border-color: var(--navy); }
 .tracker-date { font-size: 12px; color: var(--muted); }
 .tracker-detail { font-size: 13px; color: var(--body-text); margin-top: 2px; }
 .tracker-tag { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 10px; background: #dce8f5; color: var(--navy); vertical-align: middle; }
-.tracker-tag.warn { background: #fdf1d6; color: #8a6d1a; }
+.tracker-tag.warn { background: #fdf1d6; color: #7a5f12; }
 .tracker-mini { display: flex; gap: 4px; margin: 0 0 14px; }
 .tracker-mini span { flex: 1; height: 6px; border-radius: 3px; background: var(--border); }
 .tracker-mini .done { background: #1c7a3f; }
@@ -1322,3 +1322,44 @@ a.status-pill:hover { filter: brightness(.96); }
 .sms-alert.is-sent strong { color: var(--ac-pass); }
 .sms-alert.is-failed strong { color: var(--ac-fail); }
 .sms-alert.is-skipped strong { color: var(--ac-flag); }
+
+/* Home screen: each required document opens its "how to get it" guide (same content as the signed-in Requirements Guide). */
+.portal-home .home-requirements-hint { font-size:13px; color:var(--muted); margin:-4px 0 14px; }
+.portal-home .home-requirements .home-requirement-list li.has-guide { display:block; padding:0; }
+.portal-home .home-requirements .home-requirement-guide > summary {
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  min-height:0; padding:14px 0; margin:0; background:none; border-radius:0;
+  font-size:14px; line-height:1.6; cursor:pointer; list-style:none;
+}
+.portal-home .home-requirements .home-requirement-guide > summary::-webkit-details-marker { display:none; }
+.portal-home .home-requirements .home-requirement-guide > summary:hover,
+.portal-home .home-requirements .home-requirement-guide[open] > summary { background:none; border-radius:0; }
+.portal-home .home-requirements .home-requirement-guide > summary:hover .home-requirement-label { text-decoration:underline; }
+.portal-home .home-requirements .home-requirement-guide > summary:focus-visible { outline:2px solid var(--navy); outline-offset:2px; border-radius:4px; }
+/* an opened category rotates every arrow inside it; a closed guide row must still point down */
+.portal-home .home-requirements .home-requirement-guide:not([open]) .requirement-chevron { transform:none; }
+.portal-home .home-requirement-meta { display:flex; align-items:center; gap:10px; flex:none; }
+.portal-home .home-requirement-how { font-size:12px; font-weight:600; color:var(--navy); white-space:nowrap; }
+.portal-home .home-requirement-guide-body {
+  margin:0 0 14px; padding:14px 16px; border:1px solid var(--border); border-radius:8px;
+  background:var(--surface-alt); font-size:14px; line-height:1.7; color:var(--ink);
+}
+.portal-home .home-requirement-guide-body h4 { font-family:inherit; font-size:13px; font-weight:700; color:var(--navy); margin:16px 0 6px; }
+.portal-home .home-requirement-guide-body h4:first-child { margin-top:0; }
+.portal-home .home-requirement-guide-body p { margin:0 0 10px; }
+.portal-home .home-requirement-guide-body .home-guide-basis { color:var(--muted); font-size:13px; }
+.portal-home .home-requirement-guide-body ul,
+.portal-home .home-requirement-guide-body ol { padding-left:22px; margin:0 0 10px; }
+/* the list rules above also match these inner items, so they are reset here */
+.portal-home .home-requirements .home-requirement-guide-body li,
+.portal-home .home-requirements .home-requirement-guide-body li + li { display:list-item; padding:3px 0; border-top:0; font-size:inherit; }
+.portal-home .home-requirement-guide-body .home-guide-sources a { display:inline-block; margin:0 14px 4px 0; }
+.portal-home .home-requirement-guide-body .home-guide-contact { display:inline-block; margin-top:6px; font-weight:600; }
+@media (max-width:480px) {
+  .portal-home .home-requirements .home-requirement-guide > summary { flex-wrap:wrap; gap:6px; }
+  .portal-home .home-requirement-meta { width:100%; justify-content:space-between; }
+}
+
+/* Report and audit-log filter pills (previously inline colours that ignored the theme). */
+.filter-pill { background: #eef1f5; color: var(--ink); }
+.filter-pill.is-active { background: var(--navy); color: #fff; }

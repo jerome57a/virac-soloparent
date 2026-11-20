@@ -45,7 +45,7 @@ try {
     error_log('Automatic pre-check skipped: ' . $e->getMessage());
 }
 ?>
-<div class="info-box" style="max-width:none" role="note" data-i18n>Your uploaded files are sent to MSWDO with your application. Staff review each file after you submit; an uploaded file is not verified until staff confirm it.</div>
+<div class="info-box" style="max-width:none" role="note" data-i18n>Your uploaded files are sent to MSWDO with your application. MSWDO staff review each file after you submit; an uploaded file is not verified until MSWDO staff confirm it.</div>
 
 <?php foreach ($reviewSections as $sec): ?>
   <div class="review-card">

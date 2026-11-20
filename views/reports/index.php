@@ -47,7 +47,7 @@ $exportQuery = fn(string $output) => base_url($basePath) . '?' . http_build_quer
 <?php endif; ?>
   <nav class="d-flex flex-wrap gap-2 mb-3" aria-label="Report type" id="admin-report-types">
     <?php foreach ($typeLabels as $key => $label): ?>
-      <a href="<?= e(base_url($basePath) . '?type=' . $key) ?>" class="status-pill text-decoration-none" <?= $type === $key ? 'aria-current="page"' : '' ?> style="background:<?= $type === $key ? 'var(--navy)' : '#eef1f5' ?>;color:<?= $type === $key ? '#fff' : 'var(--ink)' ?>"><?= e($label) ?></a>
+      <a href="<?= e(base_url($basePath) . '?type=' . $key) ?>" class="status-pill filter-pill text-decoration-none<?= $type === $key ? ' is-active' : '' ?>" <?= $type === $key ? 'aria-current="page"' : '' ?>><?= e($label) ?></a>
     <?php endforeach; ?>
   </nav>
 

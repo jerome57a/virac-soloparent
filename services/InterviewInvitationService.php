@@ -132,7 +132,7 @@ class InterviewInvitationService
             $this->auditFor($actor, $applicationId, 'Interview Invitation Reopened', $details);
             return true;
         }
-        $closeReason = $byStaff ? ($outcome === 'CANCELLED' ? 'Appointment cancelled by staff' : 'Appointment marked missed by staff') : 'Reschedule allowance used up';
+        $closeReason = $byStaff ? ($outcome === 'CANCELLED' ? 'Appointment cancelled by MSWDO staff' : 'Appointment marked missed by MSWDO staff') : 'Reschedule allowance used up';
         if (!$this->invitations->markClosed($applicationId, $byStaff ? (int) $actor['id'] : null, $closeReason, date('Y-m-d H:i:s'), 'BOOKED')) {
             throw new RuntimeException('The interview invitation changed while the appointment was being closed.');
         }

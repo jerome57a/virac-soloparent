@@ -185,7 +185,7 @@ class AutoVerificationService
         }
         if ($onPaper) {
             $add('paper_documents', 'application', self::PASS, 'Paper documents', count($onPaper) . ' required document' . (count($onPaper) === 1 ? ' was' : 's were')
-                . ' declared as held on paper (no file uploaded), so the system cannot check ' . (count($onPaper) === 1 ? 'it' : 'them') . '. Staff verify in person.');
+                . ' declared as held on paper (no file uploaded), so the system cannot check ' . (count($onPaper) === 1 ? 'it' : 'them') . '. MSWDO staff verify in person.');
         }
 
         // Applicant's birthdate.

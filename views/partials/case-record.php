@@ -18,7 +18,7 @@ $decisionLabels = ['APPROVED' => ['Approved', '#dcf3e2', '#1c7a3f'], 'REJECTED' 
   <?php foreach ($decisions as $d): [$dl, $dbg, $dfg] = $decisionLabels[$d['decision']]; ?>
     <div class="case-entry">
       <div><span class="status-pill" style="background:<?= $dbg ?>;color:<?= $dfg ?>;font-size:11px"><?= e($dl) ?></span>
-        <span class="when"><?= e(date('M j, Y g:i A', strtotime($d['decided_at']))) ?> · <?= e($d['decided_by_name'] ?? 'former staff member') ?></span></div>
+        <span class="when"><?= e(date('M j, Y g:i A', strtotime($d['decided_at']))) ?> · <?= e($d['decided_by_name'] ?? 'former MSWDO staff member') ?></span></div>
       <?php if ($d['reason']): ?><div class="text"><?= e($d['reason']) ?></div><?php endif; ?>
     </div>
   <?php endforeach; ?>
@@ -32,7 +32,7 @@ $decisionLabels = ['APPROVED' => ['Approved', '#dcf3e2', '#1c7a3f'], 'REJECTED' 
     <?php foreach ($mswdAssessments as $a): $eligible = $a['preliminary_result'] === 'ELIGIBLE'; ?>
       <div class="case-entry">
         <div><span class="status-pill" style="background:<?= $eligible ? '#dcf3e2' : '#fde8e8' ?>;color:<?= $eligible ? '#1c7a3f' : '#a51c1c' ?>;font-size:11px"><?= $eligible ? 'Eligible' : 'Not Eligible' ?></span>
-          <span class="when"><?= e(date('M j, Y g:i A', strtotime($a['created_at']))) ?> · <?= e($a['assessor_name'] ?? 'former staff member') ?></span></div>
+          <span class="when"><?= e(date('M j, Y g:i A', strtotime($a['created_at']))) ?> · <?= e($a['assessor_name'] ?? 'former MSWDO staff member') ?></span></div>
         <?php if ($a['result_reason']): ?><div class="text"><?= e($a['result_reason']) ?></div><?php endif; ?>
       </div>
     <?php endforeach; ?>

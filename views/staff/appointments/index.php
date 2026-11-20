@@ -74,15 +74,15 @@ $row = function (array $iv, string $timeFormat) use ($staff, $canManage, $apptSt
   <?php endif; ?>
   <?php if (($staff['role'] ?? '') === 'admin'): ?>
   <div class="info-box" style="max-width:none">
-    <p class="mb-2" data-i18n>As administrator, you monitor interview appointments.</p>
-    <p class="mb-0" data-i18n>MSWD staff schedule each Solo Parent's interview day; the Solo Parent can keep it or pick another day. MSWD staff handle individual appointment changes and record interview results or missed appointments.</p>
+    <p class="mb-2" data-i18n>As an MSWDO admin, you monitor interview appointments.</p>
+    <p class="mb-0" data-i18n>MSWDO staff schedule each Solo Parent's interview day; the Solo Parent can keep it or pick another day. MSWDO staff handle individual appointment changes and record interview results or missed appointments.</p>
   </div>
   <?php endif; ?>
   <?php if (($staff['role'] ?? '') === 'admin'): ?>
   <div class="admin-page-summary">
     <a href="#admin-appointments-today"><span data-i18n>Today's appointments</span><strong><?= count($todayAppointments) ?></strong><small data-i18n>View today's schedule</small></a>
     <a href="#admin-appointments-upcoming"><span data-i18n>Upcoming appointments</span><strong><?= array_sum(array_map('count', $upcomingByDate)) ?></strong><small data-i18n>After today</small></a>
-    <div><span data-i18n>Awaiting staff outcome</span><strong><?= count($awaitingOutcome) ?></strong><small data-i18n>Past appointments still marked booked</small></div>
+    <div><span data-i18n>Awaiting MSWDO staff outcome</span><strong><?= count($awaitingOutcome) ?></strong><small data-i18n>Past appointments still marked booked</small></div>
   </div>
   <?php endif; ?>
   <?php if ($error): ?><div class="auth-error mb-3" role="alert"><?= e($error) ?></div><?php endif; ?>
@@ -118,8 +118,8 @@ $row = function (array $iv, string $timeFormat) use ($staff, $canManage, $apptSt
 
   <?php if ($awaitingOutcome): ?>
     <div class="review-card" style="border-color:var(--red)">
-      <div class="review-card-head"><div class="title"><span data-i18n><?= $canManage ? 'Needs Outcome' : 'Awaiting MSWD Staff Outcome' ?></span> (<?= count($awaitingOutcome) ?>)</div></div>
-      <div style="font-size:13px;color:var(--muted);margin-bottom:8px"><?= $canManage ? 'These appointments have passed but are still marked booked. Record the interview result, or mark a no-show as missed then assign a replacement schedule if needed.' : 'These past appointments still need an outcome from MSWD staff. Open an application to review its interview details.' ?></div>
+      <div class="review-card-head"><div class="title"><span data-i18n><?= $canManage ? 'Needs Outcome' : 'Awaiting MSWDO Staff Outcome' ?></span> (<?= count($awaitingOutcome) ?>)</div></div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:8px"><?= $canManage ? 'These appointments have passed but are still marked booked. Record the interview result, or mark a no-show as missed then assign a replacement schedule if needed.' : 'These past appointments still need an outcome from MSWDO staff. Open an application to review its interview details.' ?></div>
       <?php if ($staff['role'] === 'admin'): ?><div class="admin-list-scroll" role="region" aria-label="Appointments needing an outcome" tabindex="0"><?php endif; ?>
       <?php foreach ($awaitingOutcome as $iv) { $row($iv, 'M j, Y g:i A'); } ?>
       <?php if ($staff['role'] === 'admin'): ?></div><?php endif; ?>
@@ -177,7 +177,7 @@ $row = function (array $iv, string $timeFormat) use ($staff, $canManage, $apptSt
   <div class="review-card" id="interview-dates">
     <div class="review-card-head"><div class="title">Interview days</div></div>
     <?php if ($dateState === 'incomplete'): ?>
-      <div class="info-box" style="max-width:none" role="status">Interview date booking is not available because its setup is incomplete. Please contact the system administrator.</div>
+      <div class="info-box" style="max-width:none" role="status">Interview date booking is not available because its setup is incomplete. Please contact the MSWDO admin.</div>
     <?php else: ?>
       <p class="small text-muted mb-2">Dates do not need to be opened. When you schedule a date the Solo Parent can keep it or choose any office day (Monday to Friday) in the next 45 days. Weekends, holidays and announced office closures are never offered. Each day takes up to <?= $defaultCapacity >= 1 ? (int) $defaultCapacity : '0 (not configured: set it under System Settings)' ?> Solo Parents; only BOOKED and COMPLETED interviews use a seat.<?php if (($staff['role'] ?? '') === 'admin'): ?> Capacity, holidays and closures are managed under <a href="<?= base_url('admin/settings.php') ?>">System Settings</a>.<?php endif; ?></p>
       <?php $bookedDays = array_values(array_filter($interviewDates, fn($d) => (int) $d['seats_used'] > 0)); ?>

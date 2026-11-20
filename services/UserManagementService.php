@@ -136,7 +136,7 @@ class UserManagementService
         $this->audit($admin, 'User Creation', $newId, $accountLabel . ' (' . User::ROLE_LABELS[$role] . ')' . ($mustChange ? ', must change password at first sign-in' : ''));
         $success = 'Account created for ' . $accountLabel . '.';
         if ($role === 'mswd_social_worker') {
-            $success .= ' They can access and continue updating all existing Solo Parent records when they sign in. Previous staff history is preserved.';
+            $success .= ' They can access and continue updating all existing Solo Parent records when they sign in. Previous MSWDO staff history is preserved.';
         }
         if ($role === 'applicant') {
             $success .= ' They sign in with this username and the password you set; their mobile number and Gmail address are contact details only. This creates an account only; the Solo Parent application is completed separately.';
@@ -221,10 +221,10 @@ class UserManagementService
             return ['', 'The account already has the ' . User::ROLE_LABELS[$newRole] . ' role.'];
         }
         if ($target['role'] === 'applicant' && ($count = $this->users->applicationCount((int) $target['id'])) > 0) {
-            return ['This account has ' . $count . ' application(s) on file, so it must stay a Solo Parent account. Create a separate account for staff work.', ''];
+            return ['This account has ' . $count . ' application(s) on file, so it must stay a Solo Parent account. Create a separate account for MSWDO staff work.', ''];
         }
         if ($newRole !== 'applicant' && empty($target['username'])) {
-            return ['Create a separate personnel account with a username for staff work.', ''];
+            return ['Create a separate personnel account with a username for MSWDO staff work.', ''];
         }
         $this->users->setRole((int) $target['id'], $newRole);
         $this->audit($admin, 'User Role Change', (int) $target['id'], ($target['username'] ?: ($target['email'] ?: $target['mobile'])) . ': ' . (User::ROLE_LABELS[$target['role']] ?? $target['role']) . ' → ' . User::ROLE_LABELS[$newRole]);
@@ -274,7 +274,7 @@ class UserManagementService
             return ['', 'This mobile number is already confirmed.'];
         }
         $this->users->markMobileVerified((int) $target['id']);
-        $this->audit($admin, 'Mobile Verified', (int) $target['id'], ($target['username'] ?: ($target['email'] ?: $target['mobile'])) . ': number ending ' . substr(preg_replace('/\D/', '', $target['mobile']), -4) . ' confirmed by an administrator');
+        $this->audit($admin, 'Mobile Verified', (int) $target['id'], ($target['username'] ?: ($target['email'] ?: $target['mobile'])) . ': number ending ' . substr(preg_replace('/\D/', '', $target['mobile']), -4) . ' confirmed by an MSWDO admin');
         return ['', 'Mobile number confirmed. ' . ($target['username'] ?: ($target['email'] ?: $target['mobile'])) . ' can now use their account.'];
     }
 

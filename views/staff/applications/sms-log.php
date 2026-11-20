@@ -9,7 +9,7 @@ if (!$smsLogs) {
 }
 $kinds = [
     'submitted' => 'Application received', 'status_change' => 'Status update', 'interview_scheduled' => 'Interview scheduled', 'interview_custom' => 'Interview scheduled (custom)',
-    'interview_date_assigned' => 'Interview date set by staff', 'interview_date_assigned_custom' => 'Interview date set by staff (custom)', 'interview_date_booked' => 'Interview date booked',
+    'interview_date_assigned' => 'Interview date set by MSWDO staff', 'interview_date_assigned_custom' => 'Interview date set by MSWDO staff (custom)', 'interview_date_booked' => 'Interview date booked',
     'interview_booking_open' => 'Interview booking opened', 'interview_booking_custom' => 'Interview booking opened (custom)', 'appointment_reminder' => 'Appointment reminder',
     'appointment_cancelled' => 'Appointment cancelled', 'appointment_missed' => 'Appointment missed', 'id_release_scheduled' => 'ID release scheduled', 'id_release_custom' => 'ID release scheduled (custom)',
     'renewal_submitted' => 'Renewal received', 'renewal_reminder' => 'Renewal reminder', 'renewal_expired' => 'Renewal reminder (expired)', 'document_correction' => 'Document correction',

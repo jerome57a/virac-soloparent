@@ -33,7 +33,7 @@ const SETTINGS_REGISTRY = [
     ],
     'appointments' => [
         'title' => 'Appointments',
-        'note' => 'Solo Parents choose their own interview day after MSWD staff send an invitation. These rules decide which days are offered and the hours used for cancellation deadlines.',
+        'note' => 'Solo Parents choose their own interview day after MSWDO staff send an invitation. These rules decide which days are offered and the hours used for cancellation deadlines.',
         'keys' => [
             'appointment_location' => ['label' => 'Default appointment location', 'type' => 'text', 'default' => 'MSWDO Office, Municipal Building, Salvacion, Virac, Catanduanes', 'max' => 255],
             'appointment_days' => ['label' => 'Days the office holds interviews', 'type' => 'list', 'default' => '1,2,3,4,5',
@@ -63,7 +63,7 @@ const SETTINGS_REGISTRY = [
         'note' => 'In-app notifications to Solo Parents are always kept: they are the record of what happened to an application.',
         'keys' => [
             'sms_enabled' => ['label' => 'Send SMS notifications to Solo Parents', 'type' => 'bool', 'default' => '1'],
-            'notify_staff_new_work' => ['label' => 'Alert MSWD staff in-app about new work (new applications and renewals, re-uploaded documents, appointment changes)', 'type' => 'bool', 'default' => '1'],
+            'notify_staff_new_work' => ['label' => 'Alert MSWDO staff in-app about new work (new applications and renewals, re-uploaded documents, appointment changes)', 'type' => 'bool', 'default' => '1'],
         ],
     ],
 ];

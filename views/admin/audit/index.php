@@ -22,7 +22,7 @@ $targetUrl = fn(array $link) => base_url(($link[0] === 'user_id' ? 'admin/user_e
 <div class="admin-page-actions"><a href="<?= e(base_url('admin/audit_log.php') . '?' . http_build_query($active + ['output' => 'csv'])) ?>" class="btn-navy">Download CSV</a></div>  <nav class="d-flex flex-wrap gap-2 mb-3" aria-label="Event category" id="admin-audit-categories">
     <?php foreach (['' => 'All events'] + array_map(fn($c) => $c[0], AuditLogService::CATEGORIES) as $key => $label): ?>
       <?php $on = $filters['category'] === $key; ?>
-      <a href="<?= e(base_url('admin/audit_log.php') . '?' . http_build_query(array_diff_key($active, ['category' => 1, 'action' => 1]) + ($key !== '' ? ['category' => $key] : []))) ?>" class="status-pill text-decoration-none" <?= $on ? 'aria-current="page"' : '' ?> style="background:<?= $on ? 'var(--navy)' : '#eef1f5' ?>;color:<?= $on ? '#fff' : 'var(--ink)' ?>"><?= e($label) ?></a>
+      <a href="<?= e(base_url('admin/audit_log.php') . '?' . http_build_query(array_diff_key($active, ['category' => 1, 'action' => 1]) + ($key !== '' ? ['category' => $key] : []))) ?>" class="status-pill filter-pill text-decoration-none<?= $on ? ' is-active' : '' ?>" <?= $on ? 'aria-current="page"' : '' ?>><?= e($label) ?></a>
     <?php endforeach; ?>
   </nav>
 

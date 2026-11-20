@@ -22,7 +22,7 @@ $hint = 'display:block;font-size:12px;color:var(--muted);font-weight:400';
 <?php else: ?>
 <div class="review-row"><div class="k" data-i18n>Confirmed mobile number</div><div class="v">
   <?php if ($confirmedMobile !== null): ?>
-    <?= e($confirmedMobile) ?> <span class="status-pill" style="background:#fdf1d6;color:#8a6d1a;font-size:11px" data-i18n>Changed since submission</span><span style="<?= $hint ?>" data-i18n>Used for SMS notifications</span>
+    <?= e($confirmedMobile) ?> <span class="status-pill" style="background:#fdf1d6;color:#7a5f12;font-size:11px" data-i18n>Changed since submission</span><span style="<?= $hint ?>" data-i18n>Used for SMS notifications</span>
   <?php else: ?>
     None<span style="<?= $hint ?>">No confirmed number on the account; SMS goes to the application mobile number</span>
   <?php endif; ?>

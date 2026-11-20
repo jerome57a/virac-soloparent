@@ -25,7 +25,7 @@ $docPill = function (string $status): string {
     [$bg, $fg] = match ($status) {
         'VERIFIED' => ['#dcf3e2', '#1c7a3f'],
         'NEEDS_CORRECTION', 'REJECTED', 'INVALID' => ['#fde8e8', '#a51c1c'],
-        default => ['#fdf1d6', '#8a6d1a'],
+        default => ['#fdf1d6', '#7a5f12'],
     };
     return '<span class="status-pill" style="background:' . $bg . ';color:' . $fg . ';font-size:11px">' . e(document_status_label($status)) . '</span>';
 };
@@ -134,7 +134,7 @@ $empty = fn(string $text) => '<div style="font-size:13px;color:var(--muted)">' .
               <td><?= e($d['doc_label']) ?><div style="font-size:11px;color:var(--faint)"><?= e($d['original_name']) ?> · <?= e(number_format($d['size_bytes'] / 1024, 0)) ?> KB</div></td>
               <td><?= e($when($d['uploaded_at'])) ?></td>
               <td><?= $docPill($d['verification_status']) ?></td>
-              <td><?= $d['verified_at'] ? e($when($d['verified_at'])) . '<div style="font-size:11px;color:var(--faint)">' . e($d['verified_by_name'] ?: 'former staff member') . '</div>' : '—' ?></td>
+              <td><?= $d['verified_at'] ? e($when($d['verified_at'])) . '<div style="font-size:11px;color:var(--faint)">' . e($d['verified_by_name'] ?: 'former MSWDO staff member') . '</div>' : '—' ?></td>
               <td><?= e($d['staff_remarks'] ?: '—') ?></td>
               <td style="white-space:nowrap"><a href="<?= e(base_url('download.php?doc_id=' . (int) $d['id'])) ?>" target="_blank" rel="noopener" data-i18n>View</a></td>
             </tr>
@@ -184,7 +184,7 @@ $empty = fn(string $text) => '<div style="font-size:13px;color:var(--muted)">' .
               <td><span class="status-pill" style="background:<?= $ibg ?>;color:<?= $ifg ?>;font-size:11px"><?= e($il) ?></span></td>
               <td><?= e($when($inv['opened_at'])) ?></td>
               <td><?= (int) $inv['reschedules_used'] ?> of <?= (int) $inv['reschedules_allowed'] ?> used</td>
-              <td><?= e($inv['status'] === 'CLOSED' ? ($inv['close_reason'] ?: 'Closed by staff.') : $itext) ?></td>
+              <td><?= e($inv['status'] === 'CLOSED' ? ($inv['close_reason'] ?: 'Closed by MSWDO staff.') : $itext) ?></td>
             </tr>
           <?php endforeach; ?>
         </tbody>
@@ -199,7 +199,7 @@ $empty = fn(string $text) => '<div style="font-size:13px;color:var(--muted)">' .
     <?php foreach ($decisions as $d): [$dl, $dbg, $dfg] = $decisionLabels[$d['decision']]; ?>
       <div class="case-entry">
         <div><b><?= e($d['reference_no']) ?></b> <span class="status-pill" style="background:<?= $dbg ?>;color:<?= $dfg ?>;font-size:11px"><?= e($dl) ?></span>
-          <span class="when"><?= e($when($d['decided_at'])) ?> · <?= e($d['decided_by_name'] ?? 'former staff member') ?></span></div>
+          <span class="when"><?= e($when($d['decided_at'])) ?> · <?= e($d['decided_by_name'] ?? 'former MSWDO staff member') ?></span></div>
         <?php if ($d['reason']): ?><div class="text"><?= e($d['reason']) ?></div><?php endif; ?>
       </div>
     <?php endforeach; ?>

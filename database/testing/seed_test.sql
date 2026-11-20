@@ -89,8 +89,8 @@ START TRANSACTION;
 -- Roles (structural reference rows required by users.role foreign key)
 -- ---------------------------------------------------------------
 INSERT INTO roles (id, role_key, code, name, description) VALUES
-(1, 'admin',              'ADMINISTRATOR', 'System Administrator',       'Test fixture role.'),
-(2, 'mswd_social_worker', 'MSWD_STAFF',    'MSWD Staff / Social Worker', 'Test fixture role.'),
+(1, 'admin',              'ADMINISTRATOR', 'MSWDO Admin',       'Test fixture role.'),
+(2, 'mswd_social_worker', 'MSWD_STAFF',    'MSWDO Staff', 'Test fixture role.'),
 (3, 'applicant',          'SOLO_PARENT',   'Solo Parent',      'Test fixture role.');
 
 -- ---------------------------------------------------------------

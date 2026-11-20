@@ -35,7 +35,7 @@ $shortcuts = [
 <link rel="stylesheet" href="<?= public_asset('css/admin-dashboard.css') ?>">
 <div class="portal-container admin-dashboard" id="admin-dashboard">
   <header class="ad-heading personnel-page-heading">
-    <div><p class="ad-eyebrow" data-i18n>Administration</p><h1 class="page-title" data-i18n>Administrator Dashboard</h1><p class="ad-description" data-i18n>Monitor applications, manage services, and keep the system running smoothly.</p></div>
+    <div><p class="ad-eyebrow" data-i18n>Administration</p><h1 class="page-title" data-i18n>MSWDO Admin Dashboard</h1><p class="ad-description" data-i18n>Monitor applications, manage services, and keep the system running smoothly.</p></div>
     <div class="ad-heading-meta"><span class="ad-date"><?= $dashboardIcon('calendar') ?><time datetime="<?= e(date('Y-m-d')) ?>"><?= e(date('M j, Y')) ?></time></span><span class="ad-signed-in"><span data-i18n>Signed in as</span> <strong><?= e($staff['full_name']) ?></strong></span></div>
   </header>
   <section id="admin-overview" class="ad-overview" aria-label="Overview" data-i18n-attrs="aria-label">
@@ -72,13 +72,13 @@ $shortcuts = [
         <a class="ad-attention-row" href="<?= base_url('admin/users.php?status=locked') ?>"><span><strong data-i18n>Locked accounts</strong><small data-i18n>Review accounts after failed sign-ins.</small></span><b class="<?= $userStats['locked'] > 0 ? 'ad-count-warn' : '' ?>"><?= number_format((int) $userStats['locked']) ?></b><?= $dashboardIcon('arrow') ?></a>
       </section>
   <details class="ad-panel ad-details review-card" open>
-    <summary><span><strong data-i18n>System &amp; account details</strong><span data-i18n>Staff accounts, SMS totals, and security activity</span></span><span class="ad-details-toggle" aria-hidden="true">+</span></summary>
+    <summary><span><strong data-i18n>System &amp; account details</strong><span data-i18n>MSWDO staff accounts, SMS totals, and security activity</span></span><span class="ad-details-toggle" aria-hidden="true">+</span></summary>
     <div class="ad-details-grid">
       <section><h3 data-i18n>Accounts</h3><dl>
         <div><dt data-i18n>Active Accounts</dt><dd><?= number_format((int) $stats['activeUsers']) ?></dd></div>
         <div><dt data-i18n>Deactivated accounts</dt><dd><?= number_format((int) $userStats['deactivated']) ?></dd></div>
-        <div><dt data-i18n>MSWD Staff</dt><dd><?= number_format((int) $userStats['mswdStaff']) ?></dd></div>
-        <div><dt data-i18n>Administrators</dt><dd><?= number_format((int) $userStats['admins']) ?></dd></div>
+        <div><dt data-i18n>MSWDO Staff</dt><dd><?= number_format((int) $userStats['mswdStaff']) ?></dd></div>
+        <div><dt data-i18n>MSWDO Admins</dt><dd><?= number_format((int) $userStats['admins']) ?></dd></div>
       </dl><a class="ad-text-link" href="<?= base_url('admin/users.php') ?>" data-i18n>Manage Users</a></section>
       <section><h3 data-i18n>SMS delivery</h3><dl>
         <div><dt><a href="<?= base_url('admin/sms.php?status=sent') ?>" data-i18n>Sent</a></dt><dd><?= number_format((int) $stats['smsSent']) ?></dd></div>

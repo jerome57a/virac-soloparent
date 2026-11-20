@@ -54,7 +54,7 @@ class AdminController extends Controller
     {
         $this->authorize($this->admin, 'admin.dashboard', 'staff/dashboard.php');
         $reports = new ReportService($this->pdo);
-        $this->page('Administrator Dashboard', 'dashboard.php', [
+        $this->page('MSWDO Admin Dashboard', 'dashboard.php', [
             'stats' => $reports->dashboardStats(),
             'userStats' => $reports->userStats(),
             'auditStats' => $reports->auditStats(),

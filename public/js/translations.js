@@ -7,14 +7,14 @@ window.ViracTranslations = Object.fromEntries([
   ['Deletion unavailable: interview scheduling history.', 'Hindi maaaring tanggalin: may kasaysayan ng pag-iskedyul ng panayam.'],
   ['Solo Parents sign in with their mobile number or Gmail address, if provided. No username is needed.', 'Nagla-log in ang mga Solo Parent gamit ang numero ng mobile o Gmail address, kung mayroon. Hindi kailangan ng username.'],
   ['Appointment Overview', 'Pangkalahatang-ideya ng mga Appointment'],
-  ['Monitor interview schedules, available capacity and appointments awaiting a staff outcome.', 'Subaybayan ang mga iskedyul ng panayam, bakanteng kapasidad at mga appointment na naghihintay ng resulta mula sa kawani.'],
-  ['As administrator, you monitor appointments and manage the interview dates, times and capacity available to the office.', 'Bilang tagapangasiwa, sinusubaybayan mo ang mga appointment at pinamamahalaan ang mga petsa, oras at kapasidad ng panayam sa opisina.'],
-  ['MSWD staff assign Solo Parents to slots, handle individual appointment changes and record interview results or missed appointments.', 'Ang mga kawani ng MSWD ang nagtatalaga ng iskedyul sa mga Solo Parent, humahawak ng pagbabago sa bawat appointment at nagtatala ng resulta ng panayam o hindi pagdalo.'],
+  ['Monitor interview schedules, available capacity and appointments awaiting an MSWDO staff outcome.', 'Subaybayan ang mga iskedyul ng panayam, bakanteng kapasidad at mga appointment na naghihintay ng resulta mula sa kawani ng MSWDO.'],
+  ['As an MSWDO admin, you monitor appointments and manage the interview dates, times and capacity available to the office.', 'Bilang MSWDO admin, sinusubaybayan mo ang mga appointment at pinamamahalaan ang mga petsa, oras at kapasidad ng panayam sa opisina.'],
+  ['MSWDO staff assign Solo Parents to slots, handle individual appointment changes and record interview results or missed appointments.', 'Ang mga kawani ng MSWDO ang nagtatalaga ng iskedyul sa mga Solo Parent, humahawak ng pagbabago sa bawat appointment at nagtatala ng resulta ng panayam o hindi pagdalo.'],
   ['Manage Available Slots', 'Pamahalaan ang mga Bakanteng Iskedyul'],
-  ['Awaiting MSWD Staff Outcome', 'Naghihintay ng Resulta mula sa Kawani ng MSWD'],
+  ['Awaiting MSWDO Staff Outcome', 'Naghihintay ng Resulta mula sa Kawani ng MSWDO'],
   ['Back to Appointment Overview', 'Bumalik sa Pangkalahatang-ideya ng mga Appointment'],
-  ['Manage office availability here. MSWD staff assign individual Solo Parents and record interview outcomes.', 'Pamahalaan dito ang mga bakanteng iskedyul ng opisina. Ang mga kawani ng MSWD ang nagtatalaga ng iskedyul sa bawat Solo Parent at nagtatala ng resulta ng panayam.'],
-  ['Cancelling a booked slot cancels all appointments in that slot and notifies the affected Solo Parents. MSWD staff then assign replacement schedules.', 'Ang pagkansela ng naka-book na iskedyul ay nagkakansela ng lahat ng appointment dito at nag-aabiso sa mga apektadong Solo Parent. Pagkatapos, ang mga kawani ng MSWD ang magtatalaga ng kapalit na iskedyul.'],
+  ['Manage office availability here. MSWDO staff assign individual Solo Parents and record interview outcomes.', 'Pamahalaan dito ang mga bakanteng iskedyul ng opisina. Ang mga kawani ng MSWDO ang nagtatalaga ng iskedyul sa bawat Solo Parent at nagtatala ng resulta ng panayam.'],
+  ['Cancelling a booked slot cancels all appointments in that slot and notifies the affected Solo Parents. MSWDO staff then assign replacement schedules.', 'Ang pagkansela ng naka-book na iskedyul ay nagkakansela ng lahat ng appointment dito at nag-aabiso sa mga apektadong Solo Parent. Pagkatapos, ang mga kawani ng MSWDO ang magtatalaga ng kapalit na iskedyul.'],
   ['Gmail address (optional)', 'Gmail address (opsyonal)'],
   ['Gmail address or mobile number', 'Gmail address o numero ng mobile'],
   ['Gmail, username or mobile number', 'Gmail, username o numero ng mobile'],
@@ -29,9 +29,10 @@ window.ViracTranslations = Object.fromEntries([
   ['Enter a Gmail address ending in @gmail.com, or leave this blank.', 'Maglagay ng Gmail address na nagtatapos sa @gmail.com, o iwan itong blangko.'],
   ['Solo Parent ID Services', 'Mga Serbisyo para sa Solo Parent ID'],
   ['Home', 'Pangunahing Pahina'], ['Main', 'Pangunahing Menu'],
+  ['How to get it', 'Paano ito makuha'], ['Contact MSWDO for help', 'Makipag-ugnayan sa MSWDO para sa tulong'], ['Tap a document to see where and how to get it.', 'Pindutin ang isang dokumento para makita kung saan at paano ito makukuha.'],
   ['Dashboard', 'Pangkalahatang-ideya'], ['Solo Parent Portal', 'Portal ng Solo Parent'],
-  ['Solo Parent', 'Solo Parent'], ['Administrator', 'Tagapangasiwa'],
-  ['MSWD Staff', 'Kawani ng MSWD'], ['Administration', 'Pangangasiwa'],
+  ['Solo Parent', 'Solo Parent'], ['MSWDO admin', 'MSWDO Admin'],
+  ['MSWDO Staff', 'Kawani ng MSWDO'], ['Administration', 'Pangangasiwa'],
   ['Applications', 'Mga Aplikasyon'], ['Solo Parent Records', 'Mga Talaan ng Solo Parent'],
   ['Notifications', 'Mga Abiso'], ['My Account', 'Aking Account'], ['My account', 'Aking account'],
   ['My Profile', 'Aking Profile'], ['My Application', 'Aking Aplikasyon'],
@@ -174,11 +175,11 @@ window.ViracTranslations = Object.fromEntries([
   ['Username or mobile number', 'Username o numero ng mobile'],
   ['Solo Parent Log In — use your public Solo Parent account.', 'Pag-log in ng Solo Parent — gamitin ang iyong account bilang Solo Parent.'],
   ['Sign In', 'Mag-sign In'], ['Back to log in', 'Bumalik sa pag-log in'], ['New Solo Parent?', 'Bagong Solo Parent?'],
-  ['Sign in with your username and password. Solo Parents, MSWD staff and administrators all use this page.', 'Mag-sign in gamit ang iyong username at password. Ang mga Solo Parent, kawani ng MSWD at administrator ay gumagamit ng pahinang ito.'],
-  ['MSWD staff and administrators: reset codes are sent only to a mobile number on your account. If you have none, ask your system administrator to reset your password.', 'Mga kawani ng MSWD at administrator: ang mga reset code ay ipinapadala lamang sa numero ng mobile sa inyong account. Kung wala kayo nito, hilingin sa inyong system administrator na i-reset ang inyong password.'],
-  ['Password resets are handled by the MSWDO office. Contact MSWDO Virac and give your username. An administrator will confirm who you are and give you a temporary password. You will be asked to choose a new password the next time you log in.', 'Ang MSWDO office ang nag-aasikaso ng pag-reset ng password. Makipag-ugnayan sa MSWDO Virac at ibigay ang inyong username. Kukumpirmahin ng administrator kung sino kayo at bibigyan kayo ng pansamantalang password. Hihilingin sa inyong pumili ng bagong password sa susunod na pag-log in.'],
-  ['MSWD staff and administrators: ask your system administrator to reset your password.', 'Mga kawani ng MSWD at administrator: hilingin sa inyong system administrator na i-reset ang inyong password.'],
-  ['No code, or you no longer have that phone? Contact MSWDO Virac. An administrator can confirm who you are and give you a temporary password.', 'Walang code, o wala na ang teleponong iyon? Makipag-ugnayan sa MSWDO Virac. Kukumpirmahin ng administrator kung sino kayo at bibigyan kayo ng pansamantalang password.'],
+  ['Sign in with your username and password. Solo Parents, MSWDO staff and MSWDO admins all use this page.', 'Mag-sign in gamit ang iyong username at password. Ang mga Solo Parent, kawani ng MSWDO at MSWDO admin ay gumagamit ng pahinang ito.'],
+  ['MSWDO staff and MSWDO admins: reset codes are sent only to a mobile number on your account. If you have none, ask your MSWDO admin to reset your password.', 'Mga kawani ng MSWDO at MSWDO admin: ang mga reset code ay ipinapadala lamang sa numero ng mobile sa inyong account. Kung wala kayo nito, hilingin sa inyong system MSWDO admin na i-reset ang inyong password.'],
+  ['Password resets are handled by the MSWDO office. Contact MSWDO Virac and give your username. An MSWDO admin will confirm who you are and give you a temporary password. You will be asked to choose a new password the next time you log in.', 'Ang MSWDO office ang nag-aasikaso ng pag-reset ng password. Makipag-ugnayan sa MSWDO Virac at ibigay ang inyong username. Kukumpirmahin ng MSWDO admin kung sino kayo at bibigyan kayo ng pansamantalang password. Hihilingin sa inyong pumili ng bagong password sa susunod na pag-log in.'],
+  ['MSWDO staff and MSWDO admins: ask your MSWDO admin to reset your password.', 'Mga kawani ng MSWDO at MSWDO admin: hilingin sa inyong system MSWDO admin na i-reset ang inyong password.'],
+  ['No code, or you no longer have that phone? Contact MSWDO Virac. An MSWDO admin can confirm who you are and give you a temporary password.', 'Walang code, o wala na ang teleponong iyon? Makipag-ugnayan sa MSWDO Virac. Kukumpirmahin ng MSWDO admin kung sino kayo at bibigyan kayo ng pansamantalang password.'],
   ['This appointment was marked as missed. You can choose a new interview date below.', 'Namarkahan na hindi kayo sumipot sa appointment na ito. Maaari kayong pumili ng bagong petsa ng interview sa ibaba.'],
   ['Your release date has passed, but your ID is still kept at the MSWDO office. You can collect it during office hours. If you would like a new date, contact MSWDO.', 'Lumipas na ang petsa ng release, ngunit nasa MSWDO office pa rin ang inyong ID. Maaari ninyo itong kunin sa oras ng opisina. Kung nais ninyo ng bagong petsa, makipag-ugnayan sa MSWDO.'],
   ['ID release date passed', 'Lumipas na ang petsa ng release ng ID'],
@@ -196,7 +197,7 @@ window.ViracTranslations = Object.fromEntries([
   ['Choose a password different from your current one.', 'Pumili ng password na iba sa kasalukuyan ninyong password.'],
   ['Your password has been updated. Any other device signed in to this account has been signed out.', 'Na-update na ang inyong password. Na-sign out ang anumang ibang device na naka-sign in sa account na ito.'], ['Action required', 'Kailangan ng aksyon'], ['Choose a new password', 'Pumili ng bagong password'], ['Gmail address', 'Gmail address'], ['Not provided', 'Hindi ibinigay'],
   ['Complete your profile', 'Kumpletuhin ang inyong profile'], ['These details are filled into your application form for you:', 'Awtomatikong mapupunan ang mga detalyeng ito sa inyong application form:'],
-  ['MSWD personnel?', 'Kawani ng MSWD?'], ['Admin and Staff Log In', 'Pag-log In ng Admin at Kawani'],
+  ['MSWD personnel?', 'Kawani ng MSWDO?'], ['MSWDO Admin and MSWDO Staff Log In', 'Pag-log In ng MSWDO Admin at Kawani ng MSWDO'],
   ['Personal details', 'Personal na detalye'], ['Birthdate', 'Petsa ng kapanganakan'],
   ['Select sex', 'Piliin ang kasarian'], ['Civil status', 'Katayuang sibil'],
   ['Select civil status', 'Piliin ang katayuang sibil'], ['Contact & address', 'Contact at tirahan'],
@@ -212,7 +213,7 @@ window.ViracTranslations = Object.fromEntries([
   ['Review & Submit', 'Suriin at Isumite'], ['Application History', 'Kasaysayan ng Aplikasyon'],
   ['DIRECTORY', 'DIREKTORYO'], ['CONTACT DETAILS', 'MGA DETALYE NG CONTACT'],
   ['Office of the Municipal Mayor', 'Tanggapan ng Punong Bayan'],
-  ['MSWD STAFF PORTAL', 'PORTAL NG KAWANI NG MSWD'], ['ADMINISTRATION PORTAL', 'PORTAL NG PANGANGASIWA'],
+  ['MSWDO STAFF PORTAL', 'PORTAL NG KAWANI NG MSWDO'], ['MSWDO ADMIN PORTAL', 'PORTAL NG MSWDO ADMIN'],
   ['Question 1 of 3', 'Tanong 1 sa 3'], ['Question 2 of 3', 'Tanong 2 sa 3'], ['Question 3 of 3', 'Tanong 3 sa 3'],
   ['Question progress', 'Progreso ng mga tanong'],
   ['Open your category below to see the configured requirements used by the application checklist. Tick the documents you have available when applying; checking a box does not mean MSWDO has verified the document. Bring originals and photocopies as instructed for document review and your interview.', 'Buksan ang iyong kategorya sa ibaba upang makita ang mga kinakailangang dokumento sa checklist. Lagyan ng tsek ang mga dokumentong mayroon ka; hindi nangangahulugan ang tsek na nakumpirma na ng MSWDO ang dokumento. Dalhin ang mga orihinal at photocopy ayon sa tagubilin para sa pagsusuri at panayam.'],
@@ -319,8 +320,8 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "Minarkahan ng Solo Parent na mayroon na"
   ],
   [
-    "Verified by staff",
-    "Nakumpirma na ng kawani"
+    "Verified by MSWDO staff",
+    "Nakumpirma na ng kawani ng MSWDO"
   ],
   [
     "Awaiting verification",
@@ -471,8 +472,8 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "Magpatuloy sa mga Dokumento →"
   ],
   [
-    "Checked documents are automatically verified when you submit your application so staff can schedule your interview. Bring the physical documents to the interview.",
-    "Awtomatikong mamamarkahang nakumpirma ang mga dokumentong may tsek kapag nagsumite ka upang maiskedyul ng kawani ang panayam. Dalhin ang mga pisikal na dokumento sa panayam."
+    "Checked documents are automatically verified when you submit your application so MSWDO staff can schedule your interview. Bring the physical documents to the interview.",
+    "Awtomatikong mamamarkahang nakumpirma ang mga dokumentong may tsek kapag nagsumite ka upang maiskedyul ng kawani ng MSWDO ang panayam. Dalhin ang mga pisikal na dokumento sa panayam."
   ],
   [
     "Select the documents you already have. Required documents may remain unchecked while you prepare them. You can still submit your application.",
@@ -535,8 +536,8 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "Oras"
   ],
   [
-    "Your Solo Parent ID is ready for scheduled release. Please visit the MSWDO office at your scheduled date and time. Your application will be marked ID Released after staff confirms that you have received your ID.",
-    "Handa na ang iyong Solo Parent ID para sa nakatakdang pagkuha. Pumunta sa MSWDO sa itinakdang petsa at oras. Mamamarkahang naibigay na ang ID kapag nakumpirma ng kawani na natanggap mo ito."
+    "Your Solo Parent ID is ready for scheduled release. Please visit the MSWDO office at your scheduled date and time. Your application will be marked ID Released after MSWDO staff confirms that you have received your ID.",
+    "Handa na ang iyong Solo Parent ID para sa nakatakdang pagkuha. Pumunta sa MSWDO sa itinakdang petsa at oras. Mamamarkahang naibigay na ang ID kapag nakumpirma ng kawani ng MSWDO na natanggap mo ito."
   ],
   [
     "No Appointment Needed Right Now",
@@ -547,8 +548,8 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "Wala kang aplikasyong nangangailangan ng appointment sa ngayon. Magagamit ang pahinang ito kapag naisumite na ang iyong aplikasyon at naghihintay ng pagsusuri o panayam."
   ],
   [
-    "MSWDO staff will arrange your interview schedule after all required documents have been uploaded and verified. Your schedule will appear here and be sent by SMS. If MSWDO asks for a correction, upload a replacement; staff must verify it before your interview can be scheduled.",
-    "Aayusin ng MSWDO ang iskedyul ng iyong panayam kapag na-upload at na-verify na ang lahat ng kinakailangang dokumento. Makikita rito ang iskedyul at ipapadala rin sa SMS. Kung humiling ang MSWDO ng pagwawasto, mag-upload ng kapalit; kailangan itong i-verify ng staff bago maitakda ang iyong panayam."
+    "MSWDO staff will arrange your interview schedule after all required documents have been uploaded and verified. Your schedule will appear here and be sent by SMS. If MSWDO asks for a correction, upload a replacement; MSWDO staff must verify it before your interview can be scheduled.",
+    "Aayusin ng MSWDO ang iskedyul ng iyong panayam kapag na-upload at na-verify na ang lahat ng kinakailangang dokumento. Makikita rito ang iskedyul at ipapadala rin sa SMS. Kung humiling ang MSWDO ng pagwawasto, mag-upload ng kapalit; kailangan itong i-verify ng MSWDO staff bago maitakda ang iyong panayam."
   ],
   [
     "View your document checklist",
@@ -679,8 +680,8 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "Tingnan o Palitan ang Iskedyul"
   ],
   [
-    "MSWDO will arrange your interview after all required documents are uploaded and verified. Replace any document that needs correction; staff must verify the replacement before your interview can be scheduled. You can view your interview schedule in your account.",
-    "Aayusin ng MSWDO ang iyong panayam kapag na-upload at na-verify na ang lahat ng kinakailangang dokumento. Palitan ang anumang dokumentong kailangang iwasto; kailangan itong i-verify ng staff bago maitakda ang iyong panayam. Makikita mo ang iskedyul ng iyong panayam sa iyong account."
+    "MSWDO will arrange your interview after all required documents are uploaded and verified. Replace any document that needs correction; MSWDO staff must verify the replacement before your interview can be scheduled. You can view your interview schedule in your account.",
+    "Aayusin ng MSWDO ang iyong panayam kapag na-upload at na-verify na ang lahat ng kinakailangang dokumento. Palitan ang anumang dokumentong kailangang iwasto; kailangan itong i-verify ng MSWDO staff bago maitakda ang iyong panayam. Makikita mo ang iskedyul ng iyong panayam sa iyong account."
   ],
   [
     "View Interview Status",
@@ -755,8 +756,8 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "Magsimula ng Aplikasyon"
   ],
   [
-    "Mark the documents you already have. Bring the physical documents to your interview. If documents are still missing after scheduling, staff must receive them before approval and ID release.",
-    "Markahan ang mga dokumentong mayroon ka na. Dalhin ang mga pisikal na dokumento sa panayam. Kung may kulang pa pagkatapos magtakda ng iskedyul, kailangang matanggap muna ito ng kawani bago maaprubahan at maibigay ang ID."
+    "Mark the documents you already have. Bring the physical documents to your interview. If documents are still missing after scheduling, MSWDO staff must receive them before approval and ID release.",
+    "Markahan ang mga dokumentong mayroon ka na. Dalhin ang mga pisikal na dokumento sa panayam. Kung may kulang pa pagkatapos magtakda ng iskedyul, kailangang matanggap muna ito ng kawani ng MSWDO bago maaprubahan at maibigay ang ID."
   ],
   [
     "Browse requirement guides →",
@@ -783,12 +784,12 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "Paano ito kunin"
   ],
   [
-    "Staff note:",
-    "Puna ng kawani:"
+    "MSWDO Staff note:",
+    "Puna ng kawani ng MSWDO:"
   ],
   [
-    "Bring or submit this document to MSWDO. Staff must record it as received before approval and ID release.",
-    "Dalhin o isumite ang dokumentong ito sa MSWDO. Kailangang itala ng kawani na natanggap ito bago maaprubahan at maibigay ang ID."
+    "Bring or submit this document to MSWDO. MSWDO staff must record it as received before approval and ID release.",
+    "Dalhin o isumite ang dokumentong ito sa MSWDO. Kailangang itala ng kawani ng MSWDO na natanggap ito bago maaprubahan at maibigay ang ID."
   ],
   [
     "Accepted document retained from the existing ID. No new submission is required.",
@@ -1123,8 +1124,8 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "Mga anak na nakatala"
   ],
   [
-    "Your existing identity, children and accepted documents stay on file. Provide only the category renewal documents and replacements for expired documents. Staff review and approve renewal; a new interview is not required.",
-    "Mananatiling nakatala ang iyong pagkakakilanlan, mga anak, at tinanggap na dokumento. Ibigay lamang ang mga dokumento sa pag-renew para sa iyong kategorya at kapalit ng mga paso nang dokumento. Susuriin at aaprubahan ng kawani ang pag-renew; hindi na kailangan ng bagong panayam."
+    "Your existing identity, children and accepted documents stay on file. Provide only the category renewal documents and replacements for expired documents. MSWDO staff review and approve renewal; a new interview is not required.",
+    "Mananatiling nakatala ang iyong pagkakakilanlan, mga anak, at tinanggap na dokumento. Ibigay lamang ang mga dokumento sa pag-renew para sa iyong kategorya at kapalit ng mga paso nang dokumento. Susuriin at aaprubahan ng kawani ng MSWDO ang pag-renew; hindi na kailangan ng bagong panayam."
   ],
   [
     "View Renewal Status",
@@ -1175,8 +1176,8 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "Tinanggap na at may bisa pa ang mga dokumento para sa iyong kategorya. Hindi na kailangan ng bagong deklarasyon ng dokumento."
   ],
   [
-    "Confirm availability and bring requested documents as MSWDO instructs. Staff verify them separately. Document expiry uses recorded dates; no unrecorded expiry is assumed.",
-    "Kumpirmahin kung mayroon ka na at dalhin ang mga hiniling na dokumento ayon sa tagubilin ng MSWDO. Hiwalay na kukumpirmahin ang mga ito ng kawani. Batay sa nakatalang petsa ang pagkapaso ng dokumento; walang ipagpapalagay na petsa kung hindi ito nakatala."
+    "Confirm availability and bring requested documents as MSWDO instructs. MSWDO staff verify them separately. Document expiry uses recorded dates; no unrecorded expiry is assumed.",
+    "Kumpirmahin kung mayroon ka na at dalhin ang mga hiniling na dokumento ayon sa tagubilin ng MSWDO. Hiwalay na kukumpirmahin ang mga ito ng kawani ng MSWDO. Batay sa nakatalang petsa ang pagkapaso ng dokumento; walang ipagpapalagay na petsa kung hindi ito nakatala."
   ],
   [
     "My existing record remains correct and I consent to this renewal. Contact MSWDO if my identity, category or children need changes.",
@@ -1371,8 +1372,8 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "Bumalik sa pag-log in ng Solo Parent"
   ],
   [
-    "MSWD admin and staff log in",
-    "Pag-log in ng admin at kawani ng MSWD"
+    "MSWDO admin and MSWDO staff log in",
+    "Pag-log in ng admin at kawani ng MSWDO"
   ],
   [
     "Solo Parent Log In — use your public Solo Parent account.",
@@ -1415,8 +1416,8 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "Itama ito sa Aking Profile"
   ],
   [
-    "and a code goes to the new number. No text arriving? Call the MSWDO office — staff can confirm your number for you.",
-    "at ipapadala ang code sa bagong numero. Walang natatanggap na text? Tawagan ang MSWDO — maaaring kumpirmahin ng kawani ang iyong numero."
+    "and a code goes to the new number. No text arriving? Call the MSWDO office — MSWDO staff can confirm your number for you.",
+    "at ipapadala ang code sa bagong numero. Walang natatanggap na text? Tawagan ang MSWDO — maaaring kumpirmahin ng kawani ng MSWDO ang iyong numero."
   ],
   [
     "Log out",
@@ -1639,16 +1640,16 @@ Object.assign(window.ViracTranslations, Object.fromEntries([
     "Buod ng mga Kinakailangang Dokumento at Pagkumpirma"
   ],
   [
-    "Solo Parent selections indicate availability only. Staff verification is recorded separately.",
-    "Ipinapakita lamang ng tsek ng Solo Parent na mayroon na siyang dokumento. Hiwalay ang pagkumpirma ng kawani."
+    "Solo Parent selections indicate availability only. MSWDO staff verification is recorded separately.",
+    "Ipinapakita lamang ng tsek ng Solo Parent na mayroon na siyang dokumento. Hiwalay ang pagkumpirma ng kawani ng MSWDO."
   ],
   [
     "Solo Parent selection:",
     "Pinili ng Solo Parent:"
   ],
   [
-    "Staff status:",
-    "Katayuan sa kawani:"
+    "MSWDO Staff status:",
+    "Katayuan sa kawani ng MSWDO:"
   ],
   [
     "No document requirements configured.",
@@ -1794,12 +1795,12 @@ Object.assign(window.ViracTranslations, {
   "Track my application": "Subaybayan ang aking aplikasyon",
   "News & announcements": "Mga balita at anunsyo",
   "Find the issuing office, what to bring, and steps to get each document.": "Alamin ang tanggapang nagbibigay ng dokumento, mga dadalhin, at mga hakbang sa pagkuha nito.",
-  "See your progress, staff remarks, and the next action needed.": "Tingnan ang progreso, mga puna ng kawani, at susunod na dapat gawin.",
+  "See your progress, MSWDO staff remarks, and the next action needed.": "Tingnan ang progreso, mga puna ng kawani ng MSWDO, at susunod na dapat gawin.",
   "Start your Solo Parent ID application and save your progress.": "Simulan ang iyong aplikasyon sa Solo Parent ID at i-save ang iyong progreso.",
   "Check office schedules and the latest program updates.": "Tingnan ang iskedyul ng tanggapan at pinakabagong balita sa programa.",
   "Fill in your details and submit your application. Then open Supporting Documents to upload the required files. Save your draft if you need to finish later.": "Punan ang iyong mga detalye at isumite ang aplikasyon. Pagkatapos, buksan ang Mga Sumusuportang Dokumento upang i-upload ang mga kinakailangang file. I-save ang burador kung itutuloy sa ibang oras.",
   "Follow the review": "Subaybayan ang pagsusuri",
-  "Check My Application for status and staff remarks. If corrections are requested, open Supporting Documents, replace the flagged file, and submit it for review.": "Tingnan ang Aking Aplikasyon para sa katayuan at puna ng kawani. Kung may ipinapaayos, buksan ang Mga Sumusuportang Dokumento, palitan ang minarkahang file, at isumite ito para muling suriin.",
+  "Check My Application for status and MSWDO staff remarks. If corrections are requested, open Supporting Documents, replace the flagged file, and submit it for review.": "Tingnan ang Aking Aplikasyon para sa katayuan at puna ng kawani ng MSWDO. Kung may ipinapaayos, buksan ang Mga Sumusuportang Dokumento, palitan ang minarkahang file, at isumite ito para muling suriin.",
   "Supporting documents": "Mga sumusuportang dokumento",
   "Upload required documents and replace files when MSWDO requests corrections.": "I-upload ang mga kinakailangang dokumento at palitan ang mga file kapag may ipinapaayos ang MSWDO.",
   "How do I upload or replace a supporting document?": "Paano ako mag-a-upload o magpapalit ng sumusuportang dokumento?",
@@ -3041,7 +3042,7 @@ Object.assign(window.ViracTranslations, {
   "Am I eligible?": "Kwalipikado ba ako?",
   "How do I use this portal?": "Paano gamitin ang portal na ito?",
   "Waiting for review": "Naghihintay ng pagsusuri",
-  "MSWDO has received your application. Check here for updates while staff reviews it.": "Natanggap na ng MSWDO ang iyong aplikasyon. Tingnan dito ang mga abiso habang sinusuri ito ng kawani.",
+  "MSWDO has received your application. Check here for updates while MSWDO staff reviews it.": "Natanggap na ng MSWDO ang iyong aplikasyon. Tingnan dito ang mga abiso habang sinusuri ito ng kawani ng MSWDO.",
   "Your application is being reviewed": "Kasalukuyang sinusuri ang iyong aplikasyon",
   "MSWDO is checking your information and documents. Monitor your account for any requests.": "Kinukumpirma ng MSWDO ang iyong impormasyon at dokumento. Tingnan ang iyong account para sa anumang hinihingi.",
   "Corrections are needed": "May mga kailangang itama",
@@ -3055,7 +3056,7 @@ Object.assign(window.ViracTranslations, {
   "ID release appointment": "Appointment sa pagkuha ng ID",
   "Interview appointment": "Appointment sa panayam",
   "Your ID release is scheduled": "Nakatakda na ang pagkuha ng iyong ID",
-  "Visit MSWDO at the date, time, and location below. Bring your application slip and a valid ID. Your status becomes ID Released after staff confirms handover.": "Pumunta sa MSWDO sa petsa, oras, at lugar sa ibaba. Dalhin ang slip ng aplikasyon at wastong ID. Mamamarkahang naibigay na ang ID kapag nakumpirma ng kawani ang pagtanggap mo.",
+  "Visit MSWDO at the date, time, and location below. Bring your application slip and a valid ID. Your status becomes ID Released after MSWDO staff confirms handover.": "Pumunta sa MSWDO sa petsa, oras, at lugar sa ibaba. Dalhin ang slip ng aplikasyon at wastong ID. Mamamarkahang naibigay na ang ID kapag nakumpirma ng kawani ng MSWDO ang pagtanggap mo.",
   "Arrange another interview": "Magpatakda ng panibagong panayam",
   "Your Solo Parent ID has expired": "Paso na ang iyong Solo Parent ID",
   "Log in to check your ID renewal options, or contact MSWDO for renewal requirements.": "Mag-log in upang tingnan ang pag-renew ng ID, o makipag-ugnayan sa MSWDO para sa mga kinakailangan.",
@@ -3071,7 +3072,7 @@ Object.assign(window.ViracTranslations, {
   "ID valid — renewal due": "May bisa pa ang ID — panahon na ng pag-renew",
   "ID received": "Natanggap na ang ID",
   "ID recorded as released": "Naitalang naibigay na ang ID",
-  "Yes — staff confirmed handover": "Oo — nakumpirma ng kawani ang pagbigay",
+  "Yes — MSWDO staff confirmed handover": "Oo — nakumpirma ng kawani ng MSWDO ang pagbigay",
   "Recorded as released by MSWDO": "Naitalang naibigay na ng MSWDO",
   "Expiry date not recorded. Confirm with MSWDO.": "Walang nakatalang petsa ng pagkapaso. Kumpirmahin sa MSWDO.",
   "Renewal needed. Log in to start or check your renewal.": "Kailangang mag-renew. Mag-log in upang simulan o suriin ang pag-renew.",
@@ -3114,7 +3115,7 @@ window.ViracTranslationPatterns.push([/^Step (\d+) of (\d+)$/, 'Hakbang $1 sa $2
 window.ViracTranslations['to check'] = 'susuriin';
 window.ViracTranslations['Expiring IDs'] = 'Mga ID na Malapit Nang Mapaso';
 Object.assign(window.ViracTranslations, {
-  "Administrator Dashboard": "Dashboard ng Tagapangasiwa",
+  "MSWDO admin Dashboard": "Dashboard ng MSWDO Admin",
   "Monitor applications, manage services, and keep the system running smoothly.": "Subaybayan ang mga aplikasyon, pamahalaan ang mga serbisyo, at panatilihing maayos ang sistema.",
   "Signed in as": "Naka-log in bilang",
   "Dashboard sections": "Mga bahagi ng dashboard",
@@ -3163,11 +3164,11 @@ Object.assign(window.ViracTranslations, {
   "View reports and export records.": "Tingnan ang mga ulat at mag-export ng mga tala.",
   "Update service settings and requirements.": "Baguhin ang mga setting at kinakailangan ng serbisyo.",
   "System & account details": "Mga detalye ng sistema at account",
-  "Staff accounts, SMS totals, and security activity": "Mga account ng kawani, bilang ng SMS, at aktibidad sa seguridad",
+  "MSWDO staff accounts, SMS totals, and security activity": "Mga account ng kawani ng MSWDO, bilang ng SMS, at aktibidad sa seguridad",
   "Accounts": "Mga Account",
   "Active Accounts": "Mga Aktibong Account",
   "Deactivated accounts": "Mga account na hindi aktibo",
-  "Administrators": "Mga Tagapangasiwa",
+  "MSWDO admin": "Mga MSWDO Admin",
   "SMS delivery": "Pagpapadala ng SMS",
   "Sent": "Naipadala",
   "Test messages (not sent)": "Mga mensahe sa pagsubok (hindi ipinadala)",
@@ -3187,11 +3188,11 @@ Object.assign(window.ViracTranslations, {
 Object.assign(window.ViracTranslations, {
   "Review your notifications and send an announcement to a selected group.": "Basahin ang iyong mga abiso at magpadala ng anunsyo sa napiling grupo.",
   "Find a Solo Parent, check their application history, and open their complete record.": "Maghanap ng Solo Parent, suriin ang kasaysayan ng aplikasyon, at buksan ang kumpletong tala.",
-  "Check interview schedules and available slots. MSWD staff record interview outcomes.": "Tingnan ang iskedyul at bakanteng oras ng panayam. Mga kawani ng MSWD ang nagtatala ng resulta.",
+  "Check interview schedules and available slots. MSWDO staff record interview outcomes.": "Tingnan ang iskedyul at bakanteng oras ng panayam. Mga kawani ng MSWDO ang nagtatala ng resulta.",
   "Choose a report, narrow the results, then print or download the records you need.": "Pumili ng ulat, salain ang mga resulta, at i-print o i-download ang mga talang kailangan mo.",
   "Manage the news and reminders that Solo Parents see on the public portal.": "Pamahalaan ang mga balita at paalalang nakikita ng mga Solo Parent sa pampublikong portal.",
   "Review preliminary eligibility checks and their results. These are guidance, not application decisions.": "Suriin ang mga paunang pagsusuri ng kwalipikasyon at resulta. Mga gabay lamang ito at hindi desisyon sa aplikasyon.",
-  "Track submitted applications and renewals. MSWD staff handle approval, corrections, and rejection.": "Subaybayan ang naisumiteng aplikasyon at pag-renew. Mga kawani ng MSWD ang humahawak ng pag-apruba, pagwawasto, at pagtanggi.",
+  "Track submitted applications and renewals. MSWDO staff handle approval, corrections, and rejection.": "Subaybayan ang naisumiteng aplikasyon at pag-renew. Mga kawani ng MSWDO ang humahawak ng pag-apruba, pagwawasto, at pagtanggi.",
   "Find accounts, manage access, and create accounts for new users.": "Maghanap ng account, pamahalaan ang access, at gumawa ng account para sa mga bagong user.",
   "Choose a period to understand application trends, Solo Parent demographics, and appointment activity.": "Pumili ng panahon upang makita ang pagbabago sa mga aplikasyon, impormasyon ng mga Solo Parent, at aktibidad ng appointment.",
   "Check message delivery, review failed messages, and manage notification templates.": "Suriin ang pagpapadala at mga bigong mensahe, at pamahalaan ang mga modelo ng abiso.",
@@ -3282,7 +3283,7 @@ Object.assign(window.ViracTranslations, {
   "Documents to Verify": "Mga dokumentong kailangang kumpirmahin",
   "Today's Appointments": "Mga appointment ngayong araw",
   "Upcoming Interviews": "Mga paparating na panayam",
-  "Recently Processed by Staff": "Mga kamakailang naproseso ng kawani",
+  "Recently Processed by MSWDO Staff": "Mga kamakailang naproseso ng kawani ng MSWDO",
   "Manage Slots": "Pamahalaan ang mga bakanteng oras",
   "Available appointment slots": "Mga bakanteng oras ng appointment"
 });
@@ -3290,15 +3291,15 @@ Object.assign(window.ViracTranslations, {
   "Choose the account role first. The form will match the selected role.": "Piliin muna ang tungkulin ng account. Ang form ay aangkop sa napiling tungkulin.",
   "Choose account role": "Piliin ang tungkulin ng account",
   "For a Solo Parent applying for services. Uses mobile registration and the Solo Parent portal.": "Para sa Solo Parent na nag-aaplay para sa mga serbisyo. Gumagamit ng pagpaparehistro sa mobile at ng portal ng Solo Parent.",
-  "For MSWD personnel who review applications, manage appointments and assist Solo Parents.": "Para sa mga kawani ng MSWD na sumusuri ng aplikasyon, namamahala ng appointment at tumutulong sa mga Solo Parent.",
+  "For MSWD personnel who review applications, manage appointments and assist Solo Parents.": "Para sa mga kawani ng MSWDO na sumusuri ng aplikasyon, namamahala ng appointment at tumutulong sa mga Solo Parent.",
   "For personnel who manage users, system settings, announcements and monitoring.": "Para sa mga namamahala ng mga user, setting ng sistema, anunsyo at pagsubaybay.",
   "The Solo Parent must confirm their mobile number after signing in. Create the account here; complete the Solo Parent application separately.": "Kailangang kumpirmahin ng Solo Parent ang numero ng mobile matapos mag-sign in. Gawin ang account dito; hiwalay na kumpletuhin ang aplikasyon bilang Solo Parent.",
   "4 to 30 characters: letters, numbers, dots, or underscores, with at least one letter.": "4 hanggang 30 karakter: mga letra, numero, tuldok o underscore, na may kahit isang letra.",
   "3 to 50 characters: letters, numbers, dots, dashes or underscores.": "3 hanggang 50 karakter: mga letra, numero, tuldok, gitling o underscore.",
   "Initial password": "Panimulang password",
   "Require a new password at first sign-in": "Hilinging palitan ang password sa unang pag-sign in",
-  "New MSWD staff can continue working with existing Solo Parent records. Previous staff history is preserved.": "Maaaring ipagpatuloy ng bagong kawani ng MSWD ang pagproseso sa mga umiiral na tala ng Solo Parent. Nananatili ang kasaysayan ng dating kawani.",
-  "Administrators manage the system and monitor applications. Application reviews and decisions remain with MSWD staff.": "Pinamamahalaan ng mga administrator ang sistema at sinusubaybayan ang mga aplikasyon. Ang pagsusuri at pagpapasya sa mga aplikasyon ay para sa mga kawani ng MSWD."
+  "New MSWDO staff can continue working with existing Solo Parent records. Previous MSWDO staff history is preserved.": "Maaaring ipagpatuloy ng bagong kawani ng MSWDO ang pagproseso sa mga umiiral na tala ng Solo Parent. Nananatili ang kasaysayan ng dating kawani ng MSWDO.",
+  "MSWDO admin manage the system and monitor applications. Application reviews and decisions remain with MSWDO staff.": "Pinamamahalaan ng mga MSWDO admin ang sistema at sinusubaybayan ang mga aplikasyon. Ang pagsusuri at pagpapasya sa mga aplikasyon ay para sa mga kawani ng MSWDO."
 });
 Object.assign(window.ViracTranslations, {
   "View your account details and keep your password up to date.": "Tingnan ang mga detalye ng iyong account at panatilihing napapanahon ang iyong password.",
@@ -3306,10 +3307,10 @@ Object.assign(window.ViracTranslations, {
   "Your registered information.": "Ang iyong nakarehistrong impormasyon.",
   "Role": "Tungkulin",
   "Last sign-in": "Huling pag-sign in",
-  "To change your name, email or mobile number, ask an administrator.": "Upang baguhin ang iyong pangalan, email o numero ng mobile, humingi ng tulong sa administrator.",
+  "To change your name, email or mobile number, ask an MSWDO admin.": "Upang baguhin ang iyong pangalan, email o numero ng mobile, humingi ng tulong sa MSWDO admin.",
   "Change password": "Palitan ang password",
   "Use a password you do not use for other accounts.": "Gumamit ng password na hindi mo ginagamit sa ibang account.",
-  "An administrator reset your access. Choose a new password to continue using the system.": "Ni-reset ng administrator ang iyong access. Pumili ng bagong password upang patuloy na magamit ang sistema."
+  "An MSWDO admin reset your access. Choose a new password to continue using the system.": "Ni-reset ng MSWDO admin ang iyong access. Pumili ng bagong password upang patuloy na magamit ang sistema."
 });
 Object.assign(window.ViracTranslations, {
   "Your notifications": "Iyong mga abiso",
@@ -3319,7 +3320,7 @@ Object.assign(window.ViracTranslations, {
   "View today's schedule": "Tingnan ang iskedyul ngayong araw",
   "Upcoming appointments": "Mga paparating na appointment",
   "After today": "Pagkatapos ng araw na ito",
-  "Awaiting staff outcome": "Naghihintay ng resulta mula sa kawani",
+  "Awaiting MSWDO staff outcome": "Naghihintay ng resulta mula sa kawani ng MSWDO",
   "Past appointments still marked booked": "Mga lumipas na appointment na naka-book pa rin",
   "How to read these logs": "Paano basahin ang mga talang ito",
   "Open record": "Buksan ang tala",

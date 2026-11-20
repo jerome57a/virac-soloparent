@@ -17,7 +17,7 @@ if (!empty($staff)) {
     $navSearchLabel = 'Search applications';
     // Staff stay inside their own portal: the brand opens their dashboard, not the public Home page.
     $navHomeUrl = base_url($staff['role'] === 'admin' ? 'admin/dashboard.php' : 'staff/dashboard.php');
-    $navPortal = $staff['role'] === 'admin' ? ['admin', 'Administrator'] : ['staff', 'MSWD Staff'];
+    $navPortal = $staff['role'] === 'admin' ? ['admin', 'MSWDO Admin'] : ['staff', 'MSWDO Staff'];
     // Current page (e.g. "staff/index.php") for the drawer's active state; detail pages count as their list.
     $navPage = basename(dirname($_SERVER['SCRIPT_NAME'] ?? '')) . '/' . basename($_SERVER['SCRIPT_NAME'] ?? '');
     $navActive = function (string ...$pages) use ($navPage): string {

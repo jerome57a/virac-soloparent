@@ -29,7 +29,7 @@
     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
       <div class="dash-card-label" data-i18n>Your Current Solo Parent ID</div>
       <?php if ($w['expiresAt']): ?>
-        <span class="status-pill" style="background:<?= $w['expired'] ? '#fde8e8' : ($w['open'] ? '#fdf1d6' : '#dcf3e2') ?>;color:<?= $w['expired'] ? '#a51c1c' : ($w['open'] ? '#8a6d1a' : '#1c7a3f') ?>" data-i18n><?= $w['expired'] ? 'Expired' : ($w['open'] ? 'Due for renewal' : 'Valid') ?></span>
+        <span class="status-pill" style="background:<?= $w['expired'] ? '#fde8e8' : ($w['open'] ? '#fdf1d6' : '#dcf3e2') ?>;color:<?= $w['expired'] ? '#a51c1c' : ($w['open'] ? '#7a5f12' : '#1c7a3f') ?>" data-i18n><?= $w['expired'] ? 'Expired' : ($w['open'] ? 'Due for renewal' : 'Valid') ?></span>
       <?php endif; ?>
     </div>
     <div class="review-grid mt-2">

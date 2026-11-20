@@ -39,7 +39,7 @@ $n = 0;
     <div class="review-row"><div class="k" data-i18n>Date</div><div class="v"><?= e(date('F j, Y', strtotime($release['scheduled_at']))) ?></div></div>
     <div class="review-row"><div class="k" data-i18n>Time</div><div class="v"><?= e(date('g:i A', strtotime($release['scheduled_at']))) ?></div></div>
     <div class="review-row"><div class="k" data-i18n>Location</div><div class="v"><?= e($release['location']) ?></div></div>
-    <div class="tracker-detail mt-2" data-i18n>Your Solo Parent ID is ready for scheduled release. Please visit the MSWDO office at your scheduled date and time. Your application will be marked ID Released after staff confirms that you have received your ID.</div>
+    <div class="tracker-detail mt-2" data-i18n>Your Solo Parent ID is ready for scheduled release. Please visit the MSWDO office at your scheduled date and time. Your application will be marked ID Released after MSWDO staff confirms that you have received your ID.</div>
   </div>
 <?php endif; ?>
 

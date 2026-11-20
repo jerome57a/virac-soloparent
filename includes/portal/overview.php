@@ -1,5 +1,6 @@
 <?php
 /** @var PDO $pdo */
+require_once APP_ROOT . '/services/RequirementGuideService.php';
 $applyUrl = base_url(!empty($user) ? 'applicant/dashboard.php?section=apply' : 'portal.php?tab=apply');
 $eligUrl = base_url('eligibility.php');
 ?>
@@ -52,6 +53,7 @@ $eligUrl = base_url('eligibility.php');
 
 <div id="requirements" class="section-title" style="margin-bottom:4px" data-i18n>Required Documents</div>
 <div class="section-sub" data-i18n>Open your category below to see the configured requirements for that category. Upload a file for each required document in the application form before you submit; an uploaded file is not verified until MSWDO staff review it, and you may be asked to replace it. Bring originals and photocopies as instructed for document review and your interview.</div>
+<div class="home-requirements-hint" data-i18n>Tap a document to see where and how to get it.</div>
 <div class="doc-groups home-requirements">
   <?php foreach (required_doc_groups($pdo) as $g): ?>
     <details class="doc-group-card">
@@ -62,9 +64,51 @@ $eligUrl = base_url('eligibility.php');
       <?php if ($g['items']): ?>
         <ul class="home-requirement-list">
           <?php foreach ($g['items'] as $it): ?>
-            <li>
+            <?php
+              $docKey = (string) ($it['doc_key'] ?? '');
+              // The 2x2 photo has no preparation guide (same as the signed-in guide); every other document opens its guide.
+              $guide = $docKey !== '' && $docKey !== 'photo' ? RequirementGuideService::instructions($docKey) : null;
+            ?>
+            <li<?= $guide ? ' class="has-guide"' : '' ?>>
+              <?php if ($guide): ?>
+              <details class="home-requirement-guide">
+                <summary>
+                  <span class="home-requirement-label" data-i18n><?= e($it['label']) ?></span>
+                  <span class="home-requirement-meta">
+                    <span data-i18n class="home-requirement-badge<?= !empty($it['is_required']) ? ' is-required' : '' ?>"><?= !empty($it['is_required']) ? 'Required' : 'Optional' ?></span>
+                    <span class="home-requirement-how" data-i18n>How to get it</span>
+                    <svg class="requirement-chevron" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                  </span>
+                </summary>
+                <div class="home-requirement-guide-body">
+                  <?php if (!empty($guide['basis'])): ?><p class="home-guide-basis" data-i18n><?= e($guide['basis']) ?></p><?php endif; ?>
+                  <h4 data-i18n>Where to get it</h4>
+                  <p data-i18n><?= e($guide['where'] ?? '') ?></p>
+                  <?php if (!empty($guide['prepare'])): ?>
+                    <h4 data-i18n>What to prepare</h4>
+                    <ul><?php foreach ($guide['prepare'] as $item): ?><li data-i18n><?= e($item) ?></li><?php endforeach; ?></ul>
+                  <?php endif; ?>
+                  <?php if (!empty($guide['steps'])): ?>
+                    <h4 data-i18n>How to request it</h4>
+                    <ol><?php foreach ($guide['steps'] as $step): ?><li data-i18n><?= e($step) ?></li><?php endforeach; ?></ol>
+                  <?php endif; ?>
+                  <?php if (!empty($guide['notes'])): ?>
+                    <h4 data-i18n>Before you request or pay</h4>
+                    <ul><?php foreach ($guide['notes'] as $note): ?><li data-i18n><?= e($note) ?></li><?php endforeach; ?></ul>
+                  <?php endif; ?>
+                  <?php if (!empty($guide['sources'])): ?>
+                    <h4 data-i18n>Official reference</h4>
+                    <p class="home-guide-sources"><?php foreach ($guide['sources'] as $label => $url): ?><a href="<?= e($url) ?>" target="_blank" rel="noopener" data-i18n><?= e($label) ?></a> <?php endforeach; ?></p>
+                  <?php else: ?>
+                    <p class="home-guide-local" data-i18n>Ask MSWDO or the issuing office for the local request procedure.</p>
+                  <?php endif; ?>
+                  <a class="home-guide-contact" href="<?= e(base_url('portal.php?tab=help')) ?>" data-i18n>Contact MSWDO for help</a>
+                </div>
+              </details>
+              <?php else: ?>
               <span class="home-requirement-label" data-i18n><?= e($it['label']) ?></span>
               <span data-i18n class="home-requirement-badge<?= !empty($it['is_required']) ? ' is-required' : '' ?>"><?= !empty($it['is_required']) ? 'Required' : 'Optional' ?></span>
+              <?php endif; ?>
             </li>
           <?php endforeach; ?>
         </ul>

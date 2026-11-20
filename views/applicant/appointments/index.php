@@ -34,7 +34,7 @@ $apptStyles = [
         </div>
       <?php else: ?>
         <?php if ($booking === null): ?>
-        <div class="info-box" style="max-width:none" data-i18n>MSWDO staff will arrange your interview schedule after all required documents have been uploaded and verified. Your schedule will appear here and be sent by SMS. If MSWDO asks for a correction, upload a replacement; staff must verify it before your interview can be scheduled. <a href="?section=documents" data-i18n>Go to Documents</a>.</div>
+        <div class="info-box" style="max-width:none" data-i18n>MSWDO staff will arrange your interview schedule after all required documents have been uploaded and verified. Your schedule will appear here and be sent by SMS. If MSWDO asks for a correction, upload a replacement; MSWDO staff must verify it before your interview can be scheduled. <a href="?section=documents" data-i18n>Go to Documents</a>.</div>
         <?php else:
           $apptStep = $status === 'BOOKED' ? 3 : (($booking['state'] ?? '') === 'open' ? 2 : 1);
           $apptSteps = [1 => ['Documents verified', 'MSWDO verifies your required documents'], 2 => ['Choose your date', 'Pick the day you want to arrive'], 3 => ['Come to the office', 'Bring a valid ID on your date']];

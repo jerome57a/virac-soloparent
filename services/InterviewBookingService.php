@@ -245,7 +245,7 @@ class InterviewBookingService
             $details = $counted
                 ? 'Replacement booking for ' . $date . ' (previous date ' . substr((string) $appointment['scheduled_at'], 0, 10) . '). Reschedules used '
                     . ((int) $invitation['reschedules_used'] + 1) . ' of ' . (int) $invitation['reschedules_allowed'] . '.'
-                : ($staffAssigned ? 'Chose ' . $date . ' instead of the date MSWD staff scheduled (' . substr((string) $appointment['scheduled_at'], 0, 10) . ').' : 'Booked ' . $date . '.');
+                : ($staffAssigned ? 'Chose ' . $date . ' instead of the date MSWDO staff scheduled (' . substr((string) $appointment['scheduled_at'], 0, 10) . ').' : 'Booked ' . $date . '.');
             $this->events->record($applicationId, $counted ? 'RESCHEDULED' : 'BOOKED', 'APPLICANT', $user, null, $details, $saved !== null ? (int) $saved['id'] : null, $date);
             audit_log($this->pdo, (int) $user['id'], (string) $user['full_name'], (string) $user['role'],
                 $counted ? 'Interview Date Rescheduled' : 'Interview Date Booked', 'application', $applicationId, $app['reference_no'] . ' · ' . $details);
@@ -389,11 +389,11 @@ class InterviewBookingService
             }
             $when = $day->format('l, F j, Y');
             $this->applications->setStatus($applicationId, 'Interview Scheduled');
-            $this->applications->addHistory($applicationId, 'Interview Scheduled', 'Interview date ' . $when . ' scheduled by MSWD staff', (string) $staff['full_name'], (int) $staff['id']);
+            $this->applications->addHistory($applicationId, 'Interview Scheduled', 'Interview date ' . $when . ' scheduled by MSWDO staff', (string) $staff['full_name'], (int) $staff['id']);
             $saved = $this->appointments->interviewFor($applicationId);
-            $details = 'Scheduled ' . $date . ' by staff' . ($invitation === null ? ' (invitation opened with it)' : ($reopened ? ' (closed booking reopened with it)' : '')) . '. The Solo Parent may keep it or choose another date.';
+            $details = 'Scheduled ' . $date . ' by MSWDO staff' . ($invitation === null ? ' (invitation opened with it)' : ($reopened ? ' (closed booking reopened with it)' : '')) . '. The Solo Parent may keep it or choose another date.';
             $this->events->record($applicationId, 'STAFF_SCHEDULED', 'STAFF', $staff, null, $details, $saved !== null ? (int) $saved['id'] : null, $date);
-            audit_log($this->pdo, (int) $staff['id'], (string) $staff['full_name'], (string) $staff['role'], 'Interview Date Scheduled by Staff', 'application', $applicationId, $app['reference_no'] . ' · ' . $details);
+            audit_log($this->pdo, (int) $staff['id'], (string) $staff['full_name'], (string) $staff['role'], 'Interview Date Scheduled by MSWDO Staff', 'application', $applicationId, $app['reference_no'] . ' · ' . $details);
             $this->pdo->commit();
         } catch (Throwable $e) {
             if ($this->pdo->inTransaction()) {

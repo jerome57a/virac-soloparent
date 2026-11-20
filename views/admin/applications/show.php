@@ -19,7 +19,7 @@ $st = status_style($app['status']);
     </div>
     <div class="status-pill" style="background:<?= e($st['bg']) ?>;color:<?= e($st['color']) ?>;font-size:14px"><?= e($app['status']) ?></div>
   </div>
-  <div class="info-box" style="max-width:none">👁️ Read-only monitoring view. Decisions on this application are made by MSWD staff in their processing queue.</div>
+  <div class="info-box" style="max-width:none">👁️ Read-only monitoring view. Decisions on this application are made by MSWDO staff in their processing queue.</div>
 
   <div class="row g-4 mt-2">
     <div class="col-12 col-lg-7">

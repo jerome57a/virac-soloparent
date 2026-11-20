@@ -61,7 +61,7 @@ class ApplicationReviewService
             $update = $this->pdo->prepare("UPDATE applications SET status = 'Under Verification', reviewed_by = ? WHERE id = ? AND status = 'Pending Review'");
             $update->execute([(int) $staff['id'], $id]);
             if ($update->rowCount() === 1) {
-                $this->applications->addHistory($id, 'Under Verification', 'Review started when staff opened the application.', $staff['full_name'], (int) $staff['id']);
+                $this->applications->addHistory($id, 'Under Verification', 'Review started when MSWDO staff opened the application.', $staff['full_name'], (int) $staff['id']);
                 $this->audit($staff, 'Status Change', 'application', $id, $app['reference_no'] . ' → Under Verification');
                 create_notification($this->pdo, (int) $app['user_id'], 'status_change', 'MSWDO has started reviewing application ' . $app['reference_no'] . '.', $id);
                 $this->syncEligibilityFromChecklist($staff, $app);
@@ -85,7 +85,7 @@ class ApplicationReviewService
             && $current['eligibility_remarks'] === self::AUTO_ELIGIBILITY_NOTES) {
             $this->applications->setEligibility($id, 'Not Assessed', null);
             $this->applications->addHistory($id, $current['status'], 'Automatic eligibility cleared. An explicit MSWDO assessment is required.', $staff['full_name'], (int) $staff['id']);
-            $this->audit($staff, 'Eligibility Assessment', 'application', $id, $current['reference_no'] . ' → Not Assessed (staff assessment required)');
+            $this->audit($staff, 'Eligibility Assessment', 'application', $id, $current['reference_no'] . ' → Not Assessed (MSWDO staff assessment required)');
         }
     }
 
@@ -267,7 +267,7 @@ class ApplicationReviewService
                         $errors[$documentId] = 'This document was updated by someone else (now ' . document_status_label($doc['verification_status']) . '). Review it again before saving.';
                     } elseif (!in_array($row['status'], Document::VERIFICATION_STATUSES, true)) {
                         $errors[$documentId] = in_array($row['status'], self::STORED_STATUSES, true)
-                            ? 'This status cannot be assigned by staff (' . document_status_label($row['status']) . '). Choose Pending, Verified or Needs Correction.'
+                            ? 'This status cannot be assigned by MSWDO staff (' . document_status_label($row['status']) . '). Choose Pending, Verified or Needs Correction.'
                             : 'Choose a valid document status.';
                     } elseif (mb_strlen($row['remarks']) > 500) {
                         $errors[$documentId] = 'Remarks are too long (up to 500 characters).';

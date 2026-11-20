@@ -115,7 +115,7 @@ class User extends Model
     }
 
     /** The three account roles (users.role, roles.role_key). */
-    public const ROLE_LABELS = ['admin' => 'Administrator', 'mswd_social_worker' => 'MSWD Staff', 'applicant' => 'Solo Parent'];
+    public const ROLE_LABELS = ['admin' => 'MSWDO Admin', 'mswd_social_worker' => 'MSWDO Staff', 'applicant' => 'Solo Parent'];
 
     /** Count of users matching a fixed, code-supplied WHERE clause (never user input). */
     public function countWhere(string $where): int

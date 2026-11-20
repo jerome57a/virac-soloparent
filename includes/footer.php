@@ -30,14 +30,14 @@ $variants = [
     ],
     'staff' => [
         'about' => $footerPortalAbout,
-        'title' => 'MSWD STAFF PORTAL',
+        'title' => 'MSWDO STAFF PORTAL',
         'list' => [
             ['My Account', base_url('staff/account.php')],
         ],
     ],
     'admin' => [
         'about' => $footerPortalAbout,
-        'title' => 'ADMINISTRATION PORTAL',
+        'title' => 'MSWDO ADMIN PORTAL',
         'list' => [
             ['System Settings', base_url('admin/settings.php')],
         ],

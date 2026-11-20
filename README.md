@@ -4,12 +4,13 @@ Web-based Solo Parent ID application and renewal system for the
 **Municipal Social Welfare and Development Office (MSWDO), Municipality of
 Virac, Catanduanes, Philippines**.
 
-> **Status (updated 2026-11-20).** The system runs on XAMPP (Apache, PHP 8.2,
+> **Status (updated 2026-11-21).** The system runs on XAMPP (Apache, PHP 8.2,
 > MariaDB 10.4) with real SMS through the IPROG gateway.
 >
-> **Checked:** PHP lint of every file; 12 database test suites that pass on an
-> isolated test instance; four offline suites (62, 156, 31 and 15 checks); and
-> the public pages on the running site. Details and the exact commands are in
+> **Checked:** PHP lint of every file; 13 database test suites that pass on an
+> isolated test instance; four offline suites (62, 156, 31 and 15 checks); a
+> dark-mode contrast test of 28 screens at desktop and phone width; and the
+> public pages on the running site. Details and the exact commands are in
 > section 15.
 >
 > **Not verified:** a click-through of every screen by every role in a browser,
@@ -50,6 +51,9 @@ In this document a "Solo Parent" is the person who applies. In the code and
 database the same person has the role key `applicant` (folder `applicant/`,
 `ApplicantController`, table `applicants`); those names are internal and unchanged.
 
+The system's own wording is **Solo Parent**, **MSWDO staff** and **MSWDO admin** (as labels: MSWDO Staff, MSWDO Admin). In this document "staff"
+and "admin" mean MSWDO staff and MSWDO admin. The role keys `admin` and `mswd_social_worker` and the folders `staff/` and `admin/` are internal and unchanged.
+
 ## 2. Research Objectives
 
 1. Design and develop the e-SoloParentID system for the MSWDO of Virac,
@@ -82,8 +86,8 @@ page (`includes/auth.php`, `config/permissions.php`).
 | Actor | Responsibilities |
 |---|---|
 | **Solo Parent** (role `applicant`) | Register and log in with a username, maintain the profile, apply online, see the automatic check before submitting, upload and replace documents, correct flagged documents, track status, keep or change the interview day, view the ID and its validity, renew the ID. |
-| **MSWD Staff** (`mswd_social_worker`) | Work the application queue, review the automated check, verify documents and request corrections, schedule the interview date, record the interview result, approve or reject, schedule and confirm ID release, record cancellations and missed interviews, retry failed texts, keep application and Solo Parent records. |
-| **Administrator** (`admin`) | User and staff account management, system settings, document requirements (new and renewal), SMS templates and logs, audit log, reports and exports. Does not process applications. |
+| **MSWDO Staff** (`mswd_social_worker`) | Work the application queue, review the automated check, verify documents and request corrections, schedule the interview date, record the interview result, approve or reject, schedule and confirm ID release, record cancellations and missed interviews, retry failed texts, keep application and Solo Parent records. |
+| **MSWDO Admin** (`admin`) | User and staff account management, system settings, document requirements (new and renewal), SMS templates and logs, audit log, reports and exports. Does not process applications. |
 | **SMS service** | IPROG SMS gateway, called by `SMSService`; every attempt is logged in `sms_logs`. |
 
 Solo Parents can only reach their own records. A deactivated account loses
@@ -94,6 +98,7 @@ access on its next request.
 | Feature | Status |
 |---|---|
 | Public Home Page and public eligibility checking | Implemented |
+| Required Documents on the home screen: each document opens a "How to get it" guide, without logging in | Implemented |
 | Registration, login by username, profile, password reset by SMS code | Implemented |
 | Online application (personal information, children, category, documents, review) | Implemented |
 | Automatic check before submitting (pre-check) | Implemented |
@@ -108,9 +113,10 @@ access on its next request.
 | ID release scheduling, handover confirmation and one-year validity | Implemented |
 | SMS notifications, logs, failure alerts, Failed Texts page and retry | Implemented |
 | ID-expiry reminder 30 days before expiry (automatic) | Implemented |
-| Reports with print and CSV, full CSV export for administrators | Implemented |
+| Reports with print and CSV, full CSV export for MSWDO admins | Implemented |
 | Audit log (append-only) | Implemented |
 | Help page and fixed FAQs | Implemented |
+| Filipino/English switch and a light/dark display (dark mode checked for readable text and icons) | Implemented |
 
 ### 5.1 Interview day booking
 
@@ -122,7 +128,7 @@ Interviews are booked by **date** only (no time of day). It is switched on
   right away and the Solo Parent is texted.
 - **The Solo Parent may keep it or choose another office day.** Days offered are
   office days (Monday to Friday, not holidays or closure dates set by the
-  administrator), up to 45 days ahead, first come first served, with a daily
+  MSWDO admin), up to 45 days ahead, first come first served, with a daily
   capacity (the `interview_default_capacity` setting, 10 at the time of writing).
 - **Reschedule allowance.** One reschedule by the Solo Parent by default. A
   cancellation reopens booking while an allowance is left.
@@ -131,7 +137,7 @@ Interviews are booked by **date** only (no time of day). It is switched on
 - **Missed interview.** Staff mark a no-show after the date has passed. Booking
   reopens so the Solo Parent can choose a new day, up to 5 misses; no text is
   sent while they can rebook.
-- **Closure and holiday dates** are set by the administrator; saving a date that
+- **Closure and holiday dates** are set by the MSWDO admin; saving a date that
   already has booked interviews is refused.
 - Staff do **not** open or close days or invitations by hand any more, and cannot
   grant extra reschedules; those controls were retired (section 18).
@@ -148,6 +154,8 @@ part of the system and are preserved as they are.
 
 Files: `index.php`, `portal.php`, `login.php`, `register.php`,
 `eligibility.php`, `views/home/`, `includes/portal/`.
+
+**Required Documents on the home screen.** Each category lists its documents, and every document opens a "How to get it" guide (where to get it, what to prepare, how to request it, fees and official references) without logging in. It is the same content as the signed-in Requirements Guide (`services/RequirementGuideService.php`, `includes/requirement-guides.php`); the 2x2 photo has no guide.
 
 **Public status lookup** (`portal.php?tab=status`) accepts only an application
 reference number. It shows the status, the next step, dates (no times), the ID
@@ -186,9 +194,9 @@ check (the last four digits of the mobile number) is a planned next step.
 **Profile and mobile number.** A Solo Parent who changes their mobile number must
 re-enter their **current password**; a changed number is no longer treated as
 confirmed. Staff can confirm a number for older accounts
-(`users.mobile_verified_at`). An administrator may create a Solo Parent account.
+(`users.mobile_verified_at`). An MSWDO admin may create a Solo Parent account.
 
-## 8. MSWD Staff Workflow
+## 8. MSWDO Staff Workflow
 
 1. Sign-in through the unified login page (`login.php`; `mswd-login.php`
    redirects there).
@@ -217,7 +225,7 @@ confirmed. Staff can confirm a number for older accounts
 Records are browsed from `staff/applicants.php` and processed on
 `staff/application.php`.
 
-## 9. Administrator Responsibilities
+## 9. MSWDO Admin Responsibilities
 
 - Create, edit, activate/deactivate, unlock, and reset access for user and
   staff accounts (`admin/users.php`, `admin/user_edit.php`).
@@ -312,7 +320,7 @@ Notification Templates.
 **Failures.** After a staff action the page shows a green "SMS sent", a red "SMS
 failed" with the reason and a **Retry SMS** button, or an amber "SMS not sent" if
 SMS is switched off. Failed texts also appear in the application's SMS card, on
-the **Failed Texts** page (last 7 days) and in the administrator's SMS log. A text
+the **Failed Texts** page (last 7 days) and in the MSWDO admin's SMS log. A text
 is retried at most 3 times (`SMS_MAX_ATTEMPTS`). Reset codes, sign-up codes and
 correction texts are never retried from a log (the person requests a new code, or
 staff confirm the correction again). Provider acceptance does not prove delivery
@@ -363,7 +371,7 @@ archive outside the project (their result is already in `schema.sql`). Kept in
 `database/`: the recent ones, which are applied to the live database
 (`migrate_interview_date_booking.sql`, `migrate_auto_verification.sql`,
 `migrate_renewal_requirements.sql`, `migrate_drop_unused_tables.sql`,
-`migrate_solo_parent_wording.sql`) and `migrate_fixed_id_validity.sql` (a test
+`migrate_solo_parent_wording.sql`, `migrate_mswdo_role_wording.sql`) and `migrate_fixed_id_validity.sql` (a test
 loads it). None may be bulk-imported.
 
 **Pending (not run):** `database/migrate_drop_mobile_code_columns.php` removes the
@@ -401,7 +409,7 @@ column structure only.
 
 Production recommendations: serve over HTTPS, keep `APP_DEBUG` off, hide
 Apache version (`ServerTokens Prod`, `ServerSignature Off`). Change the
-default administrator password immediately after installation. Treat any SMS
+default MSWDO admin password immediately after installation. Treat any SMS
 token that has been shared or shown on screen as exposed and replace it.
 
 ## 14. Installation and Configuration
@@ -416,9 +424,9 @@ only on a verified fresh, empty development database.
    "C:\xampp\mysql\bin\mysql.exe" -u root < database\schema.sql
    "C:\xampp\mysql\bin\mysql.exe" -u root virac_solo_parent < database\seed.sql
    ```
-4. Sign in as the seeded administrator (see `database/seed.sql` /
+4. Sign in as the seeded MSWDO admin (see `database/seed.sql` /
    `database/seed_admin.php`) and change the password immediately. Staff
-   accounts are created only by an administrator.
+   accounts are created only by an MSWDO admin.
 5. Open `http://localhost/virac-soloparent/index.php`.
 
 Defaults: DB `root` / no password (stock XAMPP). Override by copying
@@ -468,14 +476,16 @@ storage folder and `TEST_DOCUMENT_ROOT`.
 | `database/test_simplified_renewal.php`, `test_renewal_requirements.php` | Renewal rules, retained documents, and the per-category renewal list |
 | `database/test_public_tracking.php` | Public status lookup: fields shown, no name, no times, headers |
 | `database/test_staff_sms_attention.php` | Failed Texts list, retry safety checks, and the cancel/missed SMS alert |
+| `database/test_home_requirement_guides.php` | Home screen: every document opens its "How to get it" guide (real guide text, generic fallback for unknown documents, escaping, no guide for the 2x2 photo) |
 | `database/test_role_account_creation.php`, `test_user_account_actions.php`, `test_optional_applicant_gmail.php` | Account creation and actions |
 | `database/test_admin_management_layout.php`, `test_eligibility_history.php` | Admin lists and SMS filters; public eligibility and history |
 | `database/test_staff_review_workflow.php` | Whole staff workflow; also runs `appointment_management_checks.php`, `automatic_interview_checks.php` and `checklist_flow_checks.php`. Needs the three interview-booking tables, which the isolated test instance does not have yet (apply `migrate_interview_date_booking.sql` there with an administrator account) |
+| `scripts/test-dark-mode-contrast.cjs` | Dark mode: renders every MSWDO staff, MSWDO admin and Solo Parent screen (28) at desktop and phone width and fails if any text (4.5:1) or icon (3:1) is below its contrast limit (needs Playwright and Chrome; no web server or login) |
 | `scripts/test-*.cjs` | Browser/UI-level checks using `scripts/fixtures/`; not re-run recently |
 
-**Result at the time of writing (2026-11-20):** all of the above pass except
-`test_staff_review_workflow.php` (the missing tables) and the `scripts/` browser
-checks (not run). The change log records each run.
+**Result at the time of writing (2026-11-21):** all of the above pass except
+`test_staff_review_workflow.php` (the missing tables) and the other `scripts/test-*.cjs`
+browser checks (not re-run). The dark-mode contrast test passes. The change log records each run.
 
 **Regression approach.** Run the targeted test for the module being changed
 first, then the broader set. When a feature is retired, archive its test rather
@@ -585,3 +595,5 @@ exports, public eligibility checking, the public status lookup and the Help page
 6. Some category descriptions in the database show broken characters (for
    example an apostrophe shown as question marks); this predates the current work.
 7. The ISO/IEC 25010:2023 questionnaire results have not been collected (section 16).
+8. The dark-mode test cannot render the Solo Parent Profile page (it needs a signed-in session); every other screen is covered.
+9. The wording change did not touch "MSWD" used on its own (for example "MSWD office") or the page label "Administration".

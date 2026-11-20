@@ -144,3 +144,40 @@ email and mobile login, sign-up and status texts as sent, dropped tables, Bootst
 verification, interview day booking (section 5.1, replacing a 140-line section), public status page rules, SMS (what is automatic, failures, settings), the 33-table
 structure, the real test list, ISO/IEC 25010:2023 (five rated characteristics) and the retired features. The old README is kept at
 `C:\dev\archive\virac-soloparent-docs-20261120\README.before-update-20261120.md`. Every file named in it was checked to exist.
+
+## 16. Home screen: each required document opens its "how to get it" guide (2026-11-20)
+On the public home screen (`includes/portal/overview.php`), every document listed under Required Documents now expands to the same guide the signed-in Solo Parent
+sees: where to get it, what to prepare, how to request it, notes on fees, and official links, plus "Contact MSWDO for help". 33 of the 34 document types have a
+specific guide; the 2x2 photo has none (as in the signed-in guide). Styles in `public/css/style.css` (light, dark and phone), Filipino strings in
+`public/js/translations.js`, test `database/test_home_requirement_guides.php`. Built and tested in a separate copy first.
+
+## 17. Dark mode: text and logo no longer "disappear" (2026-11-21)
+Cause: component stylesheets hard-coded light-theme colours (a white panel holding light text, dark text on a dark card), and two portal stylesheets re-declared theme
+tokens with light values, which beat the dark theme. Found by measuring every piece of text on 28 screens in a real browser (contrast against the real background behind it):
+16 spots failed, e.g. the staff document-review panel (file name, "Verification decision/history"), Reports and Audit-log filter pills, the Solo Parent dashboard stage labels and
+the "Needs your action" heading, the faint labels on the staff review rows, the amber status pill (4.37:1) and the disabled buttons.
+Fixed in `public/css/preferences-surfaces.css` (dark block), `public/css/style.css`, 11 views/`includes/functions.php` (amber text colour #7a5f12; filter pills now use the class
+`filter-pill` instead of inline colours; pager arrow 60% opaque). Hovering every button, link and row on all pages found no further problems (550 elements).
+New test `scripts/test-dark-mode-contrast.cjs` (+ `scripts/lib/dark-contrast-probe.cjs`, `scripts/fixtures/applicant-section.php`): fails on the old site (54 problems), passes now.
+Logos were checked too: the footer seals and header logo sit on a white backing in dark mode and are visible; no logo was found to vanish. Light mode was not changed except the
+pill markup and the darker amber text.
+
+## 18. Dark mode: icons that vanished (2026-11-21)
+The home benefit-card icons and the active side-menu icon (every logged-in page) were a light-blue icon on a translucent WHITE tile (1.1:1 contrast), so they looked transparent.
+The dark-mode block in `public/css/preferences-surfaces.css` now gives those tiles a dark background (`#223953`), and gives all six benefit cards the same border (two had kept a light
+yellow/orange outline). The contrast probe (`scripts/lib/dark-contrast-probe.cjs`) now also measures inline SVG icons (3:1), and `scripts/test-dark-mode-contrast.cjs` fails on them.
+Checked: 34 pages in dark and in light mode, 0 low-contrast icons; live public pages 0.
+
+## 19. "MSWDO staff" and "MSWDO admin" (2026-11-21)
+Wherever the system says "staff" or "administrator/admin" in text people read (pages, messages, settings descriptions, the Filipino dictionary, role names, the SMS template label, seed files),
+it now says "MSWDO staff" / "MSWDO admin" (titles and labels: "MSWDO Staff", "MSWDO Admin"; "an MSWDO admin"). Filipino: "kawani ng MSWDO", "MSWDO admin". About 190 wording changes in about 50 files,
+made by a rewrite tool that edits only text people read; every changed English sentence was checked against its Filipino dictionary entry (0 mismatches).
+Database (`database/migrate_mswdo_role_wording.sql`, applied; backup `C:\dev\backups\virac_solo_parent-before-mswdo-roles-20261121-005228.sql`): role names are now "MSWDO Admin" and "MSWDO Staff",
+and one SMS template label. Not changed on purpose: the role keys `admin` / `mswd_social_worker` (3 accounts), role codes, folders, class names, permission names, history records (audit log, status history,
+notifications), and staff of OTHER offices in the requirement guides ("barangay secretary or designated staff"). Also corrected a schema message in `services/InterviewDateFeature.php`
+(it listed the enum value as 'SOLO PARENT'; the real value is APPLICANT). Layout checked on 28 screens at desktop and phone width: no overflow introduced.
+
+## 20. README brought up to date again (2026-11-21)
+`README.md`: status header (13 database suites, the dark-mode test, date); a wording note (Solo Parent, MSWDO staff, MSWDO admin; internal keys unchanged); feature table rows for the home-screen
+"How to get it" guides and the light/dark display; sections 8 and 9 renamed "MSWDO Staff Workflow" / "MSWDO Admin Responsibilities" and role words in the prose; the test table (new
+`test_home_requirement_guides.php`, the dark-mode test now covering icons); the result line; open items 8 and 9. Previous copy: `C:\dev\backups\README.before-update-20261121.md`.

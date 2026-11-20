@@ -48,7 +48,7 @@ abstract class Controller
     protected function requireOwnPassword(array $account, string $changePage, bool $onChangePage): void
     {
         if (!empty($account['must_change_password']) && !$onChangePage) {
-            flash('Your password was reset by an administrator. Please choose a new password to continue.');
+            flash('Your password was reset by an MSWDO admin. Please choose a new password to continue.');
             $this->redirectTo($changePage);
         }
     }

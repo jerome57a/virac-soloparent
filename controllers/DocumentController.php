@@ -20,7 +20,7 @@ class DocumentController extends Controller
             if ($error !== null) {
                 flash($error);
             } else {
-                flash('Your document was uploaded and is waiting for staff review.');
+                flash('Your document was uploaded and is waiting for MSWDO staff review.');
             }
             $this->redirectTo('applicant/dashboard.php?section=documents');
         }

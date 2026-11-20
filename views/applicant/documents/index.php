@@ -14,7 +14,7 @@ $icons = [
   <?php if (!$myApplications): ?>
     <div class="empty-state"><div class="empty-state-title" data-i18n>No application documents yet</div><p data-i18n>Start an application to see and submit its required documents.</p><a href="?section=apply" class="btn-navy" data-i18n>Start an Application</a></div>
   <?php else: ?>
-    <p class="docs-intro">Upload a clear photo of each required document. Staff check every file. If one is not accepted, you will see here why, and you can send a new file. <a href="?section=requirements">See what each document should look like &rarr;</a></p>
+    <p class="docs-intro">Upload a clear photo of each required document. MSWDO staff check every file. If one is not accepted, you will see here why, and you can send a new file. <a href="?section=requirements">See what each document should look like &rarr;</a></p>
     <?php foreach ($myApplications as $app):
       $items = $checklistByApp[$app['id']] ?? [];
       $uploads = $uploadedByApp[$app['id']] ?? [];
@@ -44,8 +44,8 @@ $icons = [
       // The one sentence that tells the applicant what to do next.
       if (!$editable) { $nextTone = 'info'; $nextText = 'Uploads are closed while this application is ' . $app['status'] . '.'; }
       elseif ($rows['fix']) { $nextTone = 'fix'; $n = count($rows['fix']); $m = count($missingRequired); $nextText = 'MSWDO asked you to replace ' . $n . ' document' . ($n === 1 ? '' : 's') . ($m ? ' and ' . $m . ' required document' . ($m === 1 ? ' is' : 's are') . ' still missing' : '') . '. Find ' . ($n + $m === 1 ? 'it' : 'them') . ' under "Needs your action" below, read the reason, and upload a new file.'; }
-      elseif ($needAction > 0) { $nextTone = 'todo'; $nextText = 'Upload the ' . $needAction . ' missing required document' . ($needAction === 1 ? '' : 's') . ' below so staff can review ' . ($needAction === 1 ? 'it' : 'them') . '.'; }
-      elseif ($rows['review']) { $nextTone = 'wait'; $nextText = 'Everything is submitted. Staff are reviewing your documents. You do not need to do anything now; we will text you if something needs to be fixed.'; }
+      elseif ($needAction > 0) { $nextTone = 'todo'; $nextText = 'Upload the ' . $needAction . ' missing required document' . ($needAction === 1 ? '' : 's') . ' below so MSWDO staff can review ' . ($needAction === 1 ? 'it' : 'them') . '.'; }
+      elseif ($rows['review']) { $nextTone = 'wait'; $nextText = 'Everything is submitted. MSWDO staff are reviewing your documents. You do not need to do anything now; we will text you if something needs to be fixed.'; }
       else { $nextTone = 'done'; $nextText = 'All required documents are verified. Next, wait for MSWDO to schedule your interview, then check the Appointment page.'; }
 
       $renderCard = function (array $row, string $state) use ($app, $editable, $maxMb, $rules, $icons) {
@@ -55,7 +55,7 @@ $icons = [
           $pill = [
               'fix' => ['Replace this file', '#fde8e8', '#a51c1c', 'alert'],
               'missing' => [$row['required'] ? 'Not uploaded yet' : 'Optional', '#f1f3f5', '#555', 'upload'],
-              'review' => ['Waiting for staff', '#fdf1d6', '#8a6d1a', 'clock'],
+              'review' => ['Waiting for MSWDO staff', '#fdf1d6', '#7a5f12', 'clock'],
               'verified' => ['Verified', '#dcf3e2', '#1c7a3f', 'check'],
           ][$state];
           ?>
@@ -75,7 +75,7 @@ $icons = [
                 <p><?= !empty($upload['staff_remarks']) ? e($upload['staff_remarks']) : 'MSWDO could not accept this file. Please upload a clearer or correct one.' ?></p>
               </div>
             <?php elseif ($state === 'review'): ?>
-              <p class="docs-note">Staff have your file and will check it soon. You can send a different file if you uploaded the wrong one.</p>
+              <p class="docs-note">MSWDO staff have your file and will check it soon. You can send a different file if you uploaded the wrong one.</p>
             <?php elseif ($state === 'verified'): ?>
               <p class="docs-note"><?= $row['legacy'] ? 'Verified earlier and kept for this renewal.' : 'Checked and accepted by MSWDO. Nothing to do.' ?></p>
             <?php elseif ($canUpload): ?>
@@ -133,7 +133,7 @@ $icons = [
         <?php endif; ?>
 
         <?php if ($rows['review']): ?>
-          <h3 class="docs-group-title">Waiting for staff to check <span><?= count($rows['review']) ?></span></h3>
+          <h3 class="docs-group-title">Waiting for MSWDO staff to check <span><?= count($rows['review']) ?></span></h3>
           <?php foreach ($rows['review'] as $row) { $renderCard($row, 'review'); } ?>
         <?php endif; ?>
 

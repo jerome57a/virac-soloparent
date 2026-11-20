@@ -10,7 +10,7 @@
  * @var array  $totals  sent, test, failed, pending
  */
 $provider = SMSService::provider();
-$pills = ['SENT' => ['#dcf3e2', '#1c7a3f'], 'FAILED' => ['#fde8e8', '#a51c1c'], 'PENDING' => ['#fdf1d6', '#8a6d1a']];
+$pills = ['SENT' => ['#dcf3e2', '#1c7a3f'], 'FAILED' => ['#fde8e8', '#a51c1c'], 'PENDING' => ['#fdf1d6', '#7a5f12']];
 $actionIcon = require APP_ROOT . '/includes/user-management-icons.php';
 ?>
 <div class="portal-container">
@@ -58,7 +58,7 @@ $actionIcon = require APP_ROOT . '/includes/user-management-icons.php';
               <?php
               // A readable message type, so an invitation is told apart from a booking confirmation without opening the row.
               $typeLabel = SMSService::TEMPLATES[$l['template_key'] ?? ''][0] ?? ([
-                  'interview_custom' => 'Interview scheduled (custom message)', 'interview_date_assigned_custom' => 'Interview date scheduled by staff (custom message)', 'interview_booking_custom' => 'Interview booking invitation (custom message)',
+                  'interview_custom' => 'Interview scheduled (custom message)', 'interview_date_assigned_custom' => 'Interview date scheduled by MSWDO staff (custom message)', 'interview_booking_custom' => 'Interview booking invitation (custom message)',
                   'id_release_scheduled' => 'ID release scheduled', 'id_release_custom' => 'ID release scheduled (custom message)',
               ][$l['template_key'] ?? ''] ?? null);
               ?>
@@ -86,7 +86,7 @@ $actionIcon = require APP_ROOT . '/includes/user-management-icons.php';
                 // Say why a failed message has no Retry button, so the administrator knows what to do instead.
                 $noRetry = $l['status'] === 'FAILED'
                     ? (in_array($l['template_key'], ['password_reset', 'mobile_verification'], true) ? 'The Solo Parent must request a new code.'
-                        : ($l['template_key'] === 'document_correction' ? 'Staff must resend it from the application review page.'
+                        : ($l['template_key'] === 'document_correction' ? 'MSWDO staff must resend it from the application review page.'
                             : ((int) $l['attempts'] >= SMS_MAX_ATTEMPTS ? 'Retry limit reached (' . (int) SMS_MAX_ATTEMPTS . ' attempts).' : null)))
                     : ($l['status'] === 'PENDING' ? 'Outcome not recorded yet.' : null); ?>
                 <span class="admin-cell-meta"><?= $noRetry !== null ? e($noRetry) : '&mdash;' ?></span>
@@ -121,10 +121,10 @@ $actionIcon = require APP_ROOT . '/includes/user-management-icons.php';
           <details class="admin-editor">
           <summary><?= e($t['label']) ?> <span class="admin-cell-meta">(system-managed)</span></summary>
           <div class="admin-editor-content d-flex flex-column gap-2">
-            <div class="admin-cell-meta"><strong>System-managed, read-only.</strong> This is the exact approved wording sent to Solo Parents. It is fixed in the system and is not read from the stored template, so it cannot be edited here. The Solo Parent name, document names and application reference are filled in automatically, and staff remarks are never included.</div>
+            <div class="admin-cell-meta"><strong>System-managed, read-only.</strong> This is the exact approved wording sent to Solo Parents. It is fixed in the system and is not read from the stored template, so it cannot be edited here. The Solo Parent name, document names and application reference are filled in automatically, and MSWDO staff remarks are never included.</div>
             <div class="admin-cell-meta">Placeholders filled in: <code>{applicant_name}</code> <code>{document}</code> <code>{ref}</code></div>
             <div class="sms-message-text" aria-label="Approved correction SMS wording"><?= e(SMSService::compact() ? SMSService::CORRECTION_BODY_COMPACT : SMSService::CORRECTION_BODY) ?></div>
-            <div class="admin-cell-meta">Staff send it one batch at a time from the application review page, after previewing and confirming it. You can switch this message on or off under Settings &rarr; Notifications.</div>
+            <div class="admin-cell-meta">MSWDO staff send it one batch at a time from the application review page, after previewing and confirming it. You can switch this message on or off under Settings &rarr; Notifications.</div>
           </div>
           </details>
           <?php continue; endif; ?>

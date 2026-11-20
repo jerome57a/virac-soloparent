@@ -28,7 +28,7 @@ class SMSService
         'appointment_reminder' => ['Appointment Reminder (auto)', 'MSWDO Virac: Reminder -- your appointment for application {ref} is on {when} at {location}. Please arrive on time and bring a valid ID.'],
         'appointment_cancelled' => ['Appointment Cancelled', 'MSWDO Virac: Your appointment for application {ref} on {when} was cancelled. Reason: {reason}. Please contact MSWDO for a new schedule.'],
         'appointment_missed' => ['Appointment Missed', 'MSWDO Virac: You missed your appointment for application {ref} on {when}. Please contact MSWDO for a new schedule.'],
-        'interview_date_assigned' => ['Interview Date Scheduled by Staff', 'MSWDO Virac: Your interview for application {ref} is scheduled on {when}, {hours} at {location}. You may come on that date, or log in to your e-SoloParentID account and pick another date.'],
+        'interview_date_assigned' => ['Interview Date Scheduled by MSWDO Staff', 'MSWDO Virac: Your interview for application {ref} is scheduled on {when}, {hours} at {location}. You may come on that date, or log in to your e-SoloParentID account and pick another date.'],
         'interview_date_booked' => ['Interview Date Booked', 'MSWDO Virac: Your interview for application {ref} is booked for {when} at {location}. Please come during office hours on that date and bring a valid ID.'],
         'document_correction' => ['Document Needs Correction', 'MSWDO Virac: Your document "{document}" for application {ref} needs correction. Please log in and open Supporting Documents to see what to fix and upload a replacement.'],
         'password_reset' => ['Password Reset Code', "MSWDO Virac: Your password reset code is {code}. It expires in {minutes} minutes. If you didn't request this, ignore this message."],
@@ -45,7 +45,7 @@ class SMSService
         'renewal_reminder' => ['Renewal Reminder (auto)', 'MSWDO Virac: Your Solo Parent ID ({ref}) expires on {when}. Please renew online or visit MSWDO.'],
         'renewal_expired' => ['Renewal Reminder after Expiry (auto)', 'MSWDO Virac: Your Solo Parent ID ({ref}) expired on {when}. Please renew online or visit MSWDO.'],
         'appointment_reminder' => ['Appointment Reminder (auto)', 'MSWDO Virac: Reminder: your interview for {ref} is on {when}. Please bring a valid ID.'],
-        'interview_date_assigned' => ['Interview Date Scheduled by Staff', 'MSWDO Virac: Interview for {ref} is on {when}, {hours}. Come then, or log in to e-SoloParentID to pick another date.'],
+        'interview_date_assigned' => ['Interview Date Scheduled by MSWDO Staff', 'MSWDO Virac: Interview for {ref} is on {when}, {hours}. Come then, or log in to e-SoloParentID to pick another date.'],
         'interview_date_booked' => ['Interview Date Booked', 'MSWDO Virac: Interview for {ref} is booked for {when}. Come during office hours with a valid ID.'],
     ];
     /** Placeholders each template can use (anything else would be sent literally); the first is required. */
@@ -171,7 +171,7 @@ class SMSService
         if ($log['template_key'] === 'document_correction') {
             // A correction SMS is only ever sent through staff preview-and-confirm, which checks the batch is still
             // current and not already sent. A blind re-send of the stored text could duplicate it or contradict the record.
-            return ['Correction SMS cannot be retried from the SMS log. Staff must confirm it again from the application review page.', null];
+            return ['Correction SMS cannot be retried from the SMS log. MSWDO staff must confirm it again from the application review page.', null];
         }
         if ($log['template_key'] === 'password_reset') {
             return ['Password reset codes cannot be re-sent from the log; the Solo Parent should request a new code.', null];

@@ -55,13 +55,13 @@ class AuthController extends Controller
                 $staffAccount = $username !== '' ? $this->auth->userModel()->findStaffByUsername($username) : null;
                 $account = $staffAccount ?? $this->auth->userModel()->findApplicantForLogin($username);
                 $authError = $staffAccount
-                    ? $this->attemptLogin($account, $username, (string) ($_POST['password'] ?? ''), 'Staff sign-in', 'Please contact your system administrator.')
+                    ? $this->attemptLogin($account, $username, (string) ($_POST['password'] ?? ''), 'MSWDO Staff sign-in', 'Please contact your MSWDO admin.')
                     : $this->attemptLogin($account, $username, (string) ($_POST['password'] ?? ''), 'Solo Parent sign-in', 'Please contact MSWDO Virac for assistance.');
                 if ($authError === '' && $staffAccount) {
                     // Staff and administrators keep their own session cookie; move to it before signing in.
                     $this->auth->enterPortalSession($account['role'] === 'admin' ? 'admin' : 'staff');
                     $this->auth->loginStaff($account);
-                    audit_log($this->pdo, (int) $account['id'], $account['full_name'], $account['role'], 'Login', 'user', (int) $account['id'], 'Staff sign-in');
+                    audit_log($this->pdo, (int) $account['id'], $account['full_name'], $account['role'], 'Login', 'user', (int) $account['id'], 'MSWDO Staff sign-in');
                     $this->redirectTo($account['role'] === 'admin' ? 'admin/dashboard.php' : 'staff/dashboard.php');
                 }
                 if ($authError === '') {
@@ -335,7 +335,7 @@ class AuthController extends Controller
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_require();
             if ($staff = $this->auth->currentStaff()) {
-                audit_log($this->pdo, (int) $staff['id'], $staff['full_name'], $staff['role'], 'Logout', 'user', (int) $staff['id'], 'Staff sign-out');
+                audit_log($this->pdo, (int) $staff['id'], $staff['full_name'], $staff['role'], 'Logout', 'user', (int) $staff['id'], 'MSWDO Staff sign-out');
             }
             $this->auth->logoutStaff();
         }
