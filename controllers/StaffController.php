@@ -60,6 +60,8 @@ class StaffController extends Controller
         // Expected today = active BOOKED appointments on today's Manila date only (cancelled, completed and missed are left out);
         // the same list feeds the count and the "Today's Appointments" card, so the two always agree.
         $todays = array_values(array_filter($appointments->todaysInterviews(), fn($iv) => $iv['status'] === 'BOOKED'));
+        $this->releaseUnconfirmedInterviews();
+        $awaitingOutcome = $appointments->awaitingOutcome();
         $queues = new SchedulingQueueService($this->pdo);
         $readyToSchedule = $queues->readyToSchedule();
         $this->page('MSWD Dashboard', 'views/staff/dashboard.php', [
@@ -69,14 +71,18 @@ class StaffController extends Controller
                 'forRevision'       => $applications->countWhere("status = 'For Revision'"),
                 'pendingRenewals'   => $applications->countWhere("type = 'renewal' AND status = 'Pending Review'"),
                 'todaysAppointments' => count($todays),
+                'needsOutcome'      => count($awaitingOutcome),
                 'approved'          => $applications->countWhere("status IN ('Approved','ID Released')"),
                 'readyToSchedule'   => count($readyToSchedule),
                 'awaitingRelease'   => $queues->idReleaseCount(),
                 'rejected'          => $applications->countWhere("status = 'Rejected'"),
             ],
             'docBacklog' => $documents->verificationBacklog(),
-            'verificationQueue' => $documents->verificationQueue(5),
+            'verificationQueue' => $documents->verificationQueue(10),
             'todaysAppointments' => $todays,
+            'awaitingOutcome' => array_slice($awaitingOutcome, 0, 5),
+            'flashMessage' => take_flash(),
+            'smsNotice' => take_sms_notice(),
             'readyToSchedule' => array_slice($readyToSchedule, 0, 5),
             'idReleaseQueue' => $queues->idReleaseQueue(5),
             'bookingEnabled' => InterviewDateFeature::enabled($this->pdo), // applicants pick their own date: wording only
@@ -193,8 +199,8 @@ class StaffController extends Controller
             'scheduleDateStyle' => SMSService::compact() ? 'short' : 'long',
             'idReleaseTemplate' => SMSService::idReleaseTemplate(),
             'idReleaseCompact' => SMSService::compact(),
-            'scheduleMinDate' => date('Y-m-d', strtotime(Appointment::manilaDate() . ' +1 day')),
-            'scheduleMaxDate' => date('Y-m-d', strtotime(Appointment::manilaDate() . ' +' . InterviewBookingService::BOOKING_WINDOW_DAYS . ' days')),
+            'scheduleMinDate' => Appointment::manilaDate(),
+            'scheduleMaxDate' => date('Y-m-d', strtotime(Appointment::manilaDate() . ' +' . InterviewBookingService::STAFF_WINDOW_DAYS . ' days')),
             'flashMessage' => take_flash(),
             'smsNotice' => take_sms_notice(),
             'smsLogs' => (new SmsLog($this->pdo))->forApplication($id, SMS_MAX_ATTEMPTS),
@@ -206,6 +212,7 @@ class StaffController extends Controller
             'allowedTransitions' => Application::TRANSITIONS[$app['status']] ?? [],
             'approvalChecklist' => $review->approvalChecklist($app),
             'interview' => $appointmentModel->interviewFor($id),
+            'interviewEvents' => InterviewDateFeature::enabled($this->pdo) ? (new AppointmentEvent($this->pdo))->forApplication($id) : [],
             'interviewSms' => $appointmentModel->interviewSms($id),
             'idReleaseSchedule' => (new IdReleaseService($this->pdo))->scheduleFor($id),
             'defaultReleaseLocation' => get_setting($this->pdo, 'appointment_location', 'MSWDO Virac office'),
@@ -275,11 +282,12 @@ class StaffController extends Controller
             case 'schedule_interview_date':
                 // Staff set the interview date: booked at once, the applicant is texted and may keep it or pick another date.
                 $scheduleDate = $post('interview_date');
-                $error = (new InterviewBookingService($this->pdo))->scheduleForApplicant($this->staff, $id, $scheduleDate, $post('sms_message_type') === 'custom' ? $post('invitation_custom_message') : null, $smsResult);
+                $scheduleTime = $post('interview_time');
+                $error = (new InterviewBookingService($this->pdo))->scheduleForApplicant($this->staff, $id, $scheduleDate, $post('sms_message_type') === 'custom' ? $post('invitation_custom_message') : null, $smsResult, $scheduleTime);
                 if ($error) {
                     return ['invitation' => $error];
                 }
-                $scheduled = 'Interview scheduled for ' . date('l, F j, Y', strtotime($scheduleDate));
+                $scheduled = 'Interview scheduled for ' . date('l, F j, Y', strtotime($scheduleDate)) . ' at ' . date('g:i A', strtotime($scheduleTime));
                 flash($scheduled . '. The Solo Parent can keep that date or pick another one.');
                 // Tell staff what really happened to the text (sent, failed or not sent), with a Retry button when it failed.
                 set_sms_notice(SMSService::outcomeNotice($smsResult ?? ['status' => 'FAILED', 'error' => 'no SMS result was recorded'], $scheduled));
@@ -345,7 +353,8 @@ class StaffController extends Controller
                     $notice .= ' The changes are saved, but ' . $result['notify_failures'] . ' Solo Parent notification' . ($result['notify_failures'] === 1 ? '' : 's') . ' could not be sent. Check the SMS log.';
                 }
                 $_SESSION['verification_notice'] = ['text' => $notice, 'warning' => $result['notify_failures'] > 0];
-                $back .= '#checklist';
+                // When something changed, the page opens the next step as a popup (correction SMS, or schedule the interview).
+                $back .= ($result['changed'] > 0 ? '&next=1' : '') . '#checklist';
                 break;
             case 'confirm_correction_sms':
                 // The application comes from the staff page's own ?id= lookup, so the batch token (which embeds the
@@ -423,13 +432,19 @@ class StaffController extends Controller
             }
             $outcome = ['cancel' => 'CANCELLED', 'missed' => 'MISSED'][$post('action')] ?? '';
             $smsResult = null;
+            // Done from the dashboard's "Confirm who attended" list: stay on the dashboard instead of jumping to this page.
+            $fromDashboard = $post('return_to') === 'dashboard';
             $error = (new AppointmentService($this->pdo))->staffSetOutcome($this->staff, (int) $post('appointment_id'), $outcome, $post('reason'), $smsResult) ?? '';
             if ($error === '') {
                 if ($smsResult !== null) {
                     set_sms_notice(SMSService::outcomeNotice($smsResult, $outcome === 'CANCELLED' ? 'Appointment cancelled' : 'Interview marked as missed'));
                 }
-                flash($outcome === 'CANCELLED' ? 'Appointment cancelled and the Solo Parent notified.' : 'Appointment marked as missed and the Solo Parent notified.');
-                $this->redirectTo('staff/appointments.php');
+                flash($outcome === 'CANCELLED' ? 'Appointment cancelled and the Solo Parent notified.' : 'Appointment marked as missed. No SMS was sent: the Solo Parent will see it when they log in and can choose a new date.');
+                $this->redirectTo($fromDashboard ? 'staff/dashboard.php#needs-outcome' : 'staff/appointments.php');
+            }
+            if ($fromDashboard) {
+                flash('The appointment was not changed: ' . $error);
+                $this->redirectTo('staff/dashboard.php#needs-outcome');
             }
         }
 
@@ -466,6 +481,40 @@ class StaffController extends Controller
     }
 
     /** staff/sms.php: failed texts to applicants that still need a decision, each with Retry. */
+    /**
+     * Releases interviews nobody confirmed (AppointmentService::releaseUnconfirmed). The scheduled job cron/interview-followup.php
+     * does the same; this keeps it working when no scheduled job is set up, at most once every 10 minutes.
+     */
+    private function releaseUnconfirmedInterviews(): void
+    {
+        try {
+            if (time() - (int) get_setting($this->pdo, 'interview_followup_last_run', '0') < 600) {
+                return;
+            }
+            set_setting($this->pdo, 'interview_followup_last_run', (string) time());
+            (new AppointmentService($this->pdo))->releaseUnconfirmed();
+        } catch (Throwable $e) {
+            error_log('Interview follow-up failed: ' . $e->getMessage());
+        }
+    }
+
+    /** staff/doc_alerts.php: JSON for the alert toast (how many Solo Parents are waiting, how many re-uploaded, and the top of the queue). */
+    public function docAlerts(): void
+    {
+        $this->authorize($this->staff, 'applications.process', 'staff/dashboard.php');
+        $queue = (new Document($this->pdo))->verificationQueue(1);
+        $backlog = (new Document($this->pdo))->verificationBacklog();
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store');
+        echo json_encode([
+            'waiting' => (int) $backlog['applications'],
+            'resent' => (int) $backlog['resent_applications'],
+            'latest' => (string) (new Document($this->pdo))->latestSentAt(),
+            'first' => $queue ? ['name' => $queue[0]['full_name'], 'ref' => $queue[0]['reference_no']] : null,
+        ]);
+        exit;
+    }
+
     public function smsAttention(): void
     {
         $this->authorize($this->staff, 'applications.process', 'staff/dashboard.php');

@@ -7,7 +7,7 @@ Virac, Catanduanes, Philippines**.
 > **Status (updated 2026-11-21).** The system runs on XAMPP (Apache, PHP 8.2,
 > MariaDB 10.4) with real SMS through the IPROG gateway.
 >
-> **Checked:** PHP lint of every file; 13 database test suites that pass on an
+> **Checked:** PHP lint of every file; 14 database test suites that pass on an
 > isolated test instance; four offline suites (62, 156, 31 and 15 checks); a
 > dark-mode contrast test of 28 screens at desktop and phone width; and the
 > public pages on the running site. Details and the exact commands are in
@@ -99,6 +99,9 @@ access on its next request.
 |---|---|
 | Public Home Page and public eligibility checking | Implemented |
 | Required Documents on the home screen: each document opens a "How to get it" guide, without logging in | Implemented |
+| Document verification queue for MSWDO staff: re-uploads marked, dashboard tile, menu badge and an alert while signed in | Implemented |
+| Next-step popup after Save Verification (and buttons on the page): correction SMS review, or schedule the interview (date, time, SMS); the forms appear only in the popup, with status lines kept on the page | Implemented |
+| Interviews nobody confirmed: staff see an Interviews to Confirm tile, a Confirm who attended list and a menu badge; after 2 weekdays the system reopens the Solo Parent's booking (no SMS, not counted as a miss) | Implemented |
 | Registration, login by username, profile, password reset by SMS code | Implemented |
 | Online application (personal information, children, category, documents, review) | Implemented |
 | Automatic check before submitting (pre-check) | Implemented |
@@ -120,16 +123,25 @@ access on its next request.
 
 ### 5.1 Interview day booking
 
-Interviews are booked by **date** only (no time of day). It is switched on
+Interviews are booked by **date**; MSWDO staff also set a **time of day** when they schedule, and may choose
+any date from today (up to a year ahead) and any time, including right now; office days and
+hours are not enforced for staff. The capacity count is per day, and a day the Solo Parent picks
+himself or herself has no time. It is switched on
 (`interview_date_booking_enabled` = 1 in `system_settings`). How it works:
 
 - **Staff set the first date.** When the documents are verified, staff use the
-  "Schedule the interview date" card on the application page. The date is booked
-  right away and the Solo Parent is texted.
+  "Schedule the interview date" card on the application page, choosing the date and
+  the time (any date from today, any time). It is booked right away and the Solo
+  Parent is texted the date and time.
 - **The Solo Parent may keep it or choose another office day.** Days offered are
   office days (Monday to Friday, not holidays or closure dates set by the
   MSWDO admin), up to 45 days ahead, first come first served, with a daily
   capacity (the `interview_default_capacity` setting, 10 at the time of writing).
+- **Nobody confirmed the interview.** A booked interview whose date has passed shows to MSWDO staff as
+  "Interviews to Confirm" (dashboard tile, "Confirm who attended" list, menu badge) with Attended and
+  Did not attend buttons. If nobody confirms within 2 weekdays the system releases it (also from
+  `cron/interview-followup.php`, optional): the Solo Parent's booking reopens and a banner asks them to choose a
+  new day. It is not counted toward the 5 missed interviews, and no SMS is sent.
 - **Reschedule allowance.** One reschedule by the Solo Parent by default. A
   cancellation reopens booking while an allowance is left.
 - **Cancelling online** is allowed until the office closing time (`appointment_day_end`,
@@ -477,10 +489,14 @@ storage folder and `TEST_DOCUMENT_ROOT`.
 | `database/test_public_tracking.php` | Public status lookup: fields shown, no name, no times, headers |
 | `database/test_staff_sms_attention.php` | Failed Texts list, retry safety checks, and the cancel/missed SMS alert |
 | `database/test_home_requirement_guides.php` | Home screen: every document opens its "How to get it" guide (real guide text, generic fallback for unknown documents, escaping, no guide for the 2x2 photo) |
+| `database/test_document_verification_queue.php` | Staff verification queue: oldest application first, re-uploads marked, tile/badge/alert counts agree |
+| `database/test_unconfirmed_interview_release.php` | Unconfirmed interviews: released after the grace weekdays, booking reopened, not a counted miss, no SMS, others left alone |
+| `database/test_staff_any_time_schedule.php` | Staff scheduling: today, right now, a weekend and any hour are accepted; past dates and invalid times refused; the time is saved |
 | `database/test_role_account_creation.php`, `test_user_account_actions.php`, `test_optional_applicant_gmail.php` | Account creation and actions |
 | `database/test_admin_management_layout.php`, `test_eligibility_history.php` | Admin lists and SMS filters; public eligibility and history |
 | `database/test_staff_review_workflow.php` | Whole staff workflow; also runs `appointment_management_checks.php`, `automatic_interview_checks.php` and `checklist_flow_checks.php`. Needs the three interview-booking tables, which the isolated test instance does not have yet (apply `migrate_interview_date_booking.sql` there with an administrator account) |
 | `scripts/test-dark-mode-contrast.cjs` | Dark mode: renders every MSWDO staff, MSWDO admin and Solo Parent screen (28) at desktop and phone width and fails if any text (4.5:1) or icon (3:1) is below its contrast limit (needs Playwright and Chrome; no web server or login) |
+| `scripts/test-next-step-popup.cjs` | Staff application page: after Save Verification the correction SMS or the schedule form opens as a popup, the banner reopens it, nothing opens when nothing is waiting |
 | `scripts/test-*.cjs` | Browser/UI-level checks using `scripts/fixtures/`; not re-run recently |
 
 **Result at the time of writing (2026-11-21):** all of the above pass except

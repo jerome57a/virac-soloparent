@@ -283,29 +283,51 @@ class Document extends Model
      * (application_id, doc_key), so the two halves never overlap and nothing counts twice.
      */
     private const PENDING_DOCUMENTS_SQL =
-        "SELECT d.application_id FROM application_documents d WHERE d.verification_status = 'FOR_VERIFICATION'
+        "SELECT d.application_id, d.uploaded_at AS sent_at,
+                CASE WHEN EXISTS (SELECT 1 FROM document_status_history h WHERE h.document_id = d.id AND h.remarks = '" . self::RESUBMIT_NOTE . "'
+                                    AND h.created_at >= d.uploaded_at - INTERVAL 5 SECOND) THEN 1 ELSE 0 END AS resent
+         FROM application_documents d WHERE d.verification_status = 'FOR_VERIFICATION'
          UNION ALL
-         SELECT c.application_id FROM application_document_checklists c
+         SELECT c.application_id, (SELECT a2.submitted_at FROM applications a2 WHERE a2.id = c.application_id) AS sent_at, 0 AS resent
+         FROM application_document_checklists c
          WHERE c.verification_status = 'Pending' AND c.applicant_has = 1
            AND NOT EXISTS (SELECT 1 FROM application_documents u WHERE u.application_id = c.application_id AND u.doc_key = c.doc_key)";
 
+    /** The trail note written when a Solo Parent replaces a file; the queue reads it to mark a re-upload. */
+    public const RESUBMIT_NOTE = 'File replaced by Solo Parent.';
+
+    /**
+     * Applications with documents waiting, oldest application first (as before). oldest_upload is the date the application was
+     * submitted; resent_docs is how many of the waiting documents are re-uploads (marked on the dashboard).
+     */
     public function verificationQueue(int $limit): array
     {
         return $this->pdo->query(
-            "SELECT a.id, a.reference_no, a.full_name, a.status, COUNT(*) AS pending_docs, MIN(a.submitted_at) AS oldest_upload
+            "SELECT a.id, a.reference_no, a.full_name, a.status, COUNT(*) AS pending_docs, SUM(d.resent) AS resent_docs, MIN(a.submitted_at) AS oldest_upload
              FROM applications a JOIN (" . self::PENDING_DOCUMENTS_SQL . ") d ON d.application_id = a.id
              WHERE a.status IN ('Pending Review','Under Verification','For Revision','Interview Scheduled')
              GROUP BY a.id, a.reference_no, a.full_name, a.status
-             ORDER BY oldest_upload
+             ORDER BY oldest_upload, a.id
              LIMIT " . (int) $limit
         )->fetchAll();
+    }
+
+    /** The newest send time among documents waiting for verification (null when none): the alert toast uses it to spot new arrivals. */
+    public function latestSentAt(): ?string
+    {
+        $value = $this->pdo->query(
+            "SELECT MAX(d.sent_at) FROM applications a JOIN (" . self::PENDING_DOCUMENTS_SQL . ") d ON d.application_id = a.id
+             WHERE a.status IN ('Pending Review','Under Verification','For Revision','Interview Scheduled')"
+        )->fetchColumn();
+        return $value ? (string) $value : null;
     }
 
     /** ['applications' => in-progress applications with unverified documents, 'documents' => those documents]. */
     public function verificationBacklog(): array
     {
         return $this->pdo->query(
-            "SELECT COUNT(DISTINCT a.id) AS applications, COUNT(*) AS documents
+            "SELECT COUNT(DISTINCT a.id) AS applications, COUNT(*) AS documents,
+                    COUNT(DISTINCT CASE WHEN d.resent = 1 THEN a.id END) AS resent_applications
              FROM applications a JOIN (" . self::PENDING_DOCUMENTS_SQL . ") d ON d.application_id = a.id
              WHERE a.status IN ('Pending Review','Under Verification','For Revision','Interview Scheduled')"
         )->fetch();
@@ -367,6 +389,6 @@ class Document extends Model
         $documentId = (int) $existing['id'];
         $this->pdo->prepare("UPDATE application_documents SET original_name=?, stored_path=?, mime=?, size_bytes=?, sha256=?, verification_status='FOR_VERIFICATION', staff_remarks=NULL, verified_by=NULL, verified_at=NULL, uploaded_at=NOW() WHERE id=?")
             ->execute([$meta['original_name'], $relativePath, $meta['mime'], $meta['size'], $meta['sha256'] ?? null, $documentId]);
-        $this->addStatusHistory($documentId, $applicationId, $existing['doc_key'], $existing['verification_status'], 'FOR_VERIFICATION', 'File replaced by Solo Parent.', $actor);
+        $this->addStatusHistory($documentId, $applicationId, $existing['doc_key'], $existing['verification_status'], 'FOR_VERIFICATION', self::RESUBMIT_NOTE, $actor);
     }
 }

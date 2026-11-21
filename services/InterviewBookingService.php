@@ -37,6 +37,8 @@ class InterviewBookingService
 {
     /** How many days ahead (from today) an applicant can book. */
     public const BOOKING_WINDOW_DAYS = 45;
+    /** How far ahead MSWDO staff may set a date (the Solo Parent's own booking keeps BOOKING_WINDOW_DAYS). */
+    public const STAFF_WINDOW_DAYS = 365;
 
     private PDO $pdo;
     private InterviewInvitation $invitations;
@@ -239,13 +241,25 @@ class InterviewBookingService
                 return 'Your invitation changed. Refresh the page and try again.';
             }
             $when = $day->format('l, F j, Y');
+            // Booking again after an interview that did not happen (or a staff-set date the Solo Parent replaced) is a reschedule:
+            // say so in the status history, the event trail and the staff alert, with the previous date.
+            $previousDay = $appointment !== null ? substr((string) $appointment['scheduled_at'], 0, 10) : null;
+            $rescheduleWhy = null;
+            if ($appointment !== null && $appointment['status'] === 'MISSED') {
+                $rescheduleWhy = ($appointment['notes'] ?? '') === AppointmentService::RELEASE_NOTE ? 'after an interview with no recorded attendance' : 'after a missed interview';
+            } elseif ($appointment !== null && $appointment['status'] === 'CANCELLED') {
+                $rescheduleWhy = 'after a cancelled interview';
+            } elseif ($staffAssigned) {
+                $rescheduleWhy = 'instead of the date MSWDO staff scheduled';
+            }
+            $rescheduleNote = $rescheduleWhy !== null ? 'Rescheduled by the Solo Parent ' . $rescheduleWhy . ' (previous date ' . date('M j, Y', strtotime((string) $previousDay)) . '): new interview date ' . $when . ' booked' : null;
             $this->applications->setStatus($applicationId, 'Interview Scheduled');
-            $this->applications->addHistory($applicationId, 'Interview Scheduled', 'Interview date ' . $when . ' booked by the Solo Parent', (string) $user['full_name'], (int) $user['id']);
+            $this->applications->addHistory($applicationId, 'Interview Scheduled', $rescheduleNote ?? 'Interview date ' . $when . ' booked by the Solo Parent', (string) $user['full_name'], (int) $user['id']);
             $saved = $this->appointments->interviewFor($applicationId);
             $details = $counted
                 ? 'Replacement booking for ' . $date . ' (previous date ' . substr((string) $appointment['scheduled_at'], 0, 10) . '). Reschedules used '
                     . ((int) $invitation['reschedules_used'] + 1) . ' of ' . (int) $invitation['reschedules_allowed'] . '.'
-                : ($staffAssigned ? 'Chose ' . $date . ' instead of the date MSWDO staff scheduled (' . substr((string) $appointment['scheduled_at'], 0, 10) . ').' : 'Booked ' . $date . '.');
+                : ($rescheduleWhy !== null ? 'Rescheduled ' . $rescheduleWhy . ': chose ' . $date . ' (previous date ' . $previousDay . ').' : 'Booked ' . $date . '.');
             $this->events->record($applicationId, $counted ? 'RESCHEDULED' : 'BOOKED', 'APPLICANT', $user, null, $details, $saved !== null ? (int) $saved['id'] : null, $date);
             audit_log($this->pdo, (int) $user['id'], (string) $user['full_name'], (string) $user['role'],
                 $counted ? 'Interview Date Rescheduled' : 'Interview Date Booked', 'application', $applicationId, $app['reference_no'] . ' · ' . $details);
@@ -262,7 +276,9 @@ class InterviewBookingService
             create_notification($this->pdo, (int) $user['id'], 'appointment_confirmation',
                 'Your interview for ' . $app['reference_no'] . ' is booked for ' . $when . ' at ' . $location . '.', $applicationId);
             (new NotificationService($this->pdo))->notifyStaff('appointment_update',
-                $app['reference_no'] . ' (' . $user['full_name'] . ') booked an interview date: ' . $when . '.', $applicationId);
+                $rescheduleWhy !== null
+                    ? 'RESCHEDULED: ' . $app['reference_no'] . ' (' . $user['full_name'] . ') chose a new interview date, ' . $when . ' (' . $rescheduleWhy . ').'
+                    : $app['reference_no'] . ' (' . $user['full_name'] . ') booked an interview date: ' . $when . '.', $applicationId);
         } catch (Throwable $e) {
             error_log('Interview booking notification failed: ' . $e->getMessage());
         }
@@ -287,11 +303,18 @@ class InterviewBookingService
      * for them if it was not yet). The date is booked at once, like an applicant booking, and the applicant is texted: come
      * on that date, or log in and pick another office day. Returns an error message, or null on success.
      */
-    public function scheduleForApplicant(array $staff, int $applicationId, string $date, ?string $customMessage = null, ?array &$smsResult = null): ?string
+    public function scheduleForApplicant(array $staff, int $applicationId, string $date, ?string $customMessage = null, ?array &$smsResult = null, ?string $time = null): ?string
     {
         $smsResult = null; // filled with the SMS outcome (status SENT, FAILED or DISABLED) once the schedule is saved
         if (!can($staff, 'applications.process')) {
             return 'You do not have permission to schedule interviews.';
+        }
+        // Optional time of day (HH:MM). MSWDO staff may set any time, including right now; office hours are not enforced here.
+        if ($time !== null) {
+            $time = trim($time);
+            if (preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $time) !== 1) {
+                return 'Enter the interview time, for example 9:00 AM.';
+            }
         }
         if (!InterviewDateFeature::enabled($this->pdo)) {
             return 'Interview date booking is not available right now.';
@@ -343,16 +366,13 @@ class InterviewBookingService
                 $this->pdo->rollBack();
                 return 'This Solo Parent already has an interview date.';
             }
-            if ($error = $calendar->dateError($date)) {
-                $this->pdo->rollBack();
-                return $error;
-            }
+            // MSWDO staff may choose any date from today on (weekends, holidays and closures are the staff member's call).
             $today = new DateTimeImmutable(Appointment::manilaDate());
-            if ($date <= $today->format('Y-m-d')) {
+            if ($date < $today->format('Y-m-d')) {
                 $this->pdo->rollBack();
-                return 'Choose a date after today so the Solo Parent can be told in time.';
+                return 'Choose today or a later date.';
             }
-            if ($date > $today->modify('+' . self::BOOKING_WINDOW_DAYS . ' days')->format('Y-m-d')) {
+            if ($date > $today->modify('+' . self::STAFF_WINDOW_DAYS . ' days')->format('Y-m-d')) {
                 $this->pdo->rollBack();
                 return 'That date is too far ahead. Choose an earlier date.';
             }
@@ -382,12 +402,12 @@ class InterviewBookingService
                 }
                 $reopened = true;
             }
-            $this->appointments->bookDateOnly($applicationId, $date, $location, 'STAFF', (int) $staff['id']);
+            $this->appointments->bookDateOnly($applicationId, $date, $location, 'STAFF', (int) $staff['id'], $time);
             if (!$this->invitations->markBooked($applicationId, false)) {
                 $this->pdo->rollBack();
                 return 'The invitation changed. Refresh and try again.';
             }
-            $when = $day->format('l, F j, Y');
+            $when = $day->format('l, F j, Y') . ($time !== null ? ' at ' . date('g:i A', strtotime($time)) : '');
             $this->applications->setStatus($applicationId, 'Interview Scheduled');
             $this->applications->addHistory($applicationId, 'Interview Scheduled', 'Interview date ' . $when . ' scheduled by MSWDO staff', (string) $staff['full_name'], (int) $staff['id']);
             $saved = $this->appointments->interviewFor($applicationId);
@@ -411,7 +431,7 @@ class InterviewBookingService
             error_log('Interview schedule notification failed: ' . $e->getMessage());
         }
         try {
-            $sms = (new SMSService($this->pdo))->notifyInterviewDateAssigned($applicationId, (string) $app['mobile'], (string) $app['reference_no'], $date, $location, $customMessage);
+            $sms = (new SMSService($this->pdo))->notifyInterviewDateAssigned($applicationId, (string) $app['mobile'], (string) $app['reference_no'], $date, $location, $customMessage, $time);
             $smsResult = $sms;
             if (!empty($sms['id'])) {
                 $this->appointments->linkConfirmationSms($applicationId, (int) $sms['id']);
@@ -426,7 +446,9 @@ class InterviewBookingService
     /** True for a BOOKED date-only appointment that MSWD staff scheduled (the applicant may still choose another date). */
     private function isStaffAssigned(?array $appointment): bool
     {
-        return $appointment !== null && $appointment['status'] === 'BOOKED' && interview_is_date_only($appointment)
+        // A date MSWDO staff set, with or without a time of day (a timed one is stored as date_only = 0: the database only allows a
+        // date-only row at 00:00:00).
+        return $appointment !== null && $appointment['status'] === 'BOOKED'
             && (string) ($appointment['booking_source'] ?? '') === 'STAFF';
     }
 

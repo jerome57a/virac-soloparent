@@ -186,8 +186,7 @@ class AppointmentService
         $sentRefs = [];
         foreach ($due as $iv) {
             $sms->notifyAppointmentReminder((int) $iv['application_id'], $iv['mobile'], $iv['reference_no'], $iv['scheduled_at'], $iv['location']);
-            create_notification(
-                $this->pdo, (int) $iv['user_id'], 'appointment_reminder',
+            self::notifyUser($this->pdo, (int) $iv['user_id'], 'appointment_reminder',
                 'Reminder: your appointment for ' . $iv['reference_no'] . ' is on ' . date('M j, Y g:i A', strtotime($iv['scheduled_at'])) . ' at ' . $iv['location'] . '.',
                 (int) $iv['application_id']
             );
@@ -202,8 +201,7 @@ class AppointmentService
         $dueDateOnly = array_values(array_filter($this->appointments->dueDateOnlyForReminder(), fn($iv) => self::dateOnlyReminderDue($calendar, (string) $iv['scheduled_at'])));
         foreach ($dueDateOnly as $iv) {
             $sms->notifyAppointmentReminder((int) $iv['application_id'], $iv['mobile'], $iv['reference_no'], $iv['scheduled_at'], $iv['location'], true);
-            create_notification(
-                $this->pdo, (int) $iv['user_id'], 'appointment_reminder',
+            self::notifyUser($this->pdo, (int) $iv['user_id'], 'appointment_reminder',
                 'Reminder: your appointment for ' . $iv['reference_no'] . ' is on ' . interview_schedule_text($iv['scheduled_at'], true, 'M j, Y g:i A') . ' at ' . $iv['location'] . '.',
                 (int) $iv['application_id']
             );
@@ -226,6 +224,117 @@ class AppointmentService
         $noon = DateTimeImmutable::createFromFormat('!Y-m-d H:i', $date . ' 12:00', new DateTimeZone('Asia/Manila'));
         $now ??= time();
         return $due !== null && $noon !== false && $now >= $due->getTimestamp() && $now <= $noon->getTimestamp();
+    }
+
+    /**
+     * An in-app notice to a Solo Parent. It can never break the action it reports: a record whose account no longer exists (or any
+     * other notification error) is logged and skipped, so staff do not see "Something went wrong" after the change was saved.
+     */
+    private static function notifyUser(PDO $pdo, int $userId, string $type, string $message, ?int $applicationId = null): void
+    {
+        try {
+            if ($userId < 1) {
+                return;
+            }
+            $exists = $pdo->prepare('SELECT 1 FROM users WHERE id = ?');
+            $exists->execute([$userId]);
+            if ($exists->fetchColumn()) {
+                create_notification($pdo, $userId, $type, $message, $applicationId);
+            }
+        } catch (Throwable $e) {
+            error_log('In-app notice not saved: ' . $e->getMessage());
+        }
+    }
+
+    /** Weekdays after the interview date that staff have to confirm the outcome before the system releases the booking. */
+    public const RELEASE_GRACE_WEEKDAYS = 2;
+    public const RELEASE_NOTE = 'Released automatically: no outcome was recorded';
+
+    /**
+     * Interviews nobody confirmed: a BOOKED interview still without an outcome RELEASE_GRACE_WEEKDAYS weekdays after its date is
+     * released so the Solo Parent can choose a new day (the invitation reopens). It is NOT counted as a missed interview, no SMS
+     * is sent (the Solo Parent sees the in-app notice and the Appointment page; staff get an in-app alert). Returns how many.
+     */
+    public function releaseUnconfirmed(?int $now = null): int
+    {
+        if (!InterviewDateFeature::enabled($this->pdo)) {
+            return 0;
+        }
+        $today = Appointment::manilaDate($now);
+        $released = 0;
+        foreach ($this->appointments->awaitingOutcome() as $row) {
+            if ($today <= self::releaseAfter(substr((string) $row['scheduled_at'], 0, 10))) {
+                continue;
+            }
+            try {
+                if ($this->releaseOne($row)) {
+                    $released++;
+                }
+            } catch (Throwable $e) {
+                error_log('Releasing an unconfirmed interview failed: ' . $e->getMessage());
+            }
+        }
+        return $released;
+    }
+
+    /** The last day of the grace period: the RELEASE_GRACE_WEEKDAYS-th weekday (Monday to Friday) after $date. */
+    public static function releaseAfter(string $date): string
+    {
+        $day = new DateTimeImmutable($date);
+        for ($counted = 0; $counted < self::RELEASE_GRACE_WEEKDAYS;) {
+            $day = $day->modify('+1 day');
+            if ((int) $day->format('N') < 6) {
+                $counted++;
+            }
+        }
+        return $day->format('Y-m-d');
+    }
+
+    private function releaseOne(array $row): bool
+    {
+        $applicationId = (int) $row['application_id'];
+        $this->pdo->beginTransaction();
+        try {
+            $lock = $this->pdo->prepare('SELECT id FROM applications WHERE id = ? FOR UPDATE');
+            $lock->execute([$applicationId]);
+            $current = $this->appointments->findWithApplication((int) $row['id']);
+            $invitations = new InterviewInvitation($this->pdo);
+            $invitation = $invitations->find($applicationId, true);
+            // Only an interview whose booking the Solo Parent can reopen: otherwise staff decide.
+            if (!$current || $current['status'] !== 'BOOKED' || $current['scheduled_at'] !== $row['scheduled_at'] || $invitation === null || $invitation['status'] !== 'BOOKED') {
+                $this->pdo->rollBack();
+                return false;
+            }
+            $when = interview_schedule_text($current['scheduled_at'], interview_is_date_only($current), 'M j, Y g:i A');
+            $this->appointments->markAutoReleased((int) $current['id'], self::RELEASE_NOTE);
+            if ($current['application_status'] === 'Interview Scheduled') {
+                $back = $this->applications->statusBeforeInterview($applicationId);
+                $this->applications->setStatus($applicationId, $back);
+                $this->applications->addHistory($applicationId, $back, 'Interview on ' . $when . ' had no recorded outcome; booking reopened by the system.', 'System', null);
+            }
+            if (!$invitations->releaseBooking($applicationId)) {
+                throw new RuntimeException('The interview invitation changed while it was being released.');
+            }
+            $events = new AppointmentEvent($this->pdo);
+            $day = substr((string) $current['scheduled_at'], 0, 10);
+            $events->record($applicationId, 'NO_OUTCOME', 'SYSTEM', [], null, 'No outcome was recorded within ' . self::RELEASE_GRACE_WEEKDAYS . ' weekdays; not counted as a missed interview.', (int) $current['id'], $day);
+            $events->record($applicationId, 'INVITATION_REOPENED', 'SYSTEM', [], null, 'Booking reopened so the Solo Parent can choose a new date.', (int) $current['id'], $day);
+            $this->pdo->commit();
+        } catch (Throwable $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $e;
+        }
+        try {
+            self::notifyUser($this->pdo, (int) $current['user_id'], 'appointment_confirmation',
+                'Your interview for ' . $current['reference_no'] . ' on ' . $when . ' has no recorded attendance. Please log in, open Appointment and choose a new interview date.', $applicationId);
+            (new NotificationService($this->pdo))->notifyStaff('appointment_update', $current['reference_no'] . ' had no recorded interview outcome; its booking was reopened for the Solo Parent.', $applicationId);
+            audit_log($this->pdo, null, 'System', 'system', 'Interview Released (No Outcome)', 'application', $applicationId, $current['reference_no'] . ' · ' . $when);
+        } catch (Throwable $e) {
+            error_log('Release notice failed: ' . $e->getMessage());
+        }
+        return true;
     }
 
     /**
@@ -275,14 +384,12 @@ class AppointmentService
                 ? 'Your appointment for ' . $appt['reference_no'] . ' on ' . $when . ' was cancelled by MSWDO: ' . $reason . '. Please contact MSWDO for a new schedule.'
                 : 'You missed your appointment for ' . $appt['reference_no'] . ' on ' . $when . '. '
                     . ($canRebook ? 'You can choose a new interview date: log in and open Appointment.' : 'Please contact MSWDO for a new schedule.');
-            create_notification($this->pdo, (int) $appt['user_id'], 'appointment_confirmation', $message, $applicationId);
+            self::notifyUser($this->pdo, (int) $appt['user_id'], 'appointment_confirmation', $message, $applicationId);
             if ($outcome === 'CANCELLED') {
                 $smsResult = (new SMSService($this->pdo))->notifyAppointmentCancelled($applicationId, $appt['mobile'], $appt['reference_no'], $appt['scheduled_at'], (string) $reason, interview_is_date_only($appt));
-            } elseif (!$canRebook) {
-                // To save SMS credit a missed interview is only texted when the applicant must contact MSWDO; otherwise the in-app
-                // notice and the Appointment page tell them to choose a new date.
-                $smsResult = (new SMSService($this->pdo))->notifyAppointmentMissed($applicationId, $appt['mobile'], $appt['reference_no'], $appt['scheduled_at'], interview_is_date_only($appt));
             }
+            // A missed interview is never texted: the Solo Parent sees the in-app notice, the dashboard banner and the Appointment
+            // page when they log in (and chooses a new date there, or contacts MSWDO after too many misses).
         }
         audit_log($this->pdo, (int) $actor['id'], $actor['full_name'], $actor['role'],
             $outcome === 'CANCELLED' ? 'Appointment Cancelled' : 'Appointment Missed', 'application', $applicationId,

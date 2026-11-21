@@ -25,6 +25,7 @@
     <span style="font-size:14px">Signed in as <b><?= e($staff['full_name']) ?></b></span>
   </div>
 
+  <?php if (!empty($flashMessage)): ?><div class="info-box" style="max-width:none" role="status"><?= e($flashMessage) ?></div><?php endif; ?>
   <nav class="staff-section-links" aria-label="Dashboard sections" data-i18n-attrs="aria-label"><a href="#verification-queue" data-i18n>Documents to Verify</a><a href="#ready-to-schedule">Ready to Schedule</a><a href="#staff-today" data-i18n>Today's Appointments</a><a href="#staff-upcoming" data-i18n>Upcoming Interviews</a><a href="#id-release-queue">ID Release</a><a href="#staff-recent" data-i18n>Recently Processed by MSWDO Staff</a></nav>
   <div class="dash-section-title">Needs attention</div>
   <div class="stat-grid stat-grid-quad">
@@ -42,6 +43,16 @@
       <div class="stat-label">Documents to Verify</div>
       <div class="stat-value <?= (int) $docBacklog['documents'] > 0 ? 'stat-alert' : '' ?>"><?= (int) $docBacklog['documents'] ?></div>
       <div class="stat-sub">across <?= (int) $docBacklog['applications'] ?> application<?= (int) $docBacklog['applications'] === 1 ? '' : 's' ?></div>
+    </a>
+    <a href="#verification-queue" class="stat-tile">
+      <div class="stat-label">Re-uploaded Documents</div>
+      <div class="stat-value <?= (int) $docBacklog['resent_applications'] > 0 ? 'stat-alert' : '' ?>"><?= (int) $docBacklog['resent_applications'] ?></div>
+      <div class="stat-sub">Solo Parents who sent a document again</div>
+    </a>
+    <a href="#needs-outcome" class="stat-tile">
+      <div class="stat-label">Interviews to Confirm</div>
+      <div class="stat-value <?= (int) $stats['needsOutcome'] > 0 ? 'stat-alert' : '' ?>"><?= (int) $stats['needsOutcome'] ?></div>
+      <div class="stat-sub">date passed, no result yet</div>
     </a>
     <a href="#ready-to-schedule" class="stat-tile">
       <div class="stat-label">Ready to Schedule</div>
@@ -84,6 +95,30 @@
     </a>
   </div>
 
+  <?php if (!empty($awaitingOutcome)): ?>
+  <div class="review-card" id="needs-outcome" style="border-color:var(--red)">
+    <div class="review-card-head"><div class="title">Confirm who attended</div><a class="small" href="<?= base_url('staff/appointments.php') ?>">See all (<?= (int) $stats['needsOutcome'] ?>)</a></div>
+    <div class="small text-muted mb-2">These interview dates have passed. Record the result if the Solo Parent came, or mark it missed if not (they can then choose a new day; no SMS is sent). If nobody confirms within <?= (int) AppointmentService::RELEASE_GRACE_WEEKDAYS ?> weekdays the system reopens the booking by itself.</div>
+    <?php foreach ($awaitingOutcome as $iv): ?>
+      <div class="appt-row">
+        <a href="<?= base_url('staff/application.php?id=' . (int) $iv['application_id']) ?>#interview" class="text-decoration-none" style="color:inherit;min-width:0;flex:1 1 220px">
+          <div class="app-ref"><?= e($iv['reference_no']) ?> <span style="font-weight:400;color:var(--muted)">· <?= e($iv['full_name']) ?></span></div>
+          <div class="app-date"><?= e(interview_schedule_text($iv['scheduled_at'], interview_is_date_only($iv), 'D, M j, Y g:i A')) ?></div>
+        </a>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <a href="<?= base_url('staff/application.php?id=' . (int) $iv['application_id']) ?>#interview" class="btn-navy text-decoration-none" style="padding:6px 12px;font-size:12px">Attended</a>
+          <form method="post" action="<?= base_url('staff/appointments.php') ?>" class="m-0" onsubmit="return confirm('Mark this Solo Parent as not attended? They can then choose a new day.');">
+            <?= csrf_field() ?>
+            <input type="hidden" name="appointment_id" value="<?= (int) $iv['id'] ?>">
+            <input type="hidden" name="return_to" value="dashboard">
+            <button type="submit" name="action" value="missed" class="btn-outline" style="padding:6px 12px;font-size:12px">Did not attend</button>
+          </form>
+        </div>
+      </div>
+    <?php endforeach; ?>
+  </div>
+  <?php endif; ?>
+
   <div class="dash-two-col">
     <div class="review-card" id="verification-queue">
       <div class="review-card-head"><div class="title">Document Verification Queue</div></div>
@@ -96,7 +131,10 @@
               <div class="app-ref"><?= e($q['reference_no']) ?></div>
               <div class="app-date"><?= e($q['full_name']) ?> · waiting since <?= e(date('M j, Y', strtotime($q['oldest_upload']))) ?></div>
             </div>
-            <span class="status-pill" style="background:#fdf1d6;color:#7a5f12"><?= (int) $q['pending_docs'] ?> to verify</span>
+            <span>
+              <?php if ((int) $q['resent_docs'] > 0): ?><span class="status-pill" style="background:#ffe3c2;color:#8a3b00;font-weight:700">Re-uploaded<?= (int) $q['resent_docs'] > 1 ? ' (' . (int) $q['resent_docs'] . ')' : '' ?></span><?php endif; ?>
+              <span class="status-pill" style="background:#fdf1d6;color:#7a5f12"><?= (int) $q['pending_docs'] ?> to verify</span>
+            </span>
           </a>
         <?php endforeach; ?>
       <?php endif; ?>

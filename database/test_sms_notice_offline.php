@@ -54,5 +54,18 @@ require_once __DIR__ . '/../models/SmsLog.php';
 check(in_array('password_reset', SmsLog::NOT_RETRYABLE, true) && in_array('mobile_verification', SmsLog::NOT_RETRYABLE, true) && in_array('document_correction', SmsLog::NOT_RETRYABLE, true), 'codes and corrections are never retryable from a log');
 check(!in_array('interview_date_assigned', SmsLog::NOT_RETRYABLE, true) && !in_array('status_change', SmsLog::NOT_RETRYABLE, true), 'schedule and status texts are retryable');
 
+// The real cause of a failed text, in plain words.
+$kind = fn(string $e) => SMSService::failureHelp($e)['kind'];
+check($kind('Could not reach the SMS gateway: Could not resolve host: sms.example') === 'no-internet', 'no internet is named');
+check($kind('Could not reach the SMS gateway: Operation timed out after 5000 milliseconds') === 'timeout', 'a slow connection is named');
+check($kind('Gateway rejected the message (HTTP 200): message: Invalid api token or no load balance') === 'token-or-credit', 'a bad token or no credit is named');
+check($kind('SMS_API_KEY (the IPROG API token) is not set.') === 'not-configured', 'a missing token is named');
+check($kind('Invalid mobile number.') === 'bad-number', 'a bad number is named');
+check($kind('Not sent: this number is not on the SMS test allowlist (SMS_ALLOWED_NUMBERS), so no credit was used.') === 'allowlist', 'the allowlist is not mistaken for no credit');
+check($kind('Not sent: the daily SMS limit (50) was reached, so no credit was used.') === 'daily-limit', 'the daily limit is named');
+check($kind('Gateway rejected the message (HTTP 500): maintenance') === 'rejected', 'another refusal is named');
+check($kind('') === 'unknown' && SMSService::failureHelp('Invalid api token or no load balance')['action'] !== '', 'unknown text still gets advice');
+$notice = SMSService::outcomeNotice(['status' => 'FAILED', 'error' => 'Gateway rejected the message (HTTP 200): message: Invalid api token or no load balance'], 'Interview scheduled');
+check(str_contains($notice['text'], 'Cause: The SMS token is invalid') && str_contains($notice['text'], 'Invalid api token or no load balance') && str_contains($notice['text'], 'Retry SMS'), 'the notice shows the cause, the advice and the original message');
 echo $failures ? "FAILED: $failures of $checks checks.\n" : "PASS: $checks SMS notice checks. No database, no SMS, no network.\n";
 exit($failures ? 1 : 0);

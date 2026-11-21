@@ -284,3 +284,8 @@ html[data-theme="dark"] .staff-application-review .review-button-undo { backgrou
   /* Disabled buttons stay clearly readable (they were 50% opaque). */
   html[data-theme="dark"] :is(.btn-navy, .btn-red, .btn-outline, .btn-danger-outline):disabled { opacity: .7; }
 }
+
+/* The staff next-step popup (correction SMS / schedule the interview): Bootstrap's modal is white, so follow the dark theme. */
+html[data-theme="dark"] #next-step-modal .modal-content { background: var(--surface); color: var(--ink); border: 1px solid var(--border, #2b3a52); }
+html[data-theme="dark"] #next-step-modal .modal-header { border-bottom-color: var(--border, #2b3a52); }
+html[data-theme="dark"] #next-step-modal .review-card, html[data-theme="dark"] #next-step-modal .bg-white { background: var(--surface-alt) !important; color: var(--ink); }

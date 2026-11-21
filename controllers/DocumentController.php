@@ -136,7 +136,7 @@ class DocumentController extends Controller
             audit_log($this->pdo, (int) $user['id'], $user['full_name'], $user['role'], 'Document Upload', 'application', $applicationId, $docKey);
         }
         (new NotificationService($this->pdo))->notifyStaff('document_resubmitted',
-            $user['full_name'] . ' ' . ($existing ? 're-uploaded' : 'uploaded') . ' "' . ($documents->requirementLabel($docKey) ?? $docKey) . '" for ' . $app['reference_no'] . ' — ready to verify.', $applicationId);
+            ($existing ? 'RE-UPLOADED: ' : 'Uploaded: ') . $user['full_name'] . ' sent "' . ($documents->requirementLabel($docKey) ?? $docKey) . '"' . ($existing ? ' again' : '') . ' for ' . $app['reference_no'] . ' — needs your verification.', $applicationId);
         $backInReview = (new ApplicationReviewService($this->pdo))->returnToReviewIfCorrected($user, $app);
         return null;
     }

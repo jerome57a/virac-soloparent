@@ -161,7 +161,9 @@ if ($interviewOutcome !== null) {
             <div class="small text-muted">No document is currently marked Needs Correction.</div>
           <?php endif; ?>
           <?php if ($cs['has_batch']): ?>
-            <div class="review-card mt-3" style="background:#f8f9fa">
+            <button type="button" class="btn-navy mt-2" data-next-step-open="correction" data-i18n>Review and send correction SMS</button>
+            <div id="correction-review-store" hidden>
+            <div class="review-card" id="correction-review" style="background:#f8f9fa">
               <div class="small text-muted">Review the message below - nothing has been sent yet</div>
               <div class="fw-semibold"><?= e($cs['applicant']) ?> <span class="text-muted fw-normal">- <?= e($cs['reference']) ?></span></div>
               <div class="small">To: <strong><?= e($cs['recipient']) ?></strong></div>
@@ -187,6 +189,7 @@ if ($interviewOutcome !== null) {
                 });
               </script>
             </div>
+            </div>
           <?php endif; ?>
         </div>
         <?php endif; ?>
@@ -208,6 +211,7 @@ if ($interviewOutcome !== null) {
         </div>
       </div>
       <script src="<?= public_asset('js/document-viewer.js') ?>" defer></script>
+      <script src="<?= public_asset('js/staff-next-step.js') ?>" defer data-auto="<?= ($_GET['next'] ?? '') === '1' ? '1' : '0' ?>"></script>
       <div class="review-card">
         <div class="review-card-head"><div class="title">Solo Parent Declaration</div></div>
         <div class="staff-applicant-list">
@@ -334,7 +338,27 @@ if ($interviewOutcome !== null) {
           <?php if ($ivStatus): [$ibg, $ifg, $ilabel] = $ivStyles[$ivStatus]; ?><span class="status-pill" style="background:<?= $ibg ?>;color:<?= $ifg ?>"><?= e($ilabel) ?></span><?php endif; ?>
         </div>
         <?php if ($interviewError): ?><div class="auth-error" role="alert"><?= e($interviewError) ?></div><?php endif; ?>
-
+        <?php
+        // Rescheduling: the Solo Parent booked again after a missed, unrecorded or cancelled interview.
+        $evLabels = ['STAFF_SCHEDULED' => 'Scheduled by MSWDO staff', 'BOOKED' => 'Date booked', 'RESCHEDULED' => 'Rescheduled by the Solo Parent', 'MISSED' => 'Marked as not attended',
+            'NO_OUTCOME' => 'No outcome recorded (released by the system)', 'CANCELLED' => 'Cancelled', 'INVITATION_REOPENED' => 'Booking reopened', 'INVITATION_CLOSED' => 'Booking closed'];
+        $priorEvents = array_values(array_filter($interviewEvents ?? [], fn($ev) => in_array($ev['event_type'], ['MISSED', 'NO_OUTCOME', 'CANCELLED'], true)));
+        $isResched = $interview && $ivStatus === 'BOOKED' && ($interview['booking_source'] ?? '') === 'APPLICANT' && $priorEvents;
+        if ($isResched): $lastPrior = $priorEvents[count($priorEvents) - 1]; ?>
+          <div class="info-box" style="max-width:none;border-left:5px solid #b45309" role="status"><b>Rescheduled by the Solo Parent.</b> They chose
+            <b><?= e(interview_schedule_text($interview['scheduled_at'], interview_is_date_only($interview))) ?></b> after the interview on
+            <?= e($lastPrior['interview_date'] ? date('M j, Y', strtotime((string) $lastPrior['interview_date'])) : 'an earlier date') ?>
+            (<?= e(strtolower($evLabels[$lastPrior['event_type']] ?? $lastPrior['event_type'])) ?>).</div>
+        <?php endif; ?>
+        <?php if (!empty($interviewEvents)): ?>
+          <details class="mb-2"><summary class="small fw-semibold">Interview history (<?= count($interviewEvents) ?>)</summary>
+            <ul class="small mt-2 mb-0">
+              <?php foreach ($interviewEvents as $ev): ?>
+                <li><?= e(date('M j, Y g:i A', strtotime((string) $ev['created_at']))) ?> · <b><?= e($evLabels[$ev['event_type']] ?? ucfirst(strtolower(str_replace('_', ' ', (string) $ev['event_type'])))) ?></b><?= $ev['interview_date'] ? ' · ' . e(date('M j, Y', strtotime((string) $ev['interview_date']))) : '' ?> · <?= e(ucfirst(strtolower((string) $ev['source']))) ?><?= !empty($ev['details']) ? ' — ' . e($ev['details']) : '' ?></li>
+              <?php endforeach; ?>
+            </ul>
+          </details>
+        <?php endif; ?>
         <?php if ($interview): ?>
           <div class="review-grid mb-3">
             <div class="review-row"><div class="k">Scheduled</div><div class="v"><?= e(interview_schedule_text($interview['scheduled_at'], interview_is_date_only($interview))) ?></div></div>
@@ -452,7 +476,6 @@ if ($interviewOutcome !== null) {
           <?php elseif (($invProblems['open'] ?? null) !== null && !$inv): ?>
             <div class="small text-muted"><?= e($invProblems['open']) ?></div>
           <?php else: ?>
-            <div class="small text-muted mb-2">Pick a Monday to Friday office day (office hours 7:00 AM to 5:00 PM). The date is booked right away and the Solo Parent is texted: they can come on that date, or log in and pick a different day.</div>
             <?php if ($inv): ?>
               <div class="review-grid mb-2">
                 <div class="review-row"><div class="k">Reschedules used</div><div class="v"><?= (int) $inv['reschedules_used'] ?> of <?= (int) $inv['reschedules_allowed'] ?> by the Solo Parent</div></div>
@@ -461,14 +484,23 @@ if ($interviewOutcome !== null) {
                 <?php endif; ?>
               </div>
             <?php endif; ?>
+            <button type="button" class="btn-navy mb-2" data-next-step-open="schedule">Schedule the interview</button>
+            <div id="schedule-store" hidden>
+            <div id="schedule-modal-source" data-open="<?= !empty($invitationError) ? '1' : '0' ?>">
+            <div class="small text-muted mb-2">Choose any date from today and any time, including right now. The interview is booked right away and the Solo Parent is texted: they can come at that time, or log in and pick a different day.</div>
             <form method="post" class="d-flex flex-column gap-2 mb-2" onsubmit="return confirm('Schedule this interview date and text the Solo Parent?');">
               <?= csrf_field() ?><input type="hidden" name="form_action" value="schedule_interview_date">
               <label style="font-size:13px;font-weight:600;color:var(--ink)">Interview date
-                <input type="date" name="interview_date" id="schedule-date" class="form-control mt-1" min="<?= e($scheduleMinDate ?? '') ?>" max="<?= e($scheduleMaxDate ?? '') ?>" required>
+                <input type="date" name="interview_date" id="schedule-date" class="form-control mt-1" value="<?= e($scheduleMinDate ?? '') ?>" min="<?= e($scheduleMinDate ?? '') ?>" max="<?= e($scheduleMaxDate ?? '') ?>" required>
+              </label>
+              <label style="font-size:13px;font-weight:600;color:var(--ink)">Interview time
+                <input type="time" name="interview_time" id="schedule-time" class="form-control mt-1" step="60" value="<?= e(date('H:i')) ?>" required>
               </label>
               <?php $invSmsFields('schedule', $scheduleAutoMessage ?? ''); ?>
               <button type="submit" class="btn-navy">Schedule Date and Send SMS</button>
             </form>
+            </div>
+            </div>
           <?php endif; ?>
         <?php endif; ?>
       </div>

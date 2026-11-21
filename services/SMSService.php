@@ -102,7 +102,59 @@ class SMSService
         if ($status === 'DISABLED' || ($result['provider_status'] ?? '') === 'disabled') {
             return ['state' => 'skipped', 'log_id' => $logId, 'text' => $what . ': NO SMS was sent, because SMS notifications are switched off in Notification Settings. Switch them on, then use Retry SMS.'];
         }
-        return ['state' => 'failed', 'log_id' => $logId, 'text' => $what . ': the SMS to the Solo Parent FAILED (' . (($result['error'] ?? '') ?: 'provider error') . '). Use Retry SMS to send it again.'];
+        $help = self::failureHelp((string) ($result['error'] ?? ''));
+        return ['state' => 'failed', 'log_id' => $logId, 'text' => $what . ': the SMS to the Solo Parent FAILED. Cause: ' . $help['cause'] . ' What to do: ' . $help['action'] . ' (Details: ' . (($result['error'] ?? '') ?: 'provider error') . '). Use Retry SMS to send it again.'];
+    }
+
+    /**
+     * The real cause of a failed text, in plain words, and what staff can do about it. $error is the message stored with the failed
+     * SMS (sms_logs.error). Pure: it reads nothing but that text. ['cause' => ..., 'action' => ..., 'kind' => a short code].
+     */
+    public static function failureHelp(?string $error): array
+    {
+        $e = strtolower((string) $error);
+        $has = function (string ...$needles) use ($e): bool {
+            foreach ($needles as $n) {
+                if (str_contains($e, $n)) {
+                    return true;
+                }
+            }
+            return false;
+        };
+        if ($has('allowlist')) {
+            return ['kind' => 'allowlist', 'cause' => 'This number is not on the SMS test allowlist, so nothing was sent.', 'action' => 'Add the number to SMS_ALLOWED_NUMBERS, or empty that setting in the local settings file to text everyone, then Retry SMS.'];
+        }
+        if ($has('daily sms limit')) {
+            return ['kind' => 'daily-limit', 'cause' => 'The daily SMS limit was reached, so nothing was sent.', 'action' => 'Try again tomorrow, or raise SMS_DAILY_LIMIT in the local settings file.'];
+        }
+        if ($has('same text was already sent')) {
+            return ['kind' => 'duplicate', 'cause' => 'The same text was just sent to this number.', 'action' => 'No action needed; the Solo Parent already received it.'];
+        }
+        if ($has('invalid mobile number')) {
+            return ['kind' => 'bad-number', 'cause' => 'The Solo Parent\'s mobile number is not a valid Philippine number.', 'action' => 'Correct the number on the Solo Parent\'s record, then press Retry SMS.'];
+        }
+        if ($has('could not resolve host', 'could not reach', 'failed to connect', 'connection refused', 'network is unreachable', 'ssl connect', 'recv failure', 'empty reply')) {
+            if ($has('timed out', 'timeout')) {
+                return ['kind' => 'timeout', 'cause' => 'The SMS service did not answer in time (slow or unstable internet).', 'action' => 'Check the internet connection, then press Retry SMS.'];
+            }
+            return ['kind' => 'no-internet', 'cause' => 'There is no internet connection, or the SMS service cannot be reached.', 'action' => 'Check the internet connection, then press Retry SMS. The schedule itself is already saved.'];
+        }
+        if ($has('timed out', 'timeout')) {
+            return ['kind' => 'timeout', 'cause' => 'The SMS service did not answer in time (slow or unstable internet).', 'action' => 'Check the internet connection, then press Retry SMS.'];
+        }
+        if ($has('invalid api token', 'no load balance', 'load balance', 'insufficient', 'out of credit', 'no credit left', 'unauthorized')) {
+            return ['kind' => 'token-or-credit', 'cause' => 'The SMS token is invalid, or it has no SMS credit left.', 'action' => 'Put a token that still has credit in the local settings file (SMS_API_KEY), then press Retry SMS.'];
+        }
+        if ($has('sms_api_key', 'curl extension', 'not set')) {
+            return ['kind' => 'not-configured', 'cause' => 'SMS sending is not set up on this computer.', 'action' => 'Ask the MSWDO admin or the system administrator to set the SMS token (SMS_API_KEY in the local settings file).'];
+        }
+        if ($has('disabled in settings', 'switched off')) {
+            return ['kind' => 'disabled', 'cause' => 'SMS notifications are switched off in Notification Settings.', 'action' => 'Switch them on (MSWDO admin), then press Retry SMS.'];
+        }
+        if ($has('gateway rejected', 'http ')) {
+            return ['kind' => 'rejected', 'cause' => 'The SMS service refused the message.', 'action' => 'Read the details below. If it keeps happening, contact the SMS provider (IPROG).'];
+        }
+        return ['kind' => 'unknown', 'cause' => 'The SMS could not be sent.', 'action' => 'Press Retry SMS. If it fails again, read the details below or contact the system administrator.'];
     }
 
     /** 'test' or 'iprog' -- an unknown SMS_PROVIDER value is treated as test mode so nothing is sent by accident. */
@@ -499,6 +551,12 @@ class SMSService
         return self::compact() ? '7AM-' . str_replace(':00', '', date('g:iA', strtotime($closes))) : '7:00 AM to ' . date('g:i A', strtotime($closes));
     }
 
+    /** A time of day (HH:MM) as SMS text: "9:00 AM", or "9AM" / "9:30AM" in compact wording. */
+    public static function timeText(string $time): string
+    {
+        return self::compact() ? str_replace(':00', '', date('g:iA', strtotime($time))) : date('g:i A', strtotime($time));
+    }
+
     /** An interview date as SMS text ($date is Y-m-d): "Monday, November 23, 2026", or "Mon, Nov 23, 2026" in compact wording. */
     public static function dateText(string $date): string
     {
@@ -515,10 +573,11 @@ class SMSService
      * Staff scheduled an interview DATE for the applicant (interview_date_assigned): come on that date, or log in and pick another.
      * A custom text uses the same on/off switch, logged under its own key.
      */
-    public function notifyInterviewDateAssigned(int $applicationId, string $mobile, string $refNumber, string $date, string $location, ?string $customMessage = null): array
+    public function notifyInterviewDateAssigned(int $applicationId, string $mobile, string $refNumber, string $date, string $location, ?string $customMessage = null, ?string $time = null): array
     {
         if ($customMessage === null) {
-            return $this->sendTemplate('interview_date_assigned', ['{ref}' => $refNumber, '{when}' => self::dateText($date), '{hours}' => $this->officeHours(), '{location}' => $location], $applicationId, $mobile);
+            // With a time, it replaces the office-hours range in the text ("..., 9:00 AM at <place>").
+            return $this->sendTemplate('interview_date_assigned', ['{ref}' => $refNumber, '{when}' => self::dateText($date), '{hours}' => $time !== null ? self::timeText($time) : $this->officeHours(), '{location}' => $location], $applicationId, $mobile);
         }
         if (!$this->templateEnabled('interview_date_assigned')) {
             return ['id' => null, 'status' => 'DISABLED', 'test_mode' => false, 'error' => null];

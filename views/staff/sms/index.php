@@ -24,7 +24,7 @@
               <strong><?= e(sms_kind_label($r['template_key'])) ?></strong>
               <span class="small text-muted">· <?= e(date('M j, g:i A', strtotime((string) $r['sent_at']))) ?><?= (int) $r['attempts'] > 1 ? ' · attempt ' . (int) $r['attempts'] : '' ?></span>
               · <a href="<?= application_url($staff, (int) $r['application_id']) ?>"><?= e($r['reference_no'] ?: 'Application #' . (int) $r['application_id']) ?></a>
-              <?php if ($r['error']): ?><br><span class="small" style="color:var(--ac-fail)"><?= e($r['error']) ?></span><?php endif; ?>
+              <?php if ($r['error']): $help = SMSService::failureHelp($r['error']); ?><br><span class="small" style="color:var(--ac-fail)"><b>Cause:</b> <?= e($help['cause']) ?> <b>What to do:</b> <?= e($help['action']) ?><br>Details: <?= e($r['error']) ?></span><?php endif; ?>
               <?php if ($r['can_retry']): ?>
                 <form method="post" class="d-inline ms-2">
                   <?= csrf_field() ?>

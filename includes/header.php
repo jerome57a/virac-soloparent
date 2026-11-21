@@ -129,10 +129,16 @@ if (!empty($staff)) {
       <?php if (can($staff, 'appointments.view')): ?>
       <a href="<?= base_url(role_portal_path($staff, 'appointments.php')) ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive('staff/appointments.php', 'admin/appointments.php') ?>">
         <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        <span data-i18n><?= $staff['role'] === 'admin' ? 'Appointment Overview' : 'Appointment Management' ?></span>
+        <span data-i18n><?= $staff['role'] === 'admin' ? 'Appointment Overview' : 'Appointment Management' ?></span><?php if (($staff['role'] ?? '') !== 'admin'): require_once APP_ROOT . '/includes/sms-attention.php'; $outcomeWaiting = staff_outcome_waiting_count(); if ($outcomeWaiting > 0): ?><span style="margin-left:8px;background:#b45309;color:#fff;border-radius:999px;padding:1px 8px;font-size:12px;font-weight:700" aria-label="<?= (int) $outcomeWaiting ?> interviews need an outcome"><?= (int) $outcomeWaiting ?></span><?php endif; endif; ?>
       </a>
       <?php endif; ?>
-      <?php if (($staff['role'] ?? '') !== 'admin' && can($staff, 'applications.process')): require_once APP_ROOT . '/includes/sms-attention.php'; $smsAttention = staff_sms_attention_count(); ?>
+      <?php if (($staff['role'] ?? '') !== 'admin' && can($staff, 'applications.process')): require_once APP_ROOT . '/includes/sms-attention.php'; $docWaiting = staff_doc_waiting_counts(); ?>
+      <a href="<?= base_url('staff/dashboard.php#verification-queue') ?>" class="nav-drawer-link nav-drawer-link-icon" id="nav-docs-to-verify">
+        <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><polyline points="9 15 11 17 15 13"/></svg>
+        <span>Documents to Verify</span><?php if ($docWaiting['applications'] > 0): ?><span data-doc-badge style="margin-left:8px;background:<?= $docWaiting['resent'] > 0 ? '#b45309' : '#1b3a6b' ?>;color:#fff;border-radius:999px;padding:1px 8px;font-size:12px;font-weight:700"><?= (int) $docWaiting['applications'] ?></span><?php endif; ?>
+      </a>
+      <?php endif; ?>
+      <?php if (($staff['role'] ?? '') !== 'admin' && can($staff, 'applications.process')): $smsAttention = staff_sms_attention_count(); ?>
       <a href="<?= base_url('staff/sms.php') ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive('staff/sms.php') ?>">
         <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="12" y1="8" x2="12" y2="11"/><line x1="12" y1="14" x2="12.01" y2="14"/></svg>
         <span data-i18n>Failed Texts</span><?php if ($smsAttention > 0): ?><span style="margin-left:8px;background:#b3261e;color:#fff;border-radius:999px;padding:1px 8px;font-size:12px;font-weight:700" aria-label="<?= (int) $smsAttention ?> failed texts need attention"><?= (int) $smsAttention ?></span><?php endif; ?>

@@ -25,7 +25,7 @@ $words = ['SENT' => ['Sent', 'pass'], 'FAILED' => ['Failed', 'fail'], 'PENDING' 
         <span>
           <strong><?= e($kinds[$l['template_key']] ?? ($l['template_key'] ?: 'Message')) ?></strong>
           <span class="small text-muted">· <?= e(date('M j, g:i A', strtotime((string) $l['sent_at']))) ?><?= (int) $l['attempts'] > 1 ? ' · attempt ' . (int) $l['attempts'] : '' ?></span>
-          <?php if ($l['status'] === 'FAILED' && $l['error']): ?><br><span class="small" style="color:var(--ac-fail)"><?= e($l['error']) ?></span><?php endif; ?>
+          <?php if ($l['status'] === 'FAILED' && $l['error']): $help = SMSService::failureHelp($l['error']); ?><br><span class="small" style="color:var(--ac-fail)"><b>Cause:</b> <?= e($help['cause']) ?> <b>What to do:</b> <?= e($help['action']) ?><br>Details: <?= e($l['error']) ?></span><?php endif; ?>
           <?php if ($l['can_retry']): ?>
             <form method="post" class="d-inline ms-2">
               <?= csrf_field() ?>

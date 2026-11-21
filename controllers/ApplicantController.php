@@ -330,6 +330,9 @@ class ApplicantController extends Controller
                 return null;
         }
         // Under Verification (or For Revision with nothing left to fix)
+        if ($bookingOpen && ($latest['interview_status'] ?? '') === 'MISSED') {
+            return ['tone' => 'todo', 'title' => 'Please choose a new interview date', 'text' => 'Your last interview date has passed without an attendance record. Pick the new day you can come, Monday to Friday.', 'button' => ['Choose interview date', $appointmentUrl]];
+        }
         if ($bookingOpen) {
             return ['tone' => 'todo', 'title' => 'Choose your interview date', 'text' => 'Your documents are verified. Pick the day you want to come, Monday to Friday.', 'button' => ['Choose interview date', $appointmentUrl]];
         }

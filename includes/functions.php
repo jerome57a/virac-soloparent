@@ -329,7 +329,10 @@ function interview_date_format(string $timedFormat): string
 function interview_schedule_text(?string $scheduledAt, bool $dateOnly, string $timedFormat = 'F j, Y g:i A', ?string $dateFormat = null): string
 {
     // (string) only avoids the null deprecation; the result is exactly date($format, strtotime($scheduledAt)), also for null, '' or invalid input.
-    return date($dateOnly ? ($dateFormat ?? interview_date_format($timedFormat)) : $timedFormat, strtotime((string) $scheduledAt));
+    $ts = strtotime((string) $scheduledAt);
+    // A date booking MSWDO staff gave a time of day (not 00:00) shows that time as well.
+    $hasTime = $dateOnly && $ts !== false && date('His', $ts) !== '000000';
+    return date($dateOnly && !$hasTime ? ($dateFormat ?? interview_date_format($timedFormat)) : $timedFormat, $ts);
 }
 
 /**
@@ -338,7 +341,12 @@ function interview_schedule_text(?string $scheduledAt, bool $dateOnly, string $t
  */
 function interview_time_text(?string $scheduledAt, bool $dateOnly, string $timeFormat = 'g:i A', string $dateOnlyLabel = 'Date only'): string
 {
-    return $dateOnly ? $dateOnlyLabel : date($timeFormat, strtotime((string) $scheduledAt));
+    $ts = strtotime((string) $scheduledAt);
+    // A date booking that MSWDO staff gave a time (not 00:00) shows that time.
+    if ($dateOnly && ($ts === false || date('His', $ts) === '000000')) {
+        return $dateOnlyLabel;
+    }
+    return date($timeFormat, $ts);
 }
 
 /** Display label for a document status code (see Document::STATUSES). */

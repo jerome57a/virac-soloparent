@@ -15,6 +15,14 @@ class AppointmentEvent extends Model
         return (int) $stmt->fetchColumn();
     }
 
+    /** Every event of one application, oldest first (the staff "Interview history"). Only call when the date-booking feature is enabled. */
+    public function forApplication(int $applicationId): array
+    {
+        $stmt = $this->pdo->prepare('SELECT event_type, interview_date, source, actor_name, details, created_at FROM appointment_events WHERE application_id = ? ORDER BY id');
+        $stmt->execute([$applicationId]);
+        return $stmt->fetchAll();
+    }
+
     /** Adds one event. $actor is the staff member (id, full_name, role); $source is APPLICANT, STAFF or SYSTEM. */
     public function record(int $applicationId, string $eventType, string $source, array $actor, ?string $reason = null, ?string $details = null, ?int $appointmentId = null, ?string $interviewDate = null): void
     {

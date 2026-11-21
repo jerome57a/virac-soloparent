@@ -19,8 +19,8 @@ class IdReleaseService
     public function schedule(array $staff, array $app, string $date, string $time, string $location, string $messageType, string $customMessage): ?string
     {
         $dateTime = DateTime::createFromFormat('!Y-m-d H:i', $date . ' ' . $time);
-        if (!$dateTime || $dateTime->format('Y-m-d H:i') !== $date . ' ' . $time || $dateTime->getTimestamp() <= time()) {
-            return 'Choose a valid future ID release date and time.';
+        if (!$dateTime || $dateTime->format('Y-m-d H:i') !== $date . ' ' . $time || $dateTime->getTimestamp() < strtotime(date('Y-m-d H:i'))) {
+            return 'Choose a valid ID release date and time (now or later).';
         }
         $location = trim($location);
         if ($location === '' || mb_strlen($location) > 255) {
