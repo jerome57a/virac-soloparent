@@ -34,6 +34,8 @@ $idStatusLabel = $isExpired ? 'Expired' : ($isReleased ? 'ID Released' : 'Releas
           <div><dt data-i18n>Cardholder</dt><dd><?= e($idApplication['full_name']) ?></dd></div>
           <div><dt data-i18n>Reference number</dt><dd class="applicant-id-reference"><?= e($idApplication['reference_no']) ?></dd></div>
           <div><dt data-i18n>Category</dt><dd><?= e($idApplication['category_name']) ?></dd></div>
+          <?php $idValidFrom = $idApplication['id_valid_from'] ?? (($idReleaseSchedule['released_at'] ?? null) ? substr((string) $idReleaseSchedule['released_at'], 0, 10) : null); ?>
+          <?php if ($isReleased && $idValidFrom): ?><div><dt data-i18n>Valid from</dt><dd><?= e(format_date_long($idValidFrom)) ?></dd></div><?php endif; ?>
           <div><dt data-i18n>Valid until</dt><dd><?= $idExpiryInfo ? e(format_date_long($idExpiryInfo['date'])) : 'Set upon physical release' ?></dd></div>
         </dl>
       </section>

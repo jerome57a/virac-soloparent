@@ -2,18 +2,24 @@
 require_once __DIR__ . '/ApplicationService.php';
 require_once __DIR__ . '/../models/RenewalReminder.php';
 require_once __DIR__ . '/../models/RenewalRequirement.php';
+require_once __DIR__ . '/SoloParentChildRules.php';
 
 /**
  * ID Renewal: a single confirmation form using the current released ID,
  * category renewal requirements and accepted, unexpired documents. The draft is
  * pre-filled from that record and saved to the account (application_drafts,
  * kind 'renewal'), so it survives logout. Identity fields (name, birthdate,
- * sex, category), civil status, emergency contact and children are retained;
- * contact details may be updated. On submit it creates an applications
- * row with type 'renewal' whose renewal_of_id points at the ID it renews.
+ * sex, category) and the emergency contact are retained; contact details,
+ * civil status and the children (with "child with a disability", RA 11861)
+ * may be updated. On submit it creates an applications row with type
+ * 'renewal' whose renewal_of_id points at the ID it renews. Every renewal
+ * goes through an interview, like a new application, so MSWDO can confirm
+ * the Solo Parent still qualifies.
  *
- * A renewal opens within the admin-configured window before expiry
- * (renewal_reminder_days, default 30) or any time after the ID expired.
+ * Timing: the form opens renewal_reminder_days (default 30) before expiry so
+ * the Solo Parent can prepare it; it can be SUBMITTED from the expiration
+ * date; and it closes renewal_grace_days (default 365) after expiry, after
+ * which the Solo Parent applies again as a new application.
  */
 class RenewalService
 {
@@ -22,6 +28,8 @@ class RenewalService
     ];
     /** Fields that must stay as on the ID being renewed (a change of these needs a new application). */
     public const LOCKED_FIELDS = ['fullName', 'birthdate', 'sex', 'categoryId'];
+    /** The extra document for a child over 22 with a disability (RA 11861). */
+    public const DISABILITY_PROOF_KEY = 'childDisabilityProof';
 
     private PDO $pdo;
     private Application $applications;
@@ -57,30 +65,58 @@ class RenewalService
     }
 
     /**
-     * When the ID can be renewed: ['open' => bool, 'expiresAt' => ?date, 'expired' => bool, 'opensOn' => ?date, 'windowDays' => int].
-     * An ID without an expiry date (older records) can always be renewed.
+     * When the ID can be renewed. 'open': the form may be filled in (prepared) now; 'submitOpen': it may be submitted now (from the
+     * expiration date); 'closed': the renewal period after expiry ended (a new application is needed). Also expiresAt, expired,
+     * opensOn (form opens), submitFrom (= expiresAt), closesOn, windowDays, graceDays. An ID without an expiry date (older records)
+     * can always be renewed.
      */
-    public function window(array $source): array
+    public function window(array $source, ?string $today = null): array
     {
+        $today ??= date('Y-m-d');
         $windowDays = max(1, (int) get_setting($this->pdo, 'renewal_reminder_days', '30'));
+        $graceDays = max(1, (int) get_setting($this->pdo, 'renewal_grace_days', '365'));
         $expiresAt = $source['id_expires_at'] ?: null;
         if (!$expiresAt) {
-            return ['open' => true, 'expiresAt' => null, 'expired' => false, 'opensOn' => null, 'windowDays' => $windowDays];
+            return ['open' => true, 'submitOpen' => true, 'closed' => false, 'expiresAt' => null, 'expired' => false, 'opensOn' => null,
+                'submitFrom' => null, 'closesOn' => null, 'windowDays' => $windowDays, 'graceDays' => $graceDays];
         }
         $opensOn = date('Y-m-d', strtotime($expiresAt . " -$windowDays days"));
+        $closesOn = date('Y-m-d', strtotime($expiresAt . " +$graceDays days"));
+        $closed = $today > $closesOn;
         return [
-            'open' => date('Y-m-d') >= $opensOn,
+            'open' => !$closed && $today >= $opensOn,
+            'submitOpen' => !$closed && $today >= $expiresAt,
+            'closed' => $closed,
             'expiresAt' => $expiresAt,
-            'expired' => $expiresAt < date('Y-m-d'),
+            'expired' => $expiresAt < $today,
             'opensOn' => $opensOn,
+            'submitFrom' => $expiresAt,
+            'closesOn' => $closesOn,
             'windowDays' => $windowDays,
+            'graceDays' => $graceDays,
         ];
+    }
+
+    /**
+     * The documents this renewal needs: the category renewal list and expired replacements (RenewalRequirement::plan), plus a PWD ID
+     * or medical certificate when a child over 22 is marked as having a disability (RA 11861).
+     */
+    public function planFor(array $source, ?array $draft = null): array
+    {
+        $plan = (new RenewalRequirement($this->pdo))->plan($source);
+        $children = $draft['children'] ?? array_map(fn($c) => ['birthdate' => $c['birthdate'], 'disability' => !empty($c['has_disability'])], $source['children'] ?? []);
+        if (SoloParentChildRules::needsDisabilityProof($children, date('Y-m-d'))
+            && !in_array(self::DISABILITY_PROOF_KEY, array_column($plan['fresh'], 'doc_key'), true)) {
+            $plan['fresh'][] = ['doc_key' => self::DISABILITY_PROOF_KEY, 'label' => 'PWD ID or medical certificate of the child with a disability',
+                'is_required' => 1, 'source_checklist_id' => null, 'reason' => 'Needed because a child over 22 is marked as having a disability (RA 11861).'];
+        }
+        return $plan;
     }
 
     /** A new renewal draft, pre-filled from the ID being renewed (the renewal starts from the previous record). */
     public function freshDraft(array $source): array
     {
-        $children = array_map(fn($c) => ['name' => $c['full_name'], 'birthdate' => $c['birthdate']], $source['children']);
+        $children = array_map(fn($c) => ['name' => $c['full_name'], 'birthdate' => $c['birthdate'], 'disability' => !empty($c['has_disability'])], $source['children']);
         return [
             'sourceId' => (int) $source['id'],
             'step' => 1,
@@ -148,9 +184,9 @@ class RenewalService
     }
 
     /** Only category renewal documents and expired replacements; no full new-application checklist. */
-    public function documentRequirements(array $source): array
+    public function documentRequirements(array $source, ?array $draft = null): array
     {
-        return (new RenewalRequirement($this->pdo))->plan($source)['fresh'];
+        return $this->planFor($source, $draft)['fresh'];
     }
 
     /** Merges the step's permitted fields from $post into the draft; locked fields always stay as on the previous record. */
@@ -161,15 +197,32 @@ class RenewalService
                 $draft[$key] = is_string($post[$key]) ? mb_substr(trim($post[$key]),0,500) : '';
             }
         }
-        $draft['civilStatus'] = $source['civil_status'];
+        if (isset($post['civilStatus'])) {
+            $draft['civilStatus'] = is_string($post['civilStatus']) ? mb_substr(trim($post['civilStatus']), 0, 50) : '';
+        }
         $draft = array_replace($draft,EmergencyContactService::draftFields($source));
+        if (isset($post['children']) && is_array($post['children'])) {
+            // The children as the Solo Parent updated them: blank rows are dropped; "with a disability" is a tick.
+            $children = [];
+            foreach ($post['children'] as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $name = is_string($row['name'] ?? null) ? mb_substr(trim($row['name']), 0, 150) : '';
+                $birthdate = is_string($row['birthdate'] ?? null) ? trim($row['birthdate']) : '';
+                if ($name === '' && $birthdate === '') {
+                    continue;
+                }
+                $children[] = ['name' => $name, 'birthdate' => $birthdate, 'disability' => !empty($row['disability'])];
+            }
+            $draft['children'] = $children;
+        }
         {
             // Only documents this renewal actually requires stay in the draft; per-file upload errors are per request.
-            $allowed = array_column($this->documentRequirements($source), 'doc_key');
+            $allowed = array_column($this->documentRequirements($source, $draft), 'doc_key');
             $draft['documents'] = array_intersect_key($draft['documents'] ?? [], array_flip($allowed));
             $draft['docErrors'] = [];
             $draft['consent'] = !empty($post['consent']);
-            $draft['children'] = array_map(fn($child) => ['name'=>$child['full_name'],'birthdate'=>$child['birthdate']],$source['children']);
             $draft['step'] = 1;
         }
         return $this->lock($draft, $source);
@@ -183,7 +236,7 @@ class RenewalService
      */
     public function attachDocument(array $user, array $source, array $draft, string $docKey, array $file): array
     {
-        $allowed = array_column($this->documentRequirements($source), 'doc_key');
+        $allowed = array_column($this->documentRequirements($source, $draft), 'doc_key');
         if (!in_array($docKey, $allowed, true)) {
             $draft['docErrors'][$docKey] = 'That document is not required for this renewal.';
             return $draft;
@@ -202,9 +255,27 @@ class RenewalService
         if (!$source) {
             return ['renewal'=>'The existing ID record was not found.'];
         }
-        $plan = (new RenewalRequirement($this->pdo))->plan($source);
+        $plan = $this->planFor($source, $draft);
         if (!$plan['configured']) {
             $errors['requirements'] = 'Renewal requirements for your category are not configured yet. Contact MSWDO.';
+        }
+        if (!in_array((string) ($draft['civilStatus'] ?? ''), defined('CIVIL_STATUS_OPTIONS') ? CIVIL_STATUS_OPTIONS : ['Single', 'Married', 'Widowed', 'Separated', 'Annulled'], true)) {
+            $errors['civilStatus'] = 'Select your civil status.';
+        }
+        $children = $draft['children'] ?? [];
+        if (!$children) {
+            $errors['children'] = 'List at least one child living with you and depending on you.';
+        }
+        foreach ($children as $i => $child) {
+            $n = $i + 1;
+            if (trim((string) ($child['name'] ?? '')) === '') {
+                $errors['children'] = 'Child ' . $n . ': enter the full name.';
+                break;
+            }
+            if (SoloParentChildRules::age((string) ($child['birthdate'] ?? ''), date('Y-m-d')) === null) {
+                $errors['children'] = 'Child ' . $n . ' (' . $child['name'] . '): enter a real birthdate that is not in the future.';
+                break;
+            }
         }
         foreach (['barangay'=>100,'address'=>255] as $key=>$max) {
             if (trim((string) ($draft[$key] ?? '')) === '' || mb_strlen($draft[$key]) > $max) {
@@ -250,7 +321,7 @@ class RenewalService
         return self::diff($source, [
             'barangay' => $draft['barangay'], 'address' => $draft['address'], 'mobile' => normalize_mobile($draft['contact']),
             'email' => $draft['email'], 'civil_status' => $draft['civilStatus'],
-            'children' => array_map(fn($c) => ['full_name' => $c['name'], 'birthdate' => $c['birthdate']], $draft['children']),
+            'children' => array_map(fn($c) => ['full_name' => $c['name'], 'birthdate' => $c['birthdate'], 'has_disability' => !empty($c['disability'])], $draft['children']),
         ]);
     }
 
@@ -264,7 +335,7 @@ class RenewalService
                 $changes[$label] = [(string) $previous[$field], (string) $current[$field]];
             }
         }
-        $kids = fn(array $list) => implode('; ', array_map(fn($c) => $c['full_name'] . ' (' . $c['birthdate'] . ')', $list));
+        $kids = fn(array $list) => implode('; ', array_map(fn($c) => $c['full_name'] . ' (' . $c['birthdate'] . (!empty($c['has_disability']) ? ', with a disability' : '') . ')', $list));
         if ($kids($previous['children']) !== $kids($current['children'])) {
             $changes['Children'] = [$kids($previous['children']), $kids($current['children'])];
         }
@@ -280,12 +351,15 @@ class RenewalService
         if ($this->renewalInProgress($user)) {
             throw new DomainException('You already have a renewal in progress.');
         }
-        if (!$this->window($source)['open']) {
-            throw new DomainException('This ID is not due for renewal yet.');
+        $window = $this->window($source);
+        if ($window['closed']) {
+            throw new DomainException('The renewal period for this ID has ended. Please apply again as a new application.');
+        }
+        if (!$window['submitOpen']) {
+            throw new DomainException('You can submit your renewal from ' . date('F j, Y', strtotime((string) $window['submitFrom'])) . ', the day your ID expires. Your draft is saved.');
         }
         $draft = $this->lock($draft, $source);
         $draft['contact'] = (string) $user['mobile'];
-        $draft['children'] = array_map(fn($child) => ['name'=>$child['full_name'],'birthdate'=>$child['birthdate']],$source['children']);
         if ($this->firstInvalidStep($draft)) {
             throw new DomainException('Check the renewal details and required documents before submitting.');
         }
@@ -307,7 +381,7 @@ class RenewalService
             if (!$currentId || (int) $currentId['id'] !== (int) $source['id']) {
                 throw new DomainException('Your current ID changed. Refresh the renewal page.');
             }
-            $plan = (new RenewalRequirement($this->pdo))->plan($source);
+            $plan = $this->planFor($source, $draft);
             // Every document this renewal requires must have an uploaded file still present in the draft.
             $fresh = array_column($plan['fresh'], 'doc_key');
             $documents = array_intersect_key($draft['documents'] ?? [], array_flip($fresh));
@@ -317,14 +391,14 @@ class RenewalService
             }
             $refNumber = generate_reference_no($this->pdo);
             $applicationId = $this->applications->create($refNumber, (int) $user['id'], 'renewal', $fields, date('Y-m-d H:i:s'), (int) $source['id']);
-            $this->pdo->prepare('UPDATE applications SET renewal_simplified=1 WHERE id=?')->execute([$applicationId]);
+            // A renewal is no longer documents-only: it gets an interview like a new application (renewal_simplified stays 0).
             foreach ($draft['children'] as $c) {
-                $this->applications->addChild($applicationId, $c['name'], $c['birthdate']);
+                $this->applications->addChild($applicationId, $c['name'], $c['birthdate'], !empty($c['disability']));
             }
             // Uploaded files are recorded as FOR_VERIFICATION and their snapshot rows stay Pending: staff verify them.
             (new RenewalRequirement($this->pdo))->snapshot($applicationId,$plan,array_fill_keys(array_keys($documents),true));
             $this->applicationService->storeDraftDocuments($applicationId, $documents, $user);
-            $this->applications->addHistory($applicationId, 'Pending Review', 'Renewal of ' . $source['reference_no'] . ' submitted online.', $user['full_name'], (int) $user['id']);
+            $this->applications->addHistory($applicationId, 'Pending Review', 'Renewal of ' . $source['reference_no'] . ' submitted online. An interview will confirm the Solo Parent still qualifies (RA 11861).', $user['full_name'], (int) $user['id']);
             $this->pdo->commit();
         } catch (Throwable $e) {
             $this->pdo->rollBack();
@@ -355,75 +429,138 @@ class RenewalService
     }
 
     /**
-     * IDs that should get a renewal reminder now: released IDs whose expiry is
-     * within the reminder window -- or already past it by no more than the
-     * same number of days (a catch-up if the job didn't run in time) -- of
-     * active accounts, with no renewal already filed for them, and not yet
-     * reminded for this expiry (or whose earlier attempt failed and may be
-     * retried).
+     * IDs whose expiry-day SMS is due now: released IDs that expire TODAY (Manila date; the date MSWDO staff entered from the card),
+     * of active accounts, with no renewal already filed, and not yet sent for this expiry (a FAILED attempt is retried the same day,
+     * up to RenewalReminder::MAX_ATTEMPTS). Nothing is sent before the expiry date, and nothing after it: a day the system was not
+     * running is shown to staff instead (expirySmsNotSent). An old advance reminder for the same expiry does not count.
      */
-    public function dueForReminder(): array
+    public function dueForReminder(?string $today = null): array
     {
-        $days = $this->reminderDays();
+        $today ??= self::manilaToday();
         $stmt = $this->pdo->prepare(
-            "SELECT a.id, a.user_id, a.reference_no, a.mobile, a.id_expires_at, DATEDIFF(a.id_expires_at, CURDATE()) AS days_left
+            "SELECT a.id, a.user_id, a.reference_no, a.mobile, a.id_expires_at, 0 AS days_left
              FROM applications a
              JOIN users u ON u.id = a.user_id AND u.is_active = 1
              WHERE a.status = 'ID Released'
-               AND a.id_expires_at IS NOT NULL
-               AND a.id_expires_at BETWEEN DATE_SUB(CURDATE(), INTERVAL ? DAY) AND DATE_ADD(CURDATE(), INTERVAL ? DAY)
+               AND a.id_expires_at = ?
                AND NOT EXISTS (SELECT 1 FROM applications r WHERE r.renewal_of_id = a.id AND r.status <> 'Rejected')
                AND NOT EXISTS (SELECT 1 FROM renewal_reminders rr WHERE rr.application_id = a.id AND rr.id_expires_at = a.id_expires_at
-                               AND (rr.status <> 'FAILED' OR rr.attempts >= ?))
-             ORDER BY a.id_expires_at, a.id"
+                               AND rr.days_before <= 0 AND (rr.status <> 'FAILED' OR rr.attempts >= ?))
+             ORDER BY a.id"
         );
-        $stmt->execute([$days, $days, RenewalReminder::MAX_ATTEMPTS]);
+        $stmt->execute([$today, RenewalReminder::MAX_ATTEMPTS]);
         return $stmt->fetchAll();
     }
 
     /**
-     * Sends each due renewal reminder: an in-app notification plus an SMS
-     * (logged in sms_logs with the provider's result). Each reminder is
-     * claimed before sending so overlapping runs never send twice, and one
-     * failure doesn't stop the others -- it is recorded and retried by a
-     * later run. $trigger ('cron' or 'manual') is stored on each reminder.
-     * Returns ['checked' => int, 'sent' => refs, 'failed' => refs].
+     * Sends each due expiry-day message: an in-app notification (once) plus one SMS (logged in sms_logs). Each is claimed before
+     * sending so overlapping runs never send twice; an SMS that fails is marked FAILED and tried again by a later run the same day.
+     * $trigger ('cron' or 'manual') is stored on each reminder. Returns ['checked' => int, 'sent' => refs, 'failed' => refs].
      */
-    public function sendDueReminders(string $trigger = 'cron'): array
+    public function sendDueReminders(string $trigger = 'cron', ?string $today = null): array
     {
-        $due = $this->dueForReminder();
-        $reminders = new RenewalReminder($this->pdo);
-        $sms = new SMSService($this->pdo);
+        $due = $this->dueForReminder($today);
         $sent = [];
         $failed = [];
         foreach ($due as $app) {
-            $daysLeft = (int) $app['days_left'];
-            $reminderId = $reminders->claim((int) $app['id'], $app['id_expires_at'], (int) $app['user_id'], $daysLeft, $trigger);
-            if ($reminderId === null) {
-                continue; // another run has it
-            }
-            try {
-                $when = date('M j, Y', strtotime($app['id_expires_at']));
-                $message = $daysLeft >= 0
-                    ? 'Your Solo Parent ID (' . $app['reference_no'] . ') expires on ' . $when . ($daysLeft === 0 ? ' (today)' : ' (in ' . $daysLeft . ' day' . ($daysLeft === 1 ? '' : 's') . ')') . '. Renew it online under ID Renewal.'
-                    : 'Your Solo Parent ID (' . $app['reference_no'] . ') expired on ' . $when . '. Renew it online under ID Renewal to keep your benefits.';
-                // Notification + SMS log together: a failed attempt leaves nothing behind, so a retry can't duplicate them.
-                $this->pdo->beginTransaction();
-                $notificationId = create_notification($this->pdo, (int) $app['user_id'], 'renewal_reminder', $message, (int) $app['id']);
-                $delivery = $sms->notifyRenewalReminder((int) $app['id'], $app['mobile'], $app['reference_no'], $app['id_expires_at']);
-                $reminders->markSent($reminderId, $delivery['status'], $notificationId);
-                $this->pdo->commit();
+            $smsIgnored = null;
+            $result = $this->sendExpiryMessage($app, $trigger, $smsIgnored);
+            if ($result === 'sent') {
                 $sent[] = $app['reference_no'];
-            } catch (Throwable $e) {
-                if ($this->pdo->inTransaction()) {
-                    $this->pdo->rollBack();
-                }
-                error_log('Renewal reminder for ' . $app['reference_no'] . ' failed: ' . $e->getMessage());
-                $reminders->markFailed($reminderId, $e->getMessage());
+            } elseif ($result === 'failed') {
                 $failed[] = $app['reference_no'];
             }
         }
         return ['checked' => count($due), 'sent' => $sent, 'failed' => $failed];
+    }
+
+    /**
+     * Released IDs that expired in the last $days days (before today) and never got their expiry-day SMS: the system was not
+     * running that day, or every attempt failed. Staff decide whether to press Send now; the system never sends it by itself.
+     */
+    public function expirySmsNotSent(int $days = 30, ?string $today = null): array
+    {
+        $today ??= self::manilaToday();
+        $from = date('Y-m-d', strtotime($today . ' -' . max(1, $days) . ' days'));
+        $stmt = $this->pdo->prepare(
+            "SELECT a.id, a.user_id, a.reference_no, a.full_name, a.mobile, a.id_expires_at
+             FROM applications a
+             JOIN users u ON u.id = a.user_id AND u.is_active = 1
+             WHERE a.status = 'ID Released' AND a.id_expires_at < ? AND a.id_expires_at >= ?
+               AND NOT EXISTS (SELECT 1 FROM applications r WHERE r.renewal_of_id = a.id AND r.status <> 'Rejected')
+               AND NOT EXISTS (SELECT 1 FROM renewal_reminders rr WHERE rr.application_id = a.id AND rr.id_expires_at = a.id_expires_at
+                               AND rr.days_before <= 0 AND rr.status IN ('SENT', 'SENDING'))
+             ORDER BY a.id_expires_at, a.id"
+        );
+        $stmt->execute([$today, $from]);
+        return $stmt->fetchAll();
+    }
+
+    /** Staff pressed Send now for one ID in expirySmsNotSent(). Returns [error or null, SMS result or null]. */
+    public function sendExpirySmsNow(array $staff, int $applicationId): array
+    {
+        $row = null;
+        foreach ($this->expirySmsNotSent(366) as $candidate) {
+            if ((int) $candidate['id'] === $applicationId) {
+                $row = $candidate;
+                break;
+            }
+        }
+        if ($row === null) {
+            return ['This expiry SMS was already sent or is no longer needed. Refresh the page.', null];
+        }
+        $smsResult = null;
+        $result = $this->sendExpiryMessage($row + ['days_left' => (int) floor((strtotime((string) $row['id_expires_at']) - strtotime(self::manilaToday())) / 86400)], 'manual', $smsResult);
+        if ($result === 'busy') {
+            return ['This SMS is being sent right now. Refresh the page in a moment.', null];
+        }
+        audit_log($this->pdo, (int) $staff['id'], $staff['full_name'], $staff['role'], 'ID Expiry SMS Sent Manually', 'application', $applicationId,
+            $row['reference_no'] . ' · expired ' . $row['id_expires_at'] . ' · ' . (($smsResult['status'] ?? '') ?: 'not sent'));
+        return [null, $smsResult];
+    }
+
+    /** One expiry message (in-app once, SMS once). Returns 'sent', 'failed' or 'busy'; $smsResult receives the SMS outcome. */
+    private function sendExpiryMessage(array $app, string $trigger, ?array &$smsResult): string
+    {
+        $reminders = new RenewalReminder($this->pdo);
+        $daysLeft = (int) ($app['days_left'] ?? 0);
+        $reminderId = $trigger === 'manual'
+            ? $reminders->claimManual((int) $app['id'], $app['id_expires_at'], (int) $app['user_id'], $daysLeft)
+            : $reminders->claim((int) $app['id'], $app['id_expires_at'], (int) $app['user_id'], $daysLeft, $trigger);
+        if ($reminderId === null) {
+            return 'busy'; // another run has it, or it was already sent
+        }
+        try {
+            $when = date('M j, Y', strtotime($app['id_expires_at']));
+            $message = $daysLeft >= 0
+                ? 'Your Solo Parent ID (' . $app['reference_no'] . ') expired today (' . $when . '). Please renew online or visit MSWDO.'
+                : 'Your Solo Parent ID (' . $app['reference_no'] . ') expired on ' . $when . '. Please renew online or visit MSWDO.';
+            $this->pdo->beginTransaction();
+            $notificationId = $reminders->notificationFor($reminderId)
+                ?? create_notification($this->pdo, (int) $app['user_id'], 'renewal_reminder', $message, (int) $app['id']);
+            $smsResult = (new SMSService($this->pdo))->notifyRenewalReminder((int) $app['id'], $app['mobile'], $app['reference_no'], $app['id_expires_at']);
+            if (($smsResult['status'] ?? '') === 'FAILED') {
+                $reminders->markSmsFailed($reminderId, 'FAILED', $notificationId, (string) ($smsResult['error'] ?? 'SMS failed'));
+                $this->pdo->commit();
+                return 'failed';
+            }
+            $reminders->markSent($reminderId, (string) ($smsResult['status'] ?? ''), $notificationId);
+            $this->pdo->commit();
+            return 'sent';
+        } catch (Throwable $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            error_log('ID expiry message for ' . $app['reference_no'] . ' failed: ' . $e->getMessage());
+            $reminders->markFailed($reminderId, $e->getMessage());
+            return 'failed';
+        }
+    }
+
+    /** Today's date in Manila (the expiry dates are Manila calendar dates, whatever the database server's time zone). */
+    public static function manilaToday(): string
+    {
+        return (new DateTimeImmutable('now', new DateTimeZone('Asia/Manila')))->format('Y-m-d');
     }
     /** Puts the locked identity fields back to the previous record's values. */
     private function lock(array $draft, array $source): array

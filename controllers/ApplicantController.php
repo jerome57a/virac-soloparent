@@ -273,8 +273,10 @@ class ApplicantController extends Controller
             return ['state' => 'none'];
         }
         $windowDays = (int) get_setting($this->pdo, 'renewal_reminder_days', '30');
+        $graceDays = max(1, (int) get_setting($this->pdo, 'renewal_grace_days', '365'));
         $daysLeft = (int) floor((strtotime($idApplication['id_expires_at']) - strtotime('today')) / 86400);
-        $state = $daysLeft < 0 ? 'expired' : ($daysLeft <= $windowDays ? 'due' : 'valid');
+        // closed: the renewal period after expiry ended, so the Solo Parent applies again as a new application.
+        $state = $daysLeft < -$graceDays ? 'closed' : ($daysLeft < 0 ? 'expired' : ($daysLeft <= $windowDays ? 'due' : 'valid'));
         return ['state' => $state, 'daysLeft' => $daysLeft, 'expiresAt' => $idApplication['id_expires_at'], 'windowDays' => $windowDays];
     }
 
@@ -317,13 +319,22 @@ class ApplicantController extends Controller
                     $dateOnly = interview_is_date_only($upcoming, 'interview_date_only');
                     $day = date('Y-m-d', $when) === date('Y-m-d') ? 'today' : (date('Y-m-d', $when) === date('Y-m-d', strtotime('+1 day')) ? 'tomorrow' : 'on ' . date('l, F j, Y', $when));
                     return ['tone' => 'info', 'title' => 'Your interview is ' . $day,
-                        'text' => ($dateOnly ? 'Come any time from 7:00 AM to 5:00 PM and bring a valid ID.' : 'Come at ' . date('g:i A', $when) . ' and bring a valid ID.')
+                        'text' => ($dateOnly ? 'Come any time from 7:00 AM to 5:00 PM' : 'Come at ' . date('g:i A', $when))
+                            . (($latest['type'] ?? '') === 'renewal' ? ' and bring your current Solo Parent ID and a valid ID. MSWDO will check that you still qualify.' : ' and bring a valid ID.')
                             . ($staffScheduled ? ' MSWDO picked this date for you. You can keep it or choose another day.' : ''),
                         'button' => $staffScheduled ? ['Choose another day', $appointmentUrl] : ['View appointment', $appointmentUrl]];
                 }
                 return ['tone' => 'wait', 'title' => 'Your interview needs a new date', 'text' => 'Please contact MSWDO or check the Appointment page.', 'button' => ['Open Appointment', $appointmentUrl]];
             case 'Approved':
-                return ['tone' => 'done', 'title' => 'Your application is approved', 'text' => 'MSWDO will text you when and where to pick up your Solo Parent ID. Bring a valid ID.', 'button' => null];
+                $release = (new IdReleaseService($this->pdo))->scheduleFor((int) $latest['id']);
+                $myIdUrl = base_url('applicant/dashboard.php?section=myid');
+                if ($release && empty($release['released_at']) && strtotime((string) $release['scheduled_at']) < time()) {
+                    return ['tone' => 'todo', 'title' => 'Your ID is ready', 'text' => 'Your release date has passed, but your Solo Parent ID is kept at the MSWDO office. Please visit MSWDO during office hours and bring a valid ID. Only you can receive it.', 'button' => ['View release details', $myIdUrl]];
+                }
+                if ($release && empty($release['released_at'])) {
+                    return ['tone' => 'info', 'title' => 'Collect your Solo Parent ID', 'text' => 'Come on ' . date('l, F j, Y \a\t g:i A', strtotime((string) $release['scheduled_at'])) . ' at ' . $release['location'] . '. Bring a valid ID. Only you can receive it.', 'button' => ['View release details', $myIdUrl]];
+                }
+                return ['tone' => 'done', 'title' => 'Your application is approved', 'text' => 'MSWDO will tell you when and where to pick up your Solo Parent ID. Bring a valid ID.', 'button' => null];
             case 'ID Released':
                 return ['tone' => 'done', 'title' => 'Your Solo Parent ID has been released', 'text' => 'You can view your ID details and renewal date any time.', 'button' => ['View my ID', base_url('applicant/dashboard.php?section=myid')]];
             case 'Rejected':
@@ -349,7 +360,7 @@ class ApplicantController extends Controller
         $actions = [];
         if ($draft) {
             $actions[] = ['Continue My Application', base_url('applicant/dashboard.php?section=apply'), 'apply'];
-        } elseif (!$latest || $latest['status'] === 'Rejected') {
+        } elseif (!$latest || $latest['status'] === 'Rejected' || $renewal['state'] === 'closed') {
             $actions[] = ['Apply for Solo Parent ID', base_url('applicant/dashboard.php?section=apply'), 'apply'];
         }
         if ($latest && $latest['status'] === 'For Revision') {

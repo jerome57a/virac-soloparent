@@ -37,7 +37,9 @@ $apptStyles = [
         <div class="info-box" style="max-width:none" data-i18n>MSWDO staff will arrange your interview schedule after all required documents have been uploaded and verified. Your schedule will appear here and be sent by SMS. If MSWDO asks for a correction, upload a replacement; MSWDO staff must verify it before your interview can be scheduled. <a href="?section=documents" data-i18n>Go to Documents</a>.</div>
         <?php else:
           $apptStep = $status === 'BOOKED' ? 3 : (($booking['state'] ?? '') === 'open' ? 2 : 1);
-          $apptSteps = [1 => ['Documents verified', 'MSWDO verifies your required documents'], 2 => ['Choose your date', 'Pick the day you want to arrive'], 3 => ['Come to the office', 'Bring a valid ID on your date']];
+          $isRenewalInterview = ($bookableApp['type'] ?? '') === 'renewal' && empty($bookableApp['renewal_simplified']);
+          $apptSteps = [1 => ['Documents verified', 'MSWDO verifies your required documents'], 2 => ['Choose your date', 'Pick the day you want to arrive'],
+              3 => ['Come to the office', $isRenewalInterview ? 'Bring your current Solo Parent ID and a valid ID' : 'Bring a valid ID on your date']];
         ?>
         <ol class="appt-steps" aria-label="Interview steps">
           <?php foreach ($apptSteps as $n => [$stepTitle, $stepHint]): ?>
@@ -49,6 +51,15 @@ $apptStyles = [
         </ol>
         <?php endif; ?>
 
+        <?php if (($bookableApp['type'] ?? '') === 'renewal' && empty($bookableApp['renewal_simplified'])): ?>
+          <div class="renewal-bring-id" role="note">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="12" r="2"/><path d="M14 10h4M14 14h3"/></svg>
+            <div>
+              <b data-i18n>Renewal interview: bring your current Solo Parent ID</b>
+              <span data-i18n>Also bring a valid ID. MSWDO checks your ID and confirms that you still qualify as a Solo Parent. If you lost your ID, tell the staff at the interview and bring an affidavit of loss if you have one.</span>
+            </div>
+          </div>
+        <?php endif; ?>
         <?php if ($appointment): [$bg, $fg, $label] = $apptStyles[$status]; $apptTs = strtotime((string) $appointment['scheduled_at']); ?>
           <section class="appt-card" aria-labelledby="appt-card-title">
             <div class="appt-card-main">

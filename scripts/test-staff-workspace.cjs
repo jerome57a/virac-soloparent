@@ -22,6 +22,8 @@ const routes = ['dashboard.php', 'notifications.php', 'index.php', 'applicants.p
       fixture: relative => relative.startsWith('staff/') ? previews.get(relative.slice(6)) : undefined,
     });
     const page = await context.newPage();
+    // The staff pages poll staff/doc_alerts.php for the "documents to verify" alert: answer it with an empty, read-only stub.
+    await page.route('**/staff/doc_alerts.php', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ waiting: 0, resent: 0, latest: '', first: null }) }));
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
     for (const route of routes) {

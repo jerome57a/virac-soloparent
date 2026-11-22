@@ -164,6 +164,48 @@ try {
     try { $ghostErr = $service->staffSetOutcome($staff, $ghostAppt, 'MISSED', '', $ghostSms); } catch (Throwable $e) { $ghostErr = 'thrown: ' . $e->getMessage(); }
     sa_assert($ghostErr === null, 'Did not attend must work when the account is gone: ' . var_export($ghostErr, true));
     sa_assert($test->query("SELECT status FROM appointments WHERE id = $ghostAppt")->fetchColumn() === 'MISSED', 'The miss was not saved.');
+    // ---- The recommended decisions ----
+    $test->exec('SET FOREIGN_KEY_CHECKS=0'); // the cloned test data has no roles table rows; fixtures insert users directly
+    require_once __DIR__ . '/../services/ApplicationReviewService.php';
+    $review = new ApplicationReviewService($test);
+    $appRow = fn(int $id) => $test->query("SELECT * FROM applications WHERE id = $id")->fetch();
+
+    // (4) the missed-interview limit is 3 by default and is a setting.
+    sa_assert((new InterviewInvitationService($test))->missedLimit() === 3, 'The default missed-interview limit must be 3.');
+    set_setting($test, 'interview_missed_limit', '1');
+    [$limApp, $limAppt] = $mk('R-LIMIT', date('Y-m-d', strtotime('-2 days')), '00:00:00');
+    sa_assert($service->staffSetOutcome($staff, $limAppt, 'MISSED', '', $limSms) === null, 'Marking the limit case missed failed.');
+    sa_assert($test->query("SELECT status FROM interview_invitations WHERE application_id = $limApp")->fetchColumn() === 'CLOSED', 'Reaching the limit must close booking.');
+    set_setting($test, 'interview_missed_limit', '3');
+
+    // (1) staff can still confirm "attended" after the system released the interview (R-OLD was released above).
+    $late = $review->recordInterviewResult($staff, $oldApp, 'Successful');
+    sa_assert($late === null, 'Recording attendance after a release failed: ' . var_export($late, true));
+    sa_assert($test->query("SELECT status FROM appointments WHERE id = $oldAppt")->fetchColumn() === 'COMPLETED', 'The interview should be completed.');
+    sa_assert($test->query("SELECT status FROM interview_invitations WHERE application_id = $oldApp")->fetchColumn() === 'BOOKED', 'The booking should close again.');
+    sa_assert((new AppointmentEvent($test))->countOf($oldApp, 'ATTENDED_CONFIRMED') === 1, 'The late confirmation must be in the history.');
+
+    // (2) after an UNSUCCESSFUL interview: approval stays locked, corrections and another interview are possible.
+    [$unApp, $unAppt] = $mk('R-UNSUC', date('Y-m-d', strtotime('-2 days')), '00:00:00');
+    sa_assert($review->recordInterviewOutcome($staff, $unApp, 'Unsuccessful', 'details do not match') === null, 'Recording an unsuccessful result failed.');
+    $approve = $review->updateStatus($staff, $appRow($unApp), 'Approved', '');
+    sa_assert(is_string($approve) && str_contains($approve, 'successful interview'), 'Approval must stay locked after an unsuccessful interview.');
+    $retake = (new InterviewBookingService($test))->scheduleForApplicant($staff, $unApp, date('Y-m-d'), null, $retakeSms, '23:59');
+    sa_assert($retake === null, 'Another interview could not be scheduled after an unsuccessful one: ' . var_export($retake, true));
+    $row = $test->query("SELECT status, result FROM appointments WHERE id = $unAppt")->fetch();
+    sa_assert($row['status'] === 'BOOKED' && $row['result'] === null, 'The new interview must be booked and the old result cleared.');
+    sa_assert($test->query("SELECT status FROM interview_invitations WHERE application_id = $unApp")->fetchColumn() === 'BOOKED', 'The booking must show as set.');
+    [$un2App, $un2Appt] = $mk('R-UNSUC2', date('Y-m-d', strtotime('-2 days')), '00:00:00');
+    sa_assert($review->recordInterviewOutcome($staff, $un2App, 'Unsuccessful', 'incomplete') === null, 'Recording the second unsuccessful result failed.');
+    $fix = $review->updateStatus($staff, $appRow($un2App), 'For Revision', 'Please upload a clearer ID');
+    sa_assert($fix === null, 'Requesting corrections after an unsuccessful interview failed: ' . var_export($fix, true) . json_encode($test->query("SELECT status, result, result_recorded_at FROM appointments WHERE id = $un2Appt")->fetch()));
+    sa_assert($test->query("SELECT status FROM applications WHERE id = $un2App")->fetchColumn() === 'For Revision', 'The application should be waiting for corrections.');
+
+    // (3) the follow-up list: missed, booking open, not rebooked for N days.
+    $apptModel = new Appointment($test);
+    $refs0 = array_column($apptModel->missedNotRebooked(0), 'reference_no');
+    sa_assert(in_array('R-TIMED', $refs0, true) && !in_array('R-OLD', $refs0, true), 'The follow-up list should hold released, not-rebooked interviews only.');
+    sa_assert(!in_array('R-TIMED', array_column($apptModel->missedNotRebooked(7), 'reference_no'), true), 'A fresh miss must not be in the 7-day follow-up list.');
     echo "PASS: unconfirmed interviews are released after the grace weekdays, reopen the booking, are not counted as misses, send no SMS, and others are left alone.\n";
 } catch (Throwable $e) {
     fwrite(STDERR, $e->getMessage() . PHP_EOL . $e->getFile() . ':' . $e->getLine() . PHP_EOL); $exitCode = 1;

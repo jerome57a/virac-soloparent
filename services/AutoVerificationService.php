@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/SoloParentChildRules.php';
 /**
  * Automated verification checks for a submitted application. The system checks the form data and the uploaded files
  * against fixed rules and reports, per check, PASS, FLAG (a person should look) or FAIL (must be fixed), with the
@@ -15,8 +16,8 @@ class AutoVerificationService
     public const FLAG = 'flag';
     public const FAIL = 'fail';
 
-    /** A dependent is normally under 22 (RA 11861); older children qualify only with a disability, so staff must look. */
-    public const CHILD_MAX_AGE = 21;
+    /** RA 11861: a dependent is not more than 22 years old; an older child qualifies only with a disability (SoloParentChildRules). */
+    public const CHILD_MAX_AGE = SoloParentChildRules::MAX_AGE;
     public const MIN_APPLICANT_AGE = 18;
     public const MAX_APPLICANT_AGE = 100;
     /** An applicant cannot have been a parent before this age. */
@@ -74,6 +75,14 @@ class AutoVerificationService
             $stmt->execute([(int) $app['user_id'], $app['birthdate'], $app['full_name']]);
             $samePerson = (int) $stmt->fetchColumn();
         }
+        if ($this->pdo && ($app['type'] ?? '') === 'renewal' && !empty($app['renewal_of_id']) && !isset($app['previous_civil_status'])) {
+            $previous = $this->pdo->prepare('SELECT civil_status FROM applications WHERE id = ?');
+            $previous->execute([(int) $app['renewal_of_id']]);
+            $value = $previous->fetchColumn();
+            if ($value !== false) {
+                $app['previous_civil_status'] = (string) $value;
+            }
+        }
         return self::evaluate($app, $children, $checklist, [
             'sameApplication' => $sameApplication, 'otherApplications' => $otherApplications, 'samePerson' => $samePerson,
         ], fn(array $doc): ?array => $this->imageQuality($doc), null,
@@ -124,7 +133,7 @@ class AutoVerificationService
             if (trim((string) ($child['name'] ?? '')) === '' && trim((string) ($child['birthdate'] ?? '')) === '') {
                 continue;
             }
-            $children[] = ['full_name' => (string) ($child['name'] ?? ''), 'birthdate' => (string) ($child['birthdate'] ?? '')];
+            $children[] = ['full_name' => (string) ($child['name'] ?? ''), 'birthdate' => (string) ($child['birthdate'] ?? ''), 'has_disability' => !empty($child['disability'])];
         }
         $checklist = [];
         foreach ($docDefs as $def) {
@@ -202,7 +211,8 @@ class AutoVerificationService
         }
 
         // Children (a new application needs at least one dependent).
-        if (($app['type'] ?? 'new') === 'new') {
+        // A renewal from before the interview change (documents only) kept the old ID's children; newer records need at least one.
+        if (($app['type'] ?? 'new') === 'new' || empty($app['renewal_simplified'])) {
             if (!$children) {
                 $add('children', 'application', self::FLAG, 'Dependents', 'No children are listed. A solo parent needs at least one dependent.');
             }
@@ -215,10 +225,22 @@ class AutoVerificationService
             } elseif ($birth !== null && ($cb <= $birth || self::years($birth, $cb) < self::MIN_PARENT_AGE)) {
                 $add('children', 'application', self::FLAG, 'Child birthdate', $name . ' would have been born when the parent was under ' . self::MIN_PARENT_AGE . '. Please check both birthdates.');
             } elseif (self::years($cb, $today) > self::CHILD_MAX_AGE) {
-                $add('children', 'application', self::FLAG, 'Child age', $name . ' is ' . self::years($cb, $today) . '. A dependent over ' . self::CHILD_MAX_AGE . ' qualifies only with a disability: check the documents.');
+                $add('children', 'application', self::FLAG, 'Child age', SoloParentChildRules::hasDisability($child)
+                    ? $name . ' is ' . self::years($cb, $today) . ' and marked with a disability: qualifies under RA 11861 only with a PWD ID or medical certificate. Check it.'
+                    : $name . ' is ' . self::years($cb, $today) . ', over ' . self::CHILD_MAX_AGE . ' and not marked with a disability: no longer a qualifying child (RA 11861).');
             } else {
                 $add('children', 'application', self::PASS, 'Child', $name . ' is within the dependent age range.');
             }
+        }
+
+        // RA 11861: at least one qualifying child (22 or younger, or older with a disability).
+        if ($children && !SoloParentChildRules::anyQualifies($children, $today)) {
+            $add('qualifying_child', 'application', self::FLAG, 'Qualifying child', 'No child qualifies (22 or younger, or over 22 with a disability). This application may not be eligible: check at the interview.');
+        }
+        // A renewal whose civil status changed to Married since the last ID.
+        if (($app['type'] ?? '') === 'renewal' && isset($app['previous_civil_status'])
+            && ($app['civil_status'] ?? '') === 'Married' && $app['previous_civil_status'] !== 'Married') {
+            $add('civil_status', 'application', self::FLAG, 'Civil status', 'Changed to Married since the last ID (was ' . $app['previous_civil_status'] . '). A Solo Parent who married or lives with a partner may no longer qualify (RA 11861): check at the interview.');
         }
 
         // The same person on another account.

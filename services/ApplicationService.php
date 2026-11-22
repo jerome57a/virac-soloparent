@@ -210,7 +210,16 @@ class ApplicationService
      */
     public function blockingApplication(array $user): ?array
     {
-        return $this->applications->blockingForNewApplication((int) $user['id']);
+        $row = $this->applications->blockingForNewApplication((int) $user['id']);
+        // An ID that expired longer ago than the renewal period (Settings: renewal_grace_days) can no longer be renewed: the Solo
+        // Parent applies again with the full set of documents and an interview.
+        if ($row && $row['status'] === 'ID Released' && !empty($row['id_expires_at'])) {
+            $grace = max(1, (int) get_setting($this->pdo, 'renewal_grace_days', '365'));
+            if (date('Y-m-d') > date('Y-m-d', strtotime($row['id_expires_at'] . ' +' . $grace . ' days'))) {
+                return null;
+            }
+        }
+        return $row;
     }
 
     /**

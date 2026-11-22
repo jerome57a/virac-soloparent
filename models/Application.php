@@ -267,10 +267,31 @@ class Application extends Model
         return (int) $this->pdo->lastInsertId();
     }
 
-    public function addChild(int $applicationId, string $name, string $birthdate): void
+    public function addChild(int $applicationId, string $name, string $birthdate, bool $hasDisability = false): void
     {
+        if (self::childDisabilityReady($this->pdo)) {
+            $this->pdo->prepare('INSERT INTO application_children (application_id, full_name, birthdate, has_disability) VALUES (?, ?, ?, ?)')
+                ->execute([$applicationId, $name, $birthdate, $hasDisability ? 1 : 0]);
+            return;
+        }
         $this->pdo->prepare('INSERT INTO application_children (application_id, full_name, birthdate) VALUES (?, ?, ?)')
             ->execute([$applicationId, $name, $birthdate]);
+    }
+
+    /** True when application_children.has_disability exists (database/migrate_child_disability.sql). Checked once per connection. */
+    public static function childDisabilityReady(PDO $pdo): bool
+    {
+        static $memo = [];
+        $key = spl_object_id($pdo);
+        if (!isset($memo[$key])) {
+            try {
+                $stmt = $pdo->query("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'application_children' AND COLUMN_NAME = 'has_disability'");
+                $memo[$key] = (int) $stmt->fetchColumn() === 1;
+            } catch (Throwable $e) {
+                $memo[$key] = false;
+            }
+        }
+        return $memo[$key];
     }
 
     /**
@@ -289,6 +310,44 @@ class Application extends Model
         $stmt->execute([$applicationId, $applicationId]);
         $status = $stmt->fetchColumn();
         return $status !== false ? (string) $status : 'Under Verification';
+    }
+
+    /** True when applications.id_valid_from exists (database/migrate_id_valid_from.sql). Checked once per connection. */
+    public static function validFromReady(PDO $pdo): bool
+    {
+        static $memo = [];
+        $key = spl_object_id($pdo);
+        if (!isset($memo[$key])) {
+            try {
+                $stmt = $pdo->query("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'applications' AND COLUMN_NAME = 'id_valid_from'");
+                $memo[$key] = (int) $stmt->fetchColumn() === 1;
+            } catch (Throwable $e) {
+                $memo[$key] = false;
+            }
+        }
+        return $memo[$key];
+    }
+
+    /** The ID was handed over: ID Released with the start and expiration dates printed on the card (Y-m-d). */
+    public function markIdReleased(int $applicationId, int $staffId, string $validFrom, string $expiresAt): void
+    {
+        if (self::validFromReady($this->pdo)) {
+            $this->pdo->prepare("UPDATE applications SET status = 'ID Released', reviewed_by = ?, id_valid_from = ?, id_expires_at = ? WHERE id = ?")
+                ->execute([$staffId, $validFrom, $expiresAt, $applicationId]);
+            return;
+        }
+        $this->pdo->prepare("UPDATE applications SET status = 'ID Released', reviewed_by = ?, id_expires_at = ? WHERE id = ?")
+            ->execute([$staffId, $expiresAt, $applicationId]);
+    }
+
+    /** A correction of the dates printed on a released ID. */
+    public function updateIdDates(int $applicationId, string $validFrom, string $expiresAt): void
+    {
+        if (self::validFromReady($this->pdo)) {
+            $this->pdo->prepare('UPDATE applications SET id_valid_from = ?, id_expires_at = ? WHERE id = ?')->execute([$validFrom, $expiresAt, $applicationId]);
+            return;
+        }
+        $this->pdo->prepare('UPDATE applications SET id_expires_at = ? WHERE id = ?')->execute([$expiresAt, $applicationId]);
     }
 
     public function setStatus(int $applicationId, string $status): void

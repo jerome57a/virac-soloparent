@@ -67,6 +67,25 @@ class Appointment extends Model
         $this->pdo->prepare("UPDATE appointments SET status = 'MISSED', notes = ? WHERE id = ? AND status = 'BOOKED'")->execute([$note, $appointmentId]);
     }
 
+    /**
+     * Solo Parents who missed an interview (confirmed by staff, or released by the system) and have not booked again for $days days
+     * while their booking is open: staff can follow up by phone. Oldest first. Only call when the date-booking feature is enabled.
+     */
+    public function missedNotRebooked(int $days = 7, int $limit = 20): array
+    {
+        $stmt = $this->pdo->prepare(
+            "SELECT i.id, i.application_id, i.scheduled_at, i.notes, i.updated_at, a.reference_no, a.full_name, a.mobile
+             FROM appointments i
+             JOIN applications a ON a.id = i.application_id
+             JOIN interview_invitations v ON v.application_id = i.application_id AND v.status = 'OPEN'
+             WHERE i.status = 'MISSED' AND a.status IN ('Pending Review','Under Verification','For Revision','Interview Scheduled')
+               AND i.updated_at <= (NOW() - INTERVAL " . max(0, $days) . " DAY)
+             ORDER BY i.updated_at LIMIT " . max(1, $limit)
+        );
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+
     public function markMissed(int $appointmentId): void
     {
         $this->pdo->prepare("UPDATE appointments SET status = 'MISSED' WHERE id = ? AND status = 'BOOKED'")->execute([$appointmentId]);

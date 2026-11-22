@@ -115,9 +115,12 @@ class ApplicationReviewService
                 : 'An application that is ' . $app['status'] . ' cannot be moved to ' . $newStatus . '.';
         }
         // Rejecting (with its required reason) does not need a successful interview; corrections and approval do.
-        if (isset(self::DECISIONS[$newStatus]) && $newStatus !== 'Rejected' && empty($app['renewal_simplified'])
-            && !Appointment::interviewSuccessful($this->appointments->interviewFor((int) $app['id']))) {
-            return 'Record a successful interview before requesting corrections or approving this application.';
+        if (isset(self::DECISIONS[$newStatus]) && $newStatus !== 'Rejected' && empty($app['renewal_simplified'])) {
+            $held = $this->appointments->interviewFor((int) $app['id']);
+            // Approval needs a successful interview; corrections may also follow an unsuccessful one.
+            if (!Appointment::interviewSuccessful($held) && !($newStatus === 'For Revision' && Appointment::interviewOutcome($held) === 'Unsuccessful')) {
+                return 'Record a successful interview before requesting corrections or approving this application.';
+            }
         }
         $remarks = trim($remarks);
         if (mb_strlen($remarks) > 500) {
@@ -146,10 +149,13 @@ class ApplicationReviewService
                 $this->pdo->rollBack();
                 return 'The application changed. Refresh before recording a decision.';
             }
-            if (isset(self::DECISIONS[$newStatus]) && $newStatus !== 'Rejected' && empty($current['renewal_simplified'])
-                && !Appointment::interviewSuccessful($this->appointments->interviewFor($id))) {
-                $this->pdo->rollBack();
-                return 'Record a successful interview before requesting corrections or approving this application.';
+            if (isset(self::DECISIONS[$newStatus]) && $newStatus !== 'Rejected' && empty($current['renewal_simplified'])) {
+                $heldNow = $this->appointments->interviewFor($id);
+                // Approval needs a successful interview; corrections may also follow an unsuccessful one.
+                if (!Appointment::interviewSuccessful($heldNow) && !($newStatus === 'For Revision' && Appointment::interviewOutcome($heldNow) === 'Unsuccessful')) {
+                    $this->pdo->rollBack();
+                    return 'Record a successful interview before requesting corrections or approving this application.';
+                }
             }
             if ($newStatus === 'Approved' && array_filter($this->approvalChecklist($current), fn($item) => !$item['ok'])) {
                 $this->pdo->rollBack();
@@ -667,12 +673,52 @@ class ApplicationReviewService
         ];
     }
 
-    public function recordInterviewOutcome(array $staff, int $applicationId, string $outcome, string $notes): ?string
+    /** What MSWDO staff confirm at a renewal interview (RA 11861): every item for a Successful result. */
+    public const RENEWAL_RECHECK = [
+        'not_married' => 'Not married and not living with a partner',
+        'qualifying_child' => 'At least one qualifying child (22 or younger, or over 22 with a disability)',
+        'caregiver' => 'Still the main caregiver of the child',
+        'virac' => 'Still living in Virac',
+        'category' => 'The solo parent category still applies',
+        'current_id' => 'The Solo Parent showed their current Solo Parent ID',
+    ];
+
+    /**
+     * Records Successful / Unsuccessful. For a renewal with an interview, $recheck holds the RENEWAL_RECHECK keys staff ticked: a
+     * Successful result needs all of them; the result text says what was (not) confirmed.
+     */
+    public function recordInterviewOutcome(array $staff, int $applicationId, string $outcome, string $notes, ?array $recheck = null, string $idNotShownReason = ''): ?string
     {
+        $idNotShownReason = trim($idNotShownReason);
+        if (mb_strlen($idNotShownReason) > 200) {
+            return 'The reason the ID was not shown is too long (up to 200 characters).';
+        }
         if (!in_array($outcome, ['Successful', 'Unsuccessful'], true)) {
             return 'Choose Successful or Unsuccessful.';
         }
         $notes = trim($notes);
+        $kind = $this->pdo->prepare('SELECT type, renewal_simplified FROM applications WHERE id = ?');
+        $kind->execute([$applicationId]);
+        $row = $kind->fetch();
+        if ($row && $row['type'] === 'renewal' && empty($row['renewal_simplified'])) {
+            $confirmed = array_values(array_intersect(array_keys(self::RENEWAL_RECHECK), array_map('strval', $recheck ?? [])));
+            $missing = array_diff_key(self::RENEWAL_RECHECK, array_flip($confirmed));
+            // The current ID may be missing (lost, forgotten) when staff give the reason; it is then recorded, not required.
+            $idNotShown = isset($missing['current_id']) && $idNotShownReason !== '';
+            if ($idNotShown) {
+                unset($missing['current_id']);
+            }
+            if ($outcome === 'Successful' && $missing) {
+                return isset($missing['current_id'])
+                    ? 'Tick that the Solo Parent showed their current Solo Parent ID, or choose "ID not shown" and give the reason.'
+                    : 'Confirm every item of the renewal re-check before recording a successful interview. If one is not true, record the interview as unsuccessful.';
+            }
+            $notes = trim($notes . ' ' . ($missing ? 'Renewal re-check not confirmed: ' . implode('; ', $missing) . '.' : 'Renewal re-check: all confirmed (RA 11861).')
+                . ($idNotShown ? ' Current Solo Parent ID not shown: ' . $idNotShownReason . '.' : ''));
+            if ($idNotShown) {
+                $this->audit($staff, 'Renewal Interview: ID Not Shown', 'application', $applicationId, $idNotShownReason);
+            }
+        }
         return $this->recordInterviewResult($staff, $applicationId, $outcome . ($notes !== '' ? ': ' . $notes : ''));
     }
 
@@ -709,7 +755,9 @@ class ApplicationReviewService
                     . $this->outstandingDocumentList($outstanding) . '. Verify them first, then record the result.';
             }
             $appt = $this->appointments->interviewFor($applicationId);
-            if (!$appt || !in_array($appt['status'], ['BOOKED', 'COMPLETED'], true)) {
+            // An interview the system released for lack of an outcome can still be confirmed as attended, until the Solo Parent books again.
+            $lateAttended = $appt && $appt['status'] === 'MISSED' && ($appt['notes'] ?? '') === 'Released automatically: no outcome was recorded';
+            if (!$appt || (!in_array($appt['status'], ['BOOKED', 'COMPLETED'], true) && !$lateAttended)) {
                 $this->pdo->rollBack();
                 return 'There is no booked appointment to record a result for.';
             }
@@ -722,6 +770,16 @@ class ApplicationReviewService
                 return 'Record the interview result on or after its scheduled time.';
             }
             $this->appointments->recordResult($applicationId, $result);
+            if ($lateAttended) {
+                require_once __DIR__ . '/../models/InterviewInvitation.php';
+                require_once __DIR__ . '/../models/AppointmentEvent.php';
+                if (!(new InterviewInvitation($this->pdo))->markBooked($applicationId, false)) {
+                    $this->pdo->rollBack();
+                    return 'The Solo Parent already chose a new interview date, so this earlier interview can no longer be changed.';
+                }
+                (new AppointmentEvent($this->pdo))->record($applicationId, 'ATTENDED_CONFIRMED', 'STAFF', $staff, null,
+                    'MSWDO staff confirmed the Solo Parent attended an interview the system had released; the booking was closed again.', (int) $appt['id'], substr((string) $appt['scheduled_at'], 0, 10));
+            }
             $this->applications->addHistory($applicationId, $app['status'], mb_substr('Interview result recorded: ' . trim($result), 0, 500), $staff['full_name'], (int) $staff['id']);
             $this->pdo->commit();
         } catch (Throwable $e) {
@@ -788,7 +846,7 @@ class ApplicationReviewService
                 $rows = $this->documents->checklistForReview($applicationId, $app['category_id'] !== null ? (int) $app['category_id'] : null, $app['type'] === 'renewal');
                 foreach ($rows as $row) {
                     // Retained renewal documents were already accepted in an earlier application.
-                    if (!empty($app['renewal_simplified']) && isset($row['required_snapshot']) && !$row['required_snapshot'] && empty($row['is_required'])) {
+                    if (($app['type'] ?? '') === 'renewal' && isset($row['required_snapshot']) && !$row['required_snapshot'] && empty($row['is_required'])) {
                         continue;
                     }
                     $update->execute([(int) $row['id'], $applicationId]);

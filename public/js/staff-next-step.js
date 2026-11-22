@@ -1,3 +1,22 @@
+/* Schedule form: ask before scheduling on a weekend, a holiday or closure, or outside office hours. It only asks; it never blocks.
+ * The holidays and the office hours come from the form's data-warn attribute. */
+window.virScheduleConfirm = function (form) {
+  var notes = [];
+  try {
+    var warn = JSON.parse(form.getAttribute('data-warn') || '{}');
+    var d = form.elements['interview_date'] ? form.elements['interview_date'].value : '';
+    var t = form.elements['interview_time'] ? form.elements['interview_time'].value : '';
+    if (d) {
+      var day = new Date(d + 'T00:00:00').getDay();
+      if (day === 0 || day === 6) { notes.push('it is a weekend'); }
+      else if (warn.closed && warn.closed[d]) { notes.push(warn.closed[d].charAt(0).toLowerCase() + warn.closed[d].slice(1)); }
+    }
+    if (t && warn.opens && (t < warn.opens || t >= warn.closes)) { notes.push('the time is outside office hours (' + warn.label + ')'); }
+  } catch (e) { notes = []; }
+  var message = 'Schedule this interview and text the Solo Parent?';
+  if (notes.length) { message = 'Warning: ' + notes.join('; ') + '.\n\n' + message; }
+  return confirm(message);
+};
 /* Staff application page: after Save Verification the next step opens as a popup, like the document viewer.
  *   - a document marked Needs Correction  -> the correction SMS review (Confirm and Send);
  *   - every document verified             -> the "Schedule the interview" form (date, time, SMS).

@@ -144,7 +144,8 @@ CREATE TABLE applications (
   status        ENUM('Pending Review','Under Verification','For Revision','Interview Scheduled','Approved','ID Released','Rejected') NOT NULL DEFAULT 'Pending Review',
   eligibility_status  ENUM('Not Assessed','Eligible','Not Eligible') NOT NULL DEFAULT 'Not Assessed',
   eligibility_remarks VARCHAR(500) DEFAULT NULL,
-  id_expires_at DATE NULL,          -- one calendar year from confirmed ID release; not from approval/scheduling
+  id_expires_at DATE NULL,          -- the expiration date printed on the ID, entered by MSWDO staff at handover
+  id_valid_from DATE NULL,          -- the start date printed on the ID, entered by MSWDO staff at handover (migrate_id_valid_from.sql)
   renewal_simplified TINYINT(1) NOT NULL DEFAULT 0, -- 1 = contact/document confirmation without a new interview
   consent_at    DATETIME NOT NULL,
   submitted_at  DATETIME NOT NULL,
@@ -177,6 +178,7 @@ CREATE TABLE application_children (
   application_id INT NOT NULL,
   full_name      VARCHAR(150) NOT NULL,
   birthdate      DATE NOT NULL,
+  has_disability TINYINT(1) NOT NULL DEFAULT 0,  -- RA 11861: a child over 22 qualifies only with a disability (migrate_child_disability.sql)
   CONSTRAINT fk_child_app FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 

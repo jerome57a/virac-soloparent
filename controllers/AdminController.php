@@ -60,7 +60,25 @@ class AdminController extends Controller
             'auditStats' => $reports->auditStats(),
             'summary' => $reports->analyticsSummary(),
             'recentActivity' => (new AuditLog($this->pdo))->recent(8),
+            'failedSmsRows' => $this->pdo->query("SELECT s.id, s.application_id, s.template_key, s.mobile, s.error, s.sent_at, a.reference_no FROM sms_logs s LEFT JOIN applications a ON a.id = s.application_id WHERE s.status = 'FAILED' ORDER BY s.sent_at DESC, s.id DESC LIMIT 5")->fetchAll(),
+            'lockedUsers' => $this->pdo->query('SELECT id, full_name, role, locked_until FROM users WHERE locked_until > NOW() ORDER BY locked_until LIMIT 5')->fetchAll(),
+            'expiryNotSent' => (function () { require_once __DIR__ . '/../services/RenewalService.php'; return (new RenewalService($this->pdo))->expirySmsNotSent(30); })(),
+            'releaseOverdue' => (function () { require_once __DIR__ . '/../services/IdReleaseService.php'; $all = (new IdReleaseService($this->pdo))->overdue(500); return ['count' => count($all), 'rows' => array_slice($all, 0, 5)]; })(),
+            'staleApps' => $this->staleApplications(),
         ]);
+    }
+
+    /**
+     * Applications MSWDO staff have not acted on for 7 days (Pending Review or Under Verification, last status change older than
+     * 7 days). For the admin to watch; staff do the work. ['count' => int, 'rows' => first 5, oldest first].
+     */
+    private function staleApplications(): array
+    {
+        $sql = "FROM applications a WHERE a.status IN ('Pending Review', 'Under Verification')
+                AND COALESCE((SELECT MAX(h.changed_at) FROM application_status_history h WHERE h.application_id = a.id), a.submitted_at) < (NOW() - INTERVAL 7 DAY)";
+        $count = (int) $this->pdo->query('SELECT COUNT(*) ' . $sql)->fetchColumn();
+        $rows = $this->pdo->query("SELECT a.id, a.reference_no, a.full_name, a.status, COALESCE((SELECT MAX(h.changed_at) FROM application_status_history h WHERE h.application_id = a.id), a.submitted_at) AS last_change " . $sql . ' ORDER BY last_change LIMIT 5')->fetchAll();
+        return ['count' => $count, 'rows' => $rows];
     }
 
     // ---- Application monitoring (read-only) ----

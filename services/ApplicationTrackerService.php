@@ -82,7 +82,7 @@ class ApplicationTrackerService
         $missing = array_filter($required, [Document::class, 'needsPreparation']);
         $flagged = array_filter($checklist, fn($d) => $d['verification_status'] === 'Needs Correction');
         $verified = array_filter($required, fn($d) => $d['verification_status'] === 'Verified' && (empty($d['expires_at']) || $d['expires_at'] >= date('Y-m-d')));
-        $docsDone = count($verified) === count($required) && (count($required) > 0 || !empty($app['renewal_simplified']));
+        $docsDone = count($verified) === count($required) && (count($required) > 0 || ($app['type'] ?? '') === 'renewal');
         $reviewed = array_filter($required, fn($d) => $d['reviewed_at'] !== null);
         $docsDate = $docsDone && $verified ? max(array_map(fn($d) => (string) $d['reviewed_at'], $verified)) : null;
         if ($docsDone) {

@@ -3329,3 +3329,35 @@ Object.assign(window.ViracTranslations, {
   "Announcement content": "Nilalaman ng anunsyo",
   "Publishing options": "Mga pagpipilian sa paglalathala"
 });
+
+// "Needs attention" dashboards (MSWDO admin and staff).
+Object.assign(window.ViracTranslations, {
+  "Account access and message delivery. Open an item to see the details.": "Access sa account at pagpapadala ng mensahe. Buksan ang isang item para makita ang detalye.",
+  "Nothing needs attention right now.": "Walang kailangang tingnan sa ngayon.",
+  "No failed SMS or locked accounts.": "Walang bigong SMS o naka-lock na account.",
+  "Texts to Solo Parents that were not sent": "Mga text sa Solo Parent na hindi naipadala",
+  "Accounts locked after failed sign-ins": "Mga account na na-lock dahil sa bigong pag-log in",
+  "All clear:": "Walang problema:",
+  "More": "Iba pa",
+  "Overview, applications, system details, recent activity and quick access": "Pangkalahatang-ideya, mga aplikasyon, detalye ng sistema, kamakailang aktibidad at mabilisang access",
+  "Show": "Ipakita",
+  "MSWDO Admin Dashboard": "Dashboard ng MSWDO Admin",
+  "Interview scheduled": "May iskedyul na ang panayam",
+  "Approved, ID not yet released": "Aprubado, hindi pa naibibigay ang ID",
+  "ID released": "Naibigay na ang ID",
+  "MSWDO Admins": "Mga MSWDO Admin",
+  "Click an item to see its details.": "Pindutin ang isang item para makita ang detalye.",
+  "ID expiry SMS not sent": "Hindi naipadalang SMS sa pag-expire ng ID",
+  "Expired IDs whose SMS was not sent that day.": "Mga expired na ID na hindi napadalhan ng SMS sa araw na iyon.",
+  "ID release date passed": "Lumipas na ang petsa ng pagkuha ng ID",
+  "Approved IDs still waiting at the office.": "Mga aprubadong ID na naghihintay pa sa opisina.",
+  "Waiting more than 7 days": "Naghihintay nang higit 7 araw",
+  "Applications with no action for a week.": "Mga aplikasyong walang aksyon sa loob ng isang linggo.",
+  "Open the SMS log": "Buksan ang talaan ng SMS",
+  "Open User Management": "Buksan ang Pamamahala ng User",
+  "MSWDO staff can send these from Failed Texts (Send now).": "Maipapadala ito ng kawani ng MSWDO mula sa Failed Texts (Send now).",
+  "Open approved applications": "Buksan ang mga aprubadong aplikasyon",
+  "Open application monitoring": "Buksan ang pagsubaybay sa aplikasyon",
+  "Nothing here right now.": "Wala pa rito sa ngayon.",
+  "Recent activity and quick access": "Kamakailang aktibidad at mabilisang access"
+});

@@ -28,12 +28,15 @@ const fixture = state => execFileSync('php', [path.join(__dirname, 'fixtures/adm
     for (const state of states) {
       await page.goto(base + 'admin/dashboard.php?state=' + state);
       assert.equal(await page.locator('.ad-metric').count(), 4);
-      assert.equal(await page.locator('.ad-status-row').count(), 6);
+      assert.equal(await page.locator('.ad-status-row').count(), 8);
       assert.equal(await page.locator('.ad-heading.personnel-page-heading').count(), 1, 'shared staff heading panel');
       assert.equal(await page.locator('.ad-metric.stat-tile').count(), 4, 'shared staff statistic tiles');
       assert.equal(await page.locator('.ad-metric').first().evaluate(el => getComputedStyle(el).borderTopWidth), '3px', 'staff tile accent');
-      assert.equal(await page.locator('#admin-dashboard > .dash-two-col').count(), 2, 'staff dashboard uses two rows of paired panels');
-      assert.equal(await page.locator('#admin-dashboard > .dash-two-col > .review-card').count(), 4, 'four direct dashboard panels');
+      assert.equal(await page.locator('#admin-dashboard > .dash-two-col').count(), 1, 'one row of paired panels');
+      assert.equal(await page.locator('.ad-attention-item').count(), 5, 'five Needs attention items');
+      assert.equal(await page.locator('.ad-attention-item[open]').count(), 0, 'Needs attention details are hidden until clicked');
+      assert.equal(await page.locator('.ad-details').getAttribute('open'), null, 'system details are hidden');
+      assert.equal(await page.locator('#admin-more').getAttribute('open'), null, 'recent activity and quick access are hidden');
       await page.setViewportSize({ width: 1440, height: 1100 });
       const rows = await page.locator('#admin-dashboard > .dash-two-col').evaluateAll(rows => rows.map(row => [...row.children].map(card => { const r = card.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width }; })));
       for (const pair of rows) {
@@ -41,15 +44,20 @@ const fixture = state => execFileSync('php', [path.join(__dirname, 'fixtures/adm
         assert(Math.abs(pair[0].y - pair[1].y) < 1, 'desktop panels share a row');
         assert(Math.abs(pair[0].width - pair[1].width) < 1, 'desktop columns have equal width');
       }
-      assert(await page.locator('#admin-tools').evaluate(el => el.previousElementSibling.classList.contains('dash-two-col')), 'quick actions follow dashboard panels');
+      assert(await page.locator('#admin-tools').evaluate(el => !!el.closest('#admin-more')), 'quick access is folded under the hidden section');
       const reviewUrl = new URL(await page.locator('.ad-metric').nth(1).getAttribute('href'));
       assert.equal(reviewUrl.searchParams.get('status'), 'Pending Review');
       assert.equal(reviewUrl.searchParams.has('type'), false, 'pending card includes both types');
-      const lockedUrl = new URL(await page.locator('.ad-attention-row').nth(1).getAttribute('href'));
+      await page.locator('#admin-attention-locked > summary').click();
+      assert.equal(await page.locator('#admin-attention-locked').getAttribute('open'), '', 'a row opens its details');
+      const lockedUrl = new URL(await page.locator('#admin-attention-locked .ad-text-link').getAttribute('href'));
       assert.equal(lockedUrl.searchParams.get('status'), 'locked');
+      await page.locator('#admin-attention-failed-sms > summary').click();
+      assert.equal(await page.locator('#admin-attention-locked').getAttribute('open'), null, 'one row open at a time');
+      await page.locator('#admin-attention-failed-sms > summary').click();
       if (state === 'populated') {
         assert.equal(await page.locator('.ad-metric > strong').nth(1).textContent(), '31');
-        assert.equal(await page.locator('.ad-attention-count b').textContent(), '2');
+        assert.equal(await page.locator('.ad-attention-count b').textContent(), '5');
         assert.equal(await page.locator('.ad-signed-in strong').textContent(), 'Test <Administrator>');
       }
       if (state === 'empty') {
@@ -83,7 +91,7 @@ const fixture = state => execFileSync('php', [path.join(__dirname, 'fixtures/adm
     await page.setViewportSize({ width: 1440, height: 1100 });
     await page.screenshot({ path: screenshotPath('admin-dashboard-desktop.png'), fullPage: true });
     await page.locator('[data-language-select]').selectOption('tl');
-    assert.equal(await page.locator('h1').textContent(), 'Dashboard ng Tagapangasiwa');
+    assert.equal(await page.locator('h1').textContent(), 'Dashboard ng MSWDO Admin');
     const missing = await page.locator('#admin-dashboard [data-i18n]').evaluateAll(elements => elements.flatMap(element => [...element.childNodes].filter(node => node.nodeType === 3).map(node => node.nodeValue.trim()).filter(text => /[a-z]/i.test(text) && !Object.values(window.ViracTranslations).includes(text))));
     assert.deepEqual(missing, [], 'all dashboard labels have Tagalog translations');
     await page.locator('[data-theme-toggle]').click();

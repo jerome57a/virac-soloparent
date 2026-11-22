@@ -19,7 +19,7 @@ class Document extends Model
     {
         $uploads = array_column($this->uploadedForApplication($applicationId), null, 'doc_key');
         if ($standardOnly) {
-            $app = $this->pdo->prepare('SELECT renewal_simplified FROM applications WHERE id=?');
+            $app = $this->pdo->prepare('SELECT renewal_simplified OR (type = \'renewal\' AND EXISTS (SELECT 1 FROM application_document_checklists s WHERE s.application_id = applications.id AND s.required_snapshot IS NOT NULL)) FROM applications WHERE id=?');
             $app->execute([$applicationId]);
             if ($app->fetchColumn()) {
                 $stmt = $this->pdo->prepare('SELECT c.*, COALESCE(c.requirement_label,c.doc_key) AS label, COALESCE(c.required_snapshot,0) AS is_required, 1 AS category_specific, u.full_name AS verifier_name FROM application_document_checklists c LEFT JOIN users u ON u.id=c.reviewed_by WHERE c.application_id=? ORDER BY c.required_snapshot DESC,c.id');

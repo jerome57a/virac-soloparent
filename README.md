@@ -111,7 +111,7 @@ access on its next request.
 | Automated verification card, queue pill and filter for staff | Implemented |
 | Approval and rejection | Implemented |
 | Application status tracking (account and public reference lookup, limited information) | Implemented |
-| Renewal with a short document list per category | Implemented |
+| Renewal with a short document list per category, an interview (RA 11861 re-check), editable civil status and children ("child with a disability") | Implemented |
 | Interview day booking (section 5.1) | Implemented, switched on |
 | ID release scheduling, handover confirmation and one-year validity | Implemented |
 | SMS notifications, logs, failure alerts, Failed Texts page and retry | Implemented |
@@ -141,14 +141,20 @@ himself or herself has no time. It is switched on
   "Interviews to Confirm" (dashboard tile, "Confirm who attended" list, menu badge) with Attended and
   Did not attend buttons. If nobody confirms within 2 weekdays the system releases it (also from
   `cron/interview-followup.php`, optional): the Solo Parent's booking reopens and a banner asks them to choose a
-  new day. It is not counted toward the 5 missed interviews, and no SMS is sent.
+  new day. It is not counted toward the missed-interview limit, and no SMS is sent. If the Solo Parent really
+  attended, staff can still record the result until they choose a new date.
 - **Reschedule allowance.** One reschedule by the Solo Parent by default. A
   cancellation reopens booking while an allowance is left.
 - **Cancelling online** is allowed until the office closing time (`appointment_day_end`,
   default 17:00) on the previous office day; after that the Solo Parent contacts MSWDO.
 - **Missed interview.** Staff mark a no-show after the date has passed. Booking
-  reopens so the Solo Parent can choose a new day, up to 5 misses; no text is
-  sent while they can rebook.
+  reopens so the Solo Parent can choose a new day, up to **3 misses** (a setting, `interview_missed_limit`, 1 to 10);
+  no text is ever sent for it. Solo Parents who missed and have not rebooked for 7 days appear on the staff
+  dashboard ("Missed and not rebooked") so staff can call them.
+- **Unsuccessful interview.** Approval stays locked. Staff can request corrections, schedule another interview
+  (it replaces the old one; the result stays in the history), or reject with a reason.
+- **Scheduling warnings.** Staff may pick any date and time; the form asks for confirmation (never blocks) when the
+  date is a weekend, a holiday or closure, or the time is outside office hours.
 - **Closure and holiday dates** are set by the MSWDO admin; saving a date that
   already has booked interviews is refused.
 - Staff do **not** open or close days or invitations by hand any more, and cannot
@@ -221,12 +227,24 @@ confirmed. Staff can confirm a number for older accounts
 5. **Schedule the interview date** (section 5.1) and send the text; record the
    interview result (Successful or Unsuccessful).
 6. **Approve, reject or request correction.** Approval is refused until the
-   required documents are verified and, for new applications, a successful
-   interview is recorded (simplified renewals are exempt from the interview).
-   Rejection needs a reason and no interview.
-7. **ID release:** schedule the release date, text the Solo Parent, and confirm the
-   handover; the ID is valid for one year from that day. A list shows releases
-   whose date has passed.
+   required documents are verified and a successful interview is recorded (new
+   applications and renewals; only renewals filed before 2026-11-23 as
+   "documents only" are exempt). **Reject** (button restored) needs a reason; common
+   RA 11861 reasons can be picked and edited. A renewal interview shows a
+   **re-check** (not married or living with a partner; a qualifying child; still the
+   main caregiver; still in Virac; category still applies; **the Solo Parent showed their
+   current Solo Parent ID**, compared with the old ID's reference, name and dates shown on
+   the card) — every item must be ticked for a Successful result. If the ID was lost or
+   forgotten, staff tick **ID not shown** and give the reason (history and audit log). The
+   renewal screen, the Appointment page and the interview SMS remind the Solo Parent to
+   bring the current Solo Parent ID and a valid ID (the compact SMS stays one text).
+7. **ID release:** schedule the release date and text the Solo Parent. On the day, **Confirm handover**:
+   the ID is given only to the Solo Parent in person (a required tick), and staff type the **start date
+   and expiration date printed on the card** (pre-filled with today and one year later; a span far from
+   one year is questioned). The system counts from those dates. A required document that expired while the
+   ID waited does not block the handover, but staff must give a reason (audit-logged). Dates typed wrong
+   can be corrected with a reason. Releases whose date has passed show as a dashboard tile, a red pill and
+   the Appointment Management badge; the Solo Parent sees "Your ID is ready" in their account (no SMS).
 8. **Appointment Management:** today's and upcoming interviews, results to record,
    cancellations (with a reason) and missed interviews. Each text sent shows
    Sent, Failed or Not sent with a Retry button.
@@ -294,9 +312,16 @@ document that has expired. One-time proofs (birth, marriage and death
 certificates, decrees, police and medical records) are not asked again. Each
 document is uploaded as a file through the same validation, held in the private
 draft folder until submission, then queued for staff verification. An uploaded
-file is **never** treated as verified. A renewal opens 30 days before the ID
-expires (`renewal_reminder_days`). The proposed renewal list needs MSWDO
-confirmation.
+file is **never** treated as verified. **Timing:** the form opens 30 days before the
+ID expires (`renewal_reminder_days`) so the Solo Parent can prepare and save it; it
+can be **submitted from the expiration date**; and it closes 365 days after expiry
+(`renewal_grace_days`), after which a new application is needed. **RA 11861:** a
+qualifying child is 22 or younger, or over 22 with a disability that keeps them from
+fully taking care of themselves; the Solo Parent may update civil status and children
+and tick "With a disability", which adds a **PWD ID or medical certificate** upload. The
+automated check flags a child over 22 without the tick, "no qualifying child", and a
+civil status changed to Married (warnings only; the interview decides). The proposed
+renewal list needs MSWDO confirmation.
 
 **`application_document_checklists` (internal table).** The Solo Parent-facing
 checklist submission is retired. The table remains because staff document
@@ -320,7 +345,7 @@ Notification Templates.
 
 | Text | How it is sent | Default |
 |---|---|---|
-| ID-expiry reminder, 30 days before expiry (once per expiry date) | **Automatic**, daily job `cron/renewal-reminders.php` | On |
+| ID expired: **one SMS on the exact expiration date** (the date staff entered from the card); never before, never repeated; a failed SMS is retried the same day; a missed day is listed for staff (**Send now**) | **Automatic**, job `cron/renewal-reminders.php` (hourly) and the staff dashboard | On |
 | Interview date set by staff | Staff action (automatic or custom wording) | On |
 | Document correction | Staff previews and confirms | On |
 | ID release scheduled | Staff action | On |
@@ -486,11 +511,13 @@ storage folder and `TEST_DOCUMENT_ROOT`.
 | `database/test_new_application_uploads.php` | New-application uploads: required files, replaced files, rechecks at submission, rollback, staff review |
 | `database/test_save_verification.php` | The staff Save Verification form: transactions, history, notices, stale-edit refusal |
 | `database/test_simplified_renewal.php`, `test_renewal_requirements.php` | Renewal rules, retained documents, and the per-category renewal list |
+| `database/test_renewal_rules.php` | Renewal timing (prepare, submit from expiry, close after 365 days), RA 11861 children and the disability proof, updatable civil status/children, automated flags |
 | `database/test_public_tracking.php` | Public status lookup: fields shown, no name, no times, headers |
 | `database/test_staff_sms_attention.php` | Failed Texts list, retry safety checks, and the cancel/missed SMS alert |
 | `database/test_home_requirement_guides.php` | Home screen: every document opens its "How to get it" guide (real guide text, generic fallback for unknown documents, escaping, no guide for the 2x2 photo) |
 | `database/test_document_verification_queue.php` | Staff verification queue: oldest application first, re-uploads marked, tile/badge/alert counts agree |
 | `database/test_unconfirmed_interview_release.php` | Unconfirmed interviews: released after the grace weekdays, booking reopened, not a counted miss, no SMS, others left alone |
+| `database/test_id_release_flow.php` | ID release: card dates and in-person tick, expired-document override, date correction, one SMS on the exact expiry date (same-day retry, no repeat), missed days for Send now |
 | `database/test_staff_any_time_schedule.php` | Staff scheduling: today, right now, a weekend and any hour are accepted; past dates and invalid times refused; the time is saved |
 | `database/test_role_account_creation.php`, `test_user_account_actions.php`, `test_optional_applicant_gmail.php` | Account creation and actions |
 | `database/test_admin_management_layout.php`, `test_eligibility_history.php` | Admin lists and SMS filters; public eligibility and history |

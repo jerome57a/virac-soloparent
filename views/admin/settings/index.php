@@ -122,7 +122,7 @@ $apptHours = (int) $current['appointments']['appointment_reminder_hours'];
       <div class="review-card settings-card">
         <div class="review-card-head"><div class="title">Renewal Reminders</div></div>
         <div style="font-size:13px;color:var(--muted);margin-bottom:14px">
-          Sends an in-app notification and an SMS to every Solo Parent whose released ID expires within <?= $renewalDays ?> day(s) — once per ID per expiry date, never twice. IDs with a renewal already filed and deactivated accounts are skipped; an ID whose window was missed gets a catch-up reminder after it expires.
+          Sends one in-app notification and one SMS to every Solo Parent whose ID expires <b>today</b> (the expiration date MSWDO staff entered from the card) — once per ID, never before the date and never repeated. A failed SMS is retried the same day. IDs with a renewal already filed and deactivated accounts are skipped; a day the system was not running is listed for MSWDO staff on the Failed Texts page (Send now) instead of being sent later. The staff dashboard also runs this check.
           Schedule <code>cron/renewal-reminders.php</code> to run daily (Task Scheduler: <code>C:\xampp\php\php.exe</code> with that file as the argument), or run it now:
         </div>
         <form method="post" class="mb-3">

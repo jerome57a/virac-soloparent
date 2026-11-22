@@ -289,3 +289,29 @@ html[data-theme="dark"] .staff-application-review .review-button-undo { backgrou
 html[data-theme="dark"] #next-step-modal .modal-content { background: var(--surface); color: var(--ink); border: 1px solid var(--border, #2b3a52); }
 html[data-theme="dark"] #next-step-modal .modal-header { border-bottom-color: var(--border, #2b3a52); }
 html[data-theme="dark"] #next-step-modal .review-card, html[data-theme="dark"] #next-step-modal .bg-white { background: var(--surface-alt) !important; color: var(--ink); }
+
+/* RA 11861 child status (renewal form, staff renewal re-check): readable green/red in both themes. */
+.child-ok { color: #1c7a3f; }
+.child-bad { color: #a51c1c; }
+html[data-theme="dark"] .child-ok { color: #86e0a6; }
+html[data-theme="dark"] .child-bad { color: #ffa3a3; }
+/* File inputs: the browser's "Choose file" button follows the dark theme. */
+html[data-theme="dark"] input[type="file"]::file-selector-button { background: var(--surface-alt); color: var(--ink); border-color: var(--border, #2b3a52); }
+
+/* Renewal interview: "bring your current Solo Parent ID" (Solo Parent appointment page and renewal form). */
+.renewal-bring-id { display: flex; gap: 12px; align-items: flex-start; border: 1px solid #f0c987; border-left: 5px solid #b45309; border-radius: 12px;
+  background: #fff8ec; color: #5b3a07; padding: 12px 14px; margin: 0 0 16px; font-size: 14px; line-height: 1.45; }
+.renewal-bring-id svg { flex: 0 0 auto; color: #b45309; margin-top: 2px; }
+.renewal-bring-id b { display: block; color: #4a2f05; margin-bottom: 2px; }
+.renewal-bring-id-item { background: #fff8ec; border-left: 4px solid #b45309; padding: 4px 8px; margin: 4px 0; border-radius: 6px; list-style-position: inside; }
+html[data-theme="dark"] .renewal-bring-id, html[data-theme="dark"] .renewal-bring-id-item { background: #3a2a12; border-color: #8a5a17; color: #f6dcb3; }
+html[data-theme="dark"] .renewal-bring-id b { color: #ffe7c2; }
+html[data-theme="dark"] .renewal-bring-id svg { color: #f5b55a; }
+/* Staff renewal re-check panel: the ID to check and the "ID not shown" box. */
+.recheck-id-card { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px 14px; background: var(--surface-alt, #f6f8fb);
+  border: 1px dashed var(--border, #c9d3e1); border-radius: 10px; padding: 10px 12px; margin: 6px 0 10px; font-size: 13px; }
+.recheck-id-card .k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.recheck-id-card .v { color: var(--ink); font-weight: 600; }
+.recheck-noid { border: 1px solid #f0c987; background: #fff8ec; border-radius: 8px; padding: 8px 10px; margin-top: 6px; }
+html[data-theme="dark"] .recheck-noid { background: #3a2a12; border-color: #8a5a17; }
+html[data-theme="dark"] .recheck-noid, html[data-theme="dark"] .recheck-noid label { color: #f6dcb3 !important; }

@@ -39,7 +39,7 @@ check(count(array_filter($r['checks'], fn($c) => $c['result'] === 'fail')) === 1
 
 // Renewal: verified evidence carried over from the earlier application needs no new upload; unverified required ones still do.
 $carried = ['doc_key' => 'brgy', 'label' => 'BRGY', 'is_required' => 1, 'verification_status' => 'Verified'];
-check($verdict(['type' => 'renewal'] + $app, [], [$carried, $row('id', true, $file('a'))])['verdict'] === 'ready', 'renewal: carried-over verified evidence is not missing');
+check($verdict(['type' => 'renewal'] + $app, [['full_name' => 'X', 'birthdate' => '2015-03-02']], [$carried, $row('id', true, $file('a'))])['verdict'] === 'ready', 'renewal: carried-over verified evidence is not missing');
 check($verdict(['type' => 'renewal'] + $app, [], [['verification_status' => 'Pending'] + $carried])['verdict'] === 'fix', 'renewal: unverified required document without a file is still missing');
 
 // Older applications (before uploads existed): a required document declared on paper is neither missing nor failed.
@@ -59,13 +59,22 @@ check($verdict(['birthdate' => '2026-11-18'] + $app, $kids, [])['counts']['fail'
 
 // Children.
 check($verdict($app, [], [])['verdict'] === 'review', 'new application with no children is flagged');
-check($verdict(['type' => 'renewal'] + $app, [], [])['verdict'] === 'ready', 'renewal without children is not flagged');
+check($verdict(['type' => 'renewal', 'renewal_simplified' => 1] + $app, [], [])['verdict'] === 'ready', 'an old documents-only renewal without children is not flagged');
+check($verdict(['type' => 'renewal', 'renewal_simplified' => 0] + $app, [], [])['verdict'] === 'review', 'a renewal (with interview) without children is flagged');
+// RA 11861: 22 still qualifies; 23 qualifies only with a disability.
+$ageOn = fn(int $years) => date('Y-m-d', strtotime('-' . $years . ' years -10 days'));
+check($verdict($app, [['full_name' => 'X', 'birthdate' => $ageOn(22)]], [])['verdict'] === 'ready', 'a child aged 22 still qualifies');
+check($verdict($app, [['full_name' => 'X', 'birthdate' => $ageOn(23)]], [])['verdict'] === 'review', 'a child aged 23 without a disability is flagged');
+check(count(array_filter($verdict($app, [['full_name' => 'X', 'birthdate' => $ageOn(23)]], [])['checks'], fn($c) => $c['key'] === 'qualifying_child')) === 1, 'no qualifying child is flagged');
+check(count(array_filter($verdict($app, [['full_name' => 'X', 'birthdate' => $ageOn(30), 'has_disability' => 1]], [])['checks'], fn($c) => $c['key'] === 'qualifying_child')) === 0, 'a child over 22 with a disability qualifies');
+check(count(array_filter($verdict(['type' => 'renewal', 'civil_status' => 'Married', 'previous_civil_status' => 'Single'] + $app, [['full_name' => 'X', 'birthdate' => '2015-03-02']], [])['checks'], fn($c) => $c['key'] === 'civil_status')) === 1, 'a renewal that changed to Married is flagged');
 check($verdict($app, [['full_name' => 'X', 'birthdate' => '2030-01-01']], [])['verdict'] === 'fix', 'child born in the future fails');
 check($verdict($app, [['full_name' => 'X', 'birthdate' => '1985-01-01']], [])['verdict'] === 'review', 'child older than the parent is flagged');
 check($verdict($app, [['full_name' => 'X', 'birthdate' => '1999-01-01']], [])['verdict'] === 'review', 'parent under 12 at the birth is flagged');
-check($verdict($app, [['full_name' => 'X', 'birthdate' => '2004-01-01']], [])['verdict'] === 'review', 'dependent over 21 is flagged');
+check($verdict($app, [['full_name' => 'X', 'birthdate' => '2004-01-01']], [])['verdict'] === 'ready', 'RA 11861: a dependent aged 22 still qualifies');
+check($verdict($app, [['full_name' => 'X', 'birthdate' => '2003-01-01']], [])['verdict'] === 'review', 'RA 11861: a dependent aged 23 without a disability is flagged');
 check($verdict($app, [['full_name' => 'X', 'birthdate' => '2004-11-19']], [])['verdict'] === 'ready', 'dependent aged 21 is accepted');
-check($verdict($app, [['full_name' => 'X', 'birthdate' => '2004-11-18']], [])['verdict'] === 'review', 'dependent who just turned 22 is flagged');
+check($verdict($app, [['full_name' => 'X', 'birthdate' => '2003-11-18']], [])['verdict'] === 'review', 'dependent who just turned 23 is flagged');
 
 // Contact, duplicate person and eligibility.
 check($verdict(['mobile' => '12345'] + $app, $kids, [])['verdict'] === 'review', 'invalid mobile is flagged');

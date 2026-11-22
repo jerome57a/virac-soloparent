@@ -44,6 +44,8 @@ const SETTINGS_REGISTRY = [
                 'help' => 'Enter every closed date as YYYY-MM-DD, separated by commas. Include dates from office closure announcements. Cancel or reschedule existing interviews on these dates first.'],
             'appointment_day_end' => ['label' => 'Office closing time', 'type' => 'time', 'default' => '17:00',
                 'help' => 'The office closing time. Solo Parents can cancel a booked interview day online until this time on the previous office day.'],
+            'interview_missed_limit' => ['label' => 'Missed interviews allowed before the Solo Parent must contact MSWDO', 'type' => 'int', 'default' => '3', 'min' => 1, 'max' => 10,
+                'help' => 'Each time MSWDO staff confirm that a Solo Parent did not attend, the Solo Parent may choose a new date. When this many have been missed, booking closes and they must contact MSWDO. Interviews the system released because nobody confirmed them are not counted.'],
             'appointment_min_notice_hours' => ['label' => 'Minimum notice to cancel online (hours)', 'type' => 'int', 'default' => '2', 'min' => 0, 'max' => 168],
             'interview_default_capacity' => ['label' => 'Default daily interview capacity (Solo Parents per interview day)', 'type' => 'int', 'default' => '0', 'min' => 0, 'max' => 500,
                 'help' => 'How many Solo Parents can book each interview day (1 to 500). 0 means not configured: no day can accept bookings until a number is set. It cannot be lowered below the seats already used on an upcoming day that follows it.'],
@@ -55,7 +57,8 @@ const SETTINGS_REGISTRY = [
         'note' => 'New and renewed IDs expire one year after confirmed release. Previously released IDs keep their recorded expiry date.',
         'keys' => [
             'id_validity_years' => ['label' => 'ID validity (years, fixed)', 'type' => 'int', 'default' => '1', 'min' => 1, 'max' => 1, 'readonly' => true],
-            'renewal_reminder_days' => ['label' => 'Renewal reminder period (days before expiry; renewal opens then)', 'type' => 'int', 'default' => '30', 'min' => 1, 'max' => 180],
+            'renewal_reminder_days' => ['label' => 'Renewal form opens (days before the ID expires; the Solo Parent can submit from the expiration date)', 'type' => 'int', 'default' => '30', 'min' => 1, 'max' => 180],
+            'renewal_grace_days' => ['label' => 'Renewal allowed until (days after the ID expires; after that, a new application is needed)', 'type' => 'int', 'default' => '365', 'min' => 1, 'max' => 730],
         ],
     ],
     'notifications' => [

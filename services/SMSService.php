@@ -393,7 +393,7 @@ class SMSService
         return trim(strtr($body, $placeholders));
     }
 
-    private function sendTemplate(string $key, array $placeholders, ?int $applicationId, string $mobile, string $preparation = ''): array
+    private function sendTemplate(string $key, array $placeholders, ?int $applicationId, string $mobile, string $preparation = '', ?callable $finish = null): array
     {
         if (!$this->templateEnabled($key)) {
             // Switched off in Notification Settings: nothing is sent or logged.
@@ -406,6 +406,9 @@ class SMSService
         if ($preparation !== '') {
             // Keep preparation instructions even when an existing admin template is long.
             $message = mb_substr($message, 0, 499 - mb_strlen($preparation)) . ' ' . $preparation;
+        }
+        if ($finish !== null) {
+            $message = mb_substr($finish($message), 0, 500);
         }
         return $this->send($applicationId, $applicationId !== null ? $this->recipientFor($applicationId, $mobile) : $mobile, $message, $key);
     }
@@ -523,7 +526,7 @@ class SMSService
 
     public function notifyRenewalReminder(int $applicationId, string $mobile, string $refNumber, string $expiresAt): array
     {
-        return $this->sendTemplate($expiresAt < date('Y-m-d') ? 'renewal_expired' : 'renewal_reminder',
+        return $this->sendTemplate($expiresAt <= date('Y-m-d') ? 'renewal_expired' : 'renewal_reminder',
             ['{ref}' => $refNumber, '{when}' => date('F j, Y', strtotime($expiresAt))], $applicationId, $mobile);
     }
 
@@ -564,9 +567,45 @@ class SMSService
     }
 
     /** The automatic text for a date staff scheduled (what the applicant gets when staff choose Automatic Message). $date is Y-m-d; null keeps a literal {when} for the staff screen's live preview. */
-    public function interviewDateAssignedMessage(string $refNumber, ?string $date, string $location): string
+    public function interviewDateAssignedMessage(string $refNumber, ?string $date, string $location, ?int $applicationId = null): string
     {
-        return $this->render('interview_date_assigned', ['{ref}' => $refNumber, '{when}' => $date === null ? '{when}' : self::dateText($date), '{hours}' => $this->officeHours(), '{location}' => $location]);
+        $message = $this->render('interview_date_assigned', ['{ref}' => $refNumber, '{when}' => $date === null ? '{when}' : self::dateText($date), '{hours}' => $this->officeHours(), '{location}' => $location]);
+        return $applicationId !== null ? $this->withRenewalNote($message, $applicationId) : $message;
+    }
+
+    /** The compact staff-scheduled interview text ends with this; for a renewal it is replaced, so the text stays one credit. */
+    private const COMPACT_ASSIGNED_TAIL = 'Come then, or log in to e-SoloParentID to pick another date.';
+    private const COMPACT_ASSIGNED_RENEWAL_TAIL = 'Bring your Solo Parent ID. Log in to pick another date.';
+
+    /** Adds the "bring your current Solo Parent ID" reminder to a renewal interview text (unchanged for a new application). */
+    public function withRenewalNote(string $message, int $applicationId): string
+    {
+        $note = $this->renewalInterviewNote($applicationId);
+        if ($note === '') {
+            return $message;
+        }
+        if (str_contains($message, self::COMPACT_ASSIGNED_TAIL)) {
+            return str_replace(self::COMPACT_ASSIGNED_TAIL, self::COMPACT_ASSIGNED_RENEWAL_TAIL, $message);
+        }
+        return $message . ' ' . $note;
+    }
+
+    /**
+     * For a RENEWAL interview: the reminder to bring the current Solo Parent ID (MSWDO checks it). Short in compact wording so the
+     * text stays one credit where possible. '' for a new application.
+     */
+    public function renewalInterviewNote(int $applicationId): string
+    {
+        try {
+            $stmt = $this->pdo->prepare('SELECT type FROM applications WHERE id = ?');
+            $stmt->execute([$applicationId]);
+            if ($stmt->fetchColumn() !== 'renewal') {
+                return '';
+            }
+        } catch (Throwable $e) {
+            return '';
+        }
+        return self::compact() ? 'Bring your Solo Parent ID.' : 'Bring your current Solo Parent ID and a valid ID.';
     }
 
     /**
@@ -577,7 +616,7 @@ class SMSService
     {
         if ($customMessage === null) {
             // With a time, it replaces the office-hours range in the text ("..., 9:00 AM at <place>").
-            return $this->sendTemplate('interview_date_assigned', ['{ref}' => $refNumber, '{when}' => self::dateText($date), '{hours}' => $time !== null ? self::timeText($time) : $this->officeHours(), '{location}' => $location], $applicationId, $mobile);
+            return $this->sendTemplate('interview_date_assigned', ['{ref}' => $refNumber, '{when}' => self::dateText($date), '{hours}' => $time !== null ? self::timeText($time) : $this->officeHours(), '{location}' => $location], $applicationId, $mobile, '', fn(string $m) => $this->withRenewalNote($m, $applicationId));
         }
         if (!$this->templateEnabled('interview_date_assigned')) {
             return ['id' => null, 'status' => 'DISABLED', 'test_mode' => false, 'error' => null];
@@ -588,7 +627,7 @@ class SMSService
     /** The applicant booked (or replaced) an interview DATE (interview_date_booked). $date is Y-m-d; {when} is the date with its weekday, never a time. */
     public function notifyInterviewDateBooked(int $applicationId, string $mobile, string $refNumber, string $date, string $location): array
     {
-        return $this->sendTemplate('interview_date_booked', ['{ref}' => $refNumber, '{when}' => date('l, F j, Y', strtotime($date)), '{location}' => $location], $applicationId, $mobile);
+        return $this->sendTemplate('interview_date_booked', ['{ref}' => $refNumber, '{when}' => date('l, F j, Y', strtotime($date)), '{location}' => $location], $applicationId, $mobile, $this->renewalInterviewNote($applicationId));
     }
 
     /** $dateOnly: {when} is the date alone (no misleading 12:00 AM); false (the default) is the timed behaviour, unchanged. */

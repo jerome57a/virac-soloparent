@@ -11,6 +11,31 @@
 <div class="portal-container" style="max-width:900px">
   <?php require APP_ROOT . '/views/partials/staff-page-heading.php'; ?>
   <?php if (!empty($smsNotice)) { require APP_ROOT . '/views/staff/applications/sms-notice.php'; } ?>
+  <?php if (!empty($flashMessage)): ?><div class="info-box" style="max-width:none" role="status"><?= e($flashMessage) ?></div><?php endif; ?>
+  <?php if (!empty($expiryNotSent)): ?>
+    <div class="review-card" id="expiry-not-sent" style="border-left:5px solid #b45309">
+      <div class="review-card-head"><div class="title">ID expiry SMS not sent (<?= count($expiryNotSent) ?>)</div></div>
+      <p class="small text-muted mb-2">The system sends one SMS on the day an ID expires. These were not sent that day (the system was not running, there was no internet or no SMS credit). The system will not send them by itself. Press <b>Send now</b> if you want the Solo Parent to get it; their account already shows the ID as expired.</p>
+      <ul class="ac-list mb-0">
+        <?php foreach ($expiryNotSent as $x): ?>
+          <li>
+            <span class="ac-pill is-small is-review" style="align-self:flex-start">Not sent</span>
+            <span>
+              <strong><?= e($x['full_name']) ?></strong>
+              <span class="small text-muted">· expired <?= e(date('M j, Y', strtotime((string) $x['id_expires_at']))) ?> · <?= e($x['mobile']) ?></span>
+              · <a href="<?= application_url($staff, (int) $x['id']) ?>"><?= e($x['reference_no']) ?></a>
+              <form method="post" class="d-inline ms-2" onsubmit="return confirm('Send the ID expiry SMS to this Solo Parent now?');">
+                <?= csrf_field() ?>
+                <input type="hidden" name="form_action" value="send_expiry_sms">
+                <input type="hidden" name="application_id" value="<?= (int) $x['id'] ?>">
+                <button type="submit" class="btn-outline" style="padding:3px 12px;font-size:12px">Send now</button>
+              </form>
+            </span>
+          </li>
+        <?php endforeach; ?>
+      </ul>
+    </div>
+  <?php endif; ?>
   <?php if (!$rows): ?>
     <div class="info-box" style="max-width:none" role="status" data-i18n>No failed texts need attention. A failed text stays here for <?= (int) SmsLog::ATTENTION_DAYS ?> days, until it is resent or replaced by a newer text of the same kind.</div>
   <?php else: ?>

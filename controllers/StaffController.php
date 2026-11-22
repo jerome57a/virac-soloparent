@@ -75,12 +75,20 @@ class StaffController extends Controller
                 'approved'          => $applications->countWhere("status IN ('Approved','ID Released')"),
                 'readyToSchedule'   => count($readyToSchedule),
                 'awaitingRelease'   => $queues->idReleaseCount(),
+                'releaseOverdue'    => (new IdReleaseService($this->pdo))->overdueCount(),
+                'releaseUnscheduled' => (int) $this->pdo->query("SELECT COUNT(*) FROM applications a WHERE a.status = 'Approved' AND NOT EXISTS (SELECT 1 FROM id_release_schedules r WHERE r.application_id = a.id)")->fetchColumn(),
                 'rejected'          => $applications->countWhere("status = 'Rejected'"),
             ],
             'docBacklog' => $documents->verificationBacklog(),
             'verificationQueue' => $documents->verificationQueue(10),
             'todaysAppointments' => $todays,
             'awaitingOutcome' => array_slice($awaitingOutcome, 0, 5),
+            'pendingNewList' => $this->waitingForReview('new'),
+            'pendingRenewalList' => $this->waitingForReview('renewal'),
+            'failedTextCount' => $this->failedTextCount(),
+            'failedTexts' => array_slice(array_values(array_filter((new SmsLog($this->pdo))->needingAttention(SMS_MAX_ATTEMPTS, 20),
+                fn($r) => !in_array($r['template_key'], ['renewal_reminder', 'renewal_expired'], true))), 0, 5),
+            'followUp' => InterviewDateFeature::enabled($this->pdo) ? $appointments->missedNotRebooked(7, 10) : [],
             'flashMessage' => take_flash(),
             'smsNotice' => take_sms_notice(),
             'readyToSchedule' => array_slice($readyToSchedule, 0, 5),
@@ -195,10 +203,12 @@ class StaffController extends Controller
             'invitationError' => $errors['invitation'],
             'invitationState' => $invitationState,
             'invitationPanel' => $invitationPanel,
-            'scheduleAutoMessage' => $invitationState === 'ready' ? (new SMSService($this->pdo))->interviewDateAssignedMessage((string) $app['reference_no'], null, get_setting($this->pdo, 'appointment_location', AppointmentService::DEFAULT_LOCATION)) : '',
+            'scheduleAutoMessage' => $invitationState === 'ready' ? (new SMSService($this->pdo))->interviewDateAssignedMessage((string) $app['reference_no'], null, get_setting($this->pdo, 'appointment_location', AppointmentService::DEFAULT_LOCATION), (int) $app['id']) : '',
             'scheduleDateStyle' => SMSService::compact() ? 'short' : 'long',
             'idReleaseTemplate' => SMSService::idReleaseTemplate(),
             'idReleaseCompact' => SMSService::compact(),
+            'scheduleWarn' => $this->scheduleWarnings(),
+            'idDefaults' => ['from' => date('Y-m-d'), 'to' => date('Y-m-d', strtotime('+' . IdReleaseService::validityYears($this->pdo) . ' year')), 'years' => IdReleaseService::validityYears($this->pdo)],
             'scheduleMinDate' => Appointment::manilaDate(),
             'scheduleMaxDate' => date('Y-m-d', strtotime(Appointment::manilaDate() . ' +' . InterviewBookingService::STAFF_WINDOW_DAYS . ' days')),
             'flashMessage' => take_flash(),
@@ -273,7 +283,19 @@ class StaffController extends Controller
                 if ($post('confirm_handover') !== '1') {
                     return ['release' => 'Confirm that the physical ID was handed to the Solo Parent before recording release.'];
                 }
-                $error = (new IdReleaseService($this->pdo))->confirmRelease($this->staff, $app);
+                $error = (new IdReleaseService($this->pdo))->confirmRelease($this->staff, $app, [
+                    'valid_from' => $post('id_valid_from'),
+                    'expires_at' => $post('id_expires_at'),
+                    'identity_checked' => $post('identity_checked') === '1',
+                    'override_reason' => $post('override_reason'),
+                ]);
+                if ($error) {
+                    return ['release' => $error];
+                }
+                $back .= '#id-release';
+                break;
+            case 'correct_id_dates':
+                $error = (new IdReleaseService($this->pdo))->correctDates($this->staff, $app, $post('id_valid_from'), $post('id_expires_at'), $post('correction_reason'));
                 if ($error) {
                     return ['release' => $error];
                 }
@@ -318,7 +340,9 @@ class StaffController extends Controller
                 $back .= '#sms';
                 break;
             case 'record_result':
-                $error = $review->recordInterviewOutcome($this->staff, $id, $post('interview_outcome'), $post('interview_notes'));
+                $recheck = is_array($_POST['recheck'] ?? null) ? array_values(array_filter($_POST['recheck'], 'is_string')) : [];
+                $error = $review->recordInterviewOutcome($this->staff, $id, $post('interview_outcome'), $post('interview_notes'), $recheck,
+                    $post('id_not_shown') === '1' ? $post('id_not_shown_reason') : '');
                 if ($error) {
                     return ['interview' => $error];
                 }
@@ -493,9 +517,55 @@ class StaffController extends Controller
             }
             set_setting($this->pdo, 'interview_followup_last_run', (string) time());
             (new AppointmentService($this->pdo))->releaseUnconfirmed();
+            // The ID expiry-day SMS (one per ID, on the expiry date only); the scheduled job does the same, this keeps it working
+            // when no scheduled job is set up.
+            require_once __DIR__ . '/../services/ScheduledJobService.php';
+            (new ScheduledJobService($this->pdo))->run('renewal_reminders', 'cron');
         } catch (Throwable $e) {
             error_log('Interview follow-up failed: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * What the schedule form warns about (it never blocks): holidays and closures in the next year, and the office hours. Weekends are
+     * detected by the page itself. Empty when it cannot be read.
+     */
+    private function scheduleWarnings(): array
+    {
+        try {
+            $calendar = new InterviewCalendarService($this->pdo);
+            $closed = [];
+            $day = new DateTimeImmutable(Appointment::manilaDate());
+            for ($i = 0; $i <= InterviewBookingService::STAFF_WINDOW_DAYS; $i++) {
+                if ((int) $day->format('N') < 6) {
+                    $message = $calendar->dateError($day->format('Y-m-d'));
+                    if ($message && !str_starts_with($message, 'The holiday calendar')) {
+                        $closed[$day->format('Y-m-d')] = rtrim((string) preg_replace('/ Choose .*$/', '', $message), '.');
+                    }
+                }
+                $day = $day->modify('+1 day');
+            }
+            $closes = get_setting($this->pdo, 'appointment_day_end', '17:00');
+            $closes = preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $closes) === 1 ? $closes : '17:00';
+            return ['closed' => $closed, 'opens' => '07:00', 'closes' => $closes, 'label' => '7:00 AM to ' . date('g:i A', strtotime($closes))];
+        } catch (Throwable $e) {
+            return [];
+        }
+    }
+
+    /** The oldest applications of one type ('new' or 'renewal') waiting for staff to start the review (dashboard, first 5). */
+    private function waitingForReview(string $type): array
+    {
+        $stmt = $this->pdo->prepare("SELECT id, reference_no, full_name, submitted_at FROM applications WHERE type = ? AND status = 'Pending Review' ORDER BY submitted_at, id LIMIT 5");
+        $stmt->execute([$type]);
+        return $stmt->fetchAll();
+    }
+
+    /** Failed texts plus ID expiry texts not sent: the same number as the Failed Texts menu badge. */
+    private function failedTextCount(): int
+    {
+        require_once __DIR__ . '/../includes/sms-attention.php';
+        return staff_sms_attention_count();
     }
 
     /** staff/doc_alerts.php: JSON for the alert toast (how many Solo Parents are waiting, how many re-uploaded, and the top of the queue). */
@@ -523,12 +593,25 @@ class StaffController extends Controller
             $post = fn(string $key) => is_string($_POST[$key] ?? null) ? trim($_POST[$key]) : '';
             if ($post('form_action') === 'retry_sms') {
                 $this->retrySms(null, (int) $post('sms_log_id'));
+            } elseif ($post('form_action') === 'send_expiry_sms') {
+                require_once __DIR__ . '/../services/RenewalService.php';
+                [$expiryError, $expirySms] = (new RenewalService($this->pdo))->sendExpirySmsNow($this->staff, (int) $post('application_id'));
+                if ($expiryError !== null) {
+                    flash($expiryError);
+                } else {
+                    set_sms_notice(SMSService::outcomeNotice($expirySms ?? ['status' => 'FAILED', 'error' => 'no SMS result was recorded'], 'ID expiry SMS'));
+                }
             }
             $this->redirectTo('staff/sms.php');
         }
+        require_once __DIR__ . '/../services/RenewalService.php';
         $this->page('Failed Texts', 'views/staff/sms/index.php', [
             'smsNotice' => take_sms_notice(),
-            'rows' => (new SmsLog($this->pdo))->needingAttention(SMS_MAX_ATTEMPTS),
+            'flashMessage' => take_flash(),
+            // Expiry-day texts are handled in their own list below (Send now), so they are not repeated here.
+            'rows' => array_values(array_filter((new SmsLog($this->pdo))->needingAttention(SMS_MAX_ATTEMPTS),
+                fn($r) => !in_array($r['template_key'], ['renewal_reminder', 'renewal_expired'], true))),
+            'expiryNotSent' => (new RenewalService($this->pdo))->expirySmsNotSent(30),
         ]);
     }
 

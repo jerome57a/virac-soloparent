@@ -22,7 +22,14 @@ require_once __DIR__ . '/../models/Document.php';
 class InterviewInvitationService
 {
     /** Interviews an applicant may miss and still choose a new date themselves; the invitation closes when this many are missed. */
-    public const MISSED_LIMIT = 5;
+    public const DEFAULT_MISSED_LIMIT = 3;
+
+    /** The limit set in Settings (interview_missed_limit), 1 to 10; DEFAULT_MISSED_LIMIT when unset or invalid. */
+    public function missedLimit(): int
+    {
+        $value = (int) get_setting($this->pdo, 'interview_missed_limit', (string) self::DEFAULT_MISSED_LIMIT);
+        return $value >= 1 && $value <= 10 ? $value : self::DEFAULT_MISSED_LIMIT;
+    }
 
     private PDO $pdo;
     private InterviewInvitation $invitations;
@@ -86,7 +93,7 @@ class InterviewInvitationService
      *  - the applicant cancelled: back to OPEN (INVITATION_REOPENED, source APPLICANT) while reschedules_used <
      *    reschedules_allowed, else CLOSED (INVITATION_CLOSED, source SYSTEM). reschedules_used is never changed here;
      *  - staff marked it missed: back to OPEN (INVITATION_REOPENED, source SYSTEM) so the applicant can choose a new date,
-     *    without using up a reschedule, until MISSED_LIMIT misses have been recorded; then CLOSED like the case below;
+     *    without using up a reschedule, until the missed-interview limit (missedLimit()) is reached; then CLOSED like the case below;
      *  - staff cancelled (or marked the last allowed miss): CLOSED (INVITATION_CLOSED, source STAFF).
      * An OPEN or CLOSED invitation is left as it is. Returns true when the applicant can now choose a new date themselves.
      */
@@ -110,13 +117,14 @@ class InterviewInvitationService
         $allowed = (int) $invitation['reschedules_allowed'];
         if ($byStaff && $outcome === 'MISSED') {
             // Staff confirmed the applicant did not come. The applicant may pick a new date themselves (a miss does not use up
-            // a reschedule) until MISSED_LIMIT misses; the miss recorded just above is already counted.
+            // a reschedule) until the missed-interview limit; the miss recorded just above is already counted.
             $missed = $this->events->countOf($applicationId, 'MISSED');
-            if ($missed < self::MISSED_LIMIT) {
+            $limit = $this->missedLimit();
+            if ($missed < $limit) {
                 if (!$this->invitations->releaseBooking($applicationId)) {
                     throw new RuntimeException('The interview invitation changed while the appointment was being closed.');
                 }
-                $details = 'Reopened after a missed interview (' . $missed . ' of ' . self::MISSED_LIMIT . ' allowed). The Solo Parent may choose a new date.';
+                $details = 'Reopened after a missed interview (' . $missed . ' of ' . $limit . ' allowed). The Solo Parent may choose a new date.';
                 $this->events->record($applicationId, 'INVITATION_REOPENED', 'SYSTEM', $actor, null, $details, $appointmentId);
                 $this->auditFor($actor, $applicationId, 'Interview Invitation Reopened', $details);
                 return true;

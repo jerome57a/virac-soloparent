@@ -124,7 +124,7 @@ try {
     $firstId = upload_fixture_prepare_application_id($test); // refuses an application folder that already exists
     try { $ref = $service->submit($user,$source,$draft); } finally { upload_fixture_track_applications($test,$firstId); }
     $renewal =$applications->findByReference($ref);
-    renewal_assert($renewal['renewal_simplified'] && (int) $renewal['renewal_of_id']===$id,'Renewal not linked to its existing ID.');
+    renewal_assert(!$renewal['renewal_simplified'] && (int) $renewal['renewal_of_id']===$id,'Renewal not linked to its existing ID, or still documents-only (every renewal now has an interview).');
     renewal_assert($renewal['full_name']==='Fixture Applicant' && $applications->children((int) $renewal['id'])[0]['full_name']==='Existing Child','Identity or children changed from tampered input.');
     $documents = new Document($test);
     $uploadedRows = $documents->uploadedForApplication((int) $renewal['id']);
@@ -136,37 +136,41 @@ try {
     renewal_assert(count($retained)===2 && $retained[0]['reviewed_at']==='2025-01-01 09:00:00','Original verification evidence was not retained.');
     $freshRows = array_values(array_filter($rows,fn($row)=>$row['is_required']));
     renewal_assert(!array_filter($freshRows,fn($row)=>$row['applicant_has']!=1 || $row['verification_status']!=='Pending' || $row['reviewed_at']!==null),'An uploaded renewal document was treated as verified on submission.');
-    renewal_assert((new AppointmentService($test))->findBookableApplication([$renewal])===null,'Renewal offered a new interview.');
     $review = new ApplicationReviewService($test);
     $review->startReviewOnOpen($staff,$renewal);
     $renewal = $applications->findForReview((int) $renewal['id']);
-    // A simplified renewal needs no interview: the applicant is offered none (asserted above through findBookableApplication).
+    // Every renewal now has an interview (RA 11861: MSWDO confirms the Solo Parent still qualifies).
     renewal_assert(!array_column($review->approvalChecklist($renewal),null,'label')['Required documents']['ok'],'Uploaded but unverified renewal documents already satisfied approval.');
     $verdicts = [];
     foreach ($uploadedRows as $upload) { $verdicts[(int) $upload['id']] = ['status'=>'VERIFIED','remarks'=>'','expected'=>'FOR_VERIFICATION','expected_remarks'=>'','expected_version'=>Document::versionToken($upload)]; }
     $saved = $review->saveVerification($staff,$renewal,$verdicts);
     renewal_assert(!$saved['errors'] && $saved['changed']===2,'Staff verification of the uploaded renewal documents failed.');
     $renewal = $applications->findForReview((int) $renewal['id']);
-    renewal_assert((new Appointment($test))->interviewFor((int) $renewal['id'])===null && (new AppointmentService($test))->findBookableApplication([$renewal])===null,'A renewal with verified documents was given an interview.');
     renewal_assert($renewal['eligibility_status'] === 'Not Assessed', 'Renewal verification automatically decided eligibility.');
-    renewal_assert(!array_filter($review->approvalChecklist($renewal),fn($row)=>!$row['ok']), 'Not assessed still blocks a complete renewal.');
+    renewal_assert(array_values(array_map(fn($row)=>$row['label'],array_filter($review->approvalChecklist($renewal),fn($row)=>!$row['ok'])))===['Successful interview recorded'], 'Only the interview should still block a renewal with verified documents.');
     renewal_set_eligibility($test,$staff,$renewal,'Eligible','Renewal reviewed by MSWDO.');
     $renewal = $applications->findForReview((int) $renewal['id']);
-    renewal_assert(!array_filter($review->approvalChecklist($renewal),fn($row)=>!$row['ok']),'Approval requires a new interview.');
-    $stages = array_column((new ApplicationTrackerService($test))->track($renewal)['stages'],null,'key');
-    renewal_assert($stages['assessment']['label']==='Renewal Review' && $stages['assessment']['state']==='done','Tracker still requires the new-applicant assessment/interview.');
+    renewal_assert(is_string($review->updateStatus($staff,$renewal,'Approved','',$renewal['status'])),'A renewal was approved without an interview.');
+    // The interview took place yesterday: staff record it with the renewal re-check.
+    $test->prepare("INSERT INTO appointments (application_id,scheduled_at,location,status,scheduled_by) VALUES (?,DATE_SUB(NOW(),INTERVAL 1 DAY),'Fixture','BOOKED',?)")->execute([$renewal['id'],$staff['id']]);
     // Render the real staff processing page against the fixture without changing any live session.
     $controller = (new ReflectionClass(StaffController::class))->newInstanceWithoutConstructor();
     (new ReflectionProperty(Controller::class,'pdo'))->setValue($controller,$test);
     (new ReflectionProperty(StaffController::class,'staff'))->setValue($controller,$staff);
     $_GET=['id'=>(int) $renewal['id']]; $_SERVER['REQUEST_METHOD']='GET'; $_SERVER['REQUEST_URI']='/staff/application.php';
     ob_start(); $controller->application(); $staffHtml=ob_get_clean();
-    renewal_assert(!str_contains($staffHtml,'id="interview"') && !str_contains($staffHtml,'id="interview-result-form"'),'Staff renewal screen still shows interview controls.');
+    renewal_assert(str_contains($staffHtml,'id="interview-result-form"') && str_contains($staffHtml,'Renewal re-check (RA 11861)') && str_contains($staffHtml,'name="recheck[]"'),'Staff renewal screen does not show the interview with the renewal re-check.');
+    renewal_assert(str_contains($staffHtml,'value="Rejected"'),'Staff cannot reject a renewal.');
+    renewal_assert(is_string($review->recordInterviewOutcome($staff,(int) $renewal['id'],'Successful','',['not_married','caregiver'])),'A successful renewal interview was recorded without the full re-check.');
+    renewal_assert($review->recordInterviewOutcome($staff,(int) $renewal['id'],'Successful','',array_keys(ApplicationReviewService::RENEWAL_RECHECK))===null,'Recording the renewal interview failed.');
+    renewal_assert(str_contains((string) (new Appointment($test))->interviewFor((int) $renewal['id'])['result'],'all confirmed'),'The re-check was not recorded with the result.');
+    $renewal = $applications->findForReview((int) $renewal['id']);
+    renewal_assert(!array_filter($review->approvalChecklist($renewal),fn($row)=>!$row['ok']),'A renewal with verified documents and a successful interview cannot be approved.');
     renewal_assert(str_contains($staffHtml,'name="remarks"'),'Renewal decision remarks are missing.');
     renewal_assert(!str_contains($staffHtml,'[expires_at]') && !str_contains($staffHtml,'Document expiry:') && !str_contains($staffHtml,'Document expires on'),'Staff review still shows document expiry.');
     renewal_assert(!str_contains($staffHtml,'Undo Verification') && !str_contains($staffHtml,'>Verify All</button>'),'Legacy bulk verification buttons are still shown.');
     renewal_assert(!str_contains($staffHtml,'Undo Eligibility') && !str_contains($staffHtml,'name="eligibility_status"') && !str_contains($staffHtml,'Is the applicant eligible?'),'Staff page still shows the separate eligibility step.');
-    renewal_assert($review->updateStatus($staff,$renewal,'Approved','',$renewal['status'])===null,'Document-only renewal approval failed.');
+    renewal_assert($review->updateStatus($staff,$renewal,'Approved','',$renewal['status'])===null,'Renewal approval after the interview failed.');
     $test->prepare("INSERT INTO id_release_schedules (application_id,scheduled_at,location,scheduled_by,sms_message) VALUES (?,NOW(),'Fixture',?,'Fixture')")->execute([$renewal['id'],$staff['id']]);
     renewal_assert((new IdReleaseService($test))->confirmRelease($staff,$applications->findForReview((int) $renewal['id']))===null,'Renewed ID handover failed.');
     renewal_assert($applications->findForReview((int) $renewal['id'])['id_expires_at']===$test->query('SELECT DATE_ADD(CURDATE(),INTERVAL 1 YEAR)')->fetchColumn(),'Renewed ID validity changed.');
@@ -177,7 +181,7 @@ try {
     renewal_assert(in_array('futureCertificate',array_column($policies->plan($nextSource)['fresh'],'doc_key'),true),'An inherited document expiring later was silently dropped.');
     $test->prepare('UPDATE application_document_checklists SET expires_at=CURDATE() WHERE application_id=? AND doc_key=?')->execute([$renewal['id'],'futureCertificate']);
     renewal_assert(in_array('futureCertificate',array_column($policies->plan($service->sourceApplication($user))['retained'],'doc_key'),true),'A document expired before its expiry date ended.');
-    // When every configured document can be reused, renewal still reaches approval without an interview.
+    // When every configured document can be reused, the renewal still needs its interview before approval.
     $test->prepare('UPDATE renewal_requirements SET always_refresh=0 WHERE category_id=?')->execute([$categoryA]);
     $test->prepare('UPDATE applications SET id_expires_at=CURDATE() WHERE id=?')->execute([$renewal['id']]);
     $nextSource = $service->sourceApplication($user);
@@ -194,8 +198,8 @@ try {
     $review->startReviewOnOpen($staff,$next); $next=$applications->findForReview((int) $next['id']);
     renewal_set_eligibility($test,$staff,$next,'Eligible','Existing documents and renewal reviewed.');
     $next=$applications->findForReview((int) $next['id']);
-    renewal_assert(!array_filter($review->approvalChecklist($next),fn($row)=>!$row['ok']),'All-reused renewal cannot reach approval.');
-    echo "Simplified renewal passed: required file uploads (no checkbox submission), staff verification of uploads, retained history, no repeated form/interview, approval and one-year release.\n";
+    renewal_assert(array_values(array_map(fn($row)=>$row['label'],array_filter($review->approvalChecklist($next),fn($row)=>!$row['ok'])))===['Successful interview recorded'],'An all-reused renewal should wait only for its interview.');
+    echo "Renewal passed: required file uploads, staff verification of uploads, retained history, an interview with the RA 11861 re-check before approval, and one-year release.\n";
 } catch (Throwable $e) {
     fwrite(STDERR,$e->getMessage().PHP_EOL); $exitCode=1;
 } finally {

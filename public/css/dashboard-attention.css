@@ -1,0 +1,33 @@
+/* Dashboards keep their original design; the detailed lists below "Needs attention" are hidden until asked for.
+   MSWDO staff: a tile opens its list below the tiles (one at a time). MSWDO admin: a "Needs attention" row opens its details
+   inside the row; the system details, recent activity and quick access are folded. Light and dark themes. */
+
+/* ---- MSWDO staff ---- */
+#staff-dashboard .stat-tile[data-panel] { cursor: pointer; }
+#staff-dashboard .stat-tile.is-open { outline: 3px solid #2f5fa8; outline-offset: 2px; }
+#staff-dashboard .dash-panel { scroll-margin-top: 80px; }
+#staff-dashboard .dash-panel[hidden] { display: none !important; }
+.dash-panel-hint { font-size: 13px; color: var(--muted); margin: 4px 0 14px; }
+.dash-panel-close { border: 1px solid var(--border, #d9e1ec); background: transparent; color: var(--ink); border-radius: 999px; padding: 2px 12px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.dash-panel-close:hover { background: var(--surface-alt, #f6f8fb); }
+html[data-theme="dark"] #staff-dashboard .stat-tile.is-open { outline-color: #7fa8ea; }
+
+/* ---- MSWDO admin ---- */
+.ad-attention-item > summary { list-style: none; cursor: pointer; }
+.ad-attention-item > summary::-webkit-details-marker { display: none; }
+.ad-attention-item > summary > svg { transition: transform .15s ease; }
+.ad-attention-item[open] > summary > svg { transform: rotate(90deg); }
+.ad-attention-item[open] > summary { background: var(--ad-subtle, #f5f8fc); }
+.ad-attention-detail { padding: 4px 22px 14px; border-top: 1px dashed var(--ad-border, #dfe6ef); background: var(--ad-subtle, #f5f8fc); }
+.ad-attention-line { padding: 8px 0; border-bottom: 1px solid var(--ad-border, #dfe6ef); }
+.ad-attention-line strong { display: block; font-size: 13px; font-weight: 600; color: var(--ad-text, var(--ink)); }
+.ad-attention-line small { display: block; font-size: 12px; color: var(--ad-muted, var(--muted)); margin-top: 2px; }
+.ad-attention-detail .ad-text-link { display: inline-flex; margin-top: 10px; font-size: 13px; font-weight: 600; }
+.ad-attention-note { font-size: 12px; color: var(--ad-muted, var(--muted)); margin: 10px 0 0; }
+.ad-more { margin-bottom: 18px; }
+.ad-more > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 18px;
+  border: 1px solid var(--ad-border, #dfe6ef); border-radius: 12px; background: var(--ad-card, #fff); color: var(--ad-text, var(--ink)); font-weight: 600; font-size: 14px; }
+.ad-more > summary::-webkit-details-marker { display: none; }
+.ad-more[open] > summary { margin-bottom: 16px; }
+.ad-more[open] > summary .ad-details-toggle { transform: rotate(45deg); }
+@media (max-width: 560px) { .ad-attention-detail { padding-inline: 16px; } }
