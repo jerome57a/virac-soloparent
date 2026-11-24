@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>e-SoloParentID Swimlane Diagrams</title>
+<style>
+  :root {
+    --bg:#f6f7f9; --text:#1f2933; --muted:#5b6670; --card:#ffffff; --line:#4a5560; --border:#d5dae0;
+    --box:#ffffff; --boxline:#8a96a3; --note:#f1f2f4;
+    --sp:#e4eefa;   --sp-h:#2f6fb3;
+    --sys:#e5f4e7;  --sys-h:#2f8a45;
+    --staff:#fcf0d9;--staff-h:#b7791f;
+    --yes:#1d7a3a; --no:#b33a3a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:#14181d; --text:#e6eaee; --muted:#a2adb8; --card:#1c2128; --line:#aab4be; --border:#333c46;
+      --box:#262d36; --boxline:#6c7886; --note:#20262d;
+      --sp:#1b2a3b; --sp-h:#6aa6e6;
+      --sys:#1a2e20; --sys-h:#5bbf76;
+      --staff:#33281a; --staff-h:#e0a94a;
+      --yes:#5bd083; --no:#ff8c8c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg:#14181d; --text:#e6eaee; --muted:#a2adb8; --card:#1c2128; --line:#aab4be; --border:#333c46;
+    --box:#262d36; --boxline:#6c7886; --note:#20262d;
+    --sp:#1b2a3b; --sp-h:#6aa6e6;
+    --sys:#1a2e20; --sys-h:#5bbf76;
+    --staff:#33281a; --staff-h:#e0a94a;
+    --yes:#5bd083; --no:#ff8c8c;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+         font:16px/1.5 "Segoe UI", system-ui, -apple-system, Arial, sans-serif; }
+  .wrap { max-width:1000px; margin:0 auto; padding:24px 16px 56px; }
+  h1 { font-size:1.5rem; margin:0 0 4px; }
+  .sub { color:var(--muted); margin:0 0 20px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:16px; }
+  .card h2 { font-size:1.15rem; margin:0 0 8px; }
+  .card ul { margin:6px 0 0; padding-left:20px; }
+  .card li { margin:3px 0; }
+  h3 { font-size:1.02rem; margin:22px 0 4px; }
+  .cap { color:var(--muted); margin:0 0 8px; font-size:.95rem; }
+  .scroll { overflow-x:auto; border:1px solid var(--border); border-radius:12px; background:var(--card); padding:8px; max-width:100%; }
+  svg { display:block; min-width:700px; width:100%; height:auto; }
+  svg text { font-family:"Segoe UI", system-ui, Arial, sans-serif; fill:var(--text); }
+  .lane-h { font-weight:700; font-size:15px; fill:#fff; }
+  .lane-sub { font-size:11.5px; fill:#fff; opacity:.92; }
+  .nd { fill:var(--box); stroke:var(--boxline); stroke-width:1.5; }
+  .nd.sp { stroke:var(--sp-h); } .nd.sys { stroke:var(--sys-h); }
+  .nd.staff { stroke:var(--staff-h); }
+  .nd.note { fill:var(--note); stroke-dasharray:5 4; stroke:var(--boxline); }
+  .t { font-size:13px; text-anchor:middle; }
+  .t.small { font-size:12px; fill:var(--muted); }
+  .badge { fill:var(--text); }
+  .badge-t { font-size:11px; font-weight:700; text-anchor:middle; fill:var(--bg); }
+  .edge { fill:none; stroke:var(--line); stroke-width:1.6; }
+  .edge.dash { stroke-dasharray:6 4; }
+  .edge.dot { stroke-dasharray:2 3; stroke-width:1.3; }
+  .arrow { fill:var(--line); }
+  .lbl { font-size:12px; font-weight:700; text-anchor:middle; }
+  .lbl.yes { fill:var(--yes); } .lbl.no { fill:var(--no); }
+  .legend { display:flex; flex-wrap:wrap; gap:10px 22px; margin-top:12px; font-size:.9rem; color:var(--muted); }
+  .legend span { display:inline-flex; align-items:center; gap:8px; }
+  .legend svg { min-width:0; width:44px; height:24px; display:inline-block; }
+  .tools { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 16px; }
+  .tools a, button { font:inherit; padding:6px 12px; border-radius:8px; border:1px solid var(--border);
+           background:var(--card); color:var(--text); cursor:pointer; text-decoration:none; }
+  section { margin-bottom:44px; }
+  @media print {
+    .tools { display:none; } body { background:#fff; }
+    .scroll { overflow:visible; border:0; } svg { min-width:0; }
+    section { break-before:page; } section:first-of-type { break-before:auto; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>e-SoloParentID: Swimlane Diagrams</h1>
+  <p class="sub">An Online Application and Renewal System with Automated Verification and SMS Notification</p>
+
+  <div class="tools">
+    <a href="#d1">1. New application</a><a href="#d2">2. Renewal</a><a href="#d3">3. Side flows</a>
+    <button type="button" id="themeBtn">Switch light / dark</button>
+    <button type="button" onclick="window.print()">Print</button>
+  </div>
+
+  <section id="d1">
+    <div class="card">
+      <h2>Diagram 1: New Solo Parent ID Application</h2>
+      <p style="margin:0">This shows what happens from the day a Solo Parent registers until the ID is handed over.</p>
+      <ul>
+        <li><b>There are three actors:</b> the Solo Parent, the System (automatic checks and SMS texts) and the MSWDO Staff.</li>
+        <li><b>Read from top to bottom</b> and follow the arrows. An arrow that moves to another column is a handoff.</li>
+        <li><b>Dashed arrows are text messages (SMS).</b> The System sends them. Only the steps that need the Solo Parent are texted.</li>
+        <li><b>Diamonds are questions.</b> Follow "Yes" or "No".</li>
+      </ul>
+    </div>
+    <div class="scroll"><svg id="svg1" role="img" aria-label="Swimlane diagram of a new Solo Parent ID application"></svg></div>
+    <div class="legend" id="legend1"></div>
+  </section>
+
+  <section id="d2">
+    <div class="card">
+      <h2>Diagram 2: Renewal of the Solo Parent ID</h2>
+      <p style="margin:0">Renewal follows the same path as a new application, with these differences:</p>
+      <ul>
+        <li>Renewal opens <b>on the day the ID expires</b> and stays open for <b>365 days</b>. After that the Solo Parent applies again as a new application.</li>
+        <li>Only the documents with <b>no accepted, unexpired copy on file</b> are asked, not the full list for a new application. A child over 22 with a disability needs a PWD ID or medical certificate.</li>
+        <li>The interview is a <b>re-check</b> (RA 11861). The Solo Parent must show the current Solo Parent ID.</li>
+      </ul>
+    </div>
+    <div class="scroll"><svg id="svg2" role="img" aria-label="Swimlane diagram of a Solo Parent ID renewal"></svg></div>
+    <div class="legend" id="legend2"></div>
+  </section>
+
+  <section id="d3">
+    <div class="card">
+      <h2>Diagram 3: Side Flows</h2>
+      <p style="margin:0">Three smaller flows that happen beside the main ones. Each one is short and has its own diagram.</p>
+      <ul>
+        <li><b>3A:</b> the Solo Parent did not come to the interview.</li>
+        <li><b>3B:</b> the interview date passed and staff never recorded what happened.</li>
+        <li><b>3C:</b> the automatic text sent when the ID expires.</li>
+      </ul>
+    </div>
+    <h3>3A. The Solo Parent missed the interview</h3>
+    <p class="cap">Staff mark a no-show only after the date has passed. No text is ever sent for a missed interview: the Solo Parent sees a notice in the account.</p>
+    <div class="scroll"><svg id="svg3a" role="img" aria-label="Swimlane diagram of a missed interview"></svg></div>
+    <h3>3B. Nobody recorded the interview result</h3>
+    <p class="cap">If staff do not record Attended or Did not attend within 2 weekdays, the system reopens the booking by itself.</p>
+    <div class="scroll"><svg id="svg3b" role="img" aria-label="Swimlane diagram of an unconfirmed interview"></svg></div>
+    <h3>3C. The ID-expiry text</h3>
+    <p class="cap">One text is sent on the exact expiration date that staff typed from the card.</p>
+    <div class="scroll"><svg id="svg3c" role="img" aria-label="Swimlane diagram of the ID expiry text"></svg></div>
+    <div class="legend" id="legend3"></div>
+  </section>
+</div>
+
+<script>
+(function () {
+  var NS = 'http://www.w3.org/2000/svg';
+  var W = 940, LW = W / 3;
+  var LANES = {
+    sp:   { x: 0,        name: 'Solo Parent', sub: 'the applicant' },
+    sys:  { x: LW,       name: 'System',      sub: 'automatic checks and SMS texts' },
+    staff:{ x: LW * 2,   name: 'MSWDO Staff', sub: 'reviews and decides' }
+  };
+  var COLORS = { sp: ['--sp', '--sp-h'], sys: ['--sys', '--sys-h'], staff: ['--staff', '--staff-h'] };
+  var TOP = 62, ROW = 114, FIRST = 56, BW = 210;
+
+  function el(tag, attrs, parent) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function cx(lane) { return LANES[lane].x + LW / 2; }
+  function cy(row)  { return TOP + FIRST + (row - 1) * ROW; }
+
+  /* ---------- edge builders (a, b are node ids) ---------- */
+  function mk(fn, a, side, o) {
+    o = o || {};
+    return {
+      pts: fn, dash: o.dash, plain: o.plain, label: o.label, anchor: o.anchor,
+      lp: function (P, X, Y, G) {
+        var p, d = { b: [20, 14], r: [18, -8], l: [-18, -8] }[side];
+        if (o.at === 'end') { var pts = fn(P, X, Y, G); p = pts[pts.length - 1]; } else { p = P(a, side); }
+        return [p[0] + (o.dx != null ? o.dx : d[0]), p[1] + (o.dy != null ? o.dy : d[1])];
+      }
+    };
+  }
+  var E = {
+    down:  function (a, b, o) { return mk(function (P) { return [P(a, 'b'), P(b, 't')]; }, a, 'b', o); },
+    side:  function (a, b, o) { return mk(function (P) { return [P(a, 'r'), P(b, 'l')]; }, a, 'r', o); },
+    sideL: function (a, b, o) { return mk(function (P) { return [P(a, 'l'), P(b, 'r')]; }, a, 'l', o); },
+    rt:    function (a, b, o) { return mk(function (P, X, Y) { return [P(a, 'r'), [X(b), Y(a)], P(b, 't')]; }, a, 'r', o); },
+    lt:    function (a, b, o) { return mk(function (P, X, Y) { return [P(a, 'l'), [X(b), Y(a)], P(b, 't')]; }, a, 'l', o); },
+    gap:   function (a, b, o) { return mk(function (P, X, Y, G) { return [P(a, 'b'), [X(a), G(a)], [X(b), G(a)], P(b, 't')]; }, a, 'b', o); }
+  };
+
+  /* ---------- renderer ---------- */
+  function render(svg, nodes, edges, rows, margin) {
+    var H = TOP + FIRST + (rows - 1) * ROW + FIRST + 20;
+    svg.setAttribute('viewBox', '0 0 ' + (W + (margin || 0)) + ' ' + H);
+
+    var defs = el('defs', {}, svg);
+    var mkr = el('marker', { id: 'ah-' + svg.id, viewBox: '0 0 10 10', refX: '9', refY: '5', markerWidth: '8', markerHeight: '8', orient: 'auto-start-reverse' }, defs);
+    el('path', { d: 'M0,0 L10,5 L0,10 z', 'class': 'arrow' }, mkr);
+
+    Object.keys(LANES).forEach(function (k) {
+      var L = LANES[k];
+      el('rect', { x: L.x, y: 0, width: LW, height: H, style: 'fill:var(' + COLORS[k][0] + ')' }, svg);
+      el('rect', { x: L.x, y: 0, width: LW, height: 50, style: 'fill:var(' + COLORS[k][1] + ')' }, svg);
+      var t = el('text', { x: L.x + LW / 2, y: 22, 'text-anchor': 'middle', 'class': 'lane-h' }, svg); t.textContent = L.name;
+      var s = el('text', { x: L.x + LW / 2, y: 40, 'text-anchor': 'middle', 'class': 'lane-sub' }, svg); s.textContent = L.sub;
+      if (L.x > 0) el('line', { x1: L.x, y1: 50, x2: L.x, y2: H, stroke: 'var(--border)', 'stroke-width': 1 }, svg);
+    });
+
+    var geo = {};
+    nodes.forEach(function (n) {
+      var h, lines = n.t.length;
+      if (n.type === 'decision') h = 84;
+      else if (n.type === 'start' || n.type === 'end') h = 18 * lines + 22;
+      else h = 18 * lines + 24;
+      geo[n.id] = { x: cx(n.lane), y: cy(n.row) + (n.dy || 0), w: BW, h: h };
+    });
+    function P(id, side) {
+      var g = geo[id];
+      if (side === 't') return [g.x, g.y - g.h / 2];
+      if (side === 'b') return [g.x, g.y + g.h / 2];
+      if (side === 'l') return [g.x - g.w / 2, g.y];
+      return [g.x + g.w / 2, g.y];
+    }
+    function X(id) { return geo[id].x; }
+    function Y(id) { return geo[id].y; }
+    function G(id) { return geo[id].y + ROW / 2; }
+
+    edges.forEach(function (e) {
+      var pts = e.pts(P, X, Y, G);
+      var d = pts.map(function (p, i) { return (i ? 'L' : 'M') + p[0] + ',' + p[1]; }).join(' ');
+      el('path', { d: d, 'class': 'edge' + (e.dash ? ' dash' : '') + (e.plain ? ' dot' : '') }, svg);
+      if (!e.plain) {
+        // Arrowhead drawn as a triangle at the end of the line (works in every browser, no marker needed).
+        var tip = pts[pts.length - 1], prev = pts[pts.length - 2];
+        var dx = tip[0] - prev[0], dy = tip[1] - prev[1], len = Math.sqrt(dx * dx + dy * dy) || 1;
+        var ux = dx / len, uy = dy / len, bx2 = tip[0] - ux * 10, by2 = tip[1] - uy * 10;
+        el('polygon', { points: [tip, [bx2 - uy * 5, by2 + ux * 5], [bx2 + uy * 5, by2 - ux * 5]].join(' '), 'class': 'arrow' }, svg);
+      }
+      if (e.label) {
+        var lp = e.lp(P, X, Y, G);
+        var la = { x: lp[0], y: lp[1], 'class': 'lbl ' + (e.label === 'Yes' ? 'yes' : 'no') };
+        if (e.anchor) la.style = 'text-anchor:' + e.anchor;
+        var lt = el('text', la, svg);
+        lt.textContent = e.label;
+      }
+    });
+
+    nodes.forEach(function (n) {
+      var g = geo[n.id], x = g.x - g.w / 2, y = g.y - g.h / 2;
+      var cls = 'nd ' + (n.type === 'note' ? 'note' : n.lane);
+      if (n.type === 'decision') {
+        el('polygon', { points: [[g.x, y], [g.x + g.w / 2, g.y], [g.x, y + g.h], [g.x - g.w / 2, g.y]].join(' '), 'class': cls }, svg);
+      } else if (n.type === 'start' || n.type === 'end') {
+        el('rect', { x: x, y: y, width: g.w, height: g.h, rx: g.h / 2, 'class': cls }, svg);
+      } else {
+        el('rect', { x: x, y: y, width: g.w, height: g.h, rx: 8, 'class': cls }, svg);
+      }
+      var startY = g.y - (n.t.length - 1) * 9 + 4.5;
+      n.t.forEach(function (line, i) {
+        var tt = el('text', { x: g.x, y: startY + i * 18, 'class': 't' + (n.type === 'note' ? ' small' : '') }, svg);
+        tt.textContent = line;
+      });
+    });
+  }
+
+  /* =====================================================
+     Diagram 1: new application
+     ===================================================== */
+  var N1 = [
+    { id: 'a1',  n: 1,  lane: 'sp',    row: 1,  type: 'start',   t: ['Register and log in'] },
+    { id: 'a2',  n: 2,  lane: 'sp',    row: 2,  type: 'step',    t: ['Fill in the application', 'and upload documents'] },
+    { id: 'a3',  n: 3,  lane: 'sys',   row: 3,  type: 'step',    t: ['The system pre-checks', 'the draft and shows', 'any problems'] },
+    { id: 'a4',  n: 4,  lane: 'sp',    row: 4,  type: 'decision',t: ['Anything', 'to fix?'] },
+    { id: 'a5',  n: 5,  lane: 'sp',    row: 5,  type: 'step',    t: ['Submit the application.', 'You get a reference', 'number.'] },
+    { id: 'a6',  n: 6,  lane: 'sys',   row: 6,  type: 'step',    t: ['The system checks the', 'documents and tells', 'staff (it never rejects)'] },
+    { id: 'ls',  n: 7,  lane: 'staff', row: 7,  type: 'step',    t: ['Log in and open the', 'Applications queue'] },
+    { id: 'a7',  n: 8,  lane: 'staff', row: 8,  type: 'step',    t: ['Check each document:', 'Verified or', 'Needs Correction'] },
+    { id: 'a8',  n: 9,  lane: 'staff', row: 9,  type: 'decision',t: ['All documents', 'verified?'] },
+    { id: 'a9',  n: 10, lane: 'sys',   row: 9,  type: 'step',    t: ['Text asks the Solo', 'Parent to fix documents'] },
+    { id: 'a10', n: 11, lane: 'sp',    row: 10, type: 'step',    t: ['Upload the corrected', 'documents'] },
+    { id: 'a11', n: 12, lane: 'staff', row: 10, type: 'step',    t: ['Set the interview', 'date and time'] },
+    { id: 'a12', n: 13, lane: 'sys',   row: 10, type: 'step',    t: ['Text sent with the', 'interview date. Bring a', 'valid ID and two 1x1', 'pictures.'] },
+    { id: 'a13', n: 14, lane: 'sp',    row: 11, type: 'step',    t: ['Keep the date or choose', 'another day, then go', 'to the interview'] },
+    { id: 'a14', n: 15, lane: 'staff', row: 12, type: 'step',    t: ['Record the', 'interview result'] },
+    { id: 'a15', n: 16, lane: 'staff', row: 13, type: 'decision',t: ['Interview', 'successful?'] },
+    { id: 'a16', n: 17, lane: 'staff', row: 14, type: 'step',    t: ['Approve and set the', 'ID release date'] },
+    { id: 'a17', n: 18, lane: 'sys',   row: 14, type: 'step',    t: ['Text sent with the ID', 'release date. Bring', 'a valid ID.'] },
+    { id: 'a18', n: 19, lane: 'sp',    row: 15, type: 'step',    t: ['Come on that date and', 'get the ID'] },
+    { id: 'a19', n: 20, lane: 'staff', row: 16, type: 'step',    t: ['Confirm the handover;', 'type the start and', 'expiry dates'] },
+    { id: 'a20', n: 21, lane: 'sys',   row: 17, type: 'end',     t: ['ID is valid for one', 'year from those dates'] }
+  ];
+  var E1 = [
+    E.down('a1', 'a2'),
+    E.rt('a2', 'a3'),
+    E.gap('a3', 'a4'),
+    E.down('a4', 'a5', { label: 'No' }),
+    mk(function (P, X, Y) { return [P('a4', 'l'), [14, Y('a4')], [14, Y('a2')], P('a2', 'l')]; }, 'a4', 'l', { label: 'Yes', dx: 6, dy: 20 }),
+    E.rt('a5', 'a6'),
+    E.rt('a6', 'ls'),
+    E.down('ls', 'a7'),
+    E.down('a7', 'a8'),
+    E.sideL('a8', 'a9', { label: 'No' }),
+    E.down('a8', 'a11', { label: 'Yes' }),
+    E.gap('a9', 'a10', { dash: true }),
+    mk(function (P, X, Y) { return [P('a10', 'l'), [14, Y('a10')], [14, Y('a7')], P('a7', 'l')]; }, 'a10', 'l', {}),
+    E.sideL('a11', 'a12', { dash: true }),
+    E.gap('a12', 'a13', { dash: true }),
+    E.rt('a13', 'a14'),
+    E.down('a14', 'a15'),
+    mk(function (P, X, Y) { var x = X('a15') + BW / 2 + 30; return [P('a15', 'r'), [x, Y('a15')], [x, Y('a11')], P('a11', 'r')]; }, 'a15', 'r', { label: 'No', dx: 14 }),
+    E.down('a15', 'a16', { label: 'Yes' }),
+    E.sideL('a16', 'a17', { dash: true }),
+    E.gap('a17', 'a18', { dash: true }),
+    E.rt('a18', 'a19'),
+    E.lt('a19', 'a20')
+  ];
+  render(document.getElementById('svg1'), N1, E1, 17);
+
+  /* =====================================================
+     Diagram 2: renewal
+     ===================================================== */
+  var N2 = [
+    { id: 'b1',  n: 1,  lane: 'sys',   row: 1,  type: 'start',   t: ['Renewal opens on the', 'ID expiry date'] },
+    { id: 'b2',  n: 2,  lane: 'sp',    row: 2,  type: 'step',    t: ['Open the renewal form.', 'Your details are', 'already filled in.'] },
+    { id: 'b3',  n: 3,  lane: 'sp',    row: 3,  type: 'step',    t: ['Upload the documents', 'the form asks for'] },
+    { id: 'b5',  n: 4,  lane: 'sp',    row: 4,  type: 'step',    t: ['Agree to the declaration', 'and submit'] },
+    { id: 'b5t', n: 0,  lane: 'sys',   row: 4,  type: 'step',    t: ['Text: renewal', 'received'] },
+    { id: 's6',  n: 5,  lane: 'sys',   row: 5,  type: 'step',    t: ['The system checks the', 'documents and tells', 'staff (it never rejects)'] },
+    { id: 'ls',  n: 6,  lane: 'staff', row: 6,  type: 'step',    t: ['Log in and open the', 'Applications queue'] },
+    { id: 'b6',  n: 7,  lane: 'staff', row: 7,  type: 'step',    t: ['Check each document:', 'mark it Verified or', 'Needs Correction'] },
+    { id: 'b7',  n: 8,  lane: 'staff', row: 8,  type: 'decision',t: ['Are all documents', 'verified?'] },
+    { id: 'b8',  n: 9,  lane: 'sys',   row: 8,  type: 'step',    t: ['Text asks the Solo', 'Parent to fix documents'] },
+    { id: 'b9',  n: 10, lane: 'sp',    row: 9,  type: 'step',    t: ['Upload the corrected', 'documents'] },
+    { id: 'b10', n: 11, lane: 'staff', row: 9,  type: 'step',    t: ['Set the interview', 'date and time'] },
+    { id: 'b11', n: 12, lane: 'sys',   row: 9,  type: 'step',    t: ['Text with the interview', 'date. Bring your current', 'Solo Parent ID, a valid ID', 'and two 1x1 pictures.'] },
+    { id: 'b12', n: 13, lane: 'sp',    row: 10, type: 'step',    t: ['Keep the date or choose', 'another day, then go', 'to the interview'] },
+    { id: 'b13', n: 14, lane: 'staff', row: 11, type: 'step',    t: ['Staff interview the', 'Solo Parent and confirm', 'each check list item'] },
+    { id: 'b14', n: 15, lane: 'staff', row: 12, type: 'decision',t: ['Interview', 'successful?'] },
+    { id: 'b15', n: 16, lane: 'staff', row: 13, type: 'step',    t: ['Approve, then set the', 'ID release date'] },
+    { id: 'b16', n: 17, lane: 'sys',   row: 13, type: 'step',    t: ['Text sent with the ID', 'release date. Bring', 'a valid ID.'] },
+    { id: 'b17', n: 18, lane: 'sp',    row: 14, type: 'step',    t: ['Come on that date and', 'get the new ID'] },
+    { id: 'b18', n: 19, lane: 'staff', row: 15, type: 'step',    t: ['Confirm the handover;', 'type the new start and', 'expiry dates'] },
+    { id: 'b19', n: 20, lane: 'sys',   row: 16, type: 'end',     t: ['The new ID is good for', 'one year from those dates'] }
+  ];
+  var E2 = [
+    E.gap('b1', 'b2'),
+    E.down('b2', 'b3'),
+    E.down('b3', 'b5'),
+    E.side('b5', 'b5t', { dash: true }),
+    E.down('b5t', 's6'),
+    E.rt('s6', 'ls'),
+    E.down('ls', 'b6'),
+    E.down('b6', 'b7'),
+    E.sideL('b7', 'b8', { label: 'No' }),
+    E.down('b7', 'b10', { label: 'Yes' }),
+    E.gap('b8', 'b9', { dash: true }),
+    mk(function (P, X, Y) { return [P('b9', 'l'), [14, Y('b9')], [14, Y('b6')], P('b6', 'l')]; }, 'b9', 'l', {}),
+    E.sideL('b10', 'b11', { dash: true }),
+    E.gap('b11', 'b12', { dash: true }),
+    E.rt('b12', 'b13'),
+    E.down('b13', 'b14'),
+    mk(function (P, X, Y) { var x = X('b14') + BW / 2 + 30; return [P('b14', 'r'), [x, Y('b14')], [x, Y('b10')], P('b10', 'r')]; }, 'b14', 'r', { label: 'No', dx: 14 }),
+    E.down('b14', 'b15', { label: 'Yes' }),
+    E.sideL('b15', 'b16', { dash: true }),
+    E.gap('b16', 'b17', { dash: true }),
+    E.rt('b17', 'b18'),
+    E.lt('b18', 'b19')
+  ];
+  render(document.getElementById('svg2'), N2, E2, 16);
+
+  /* =====================================================
+     Diagram 3A: missed interview
+     ===================================================== */
+  var N3A = [
+    { id: 'm1', n: 1, lane: 'staff', row: 1, type: 'start',    t: ['Interview date passed;', 'Solo Parent did not come:', 'mark Did not attend'] },
+    { id: 'm2', n: 2, lane: 'sys',   row: 2, type: 'decision', t: ['Fewer than 3', 'misses so far?'] },
+    { id: 'm3', n: 3, lane: 'sp',    row: 2, type: 'end',      t: ['Sees a notice in the', 'account: contact MSWDO', 'for a new schedule'] },
+    { id: 'm4', n: 4, lane: 'sys',   row: 3, type: 'step',     t: ['Booking opens again;', 'the miss is counted;', 'no text is sent'] },
+    { id: 'm5', n: 5, lane: 'sp',    row: 4, type: 'decision', t: ['Solo Parent picks', 'a new day?'] },
+    { id: 'm6', n: 6, lane: 'sp',    row: 5, type: 'end',      t: ['New interview is booked', '(go on at Diagram 1:', 'attend the interview)'] },
+    { id: 'm7', n: 7, lane: 'sys',   row: 5, type: 'step',     t: ['After 7 days: listed on', 'the staff dashboard as', 'Missed and not rebooked'] },
+    { id: 'm8', n: 8, lane: 'staff', row: 6, type: 'step',     t: ['Staff calls the', 'Solo Parent'] }
+  ];
+  var E3A = [
+    E.gap('m1', 'm2'),
+    E.sideL('m2', 'm3', { label: 'No' }),
+    E.down('m2', 'm4', { label: 'Yes' }),
+    E.gap('m4', 'm5'),
+    E.down('m5', 'm6', { label: 'Yes' }),
+    E.rt('m5', 'm7', { label: 'No' }),
+    E.rt('m7', 'm8')
+  ];
+  render(document.getElementById('svg3a'), N3A, E3A, 6);
+
+  /* =====================================================
+     Diagram 3B: interview nobody confirmed
+     ===================================================== */
+  var N3B = [
+    { id: 'p1', n: 1, lane: 'sys',   row: 1, type: 'start',    t: ['Interview date passed;', 'nobody recorded the', 'result'] },
+    { id: 'p2', n: 2, lane: 'staff', row: 2, type: 'decision', t: ['Result recorded', 'within 2 weekdays?'] },
+    { id: 'p3', n: 3, lane: 'staff', row: 3, type: 'end',      t: ['Staff marks Attended or', 'Did not attend (Diagram 1,', 'or Diagram 3A)'] },
+    { id: 'p4', n: 4, lane: 'sys',   row: 3, type: 'step',     t: ['After 2 weekdays the', 'system reopens the', 'booking: no text, not', 'counted as a miss'] },
+    { id: 'p5', n: 5, lane: 'sp',    row: 4, type: 'step',     t: ['A banner asks the', 'Solo Parent to choose', 'a new interview day'] },
+  ];
+  var E3B = [
+    E.rt('p1', 'p2'),
+    E.down('p2', 'p3', { label: 'Yes' }),
+    E.lt('p2', 'p4', { label: 'No' }),
+    E.gap('p4', 'p5'),
+  ];
+  render(document.getElementById('svg3b'), N3B, E3B, 4);
+
+  /* =====================================================
+     Diagram 3C: ID expiry text
+     ===================================================== */
+  var N3C = [
+    { id: 'q1', n: 1, lane: 'staff', row: 1, type: 'start',    t: ['At ID handover staff', 'type the expiry date', 'from the card'] },
+    { id: 'q2', n: 2, lane: 'sys',   row: 2, type: 'step',     t: ['A scheduled job checks', 'for IDs that expire', 'today'] },
+    { id: 'q3', n: 3, lane: 'sys',   row: 3, type: 'decision', t: ['Expires today and', 'no text yet?'] },
+    { id: 'q5', n: 0, lane: 'staff', row: 3, type: 'note',     t: ['If not: nothing is', 'sent (never before the', 'date, never repeated)'] },
+    { id: 'q4', n: 4, lane: 'sys',   row: 4, type: 'step',     t: ['One text is sent on the', 'expiration date'] },
+    { id: 'q6', n: 5, lane: 'sys',   row: 5, type: 'decision', t: ['Did the text', 'go through?'] },
+    { id: 'q7', n: 6, lane: 'sp',    row: 6, type: 'end',      t: ['Solo Parent knows the ID', 'expired and can renew', '(Diagram 2)'] },
+    { id: 'q8', n: 7, lane: 'staff', row: 6, type: 'step',     t: ['Retried the same day; if a', 'day is missed, staff see', 'it and press Send now'] }
+  ];
+  var E3C = [
+    E.gap('q1', 'q2'),
+    E.down('q2', 'q3'),
+    E.side('q3', 'q5', { label: 'No' }),
+    E.down('q3', 'q4', { label: 'Yes' }),
+    E.down('q4', 'q6', { dash: true }),
+    E.gap('q6', 'q7', { dash: true, label: 'Yes', dx: 26, dy: 4 }),
+    E.rt('q6', 'q8', { label: 'No' })
+  ];
+  render(document.getElementById('svg3c'), N3C, E3C, 6);
+
+  /* ---------- legends ---------- */
+  function legend(id, withNote) {
+    document.getElementById(id).innerHTML =
+      '<span><svg viewBox="0 0 44 24"><rect x="2" y="3" width="40" height="18" rx="9" class="nd sp"/></svg>Start / end</span>' +
+      '<span><svg viewBox="0 0 44 24"><rect x="2" y="3" width="40" height="18" rx="4" class="nd sp"/></svg>A step</span>' +
+      '<span><svg viewBox="0 0 44 24"><polygon points="22,2 42,12 22,22 2,12" class="nd sp"/></svg>A question (Yes / No)</span>' +
+      '<span><svg viewBox="0 0 44 24"><line x1="2" y1="12" x2="42" y2="12" class="edge"/></svg>Goes to the next step</span>' +
+      '<span><svg viewBox="0 0 44 24"><line x1="2" y1="12" x2="42" y2="12" class="edge dash"/></svg>A text message (SMS)</span>' +
+      (withNote ? '<span><svg viewBox="0 0 44 24"><rect x="2" y="3" width="40" height="18" rx="4" class="nd note"/></svg>A side note</span>' : '');
+  }
+  legend('legend1'); legend('legend2'); legend('legend3', true);
+
+  /* ---------- theme button ---------- */
+  document.getElementById('themeBtn').addEventListener('click', function () {
+    var cur = document.documentElement.getAttribute('data-theme');
+    var dark = cur ? cur === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+  });
+})();
+</script>
+</body>
+</html>

@@ -65,6 +65,11 @@ and "admin" mean MSWDO staff and MSWDO admin. The role keys `admin` and `mswd_so
 
 Where each objective is met, with evidence, is in `docs/title-defense.md`.
 
+The swimlane diagrams of the new application and of the renewal (Solo Parent, System and MSWDO Staff lanes, checked against
+the code) are in `docs/diagrams/`: `swimlane-new-application.png`, `swimlane-renewal.png` (pictures to paste into the
+manuscript), `swimlane-diagrams.pdf` (one diagram per A3 page) and `swimlane-diagrams.html` (the editable source; it also
+shows the three side flows: missed interview, interview nobody confirmed, ID expiry text).
+
 ## 3. Technology Stack
 
 | Layer | Technology |
