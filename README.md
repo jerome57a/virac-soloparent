@@ -182,7 +182,7 @@ part of the system and are preserved as they are.
 Files: `index.php`, `portal.php`, `login.php`, `register.php`,
 `eligibility.php`, `views/home/`, `includes/portal/`.
 
-**Required Documents on the home screen.** Each category lists its documents, and every document opens a "How to get it" guide (where to get it, what to prepare, how to request it, fees and official references) without logging in. It is the same content as the signed-in Requirements Guide (`services/RequirementGuideService.php`, `includes/requirement-guides.php`); the older 2x2 photo has no guide, and the 1x1 ID pictures have a general one.
+**Required Documents on the home screen.** Each category lists its documents, and every document opens a "How to get it" guide (where to get it, what to prepare, how to request it, fees and official references) without logging in. It is the same content as the signed-in Requirements Guide (`services/RequirementGuideService.php`, `includes/requirement-guides.php`); the older 2x2 photo has no guide. The two 1x1 ID pictures are not listed: they are brought to the interview, not uploaded.
 
 **Public status lookup** (`portal.php?tab=status`) accepts only an application
 reference number. It shows the status, the next step, dates (no times), the ID
@@ -421,7 +421,16 @@ archive outside the project (their result is already in `schema.sql`). Kept in
 `migrate_solo_parent_wording.sql`, `migrate_mswdo_role_wording.sql`) and `migrate_fixed_id_validity.sql` (a test
 loads it). None may be bulk-imported.
 
-**Pending (not run):** `database/migrate_drop_mobile_code_columns.php` removes the
+**Sample data and cleanup tools (database/).** `php database/sample_data.php check|accounts|staff|report|remove` and `database/sample_data/run.ps1` add 22 sample Solo Parents (list: `database/sample_data/solo-parents.csv`, also the template for MSWDO's real records) through the system's own screens and services; sample accounts are never texted (`services/SampleRecords.php`) and `remove` takes them out again. `php database/cleanup_leftovers.php` (check by default, `apply` to remove) removes applications whose account was deleted, test-mode SMS records and unreferenced upload files (files are moved to `C:\dev\backups\cleanup-<time>\`, not deleted). Back the database up before any of them.
+
+**Applied on 2026-11-24:** `php database/migrate_data_alignment.php` (shows what
+would change; add `apply` to change it, after a backup) retires the 1x1 picture upload (the pictures are
+brought to the interview; uploaded ones are kept), saves the settings that were never saved with their
+current default, updates the expiry-day SMS text and drops the three empty `mobile_code*` columns. It only
+reports children over 22 without a disability and applications whose account no longer exists. A tested
+backup taken before it is in `C:\dev\backups\db-20261124-090723\` (see `RESTORE.txt` there).
+
+**Older, superseded by the above:** `database/migrate_drop_mobile_code_columns.php` removes the
 three obsolete columns `mobile_code`, `mobile_code_expires_at` and
 `mobile_code_attempts` from `users` (they are still there; the application does
 not use them). It defaults to a read-only `--check` and is guarded to the isolated
@@ -533,6 +542,10 @@ storage folder and `TEST_DOCUMENT_ROOT`.
 | `database/test_staff_guide.php` | Guidance: step tracker and next action at every stage, admin setup checklist, and that every icon exists |
 | `database/test_expiry_sms_wording.php` | ID expiry SMS wording migration: old built-in text replaced, an administrator's text left alone, labels renamed, rerun changes nothing; the expiry day says "expires today", a missed day "expired on" |
 | `database/test_child_pwd_rules.php` | Child with a disability: the answer and tick, the server refuses when no child qualifies (new application and renewal), the required PWD ID or medical certificate, the saved flag, the staff checklist |
+| `database/test_sample_never_text.php` | Sample "never text" mark: numbers match in every written form, only marked sample accounts are skipped, a real installation (no table) is never affected |
+| `database/test_data_alignment.php` | Data alignment migration: the 1x1 pictures leave both requirement lists, stop blocking approval, keep their file and are never asked at renewal; unsaved settings get their default (an administrator's value kept); expiry text updated; mobile-code columns dropped only when empty; check run and second run change nothing |
+| `database/test_staff_alerts.php` | Staff alerts open the exact place (also older ones), the live check returns only new unread alerts, Needs Correction needs a remark, today's bookings in the Appointments badge, and the dashboard ID card (only the ID number, category and dates; the badge per state) |
+| `scripts/test-staff-alerts-ui.cjs` | Browser: the remark check (Required, scroll, cursor, hint), the live staff alert (no old news, one pop-up each, exact place, bell, dark, phone), Appointment Management, the Notifications groups and the dashboard ID card (no name, badges, light/dark, 320-1280px, Tagalog) |
 | `scripts/test-child-pwd.cjs` | Children block (browser): Yes/No question, green/amber/red lines, red box and locked Continue, the extra document, Tagalog, dark mode, 320-1440px |
 | `scripts/test-application-clean.cjs` | Staff application page (browser): three decision buttons always shown with locked ones explained, Notes and Show all notes, folded Applicant details, light/dark, Tagalog, 320-1440px |
 | `database/test_staff_any_time_schedule.php` | Staff scheduling: today, right now, a weekend and any hour are accepted; past dates and invalid times refused; the time is saved |

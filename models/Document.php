@@ -7,6 +7,15 @@ class Document extends Model
 {
     public const CHECKLIST_STATUSES = ['Pending', 'Verified', 'Needs Correction'];
 
+    /** Requirements that were removed but may still have uploads on older applications: shown with a readable name, never required. */
+    public const RETIRED_LABELS = ['photo1x1' => 'Two 1x1 ID pictures (uploaded before; now brought to the interview)'];
+
+    /** A readable name for a document whose requirement no longer exists. */
+    public static function fallbackLabel(string $docKey, ?string $stored = null): string
+    {
+        return self::RETIRED_LABELS[$docKey] ?? ($stored !== null && $stored !== '' && $stored !== $docKey ? $stored : $docKey);
+    }
+
     /** A staff-accepted physical document is already satisfied even if its declaration was unchecked. */
     public static function needsPreparation(array $item): bool
     {
@@ -59,7 +68,7 @@ class Document extends Model
             unset($saved[$r['doc_key']]);
         }
         foreach ($saved as $key => $c) {
-            $row = $c + ['label' => $c['doc_key'], 'is_required' => 0, 'category_specific' => false];
+            $row = $c + ['label' => self::fallbackLabel($c['doc_key'], $c['requirement_label'] ?? null), 'is_required' => 0, 'category_specific' => false];
             if (isset($uploads[$key])) {
                 $this->mergeUploadStatus($row, $uploads[$key]);
                 unset($uploads[$key]);
@@ -103,7 +112,7 @@ class Document extends Model
     private function appendUnlistedUploads(array $rows, array $uploads): array
     {
         foreach ($uploads as $upload) {
-            $row = ['doc_key' => $upload['doc_key'], 'label' => $upload['doc_key'], 'is_required' => 0,
+            $row = ['doc_key' => $upload['doc_key'], 'label' => self::fallbackLabel($upload['doc_key']), 'is_required' => 0,
                 'category_specific' => false, 'applicant_has' => 1, 'verification_status' => 'Pending',
                 'staff_remarks' => null, 'reviewed_by' => null, 'reviewed_at' => null, 'verifier_name' => null];
             $this->mergeUploadStatus($row, $upload);
@@ -263,7 +272,7 @@ class Document extends Model
         }
         // Documents whose requirement has since been removed are still shown.
         foreach ($uploaded as $doc) {
-            $rows[] = $doc + ['label' => $doc['doc_key'], 'is_required' => 0, 'category_specific' => false];
+            $rows[] = $doc + ['label' => self::fallbackLabel($doc['doc_key']), 'is_required' => 0, 'category_specific' => false];
         }
         return $rows;
     }

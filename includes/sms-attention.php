@@ -31,6 +31,21 @@ function staff_outcome_waiting_count(): int
     }
 }
 
+/** Interviews still booked for today (the Appointments menu badge counts them with those needing a result). 0 when it cannot be read. */
+function staff_today_booked_count(): int
+{
+    $pdo = $GLOBALS['pdo'] ?? null;
+    if (!$pdo instanceof PDO) {
+        return 0;
+    }
+    try {
+        require_once __DIR__ . '/../models/Appointment.php';
+        return count(array_filter((new Appointment($pdo))->todaysInterviews(), fn($iv) => $iv['status'] === 'BOOKED' && Appointment::staysOnTodayList($iv)));
+    } catch (Throwable $e) {
+        return 0;
+    }
+}
+
 /** ID release dates that passed with the ID still at the office. 0 when it cannot be read. */
 function staff_release_overdue_count(): int
 {

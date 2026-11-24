@@ -36,6 +36,22 @@ class Notification extends Model
         return $stmt->fetch() ?: null;
     }
 
+    /** Unread notifications of a user newer than $sinceId, oldest first (the live staff alert). */
+    public function unreadNewerThan(int $userId, int $sinceId, int $limit = 5): array
+    {
+        $stmt = $this->pdo->prepare('SELECT * FROM notifications WHERE user_id = ? AND id > ? AND is_read = 0 ORDER BY id DESC LIMIT ' . (int) $limit);
+        $stmt->execute([$userId, $sinceId]);
+        return array_reverse($stmt->fetchAll());
+    }
+
+    /** The newest notification id of a user (0 when none): where the live alert starts counting. */
+    public function latestId(int $userId): int
+    {
+        $stmt = $this->pdo->prepare('SELECT COALESCE(MAX(id), 0) FROM notifications WHERE user_id = ?');
+        $stmt->execute([$userId]);
+        return (int) $stmt->fetchColumn();
+    }
+
     public function unreadCount(int $userId): int
     {
         return count_unread_notifications($this->pdo, $userId);

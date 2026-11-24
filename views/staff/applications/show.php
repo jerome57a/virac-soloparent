@@ -137,7 +137,7 @@ $noteBox = function (array $lines): string {
           <?php if (empty($submittedChecklist)): ?>
             <div class="text-muted small" data-i18n>No document requirements are configured for this application.</div>
           <?php else: foreach ($submittedChecklist as $item): $file = $item['uploaded_document'] ?? null; ?>
-            <div class="review-row doc-item" id="<?= $file ? 'doc-' . (int) $file['id'] : 'checklist-' . e($item['doc_key']) ?>">
+            <div class="review-row doc-item<?= $file && !empty($documentErrors[$file['id']]) ? ' has-error' : '' ?>" id="<?= $file ? 'doc-' . (int) $file['id'] : 'checklist-' . e($item['doc_key']) ?>" data-doc-label="<?= e($item['label']) ?>">
               <div class="k doc-name"><?= e($item['label']) ?><?= !empty($item['is_required']) ? ' *' : ' (optional)' ?></div>
               <?php if ($file): ?>
                 <?php $docStyle = document_status_style((string) $file['verification_status']); ?>
@@ -152,7 +152,7 @@ $noteBox = function (array $lines): string {
                   <span class="doc-status-pill" style="background:<?= e($docStyle['bg']) ?>;color:<?= e($docStyle['color']) ?>"><?= e(document_status_label($file['verification_status'])) ?></span>
                   <?php if (!empty($file['verifier_name']) || !empty($file['verified_at'])): ?><span class="doc-meta"><?php if (!empty($file['verifier_name'])): ?>by <?= e($file['verifier_name']) ?><?php endif; ?><?php if (!empty($file['verified_at'])): ?> on <?= e(date('M j, Y g:i A', strtotime($file['verified_at']))) ?><?php endif; ?></span><?php endif; ?>
                 </div>
-                <?php if (!empty($documentErrors[$file['id']])): ?><div class="field-error" role="alert"><?= e($documentErrors[$file['id']]) ?></div><?php endif; ?>
+                <?php if (!empty($documentErrors[$file['id']])): ?><div class="field-error doc-row-error" role="alert"><?= ui_icon('circle-alert', 15) ?><span><?= e($documentErrors[$file['id']]) ?></span></div><?php endif; ?>
                 <?php if (!empty($file['staff_remarks'])): ?><div class="doc-remark"><b>MSWDO Staff remarks:</b> <?= e($file['staff_remarks']) ?></div><?php endif; ?>
                 <?php if ($canVerifyDocs):
                   $stored = (string) $file['verification_status'];
@@ -173,11 +173,14 @@ $noteBox = function (array $lines): string {
                     <input type="hidden" name="docs[<?= (int) $file['id'] ?>][expected]" value="<?= e($stored) ?>">
                     <input type="hidden" name="docs[<?= (int) $file['id'] ?>][expected_remarks]" value="<?= e($storedRemarks) ?>">
                     <input type="hidden" name="docs[<?= (int) $file['id'] ?>][expected_version]" value="<?= e(Document::versionToken($file)) ?>">
-                    <select name="docs[<?= (int) $file['id'] ?>][status]" class="form-select" aria-label="Verification status for <?= e($item['label']) ?>">
+                    <select name="docs[<?= (int) $file['id'] ?>][status]" class="form-select js-doc-status" aria-label="Verification status for <?= e($item['label']) ?>">
                       <?php if ($legacy): ?><option value="<?= e($stored) ?>" <?= $curStatus === $stored ? 'selected' : '' ?>><?= e(document_status_label($stored)) ?> (current status - choose a new status to change it)</option><?php endif; ?>
                       <?php foreach (Document::VERIFICATION_STATUSES as $status): ?><option value="<?= e($status) ?>" <?= $curStatus === $status ? 'selected' : '' ?>><?= e(document_status_label($status)) ?></option><?php endforeach; ?>
                     </select>
-                    <input type="text" name="docs[<?= (int) $file['id'] ?>][remarks]" maxlength="500" value="<?= e($curRemarks) ?>" placeholder="Remarks for rejection or correction" class="form-control" aria-label="Remarks for <?= e($item['label']) ?>">
+                    <?php $remarkMissing = !empty($documentErrors[$file['id']]) && in_array($curStatus, ['NEEDS_CORRECTION', 'REJECTED'], true) && trim($curRemarks) === ''; ?>
+                    <label class="doc-remark-field"><span class="doc-remark-label"><span data-i18n>What must the Solo Parent fix?</span> <span class="doc-remark-req"<?= in_array($curStatus, ['NEEDS_CORRECTION', 'REJECTED'], true) ? '' : ' hidden' ?> data-i18n>* Required</span></span>
+                    <input type="text" name="docs[<?= (int) $file['id'] ?>][remarks]" maxlength="500" value="<?= e($curRemarks) ?>" placeholder="Example: The photo is blurry. Take it again in good light." class="form-control js-doc-remark<?= $remarkMissing ? ' is-missing' : '' ?>" aria-label="Remarks for <?= e($item['label']) ?>"<?= $remarkMissing ? ' aria-invalid="true"' : '' ?>></label>
+                    <div class="doc-remark-error" role="alert" hidden><?= ui_icon('circle-alert', 15) ?><span data-i18n>Write what the Solo Parent must fix before saving.</span></div>
                   </div>
                 <?php endif; ?>
                 <?php if (!empty($documentHistory[$file['id']])): ?><div class="doc-history-title">Verification history</div><?php endif; ?>
@@ -189,7 +192,7 @@ $noteBox = function (array $lines): string {
           <?php endforeach; endif; ?>
         </div>
         <?php if ($canVerifyDocs && !empty($submittedChecklist)): ?>
-          <div class="mt-3"><?php if (!empty($documentErrors['checklist'])): ?><div class="field-error mb-2" role="alert"><?= e($documentErrors['checklist']) ?></div><?php endif; ?><button type="submit" class="btn-navy" data-i18n>Save Verification</button></div>
+          <div class="mt-3"><?php if (!empty($documentErrors['checklist'])): ?><div class="field-error mb-2" role="alert"><?= e($documentErrors['checklist']) ?></div><?php endif; ?><div class="doc-save-bar"><button type="submit" class="btn-navy" data-i18n>Save Verification</button><span class="doc-save-hint" role="status" aria-live="polite" hidden></span></div></div>
         </form><?php endif; ?>
         <?php if ($canVerifyDocs && !empty($correctionSms)): $cs = $correctionSms; $csLog = $cs['last_log']; ?>
         <div id="correction-sms" class="mt-4 pt-3" style="border-top:1px solid #dee2e6;scroll-margin-top:80px">
@@ -260,6 +263,7 @@ $noteBox = function (array $lines): string {
       </div>
       <script src="<?= public_asset('js/document-viewer.js') ?>" defer></script>
       <script src="<?= public_asset('js/staff-notes.js') ?>" defer></script>
+      <script src="<?= public_asset('js/staff-remarks.js') ?>" defer></script>
       <script src="<?= public_asset('js/staff-next-step.js') ?>" defer data-auto="<?= ($_GET['next'] ?? '') === '1' ? '1' : '0' ?>"></script>
 
     </div>
@@ -470,6 +474,7 @@ $noteBox = function (array $lines): string {
           <div class="title" data-i18n>Interview</div>
           <?php if ($ivStatus): [$ibg, $ifg, $ilabel] = $ivStyles[$ivStatus]; ?><span class="status-pill" style="background:<?= $ibg ?>;color:<?= $ifg ?>"><?= e($ilabel) ?></span><?php endif; ?>
         </div>
+        <p class="gi-bring"><?= ui_icon('square-user', 16) ?><span><b data-i18n>Bring:</b> <?= ($app['type'] ?? '') === 'renewal' ? 'the current Solo Parent ID, a valid ID and two 1x1 ID pictures' : 'a valid ID and two 1x1 ID pictures' ?> <span class="text-muted">(the pictures are not uploaded)</span></span></p>
         <?php if ($interviewError): ?><div class="auth-error" role="alert"><?= e($interviewError) ?></div><?php endif; ?>
         <?php
         // Rescheduling: the Solo Parent booked again after a missed, unrecorded or cancelled interview.

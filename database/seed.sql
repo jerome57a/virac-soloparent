@@ -48,13 +48,13 @@ INSERT INTO document_requirements (category_id, doc_key, label, is_required, sor
 
 -- ---------------------------------------------------------------
 -- Category-specific document requirements for new applications
+-- (The two 1x1 ID pictures are not uploaded: the Solo Parent brings them to the interview.)
 -- ---------------------------------------------------------------
 INSERT INTO document_requirements (category_id, doc_key, label, is_required, sort_order)
 SELECT c.id, r.doc_key, r.label, 1, r.sort_order
 FROM categories c
 JOIN (
-  SELECT 'Abandonment by the spouse' category_name, 'photo1x1' doc_key, 'Two 1x1 ID pictures' label, 1 sort_order UNION ALL
-  SELECT 'Abandonment by the spouse', 'birthCert', 'Photocopy of the child''s/children''s birth certificate(s)', 2 UNION ALL
+  SELECT 'Abandonment by the spouse' category_name, 'birthCert' doc_key, 'Photocopy of the child''s/children''s birth certificate(s)' label, 2 sort_order UNION ALL
   SELECT 'Abandonment by the spouse', 'marriageOrAffidavit', 'Marriage certificate or affidavit of the Solo Parent', 3 UNION ALL
   SELECT 'Abandonment by the spouse', 'witnessAffidavit', 'Affidavit of two disinterested persons attesting to abandonment', 4 UNION ALL
   SELECT 'Abandonment by the spouse', 'abandonmentRecord', 'Police or barangay record of abandonment', 5 UNION ALL
@@ -64,17 +64,14 @@ JOIN (
   SELECT 'Declaration of nullity or annulment of marriage', 'marriageCert', 'Marriage certificate, certified true copy', 2 UNION ALL
   SELECT 'Declaration of nullity or annulment of marriage', 'judicialDecree', 'Judicial decree of nullity/annulment or judicial recognition of foreign divorce', 3 UNION ALL
   SELECT 'Declaration of nullity or annulment of marriage', 'soleCareAffidavit', 'Sworn affidavit declaring sole parental care/support and non-cohabitation', 4 UNION ALL
-  SELECT 'Legal guardian, adoptive parent, or foster parent', 'photo1x1', 'Two 1x1 ID pictures', 1 UNION ALL
   SELECT 'Legal guardian, adoptive parent, or foster parent', 'birthCert', 'Child''s/children''s birth certificate(s)', 2 UNION ALL
   SELECT 'Legal guardian, adoptive parent, or foster parent', 'guardianshipProof', 'Applicable proof of guardianship, adoption, or foster care', 3 UNION ALL
   SELECT 'Legal guardian, adoptive parent, or foster parent', 'soleCareAffidavit', 'Sworn affidavit declaring sole parental care/support and non-cohabitation', 4 UNION ALL
   SELECT 'Legal guardian, adoptive parent, or foster parent', 'barangayCareAffidavit', 'Barangay official''s affidavit confirming residency and parental care/support', 5 UNION ALL
-  SELECT 'Unmarried father or mother who keeps and rears the child/children', 'photo1x1', 'Two 1x1 ID pictures', 1 UNION ALL
   SELECT 'Unmarried father or mother who keeps and rears the child/children', 'birthCert', 'Child''s/children''s birth certificate(s), photocopy', 2 UNION ALL
   SELECT 'Unmarried father or mother who keeps and rears the child/children', 'cenomar', 'CENOMAR, certified true copy', 3 UNION ALL
   SELECT 'Unmarried father or mother who keeps and rears the child/children', 'barangayCareAffidavit', 'Barangay official''s affidavit confirming residency and parental care/support', 4 UNION ALL
   SELECT 'Unmarried father or mother who keeps and rears the child/children', 'soleCareAffidavit', 'Sworn affidavit declaring sole parental care/support and non-cohabitation', 5 UNION ALL
-  SELECT 'Detention or imprisonment of the spouse', 'photo1x1', 'Two 1x1 ID pictures', 1 UNION ALL
   SELECT 'Detention or imprisonment of the spouse', 'birthCert', 'Child''s/children''s birth certificate(s)', 2 UNION ALL
   SELECT 'Detention or imprisonment of the spouse', 'marriageOrCenomar', 'Marriage certificate or Certificate of No Marriage, as applicable', 3 UNION ALL
   SELECT 'Detention or imprisonment of the spouse', 'detentionCertificate', 'Certificate of detention or certification that the spouse is serving a sentence for at least three months', 4 UNION ALL
@@ -84,7 +81,6 @@ JOIN (
   SELECT 'Child/children as a consequence of rape', 'complaintAffidavit', 'Complaint affidavit', 2 UNION ALL
   SELECT 'Child/children as a consequence of rape', 'incidentMedicalRecord', 'Medical record relating to the incident', 3 UNION ALL
   SELECT 'Child/children as a consequence of rape', 'soleCareAffidavit', 'Sworn affidavit declaring sole parental care/support at the time of execution', 4 UNION ALL
-  SELECT 'Death of the spouse', 'photo1x1', 'Two 1x1 ID pictures', 1 UNION ALL
   SELECT 'Death of the spouse', 'birthCert', 'Child''s/children''s birth certificate(s)', 2 UNION ALL
   SELECT 'Death of the spouse', 'marriageCert', 'Marriage certificate, certified true copy', 3 UNION ALL
   SELECT 'Death of the spouse', 'deathCert', 'Spouse''s death certificate, certified true copy', 4 UNION ALL
@@ -94,7 +90,6 @@ JOIN (
   SELECT 'Legal or de facto separation of spouse for at least six months', 'marriageCert', 'Marriage certificate, certified true copy', 2 UNION ALL
   SELECT 'Legal or de facto separation of spouse for at least six months', 'separationProof', 'Judicial decree of legal separation or affidavit of two disinterested persons attesting to de facto separation', 3 UNION ALL
   SELECT 'Legal or de facto separation of spouse for at least six months', 'soleCareAffidavit', 'Sworn affidavit declaring sole parental care/support and non-cohabitation', 4 UNION ALL
-  SELECT 'Spouse or family member of an OFW', 'photo1x1', 'Two 1x1 ID pictures', 1 UNION ALL
   SELECT 'Spouse or family member of an OFW', 'birthCert', 'Dependents'' birth certificate(s), photocopy', 2 UNION ALL
   SELECT 'Spouse or family member of an OFW', 'ofwRelationshipProof', 'Marriage certificate for an OFW''s spouse, or birth certificate/competent proof of relationship for an OFW''s family member', 3 UNION ALL
   SELECT 'Spouse or family member of an OFW', 'ofwEmploymentContract', 'POEA Standard Employment Contract or equivalent', 4 UNION ALL

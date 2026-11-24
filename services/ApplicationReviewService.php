@@ -278,7 +278,7 @@ class ApplicationReviewService
                     } elseif (mb_strlen($row['remarks']) > 500) {
                         $errors[$documentId] = 'Remarks are too long (up to 500 characters).';
                     } elseif ($row['remarks'] === '' && in_array($row['status'], self::REMARKS_REQUIRED, true)) {
-                        $errors[$documentId] = 'Add a remark telling the Solo Parent what is wrong with the document.';
+                        $errors[$documentId] = 'Write what the Solo Parent must fix before saving.';
                     }
                 }
                 if (!$errors) {

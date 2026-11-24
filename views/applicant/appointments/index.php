@@ -39,7 +39,7 @@ $apptStyles = [
           $apptStep = $status === 'BOOKED' ? 3 : (($booking['state'] ?? '') === 'open' ? 2 : 1);
           $isRenewalInterview = ($bookableApp['type'] ?? '') === 'renewal' && empty($bookableApp['renewal_simplified']);
           $apptSteps = [1 => ['Documents verified', 'MSWDO verifies your required documents'], 2 => ['Choose your date', 'Pick the day you want to arrive'],
-              3 => ['Come to the office', $isRenewalInterview ? 'Bring your current Solo Parent ID and a valid ID' : 'Bring a valid ID on your date']];
+              3 => ['Come to the office', $isRenewalInterview ? 'Bring your current Solo Parent ID, a valid ID and two 1x1 pictures' : 'Bring a valid ID and two 1x1 pictures on your date']];
         ?>
         <ol class="appt-steps" aria-label="Interview steps">
           <?php foreach ($apptSteps as $n => [$stepTitle, $stepHint]): ?>

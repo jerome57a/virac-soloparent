@@ -40,7 +40,8 @@ class RenewalRequirement extends Model
         }
         $fresh = $retained = [];
         foreach ($accepted as $key => $row) {
-            if (!empty($row['expires_at']) && $row['expires_at'] < date('Y-m-d')) {
+            // A retired requirement (the 1x1 pictures, now brought to the interview) is never asked for again, even if it expired.
+            if (!empty($row['expires_at']) && $row['expires_at'] < date('Y-m-d') && !isset(Document::RETIRED_LABELS[$key])) {
                 $fresh[$key] = ['doc_key'=>$key,'label'=>$row['label'],'is_required'=>1,'source_checklist_id'=>(int) $row['id'],'reason'=>'Previously accepted document has expired.'];
             } else {
                 $retained[$key] = $row;

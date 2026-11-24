@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/SampleRecords.php';
 /**
  * Server-side SMS service. Every message goes through send(), which:
  *   1. rejects an invalid Philippine mobile number without calling any gateway;
@@ -96,6 +97,9 @@ class SMSService
     {
         $logId = !empty($result['id']) ? (int) $result['id'] : null;
         $status = (string) ($result['status'] ?? '');
+        if ($status === 'SENT' && !empty($result['test_mode'])) {
+            return ['state' => 'sent', 'log_id' => $logId, 'text' => $what . ': recorded as a TEST text. No real SMS was sent (test mode, or a sample account that is never texted).'];
+        }
         if ($status === 'SENT') {
             return ['state' => 'sent', 'log_id' => $logId, 'text' => $what . ': the SMS to the Solo Parent was accepted by the SMS gateway. Only the Solo Parent\'s phone can confirm it arrived.'];
         }
@@ -187,7 +191,7 @@ class SMSService
     {
         $message = fit_text($message, 500);
         $number = self::normalizeNumber($mobile);
-        $provider = self::provider();
+        $provider = $this->providerFor($mobile);
         $stmt = $this->pdo->prepare(
             "INSERT INTO sms_logs (application_id, mobile, message, status, test_mode, template_key, provider, provider_status)
              VALUES (?, ?, ?, 'PENDING', ?, ?, ?, 'pending')"
@@ -235,7 +239,7 @@ class SMSService
             return ['Appointment SMS notifications are disabled in Notification Settings.', null];
         }
         $number = self::normalizeNumber($log['mobile']);
-        $provider = self::provider();
+        $provider = $this->providerFor((string) $log['mobile']);
         $claim = $this->pdo->prepare("UPDATE sms_logs SET status = 'PENDING', attempts = attempts + 1, provider = ?, test_mode = ?, error = NULL WHERE id = ? AND status = 'FAILED' AND attempts < ?");
         $claim->execute([$provider, (int) ($provider === 'test'), $logId, SMS_MAX_ATTEMPTS]);
         if ($claim->rowCount() !== 1) {
@@ -248,6 +252,16 @@ class SMSService
                 ? ['ok' => false, 'provider_status' => 'blocked', 'message_id' => null, 'error' => $blocked]
                 : $this->dispatch($provider, $number, (string) $log['message']));
         return [null, $this->record($logId, $result, $provider === 'test')];
+    }
+
+    /**
+     * The provider for one recipient: a sample account marked "never text" (services/SampleRecords.php) is handled exactly like
+     * test mode (logged as a test text, nothing reaches the gateway, never a failure); everyone else gets the configured provider.
+     */
+    private function providerFor(string $mobile): string
+    {
+        $provider = self::provider();
+        return $provider !== 'test' && SampleRecords::neverText($this->pdo, $mobile) ? 'test' : $provider;
     }
 
     /**
@@ -739,7 +753,7 @@ class SMSService
      */
     public function reserveLog(int $applicationId, string $number, string $message, string $templateKey): int
     {
-        $provider = self::provider();
+        $provider = $this->providerFor($number);
         $this->pdo->prepare(
             "INSERT INTO sms_logs (application_id, mobile, message, status, test_mode, template_key, provider, provider_status)
              VALUES (?, ?, ?, 'PENDING', ?, ?, ?, 'pending')"
@@ -750,7 +764,7 @@ class SMSService
     /** Step two: sends the reserved message and records the outcome on its log row. Same return shape as send(). */
     public function dispatchReserved(int $logId, string $number, string $message): array
     {
-        $provider = self::provider();
+        $provider = $this->providerFor($number);
         return $this->record($logId, $this->dispatch($provider, $number, $message), $provider === 'test');
     }
 

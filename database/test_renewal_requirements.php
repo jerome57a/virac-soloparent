@@ -20,7 +20,8 @@ require_once __DIR__ . '/../models/RenewalRequirement.php';
 
 function rr_assert(bool $ok, string $message): void { if (!$ok) { throw new RuntimeException($message); } }
 
-/** New-application documents (keys only) per active category, as configured in the system. */
+/** New-application documents (keys only) per active category. 'photo1x1' is kept here on purpose: an older database still lists the 1x1
+ * pictures, and the renewal migration must never turn them into a renewal document (they are brought to the interview, not uploaded). */
 $newApplication = [
     10 => ['photo1x1', 'birthCert', 'marriageOrAffidavit', 'witnessAffidavit', 'abandonmentRecord', 'barangayCareAffidavit', 'soleCareAffidavit'],
     11 => ['birthCert', 'marriageCert', 'judicialDecree', 'soleCareAffidavit'],
@@ -34,15 +35,15 @@ $newApplication = [
 ];
 /** What a renewal must ask, in order. */
 $expected = [
-    10 => ['photo1x1', 'barangayCareAffidavit', 'soleCareAffidavit'],
+    10 => ['barangayCareAffidavit', 'soleCareAffidavit'],
     11 => ['soleCareAffidavit'],
-    12 => ['photo1x1', 'barangayCareAffidavit', 'soleCareAffidavit'],
-    13 => ['photo1x1', 'barangayCareAffidavit', 'soleCareAffidavit'],
-    14 => ['photo1x1', 'barangayCareAffidavit', 'soleCareAffidavit', 'detentionCertificate'],
+    12 => ['barangayCareAffidavit', 'soleCareAffidavit'],
+    13 => ['barangayCareAffidavit', 'soleCareAffidavit'],
+    14 => ['barangayCareAffidavit', 'soleCareAffidavit', 'detentionCertificate'],
     15 => ['soleCareAffidavit'],
-    16 => ['photo1x1', 'barangayCareAffidavit', 'soleCareAffidavit'],
+    16 => ['barangayCareAffidavit', 'soleCareAffidavit'],
     17 => ['soleCareAffidavit'],
-    18 => ['photo1x1', 'barangayCareAffidavit', 'soleCareAffidavit', 'ofwPassportProof'],
+    18 => ['barangayCareAffidavit', 'soleCareAffidavit', 'ofwPassportProof'],
 ];
 $oneTime = ['birthCert', 'marriageCert', 'marriageOrAffidavit', 'marriageOrCenomar', 'deathCert', 'judicialDecree', 'cenomar', 'guardianshipProof',
     'witnessAffidavit', 'abandonmentRecord', 'complaintAffidavit', 'incidentMedicalRecord', 'separationProof', 'ofwRelationshipProof', 'ofwEmploymentContract', 'ofwIncomeProof'];
@@ -75,6 +76,7 @@ try {
     rr_assert(is_string($sql) && $sql !== '', 'The migration file could not be read.');
     $test->exec($sql);
     $afterFirst = $count();
+    rr_assert((int) $test->query("SELECT COUNT(*) FROM renewal_requirements WHERE doc_key = 'photo1x1'")->fetchColumn() === 0, 'The 1x1 pictures must never be a renewal document.');
     rr_assert($afterFirst === array_sum(array_map('count', $expected)), 'Unexpected number of renewal requirements: ' . $afterFirst);
 
     $renewal = new RenewalRequirement($test);

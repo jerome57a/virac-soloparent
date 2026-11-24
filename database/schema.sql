@@ -720,3 +720,17 @@ CREATE TABLE IF NOT EXISTS application_auto_checks (
   KEY idx_autocheck_app (application_id, id),
   CONSTRAINT fk_autocheck_app FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Sample (demonstration) records added by database/sample_data.php: listed here so they can be removed together, and a sample
+-- account marked no_text is never texted (SMSService handles it like test mode). Empty on a real installation.
+CREATE TABLE IF NOT EXISTS sample_records (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  kind       ENUM('user','application','staff') NOT NULL,
+  ref_id     INT NOT NULL,
+  sample_key VARCHAR(20) DEFAULT NULL,          -- the row of database/sample_data/solo-parents.csv (A1, B4...)
+  mobile     VARCHAR(20) DEFAULT NULL,          -- the last 10 digits (9XXXXXXXXX), so 09... and +639... both match
+  no_text    TINYINT(1) NOT NULL DEFAULT 0,     -- 1 = SMSService never texts this mobile number
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_sample (kind, ref_id),
+  KEY idx_sample_mobile (mobile)
+) ENGINE=InnoDB;

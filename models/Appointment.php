@@ -195,7 +195,7 @@ class Appointment extends Model
             return [];
         }
         $stmt = $this->pdo->prepare(
-            "SELECT i.*, a.reference_no, a.full_name, a.id AS application_id
+            "SELECT i.*, a.reference_no, a.full_name, a.id AS application_id, a.type AS application_type
              FROM appointments i JOIN applications a ON a.id = i.application_id
              WHERE DATE(i.scheduled_at) = ? AND i.status <> 'CANCELLED' ORDER BY i.scheduled_at"
         );
@@ -207,7 +207,7 @@ class Appointment extends Model
     public function laterInterviewsByDate(): array
     {
         $rows = $this->pdo->query(
-            "SELECT i.*, a.reference_no, a.full_name, a.id AS application_id
+            "SELECT i.*, a.reference_no, a.full_name, a.id AS application_id, a.type AS application_type
              FROM appointments i JOIN applications a ON a.id = i.application_id
              WHERE DATE(i.scheduled_at) > CURDATE() AND i.status = 'BOOKED'
              ORDER BY i.scheduled_at LIMIT 100"
@@ -232,7 +232,7 @@ class Appointment extends Model
         }
         if ($presence === 'present') {
             $stmt = $this->pdo->prepare(
-                "SELECT i.*, a.reference_no, a.full_name, a.id AS application_id
+                "SELECT i.*, a.reference_no, a.full_name, a.id AS application_id, a.type AS application_type
                  FROM appointments i JOIN applications a ON a.id = i.application_id
                  WHERE i.status = 'BOOKED'
                    AND ((i.date_only = 0 AND i.scheduled_at < NOW()) OR (i.date_only = 1 AND i.scheduled_at < ?))
@@ -242,7 +242,7 @@ class Appointment extends Model
             return $stmt->fetchAll();
         }
         return $this->pdo->query(
-            "SELECT i.*, a.reference_no, a.full_name, a.id AS application_id
+            "SELECT i.*, a.reference_no, a.full_name, a.id AS application_id, a.type AS application_type
              FROM appointments i JOIN applications a ON a.id = i.application_id
              WHERE i.status = 'BOOKED' AND i.scheduled_at < NOW() ORDER BY i.scheduled_at LIMIT 100"
         )->fetchAll();

@@ -58,6 +58,8 @@ require APP_ROOT . '/views/partials/site-footer.php';
 <?php if (($staff['role'] ?? '') === 'admin'): ?>
 <script src="<?= public_asset('js/admin-management.js') ?>"></script>
 <?php endif; ?>
-<?php if (!empty($useStaffWorkspace)): ?><script src="<?= public_asset('js/staff-workspace.js') ?>"></script><script src="<?= public_asset('js/staff-doc-alerts.js') ?>" data-url="<?= e(base_url('staff/doc_alerts.php')) ?>" data-queue="<?= e(base_url('staff/dashboard.php#verification-queue')) ?>"></script><?php endif; ?>
+<?php if (!empty($useStaffWorkspace)): ?><script src="<?= public_asset('js/staff-workspace.js') ?>"></script><?php endif; ?>
+<?php // The live alert (a Solo Parent submitted, re-uploaded, booked...) runs on every MSWDO staff page, not only the workspace pages. ?>
+<?php if (($staff['role'] ?? '') === 'mswd_social_worker'): ?><script src="<?= public_asset('js/staff-doc-alerts.js') ?>" data-url="<?= e(base_url('staff/doc_alerts.php')) ?>" data-queue="<?= e(base_url('staff/dashboard.php#verification-queue')) ?>"></script><?php endif; ?>
 </body>
 </html>

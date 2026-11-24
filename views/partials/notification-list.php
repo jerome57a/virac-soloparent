@@ -38,15 +38,30 @@ $unread = (int) $notifPage['unread'];
   </div>
 <?php endif; ?>
 
+<?php
+// MSWDO staff and the admin: unread notifications that ask them to do something come first, under "Needs your action".
+$rowsToShow = $notifPage['rows'];
+$groups = [['title' => null, 'rows' => $rowsToShow]];
+if ($notifRole !== 'applicant' && $rowsToShow) {
+    $act = array_values(array_filter($rowsToShow, fn($n) => !$n['is_read'] && NotificationService::isAction($n)));
+    $info = array_values(array_filter($rowsToShow, fn($n) => $n['is_read'] || !NotificationService::isAction($n)));
+    $groups = [['title' => 'Needs your action', 'tone' => 'act', 'rows' => $act, 'empty' => 'Nothing needs your action right now.'], ['title' => 'For your information', 'tone' => 'info', 'rows' => $info]];
+}
+?>
 <?php if ($notifRole === 'admin' && $notifPage['rows']): ?><div class="admin-list-scroll" role="region" aria-label="Notifications" tabindex="0" data-i18n-attrs="aria-label"><?php endif; ?>
-<?php foreach ($notifPage['rows'] as $n): [$label, $icon] = NotificationService::label($n['type']); $link = NotificationService::linkFor($n, $notifRole); ?>
+<?php foreach ($groups as $group): ?>
+<?php if ($group['title'] !== null && ($group['rows'] || !empty($group['empty']))): ?>
+  <h2 class="notif-group-title is-<?= e($group['tone']) ?>"><span data-i18n><?= e($group['title']) ?></span> <span class="notif-group-count"><?= count($group['rows']) ?></span></h2>
+  <?php if (!$group['rows']): ?><p class="notif-group-empty" data-i18n><?= e($group['empty']) ?></p><?php endif; ?>
+<?php endif; ?>
+<?php foreach ($group['rows'] as $n): [$label, $icon] = NotificationService::label($n['type']); $link = NotificationService::linkFor($n, $notifRole); ?>
   <div class="notif-item <?= $n['is_read'] ? '' : 'unread' ?>">
     <div class="notif-icon" aria-hidden="true"><?= $icon ?></div>
     <div class="notif-body">
       <div class="notif-meta"><?= e($label) ?> · <?= e(date('M j, Y g:i A', strtotime($n['created_at']))) ?><?php if (!$n['is_read']): ?> · <b data-i18n>New</b><?php endif; ?></div>
       <div class="notif-text"><?= e($n['message']) ?></div>
       <div class="notif-actions">
-        <?php if ($link): ?><a href="<?= base_url($baseUrl . $sep . 'open=' . (int) $n['id']) ?>" data-i18n>View</a><?php endif; ?>
+        <?php if ($link): ?><a href="<?= base_url($baseUrl . $sep . 'open=' . (int) $n['id']) ?>" data-i18n><?= $notifRole !== 'applicant' && NotificationService::isAction($n) && !$n['is_read'] ? 'Open' : 'View' ?></a><?php endif; ?>
         <?php if (!$n['is_read']): ?>
           <form method="post" action="<?= base_url($baseUrl . ($unreadOnly ? $sep . 'filter=unread' : '')) ?>" class="m-0">
             <?= csrf_field() ?>
@@ -57,6 +72,7 @@ $unread = (int) $notifPage['unread'];
       </div>
     </div>
   </div>
+<?php endforeach; ?>
 <?php endforeach; ?>
 <?php if ($notifRole === 'admin' && $notifPage['rows']): ?></div><?php endif; ?>
 

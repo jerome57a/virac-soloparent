@@ -135,8 +135,10 @@ class DocumentController extends Controller
         } else {
             audit_log($this->pdo, (int) $user['id'], $user['full_name'], $user['role'], 'Document Upload', 'application', $applicationId, $docKey);
         }
+        $savedDoc = $documents->findForApplication($applicationId, $docKey);
         (new NotificationService($this->pdo))->notifyStaff('document_resubmitted',
-            ($existing ? 'RE-UPLOADED: ' : 'Uploaded: ') . $user['full_name'] . ' sent "' . ($documents->requirementLabel($docKey) ?? $docKey) . '"' . ($existing ? ' again' : '') . ' for ' . $app['reference_no'] . ' — needs your verification.', $applicationId);
+            ($existing ? 'RE-UPLOADED: ' : 'Uploaded: ') . $user['full_name'] . ' sent "' . ($documents->requirementLabel($docKey) ?? $docKey) . '"' . ($existing ? ' again' : '') . ' for ' . $app['reference_no'] . ' — needs your verification.', $applicationId,
+            $savedDoc ? 'doc-' . (int) $savedDoc['id'] : null);
         $backInReview = (new ApplicationReviewService($this->pdo))->returnToReviewIfCorrected($user, $app);
         return null;
     }

@@ -15,6 +15,7 @@ $icons = [
     <div class="empty-state"><div class="empty-state-title" data-i18n>No application documents yet</div><p data-i18n>Start an application to see and submit its required documents.</p><a href="?section=apply" class="btn-navy" data-i18n>Start an Application</a></div>
   <?php else: ?>
     <p class="docs-intro">Upload a clear photo of each required document. MSWDO staff check every file. If one is not accepted, you will see here why, and you can send a new file. <a href="?section=requirements">See what each document should look like &rarr;</a></p>
+    <?php require APP_ROOT . '/views/partials/bring-pictures-note.php'; ?>
     <?php foreach ($myApplications as $app):
       $items = $checklistByApp[$app['id']] ?? [];
       $uploads = $uploadedByApp[$app['id']] ?? [];

@@ -151,3 +151,48 @@
 .staff-application-review .review-action-grid.gi-decide button { padding-left: 8px; padding-right: 8px; line-height: 1.25; }
 .gi-decide button::before, .gi-decide button::after { content: none !important; }
 @media (max-width: 620px) { .staff-application-review .review-action-grid.gi-decide { grid-template-columns: 1fr; } }
+
+/* The Interview card: what the Solo Parent brings (the 1x1 ID pictures are not uploaded). */
+.gi-bring { display: flex; gap: 6px; align-items: flex-start; font-size: 13.5px; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; margin: 0 0 10px; }
+.gi-bring .ic, .gi-bring svg { flex: none; margin-top: 2px; color: var(--navy); }
+
+/* Document verification: the remark a Needs Correction needs. "* Required" appears with that status; a missing remark is outlined. */
+.doc-verify-form .doc-remark-field { flex: 1 1 260px; display: flex; flex-direction: column; gap: 3px; margin: 0; min-width: 0; }
+.doc-verify-form .doc-remark-field .form-control { flex: none; width: 100%; }
+.doc-remark-label { font-size: 12px; font-weight: 700; color: var(--muted); }
+.doc-remark-req { color: var(--error-text); }
+.doc-remark-req[hidden], .doc-remark-error[hidden], .doc-save-hint[hidden] { display: none !important; }
+.js-doc-remark.is-missing { border-color: var(--error-text) !important; background: var(--error-bg) !important; color: var(--ink); }
+.js-doc-remark.is-missing:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--error-text) 25%, transparent); }
+.doc-item.remark-missing, .doc-item.has-error { border: 1.5px solid var(--error-text) !important; border-radius: 12px; box-shadow: 0 0 0 3px color-mix(in srgb, var(--error-text) 15%, transparent); scroll-margin-top: 90px; }
+.doc-remark-error, .doc-row-error { display: flex; gap: 6px; align-items: center; flex: 1 1 100%; color: var(--error-text); font-weight: 700; font-size: 13px; }
+.doc-remark-error svg, .doc-row-error svg { flex: none; }
+.doc-save-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.doc-save-hint { display: inline-flex; gap: 6px; align-items: center; color: var(--error-text); font-weight: 700; font-size: 13px; }
+.doc-save-hint::before { content: "\2190"; }
+
+/* Live staff alert (public/js/staff-doc-alerts.js): one pop-up per new Solo Parent action, bottom right, stacked (newest last). */
+.staff-alert-stack { position: fixed; right: 16px; bottom: 16px; z-index: 2000; display: flex; flex-direction: column; gap: 10px; width: min(360px, calc(100vw - 32px)); }
+.staff-alert { background: var(--theme-card, #fff); color: var(--ink); border: 1px solid var(--border); border-left: 5px solid var(--navy); border-radius: 12px; box-shadow: 0 10px 30px rgba(20, 35, 60, .18); padding: 12px 14px; animation: staff-alert-in .2s ease-out; }
+.staff-alert.is-action { border-left-color: #c0392b; }
+.staff-alert-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--navy); }
+.staff-alert-head > span { display: inline-flex; gap: 6px; align-items: center; }
+.staff-alert-close { border: 0; background: transparent; color: var(--muted); padding: 2px; border-radius: 6px; line-height: 0; cursor: pointer; }
+.staff-alert-close:hover, .staff-alert-close:focus-visible { color: var(--ink); background: var(--surface); }
+.staff-alert p { margin: 6px 0 10px; font-size: 14px; color: var(--ink); overflow-wrap: anywhere; }
+.staff-alert-foot { display: flex; gap: 8px; align-items: center; }
+.staff-alert-foot small { margin-left: auto; color: var(--muted); }
+.staff-alert-open { padding: 6px 12px !important; font-size: 13px !important; text-decoration: none; }
+.staff-live-badge { margin-left: 8px; background: var(--navy); color: var(--theme-card, #fff); border-radius: 999px; padding: 1px 8px; font-size: 12px; font-weight: 700; }
+.staff-live-badge.is-resent { background: #b45309; color: #fff; }
+html[data-theme="dark"] .staff-alert { box-shadow: 0 10px 30px rgba(0, 0, 0, .55); }
+html[data-theme="dark"] .staff-alert.is-action { border-left-color: #ff9a8f; }
+@keyframes staff-alert-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .staff-alert { animation: none; } }
+@media (max-width: 520px) { .staff-alert-stack { right: 10px; left: 10px; bottom: 10px; width: auto; } }
+
+/* Notifications page (staff and admin): "Needs your action" first, then "For your information". */
+.notif-group-title { display: flex; gap: 8px; align-items: center; font: 700 15px/1.3 Arial, Helvetica, sans-serif; color: var(--ink); margin: 18px 0 8px; }
+.notif-group-count { display: inline-grid; place-items: center; min-width: 24px; height: 22px; padding: 0 7px; border-radius: 999px; font-size: 12px; background: var(--surface); color: var(--muted); border: 1px solid var(--border); }
+.notif-group-title.is-act .notif-group-count { background: var(--error-bg); color: var(--error-text); border-color: transparent; }
+.notif-group-empty { color: var(--muted); font-size: 14px; margin: 0 0 8px; }

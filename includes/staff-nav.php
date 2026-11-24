@@ -105,7 +105,8 @@ function staff_nav_groups(array $staff, int $unreadNotifications = 0): array
         $work[] = $item('verification', 'Documents to Verify', base_url('staff/verification.php'), ['staff/verification.php'], $docWaiting['applications'], $docWaiting['resent'] > 0 ? '#b45309' : '#1b3a6b', 'nav-docs-to-verify', false);
     }
     if (can($staff, 'appointments.view')) {
-        $toConfirm = staff_outcome_waiting_count() + staff_release_overdue_count();
+        // Needs a result + still booked today + ID release date passed: the work waiting on the Appointments page.
+        $toConfirm = staff_outcome_waiting_count() + staff_today_booked_count() + staff_release_overdue_count();
         $work[] = $item('appointments', 'Appointment Management', base_url(role_portal_path($staff, 'appointments.php')), ['staff/appointments.php', 'staff/follow_up.php'], $toConfirm, '#b45309');
     }
     if ($canWork) {

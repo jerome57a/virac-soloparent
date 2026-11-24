@@ -172,48 +172,7 @@ $welcomeText = !empty($isFirstLogin) ? 'Welcome' : 'Welcome back';
           <?php endif; ?>
         </div>
 
-        <div class="dash-card">
-          <h2 class="dash-card-label dash-home-card-heading" data-i18n><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><?= $icons['renew'] ?></svg>Solo Parent ID &amp; Renewal</h2>
-          <?php if ($renewal['state'] === 'in_progress'): $rs = status_style($renewal['application']['status']); ?>
-            <div style="font-size:14px;color:var(--ink);margin-bottom:6px" data-i18n>Renewal <b><?= e($renewal['application']['reference_no']) ?></b> is being processed.</div>
-            <span class="status-pill" style="background:<?= e($rs['bg']) ?>;color:<?= e($rs['color']) ?>"><?= e($renewal['application']['status']) ?></span>
-            <div class="mt-3"><a href="?section=renewal&type=status" class="btn-outline text-decoration-none dash-card-link" data-i18n>Renewal Status</a></div>
-          <?php elseif ($renewal['state'] === 'none'): ?>
-            <?php if ($idApplication): $idSt = status_style($idApplication['status']); ?>
-              <div style="font-size:14px;color:var(--ink);margin-bottom:10px" data-i18n>Your ID is <span class="status-pill" style="background:<?= e($idSt['bg']) ?>;color:<?= e($idSt['color']) ?>"><?= e($idApplication['status']) ?></span> and will be released by MSWDO.</div>
-            <?php else: ?>
-              <div class="dash-home-empty"><h3 data-i18n>Your ID details will appear here</h3><p data-i18n>Once MSWDO approves and releases your ID, you can view its details and renewal schedule.</p></div>
-            <?php endif; ?>
-          <?php else: ?>
-            <div class="dash-home-validity <?= e($renewal['state']) ?>">
-              <?php if ($renewal['state'] === 'expired'): ?>
-                <span class="status-pill" data-i18n>Expired</span>
-              <?php else: ?>
-                <span class="status-pill"><?= $renewal['state'] === 'due' ? 'Expires today' : 'Valid' ?></span>
-              <?php endif; ?>
-              <div class="dash-home-expiry-label" data-i18n><?= $renewal['state'] === 'expired' ? 'Expired on' : 'Valid until' ?></div>
-              <div class="dash-home-expiry-date"><?= e(format_date_long($renewal['expiresAt'])) ?></div>
-            </div>
-            <div style="font-size:13px;color:var(--muted);margin-bottom:14px">
-              <?php if ($renewal['state'] === 'expired'): ?>
-                Renew now to keep your benefits.
-              <?php elseif ($renewal['state'] === 'due'): ?>
-                Your ID expires today — renewal is now open.
-              <?php else: ?>
-                <?= (int) $renewal['daysLeft'] ?> day<?= $renewal['daysLeft'] === 1 ? '' : 's' ?> left. Renewal opens on <?= e(format_date_long($renewal['expiresAt'])) ?>, the day your ID expires.
-              <?php endif; ?>
-            </div>
-            <div class="d-flex flex-wrap gap-2">
-              <?php if (in_array($renewal['state'], ['due', 'expired'], true)): ?>
-                <a href="?section=renewal&type=new" class="btn-red text-decoration-none dash-card-link" data-i18n>Renew My ID</a>
-              <?php endif; ?>
-              <a href="?section=myid" class="btn-outline text-decoration-none dash-card-link" data-i18n>View My ID</a>
-            </div>
-          <?php endif; ?>
-          <?php if (!empty($viewableIdApplication) && in_array($renewal['state'], ['none', 'in_progress'], true)): ?>
-            <a href="<?= base_url('applicant/dashboard.php?section=myid&ref=' . urlencode($viewableIdApplication['reference_no'])) ?>" class="btn-navy text-decoration-none dash-card-link mt-3" data-i18n>View My ID</a>
-          <?php endif; ?>
-        </div>
+        <?php require APP_ROOT . '/views/partials/dashboard-id-card.php'; ?>
       </div>
 
       <div class="dash-card dash-home-notifications">

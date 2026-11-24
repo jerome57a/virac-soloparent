@@ -36,6 +36,18 @@ class NotificationService
         'security_alert' => ['Security alert', '🔒'],
     ];
     public const PER_PAGE = 20;
+
+    /** Types that ask MSWDO staff or the admin to do something ("Needs your action"); every other type is for information. */
+    public const ACTION_TYPES = ['new_application', 'new_renewal', 'document_resubmitted', 'corrections_submitted', 'appointment_update', 'job_failed', 'security_alert'];
+
+    /** Where on the staff application page each type opens (older notifications without an anchor get it too). */
+    public const STAFF_ANCHORS = ['new_application' => 'checklist', 'new_renewal' => 'checklist', 'document_resubmitted' => 'checklist',
+        'corrections_submitted' => 'checklist', 'appointment_update' => 'interview'];
+
+    public static function isAction(array $n): bool
+    {
+        return in_array($n['type'] ?? '', self::ACTION_TYPES, true);
+    }
     private const LINK_PREFIXES = ['applicant/', 'staff/', 'admin/', 'portal.php'];
 
     private PDO $pdo;
@@ -64,13 +76,14 @@ class NotificationService
         return $count;
     }
 
-    /** MSWD staff (who process applications) get new work to act on. */
-    public function notifyStaff(string $type, string $message, int $applicationId): int
+    /** MSWD staff (who process applications) get new work to act on. $anchor: the part of the application page it opens (e.g. doc-12). */
+    public function notifyStaff(string $type, string $message, int $applicationId, ?string $anchor = null): int
     {
         if (setting('notify_staff_new_work') !== '1') {
             return 0;
         }
-        return $this->notifyRoles(['mswd_social_worker'], $type, $message, $applicationId, 'staff/application.php?id=' . $applicationId);
+        $anchor = $anchor !== null && preg_match('/^[a-z][a-z0-9-]{0,40}$/', $anchor) ? $anchor : (self::STAFF_ANCHORS[$type] ?? null);
+        return $this->notifyRoles(['mswd_social_worker'], $type, $message, $applicationId, 'staff/application.php?id=' . $applicationId . ($anchor ? '#' . $anchor : ''));
     }
 
     public function notifyAdmins(string $type, string $message, string $link): int
@@ -124,6 +137,10 @@ class NotificationService
     public static function linkFor(array $n, string $role): ?string
     {
         if ($n['link'] && self::safeLink($n['link'])) {
+            // An older staff notification opened the top of the application page: send it to the right card.
+            if ($role !== 'applicant' && preg_match('~^staff/application\.php\?id=\d+$~', $n['link']) && isset(self::STAFF_ANCHORS[$n['type']])) {
+                return $n['link'] . '#' . self::STAFF_ANCHORS[$n['type']];
+            }
             return $n['link'];
         }
         if ($role !== 'applicant') {

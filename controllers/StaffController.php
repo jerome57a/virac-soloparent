@@ -586,7 +586,11 @@ class StaffController extends Controller
         ]);
     }
 
-    /** staff/doc_alerts.php: JSON for the alert toast (how many Solo Parents are waiting, how many re-uploaded, and the top of the queue). */
+    /**
+     * staff/doc_alerts.php: JSON for the live staff alert, checked every 60 seconds: how many Solo Parents wait for document verification
+     * (menu badge), the unread count (bell), and the unread notifications newer than ?since= (each one pop-up with where it opens).
+     * Without ?since= it only returns latest_id, so a freshly opened page does not pop up old news. Reads only.
+     */
     public function docAlerts(): void
     {
         $this->authorize($this->staff, 'applications.process', 'staff/dashboard.php');
@@ -599,8 +603,26 @@ class StaffController extends Controller
             'resent' => (int) $backlog['resent_applications'],
             'latest' => (string) (new Document($this->pdo))->latestSentAt(),
             'first' => $queue ? ['name' => $queue[0]['full_name'], 'ref' => $queue[0]['reference_no']] : null,
-        ]);
+        ] + $this->liveNotifications());
         exit;
+    }
+
+    /** The notification part of the live alert (see docAlerts). */
+    private function liveNotifications(): array
+    {
+        $model = new Notification($this->pdo);
+        $userId = (int) $this->staff['id'];
+        $since = is_string($_GET['since'] ?? null) && ctype_digit($_GET['since']) ? (int) $_GET['since'] : null;
+        $items = [];
+        if ($since !== null) {
+            foreach ($model->unreadNewerThan($userId, $since) as $n) {
+                [$label] = NotificationService::label($n['type']);
+                $items[] = ['id' => (int) $n['id'], 'label' => $label, 'message' => $n['message'], 'action' => NotificationService::isAction($n),
+                    'open' => base_url('staff/notifications.php?open=' . (int) $n['id']), 'created_at' => $n['created_at']];
+            }
+        }
+        return ['unread' => $model->unreadCount($userId), 'latest_id' => $model->latestId($userId), 'items' => $items,
+            'notifications_url' => base_url('staff/notifications.php')];
     }
 
     public function smsAttention(): void

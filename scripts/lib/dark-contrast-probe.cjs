@@ -34,6 +34,7 @@ const probe = (root) => {
     const el = node.parentElement;
     if (!el || ['SCRIPT', 'STYLE', 'NOSCRIPT', 'OPTION'].includes(el.tagName) || !visible(el)) continue;
     if (el.closest('[disabled], [aria-disabled="true"]')) continue;   // disabled controls are exempt from the contrast rule
+    if (el.closest('[aria-hidden="true"][data-decorative]')) continue; // pure decoration (the faint SAMPLE stamp on the ID preview) is exempt too
     const cs = getComputedStyle(el);
     let fg = parse(cs.color); if (!fg) continue;
     const op = opacityChain(el);

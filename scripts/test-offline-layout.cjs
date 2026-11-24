@@ -41,6 +41,8 @@ const pages = [...fixtures.keys(), 'portal.php', 'portal.php?tab=help', 'portal.
         livePages: ['portal.php', 'eligibility.php', 'login.php', 'mswd-login.php'],
       });
       const page = await context.newPage();
+      // Every MSWDO staff page polls staff/doc_alerts.php for the live alert: answer it with an empty, read-only stub.
+      await page.route('**/staff/doc_alerts.php**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ waiting: 0, resent: 0, latest: '', first: null, unread: 0, latest_id: 0, items: [] }) }));
       const errors = [], badAssets = [];
       const external = guard.external;
       page.on('pageerror', error => errors.push(error.message));

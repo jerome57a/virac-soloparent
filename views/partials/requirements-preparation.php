@@ -13,6 +13,6 @@ $toPrepare = array_filter($preparationItems, [Document::class, 'needsPreparation
   <?php if ($toPrepare): ?>
   <p class="mb-0" data-i18n>Upload a file for each listed document from Documents in your Solo Parent portal. An uploaded file is not verified until MSWDO staff review it, and MSWDO staff may ask you to replace it. Bring originals and photocopies to your interview as instructed by MSWDO.</p>
   <?php else: ?>
-  <p class="mb-0">Bring a valid ID and your original documents to your interview, as MSWDO asks.</p>
+  <p class="mb-0" data-i18n>Bring a valid ID, two 1x1 ID pictures and your original documents to your interview, as MSWDO asks.</p>
   <?php endif; ?>
 </div>

@@ -1,0 +1,6 @@
+/* "Bring two 1x1 ID pictures to your interview": the pictures are not uploaded. Shared colour tokens, so light and dark follow the preference. */
+.bring-note { display: flex; gap: 12px; align-items: flex-start; border: 1.5px dashed var(--navy); background: var(--info); color: var(--ink); border-radius: 12px; padding: 12px 14px; margin: 0 0 14px; }
+.bring-note-icon { flex: none; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; background: var(--theme-card, #fff); color: var(--navy); }
+.bring-note-text { min-width: 0; }
+.bring-note-text b { display: block; color: var(--navy); font-size: 15px; }
+.bring-note-text small { display: block; color: var(--body, var(--ink)); font-size: 13.5px; margin-top: 2px; }
