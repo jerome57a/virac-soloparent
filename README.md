@@ -266,7 +266,7 @@ Records are browsed from `staff/applicants.php` and processed on
 - Create, edit, activate/deactivate, unlock, and reset access for user and
   staff accounts (`admin/users.php`, `admin/user_edit.php`).
 - System configuration (`admin/settings.php`): office information, document
-  limits, SMS settings, ID validity and renewal reminder days, interview days
+  limits, SMS settings, ID validity, the Expiring IDs list range and the renewal period, interview days
   (office closing time, closure and holiday dates, daily capacity).
 - Required documents per category for a new application and for a renewal
   (`admin/requirements.php`).
@@ -351,14 +351,14 @@ Notification Templates.
 
 | Text | How it is sent | Default |
 |---|---|---|
-| ID expired: **one SMS on the exact expiration date** (the date staff entered from the card); never before, never repeated; a failed SMS is retried the same day; a missed day is listed for staff (**Send now**) | **Automatic**, job `cron/renewal-reminders.php` (hourly) and the staff dashboard | On |
+| ID expired: **one SMS on the exact expiration date** (the date staff entered from the card); never before, never repeated; a failed SMS is retried the same day; a missed day is listed for staff (**Send now**) | **Automatic**, job `cron/renewal-reminders.php` (daily, 8:00 AM) and the staff dashboard | On |
 | Interview date set by staff (the automatic wording ends with what to bring: a valid ID and two 1x1 pictures, and the current Solo Parent ID for a renewal) | Staff action (automatic or custom wording) | On |
 | Document correction | Staff previews and confirms | On |
 | ID release scheduled | Staff action | On |
 | Appointment cancelled (a missed interview is never texted; the Solo Parent sees an in-app notice instead) | Staff action | On |
 | Password reset code | On request, by SMS | On |
 | Sign-up confirmation code | At registration | Off |
-| Application received, renewal received, status update, interview date booked, appointment reminder, reminder after expiry | Automatic | **Off** |
+| Application received, renewal received, status update, interview date booked, appointment reminder | Automatic | **Off** |
 
 **Failures.** After a staff action the page shows a green "SMS sent", a red "SMS
 failed" with the reason and a **Retry SMS** button, or an amber "SMS not sent" if
@@ -518,7 +518,7 @@ storage folder and `TEST_DOCUMENT_ROOT`.
 | `database/test_new_application_uploads.php` | New-application uploads: required files, replaced files, rechecks at submission, rollback, staff review |
 | `database/test_save_verification.php` | The staff Save Verification form: transactions, history, notices, stale-edit refusal |
 | `database/test_simplified_renewal.php`, `test_renewal_requirements.php` | Renewal rules, retained documents, and the per-category renewal list |
-| `database/test_renewal_rules.php` | Renewal timing (prepare, submit from expiry, close after 365 days), RA 11861 children and the disability proof, updatable civil status/children, automated flags |
+| `database/test_renewal_rules.php` | Renewal timing (opens on the expiry date, closes after 365 days), RA 11861 children and the disability proof, updatable civil status/children, automated flags |
 | `database/test_public_tracking.php` | Public status lookup: fields shown, no name, no times, headers |
 | `database/test_staff_sms_attention.php` | Failed Texts list, retry safety checks, and the cancel/missed SMS alert |
 | `database/test_home_requirement_guides.php` | Home screen: every document opens its "How to get it" guide (real guide text, generic fallback for unknown documents, escaping, no guide for the 2x2 photo) |
@@ -625,7 +625,7 @@ evaluation results.
 replacement on correction, document verification and correction tracking,
 automated verification, `application_document_checklists`, interview day booking,
 ID release scheduling, SMS notifications, logs, failure alerts and retry, renewal
-with the short document list, ID-expiry reminders and scheduled jobs,
+with the short document list, the ID expiry-day text and scheduled jobs,
 authentication, role permissions, audit logging, account management, reports and
 exports, public eligibility checking, the public status lookup and the Help page.
 
