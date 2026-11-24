@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>e-SoloParentID System Architecture</title>
+<style>
+
+:root{--bg:#f6f7f9;--text:#1f2933;--muted:#5b6670;--card:#fff;--border:#d5dae0;--ink:#2b333b;--box:#fff;--tint:#f1f4f8;
+--out:#fafafa;--c-users:#5b6670;--c-pres:#2f6fb3;--c-app:#2f8a45;--c-data:#b7791f;}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14181d;--text:#e6eaee;--muted:#a2adb8;--card:#1c2128;--border:#333c46;
+--ink:#aab4be;--box:#262d36;--tint:#20262d;--out:#1a1f25;}}
+:root[data-theme="dark"]{--bg:#14181d;--text:#e6eaee;--muted:#a2adb8;--card:#1c2128;--border:#333c46;--ink:#aab4be;--box:#262d36;--tint:#20262d;--out:#1a1f25;}
+
+
+svg{display:block;width:100%;height:auto;font-family:"Segoe UI",system-ui,-apple-system,Arial,sans-serif}
+.tier{fill:var(--tint);stroke:var(--ink);stroke-width:1}
+.bx{fill:var(--box);stroke:var(--ink);stroke-width:1.6}
+.bx2{fill:var(--box);stroke:var(--ink);stroke-width:1.6}
+.out{fill:var(--out);stroke:var(--ink);stroke-width:1.4;stroke-dasharray:6 4}
+.ln{stroke:var(--ink);stroke-width:1.8}
+.ah{fill:var(--ink)}
+.t,.tb,.ts,.lbl,.outh{fill:var(--text)}
+.tb{font-size:14.5px;font-weight:700}
+.ts{font-size:12.5px}
+.lbl{font-size:12px;font-style:italic}
+.outh{font-size:12.5px;font-weight:700}
+.strip{fill:#fff;font-size:12.5px;font-weight:700;letter-spacing:.04em}
+.strip-s{fill:#fff;font-size:11.5px}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Segoe UI",system-ui,-apple-system,Arial,sans-serif;line-height:1.5}
+.wrap{max-width:1040px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:1.6rem;margin:0 0 4px}
+.sub{color:var(--muted);margin:0 0 16px}
+.tools{margin:0 0 16px}
+button{font:inherit;color:var(--text);background:var(--card);border:1px solid var(--border);border-radius:8px;padding:6px 12px;cursor:pointer}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin:0 0 16px}
+.card h2{font-size:1.1rem;margin:0 0 8px}
+.scroll{overflow-x:auto}
+.scroll svg{min-width:640px}
+ul{margin:8px 0 0;padding-left:20px} li{margin:4px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>System Architecture</h1>
+  <p class="sub">e-SoloParentID: how the parts of the system fit together</p>
+  <div class="tools"><button id="theme" type="button">Switch light / dark</button></div>
+  <div class="card"><div class="scroll"><svg id="arch" viewBox="0 0 1000 746" role="img" aria-label="System architecture of the e-SoloParentID: users, web browser, PHP application (controllers, services, models), MariaDB database and file storage, with the SMS gateway, Tesseract OCR and Windows Task Scheduler outside the web server"><rect x="0" y="16" width="750" height="80" class="tier"/><rect x="0" y="16" width="118" height="80" style="fill:var(--c-users)"/><text x="59" y="48.0" class="strip" text-anchor="middle">USERS</text><text x="59" y="65.0" class="strip-s" text-anchor="middle">the people</text><rect x="0" y="116" width="750" height="80" class="tier"/><rect x="0" y="116" width="118" height="80" style="fill:var(--c-pres)"/><text x="59" y="148.0" class="strip" text-anchor="middle">PRESENTATION</text><text x="59" y="165.0" class="strip-s" text-anchor="middle">what users see</text><rect x="0" y="226" width="750" height="380" class="tier"/><rect x="0" y="226" width="118" height="380" style="fill:var(--c-app)"/><text x="59" y="400.0" class="strip" text-anchor="middle">APPLICATION</text><text x="59" y="417.0" class="strip-s" text-anchor="middle">PHP 8 on Apache</text><text x="59" y="432.0" class="strip-s" text-anchor="middle">(XAMPP)</text><rect x="0" y="626" width="750" height="100" class="tier"/><rect x="0" y="626" width="118" height="100" style="fill:var(--c-data)"/><text x="59" y="668.0" class="strip" text-anchor="middle">DATA</text><text x="59" y="685.0" class="strip-s" text-anchor="middle">what is kept</text><rect x="150" y="28" width="180" height="56" rx="8" class="bx"/><text x="240.0" y="53.0" class="tb" text-anchor="middle">Solo Parent</text><text x="240.0" y="72.0" class="ts" text-anchor="middle">applies and renews</text><line class="ln" x1="240" y1="84" x2="240" y2="128"/><polygon class="ah" points="240,128 235.5,120 244.5,120"/><rect x="350" y="28" width="180" height="56" rx="8" class="bx"/><text x="440.0" y="53.0" class="tb" text-anchor="middle">MSWDO Staff</text><text x="440.0" y="72.0" class="ts" text-anchor="middle">reviews and decides</text><line class="ln" x1="440" y1="84" x2="440" y2="128"/><polygon class="ah" points="440,128 435.5,120 444.5,120"/><rect x="550" y="28" width="180" height="56" rx="8" class="bx"/><text x="640.0" y="53.0" class="tb" text-anchor="middle">MSWDO Admin</text><text x="640.0" y="72.0" class="ts" text-anchor="middle">sets up and monitors</text><line class="ln" x1="640" y1="84" x2="640" y2="128"/><polygon class="ah" points="640,128 635.5,120 644.5,120"/><rect x="150" y="128" width="580" height="56" rx="8" class="bx"/><text x="440.0" y="153.0" class="tb" text-anchor="middle">Web browser</text><text x="440.0" y="172.0" class="ts" text-anchor="middle">HTML, CSS, JavaScript  ·  English and Filipino  ·  phone and desktop</text><line class="ln" x1="440" y1="184" x2="440" y2="244"/><polygon class="ah" points="440,244 435.5,236 444.5,236"/><polygon class="ah" points="440,184 435.5,192 444.5,192"/><text x="452" y="212" class="lbl" text-anchor="start">requests and pages (HTTP)</text><rect x="150" y="244" width="580" height="70" rx="8" class="bx"/><text x="440.0" y="268.0" class="tb" text-anchor="middle">Pages and controllers</text><text x="440.0" y="287.0" class="ts" text-anchor="middle">Take each request, check the login and the role,</text><text x="440.0" y="303.0" class="ts" text-anchor="middle">and show the page for that role</text><line class="ln" x1="440" y1="314" x2="440" y2="346"/><polygon class="ah" points="440,346 435.5,338 444.5,338"/><rect x="150" y="346" width="580" height="150" rx="8" class="bx"/><text x="440" y="372" class="tb" text-anchor="middle">Services: the business rules</text><text x="190" y="408" class="ts" text-anchor="start">•  Applications and renewals</text><text x="190" y="436" class="ts" text-anchor="start">•  Automatic document check</text><text x="190" y="464" class="ts" text-anchor="start">•  Interview scheduling</text><text x="470" y="408" class="ts" text-anchor="start">•  ID release</text><text x="470" y="436" class="ts" text-anchor="start">•  SMS texts</text><text x="470" y="464" class="ts" text-anchor="start">•  Accounts and login</text><line class="ln" x1="550" y1="496" x2="550" y2="526"/><polygon class="ah" points="550,526 545.5,518 554.5,518"/><rect x="390" y="526" width="340" height="60" rx="8" class="bx"/><text x="560.0" y="553.0" class="tb" text-anchor="middle">Models</text><text x="560.0" y="572.0" class="ts" text-anchor="middle">read and write the database (PDO)</text><line class="ln" x1="550" y1="586" x2="550" y2="642"/><polygon class="ah" points="550,642 545.5,634 554.5,634"/><text x="562" y="622" class="lbl" text-anchor="start">SQL</text><rect x="390" y="642" width="340" height="70" rx="8" class="bx"/><text x="560.0" y="666.0" class="tb" text-anchor="middle">MySQL database (XAMPP)</text><text x="560.0" y="685.0" class="ts" text-anchor="middle">accounts, applications, interviews,</text><text x="560.0" y="701.0" class="ts" text-anchor="middle">SMS log, audit log, settings</text><rect x="150" y="642" width="220" height="70" rx="8" class="bx"/><text x="260.0" y="666.0" class="tb" text-anchor="middle">File storage</text><text x="260.0" y="685.0" class="ts" text-anchor="middle">uploaded documents and photos</text><text x="260.0" y="701.0" class="ts" text-anchor="middle">private; opened by download.php</text><line class="ln" x1="245" y1="496" x2="245" y2="642"/><polygon class="ah" points="245,642 240.5,634 249.5,634"/><text x="257" y="575" class="lbl" text-anchor="start">documents</text><rect x="760" y="318" width="230" height="194" rx="10" class="out"/><text x="875" y="338" class="outh" text-anchor="middle">Outside the web server</text><rect x="772" y="346" width="206" height="44" rx="8" class="bx2"/><text x="875.0" y="365.0" class="tb" text-anchor="middle">Windows Task Scheduler</text><text x="875.0" y="384.0" class="ts" text-anchor="middle">runs the scheduled jobs</text><rect x="772" y="399" width="206" height="44" rx="8" class="bx2"/><text x="875.0" y="418.0" class="tb" text-anchor="middle">IPROG SMS gateway</text><text x="875.0" y="437.0" class="ts" text-anchor="middle">sends the texts (HTTPS)</text><rect x="772" y="452" width="206" height="44" rx="8" class="bx2"/><text x="875.0" y="471.0" class="tb" text-anchor="middle">Tesseract OCR</text><text x="875.0" y="490.0" class="ts" text-anchor="middle">reads the text in documents</text><line class="ln" x1="772" y1="368" x2="730" y2="368"/><polygon class="ah" points="730,368 738,363.5 738,372.5"/><line class="ln" x1="730" y1="421" x2="772" y2="421"/><polygon class="ah" points="772,421 764,416.5 764,425.5"/><line class="ln" x1="730" y1="474" x2="772" y2="474"/><polygon class="ah" points="772,474 764,469.5 764,478.5"/></svg></div></div>
+  <div class="card">
+    <h2>How to read it</h2>
+    <ul>
+      <li>Read from top to bottom. An arrow means "calls" or "sends data to". The browser and the application send pages and requests both ways.</li>
+      <li>The Solo Parent, MSWDO Staff and MSWDO Admin all use the same web browser and the same PHP application. What each one sees depends on the role.</li>
+      <li>The <b>services</b> hold the rules. Only they call the SMS gateway and Tesseract. The scheduled jobs also run through the services.</li>
+      <li>The <b>MySQL database</b> keeps the records. It is the MySQL module of XAMPP (its engine is MariaDB 10.4). A separate test database is used only for testing and is not drawn. The <b>file storage</b> keeps the uploaded documents, and a document can only be opened through <b>download.php</b>.</li>
+      <li>Simple pages may read the models directly, without going through a service. This is not drawn, to keep the picture simple.</li>
+    </ul>
+  </div>
+</div>
+<script>
+document.getElementById('theme').addEventListener('click', function () {
+  var r = document.documentElement, dark = r.getAttribute('data-theme') === 'dark' ||
+    (!r.getAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  r.setAttribute('data-theme', dark ? 'light' : 'dark');
+});
+</script>
+</body></html>

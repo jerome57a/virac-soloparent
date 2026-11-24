@@ -67,8 +67,12 @@ Where each objective is met, with evidence, is in `docs/title-defense.md`.
 
 The swimlane diagrams of the new application and of the renewal (Solo Parent, System and MSWDO Staff lanes, checked against
 the code) are in `docs/diagrams/`: `swimlane-new-application.png`, `swimlane-renewal.png` (pictures to paste into the
-manuscript), `swimlane-diagrams.pdf` (one diagram per A3 page) and `swimlane-diagrams.html` (the editable source; it also
+manuscript), `swimlane-diagrams.pdf` (3 A3 pages: Figure 1 new application, Figure 2 renewal, Figure 3 system architecture) and `swimlane-diagrams.html` (the editable source; it also
 shows the three side flows: missed interview, interview nobody confirmed, ID expiry text).
+The system architecture in layers (users, browser, PHP application, MySQL database and file storage, with the SMS gateway, Tesseract OCR and
+Windows Task Scheduler outside the web server) is `docs/diagrams/architecture-layers.png` (picture for the manuscript),
+`architecture-layers.pdf` (one A4 page) and `architecture-layers.html` (source). It replaces `system-architecture.png`, which still shows
+older counts.
 
 ## 3. Technology Stack
 

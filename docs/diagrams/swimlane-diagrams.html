@@ -46,8 +46,8 @@
   .scroll { overflow-x:auto; border:1px solid var(--border); border-radius:12px; background:var(--card); padding:8px; max-width:100%; }
   svg { display:block; min-width:700px; width:100%; height:auto; }
   svg text { font-family:"Segoe UI", system-ui, Arial, sans-serif; fill:var(--text); }
-  .lane-h { font-weight:700; font-size:15px; fill:#fff; }
-  .lane-sub { font-size:11.5px; fill:#fff; opacity:.92; }
+  .lane-h { font-weight:700; font-size:19px; fill:#fff; }
+  .lane-sub { font-size:14.5px; fill:#fff; }
   .nd { fill:var(--box); stroke:var(--boxline); stroke-width:1.5; }
   .nd.sp { stroke:var(--sp-h); } .nd.sys { stroke:var(--sys-h); }
   .nd.staff { stroke:var(--staff-h); }
@@ -149,7 +149,7 @@
     staff:{ x: LW * 2,   name: 'MSWDO Staff', sub: 'reviews and decides' }
   };
   var COLORS = { sp: ['--sp', '--sp-h'], sys: ['--sys', '--sys-h'], staff: ['--staff', '--staff-h'] };
-  var TOP = 62, ROW = 114, FIRST = 56, BW = 210;
+  var TOP = 76, ROW = 114, FIRST = 56, BW = 210;
 
   function el(tag, attrs, parent) {
     var e = document.createElementNS(NS, tag);
@@ -193,10 +193,10 @@
     Object.keys(LANES).forEach(function (k) {
       var L = LANES[k];
       el('rect', { x: L.x, y: 0, width: LW, height: H, style: 'fill:var(' + COLORS[k][0] + ')' }, svg);
-      el('rect', { x: L.x, y: 0, width: LW, height: 50, style: 'fill:var(' + COLORS[k][1] + ')' }, svg);
-      var t = el('text', { x: L.x + LW / 2, y: 22, 'text-anchor': 'middle', 'class': 'lane-h' }, svg); t.textContent = L.name;
-      var s = el('text', { x: L.x + LW / 2, y: 40, 'text-anchor': 'middle', 'class': 'lane-sub' }, svg); s.textContent = L.sub;
-      if (L.x > 0) el('line', { x1: L.x, y1: 50, x2: L.x, y2: H, stroke: 'var(--border)', 'stroke-width': 1 }, svg);
+      el('rect', { x: L.x, y: 0, width: LW, height: 64, style: 'fill:var(' + COLORS[k][1] + ')' }, svg);
+      var t = el('text', { x: L.x + LW / 2, y: 28, 'text-anchor': 'middle', 'class': 'lane-h' }, svg); t.textContent = L.name;
+      var s = el('text', { x: L.x + LW / 2, y: 51, 'text-anchor': 'middle', 'class': 'lane-sub' }, svg); s.textContent = L.sub;
+      if (L.x > 0) el('line', { x1: L.x, y1: 64, x2: L.x, y2: H, stroke: 'var(--border)', 'stroke-width': 1 }, svg);
     });
 
     var geo = {};
