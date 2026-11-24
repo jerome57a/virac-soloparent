@@ -1,7 +1,7 @@
 <?php
 /** CLI-only GET previews. No login, writes, notification opens or messages. */
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
-$actions = ['dashboard.php' => 'dashboard', 'notifications.php' => 'notifications', 'index.php' => 'applications', 'applicants.php' => 'applicants', 'appointments.php' => 'appointments', 'reports.php' => 'reports'];
+$actions = ['dashboard.php' => 'dashboard', 'notifications.php' => 'notifications', 'index.php' => 'applications', 'applicants.php' => 'applicants', 'appointments.php' => 'appointments', 'reports.php' => 'reports', 'verification.php' => 'verificationPage', 'follow_up.php' => 'followUpPage'];
 $route = $argv[1] ?? 'dashboard.php';
 if (!isset($actions[$route])) { fwrite(STDERR, 'Unknown preview page.'); exit(1); }
 $_GET = []; $_POST = [];

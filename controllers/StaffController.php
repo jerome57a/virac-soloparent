@@ -76,26 +76,13 @@ class StaffController extends Controller
                 'readyToSchedule'   => count($readyToSchedule),
                 'awaitingRelease'   => $queues->idReleaseCount(),
                 'releaseOverdue'    => (new IdReleaseService($this->pdo))->overdueCount(),
-                'releaseUnscheduled' => (int) $this->pdo->query("SELECT COUNT(*) FROM applications a WHERE a.status = 'Approved' AND NOT EXISTS (SELECT 1 FROM id_release_schedules r WHERE r.application_id = a.id)")->fetchColumn(),
                 'rejected'          => $applications->countWhere("status = 'Rejected'"),
             ],
             'docBacklog' => $documents->verificationBacklog(),
-            'verificationQueue' => $documents->verificationQueue(10),
-            'todaysAppointments' => $todays,
-            'awaitingOutcome' => array_slice($awaitingOutcome, 0, 5),
-            'pendingNewList' => $this->waitingForReview('new'),
-            'pendingRenewalList' => $this->waitingForReview('renewal'),
             'failedTextCount' => $this->failedTextCount(),
-            'failedTexts' => array_slice(array_values(array_filter((new SmsLog($this->pdo))->needingAttention(SMS_MAX_ATTEMPTS, 20),
-                fn($r) => !in_array($r['template_key'], ['renewal_reminder', 'renewal_expired'], true))), 0, 5),
-            'followUp' => InterviewDateFeature::enabled($this->pdo) ? $appointments->missedNotRebooked(7, 10) : [],
+            'followUp' => InterviewDateFeature::enabled($this->pdo) ? $appointments->missedNotRebooked(7, 200) : [],
             'flashMessage' => take_flash(),
             'smsNotice' => take_sms_notice(),
-            'readyToSchedule' => array_slice($readyToSchedule, 0, 5),
-            'idReleaseQueue' => $queues->idReleaseQueue(5),
-            'bookingEnabled' => InterviewDateFeature::enabled($this->pdo), // applicants pick their own date: wording only
-            'upcomingInterviews' => $appointments->upcomingInterviews(5),
-            'recentlyProcessed' => $applications->recentlyReviewed(),
         ]);
     }
 
@@ -192,8 +179,21 @@ class StaffController extends Controller
             $autoChecks->record($id, $autoCheck, 'review'); // only when the result has changed
         }
 
+        // The oldest other application whose documents wait for verification: the "Next application" button of the guide card.
+        $queueNext = null;
+        try {
+            foreach ((new Document($this->pdo))->verificationQueue(5) as $queued) {
+                if ((int) $queued['id'] !== (int) $app['id']) {
+                    $queueNext = $queued;
+                    break;
+                }
+            }
+        } catch (Throwable $e) {
+            $queueNext = null;
+        }
         $this->page('Application ' . $app['reference_no'], 'views/staff/applications/show.php', [
             'app' => $app,
+            'queueNext' => $queueNext,
             'autoCheck' => $autoCheck,
             'statusError' => $errors['status'],
             'assessmentError' => $errors['assessment'],
@@ -553,19 +553,37 @@ class StaffController extends Controller
         }
     }
 
-    /** The oldest applications of one type ('new' or 'renewal') waiting for staff to start the review (dashboard, first 5). */
-    private function waitingForReview(string $type): array
-    {
-        $stmt = $this->pdo->prepare("SELECT id, reference_no, full_name, submitted_at FROM applications WHERE type = ? AND status = 'Pending Review' ORDER BY submitted_at, id LIMIT 5");
-        $stmt->execute([$type]);
-        return $stmt->fetchAll();
-    }
-
     /** Failed texts plus ID expiry texts not sent: the same number as the Failed Texts menu badge. */
     private function failedTextCount(): int
     {
         require_once __DIR__ . '/../includes/sms-attention.php';
         return staff_sms_attention_count();
+    }
+
+    /** staff/verification.php: the Document Verification Queue (all, or only the Solo Parents who sent a document again). */
+    public function verificationPage(): void
+    {
+        $this->authorize($this->staff, 'applications.process', 'staff/dashboard.php');
+        $filter = ($_GET['filter'] ?? '') === 'resent' ? 'resent' : 'all';
+        $documents = new Document($this->pdo);
+        $rows = $documents->verificationQueue(200);
+        $resent = array_values(array_filter($rows, fn($r) => (int) $r['resent_docs'] > 0));
+        $this->page('Document Verification Queue', 'views/staff/verification/index.php', [
+            'filter' => $filter,
+            'rows' => $filter === 'resent' ? $resent : $rows,
+            'allCount' => count($rows),
+            'resentCount' => count($resent),
+            'backlog' => $documents->verificationBacklog(),
+        ]);
+    }
+
+    /** staff/follow_up.php: Solo Parents who missed their interview and have not chosen a new date for 7 days (no SMS; staff call). */
+    public function followUpPage(): void
+    {
+        $this->authorize($this->staff, 'applications.process', 'staff/dashboard.php');
+        $this->page('Missed and Not Rebooked', 'views/staff/follow_up/index.php', [
+            'rows' => InterviewDateFeature::enabled($this->pdo) ? (new Appointment($this->pdo))->missedNotRebooked(7, 200) : [],
+        ]);
     }
 
     /** staff/doc_alerts.php: JSON for the alert toast (how many Solo Parents are waiting, how many re-uploaded, and the top of the queue). */

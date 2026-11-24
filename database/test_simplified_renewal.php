@@ -65,7 +65,7 @@ try {
         'full_name'=>'Fixture Applicant','birthdate'=>'1980-01-01','sex'=>'Female','category_id'=>$categoryA,
         'barangay'=>'Fixture barangay','address'=>'Fixture address','mobile'=>'09123456789','email'=>'fixture@example.test','civil_status'=>'Single',
     ],date('Y-m-d H:i:s'));
-    $applications->addChild($id,'Existing Child','2000-01-01'); // Existing record is retained without a new-application age check.
+    $applications->addChild($id,'Existing Child','2016-01-01'); // A qualifying child (22 or younger): a renewal with no qualifying child is refused (RA 11861).
     $test->prepare("UPDATE applications SET status='ID Released',id_expires_at=CURDATE(),eligibility_status='Eligible' WHERE id=?")->execute([$id]);
     $insertDoc = $test->prepare("INSERT INTO application_document_checklists (application_id,doc_key,applicant_has,verification_status,reviewed_by,reviewed_at,expires_at) VALUES (?,?,1,'Verified',?,'2025-01-01 09:00:00',?)");
     foreach (['birthCert'=>null,'barangayCert'=>date('Y-m-d',strtotime('+30 days')),'expiredMedical'=>date('Y-m-d',strtotime('-1 day')),'futureCertificate'=>date('Y-m-d',strtotime('+1 year'))] as $key=>$expiry) {

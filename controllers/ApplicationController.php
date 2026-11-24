@@ -100,7 +100,7 @@ class ApplicationController extends Controller
             'categoryMap' => $categoryMap,
             'legacyCategoryName' => $legacyCategoryName,
             'categoryDocs' => $categoryDocs,
-            'docDefs' => $documents->requirementsFor($draft['categoryId']),
+            'docDefs' => $service->documentRequirements($draft),
             'catOnlyKeys' => array_column($documents->categoryOnlyRequirements($draft['categoryId']), 'doc_key'),
             'draftSavedAt' => $draftInfo['updatedAt'] ?? null,
             'flashMessage' => take_flash(),
@@ -230,7 +230,7 @@ class ApplicationController extends Controller
 
             case 'add_child':
                 $draft = $service->collectStepInput(2, $draft, $_POST);
-                $draft['children'][] = ['name' => '', 'birthdate' => ''];
+                $draft['children'][] = ['name' => '', 'birthdate' => '', 'disability' => false];
                 break;
 
             case 'remove_child':
@@ -311,8 +311,7 @@ class ApplicationController extends Controller
                         (new Application($this->pdo))->history($applicationId),
                         (new Appointment($this->pdo))->interviewFor($applicationId),
                         (new IdReleaseService($this->pdo))->scheduleFor($applicationId),
-                        $app['status'] === 'ID Released' ? (new Application($this->pdo))->latestRenewalFor($applicationId) : null,
-                        (int) setting('renewal_reminder_days'));
+                        $app['status'] === 'ID Released' ? (new Application($this->pdo))->latestRenewalFor($applicationId) : null);
                 } else {
                     $limiter->hit('status_ip', RateLimiter::clientIp());
                     $error = 'No application matches that reference number.';

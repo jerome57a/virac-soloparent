@@ -109,6 +109,19 @@ try {
     $counts = staff_doc_waiting_counts();
     sa_assert($counts['applications'] === 2 && $counts['resent'] === 1, 'The menu badge counts are wrong.');
 
+    // Admin dashboard "Waiting more than 7 days": Pending Review / Under Verification with no change for 7 days.
+    // Application::search lists applications with their category, so the fixtures need a real one.
+    $catId = sa_row($test, 'categories', ['name' => 'Queue fixture ' . bin2hex(random_bytes(2))]);
+    $test->exec("UPDATE applications SET category_id = $catId");
+    $fresh = $mkApp('Q-FRESH', 'Fresh Fiona', date('Y-m-d H:i:s'));
+    $stale = (new Application($test))->search(['waiting' => 7], 1, 50);
+    $staleRefs = array_column($stale['rows'], 'reference_no');
+    sa_assert(in_array('Q-D', $staleRefs, true) && in_array('Q-B', $staleRefs, true), 'Old applications still under verification must be listed as waiting.');
+    sa_assert(!in_array('Q-FRESH', $staleRefs, true) && !in_array('Q-C', $staleRefs, true), 'A fresh application and an approved one must not be listed as waiting.');
+    $test->prepare("INSERT INTO application_status_history (application_id, status, changed_by) VALUES (?, 'Under Verification', 'x')")->execute([$d]);
+    sa_assert(!in_array('Q-D', array_column((new Application($test))->search(['waiting' => 7], 1, 50)['rows'], 'reference_no'), true), 'A recent status change must take it off the waiting list.');
+    sa_assert((new Application($test))->search(['waiting' => 0], 1, 50)['total'] > count($staleRefs) - 1, 'Without the filter every application is listed.');
+
     echo "PASS: verification queue lists the oldest application first, re-uploads are marked, and the tile, badge and alert counts agree.\n";
 } catch (Throwable $e) {
     fwrite(STDERR, $e->getMessage() . PHP_EOL . $e->getFile() . ':' . $e->getLine() . PHP_EOL); $exitCode = 1;

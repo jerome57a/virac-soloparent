@@ -8,7 +8,7 @@ const { chromium } = require('playwright');
 const { screenshotPath, screenshotDir } = require('./lib/test-artifacts.cjs');
 const { parseTestBase, newGuardedContext } = require('./lib/test-origin.cjs');
 const root = path.resolve(__dirname, '..');
-const routes = ['notifications.php', 'applicants.php', 'appointments.php', 'reports.php', 'eligibility_logs.php', 'applications.php', 'users.php', 'sms.php', 'settings.php', 'audit_log.php'];
+const routes = ['notifications.php', 'applicants.php', 'appointments.php', 'reports.php', 'eligibility_logs.php', 'applications.php', 'users.php', 'expiry_sms.php', 'sms.php', 'settings.php', 'audit_log.php'];
 (async () => {
   // No default: VIRAC_TEST_URL must be an explicit test-only origin with a port (see scripts/lib/test-origin.cjs).
   const base = parseTestBase(process.env.VIRAC_TEST_URL);

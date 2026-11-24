@@ -12,12 +12,26 @@ $kinds = [
     'interview_date_assigned' => 'Interview date set by MSWDO staff', 'interview_date_assigned_custom' => 'Interview date set by MSWDO staff (custom)', 'interview_date_booked' => 'Interview date booked',
     'interview_booking_open' => 'Interview booking opened', 'interview_booking_custom' => 'Interview booking opened (custom)', 'appointment_reminder' => 'Appointment reminder',
     'appointment_cancelled' => 'Appointment cancelled', 'appointment_missed' => 'Appointment missed', 'id_release_scheduled' => 'ID release scheduled', 'id_release_custom' => 'ID release scheduled (custom)',
-    'renewal_submitted' => 'Renewal received', 'renewal_reminder' => 'Renewal reminder', 'renewal_expired' => 'Renewal reminder (expired)', 'document_correction' => 'Document correction',
+    'renewal_submitted' => 'Renewal received', 'renewal_reminder' => 'ID expiry-day text', 'renewal_expired' => 'ID expired text (sent late)', 'document_correction' => 'Document correction',
 ];
 $words = ['SENT' => ['Sent', 'pass'], 'FAILED' => ['Failed', 'fail'], 'PENDING' => ['Pending', 'flag']];
 ?>
-<div class="review-card" id="sms">
-  <div class="review-card-head"><div class="title" data-i18n>SMS to the Solo Parent</div></div>
+<?php
+// The texts are folded: one line with the counts; the list (and the failure details) opens when staff choose.
+$smsFailed = count(array_filter($smsLogs, fn($l) => $l['status'] === 'FAILED'));
+$smsSent = count(array_filter($smsLogs, fn($l) => $l['status'] === 'SENT'));
+$smsOther = count($smsLogs) - $smsFailed - $smsSent;
+?>
+<details class="review-card sms-fold" id="sms">
+  <summary>
+    <span class="title" data-i18n>SMS to the Solo Parent</span>
+    <span class="sms-fold-pills">
+      <?php if ($smsSent): ?><span class="ac-pill is-small is-ready"><?= $smsSent ?> sent</span><?php endif; ?>
+      <?php if ($smsFailed): ?><span class="ac-pill is-small is-fix"><?= $smsFailed ?> failed</span><?php endif; ?>
+      <?php if ($smsOther): ?><span class="ac-pill is-small is-review"><?= $smsOther ?> other</span><?php endif; ?>
+    </span>
+    <span class="sms-alert-toggle" aria-hidden="true"><span class="when-closed">Show</span><span class="when-open">Hide</span></span>
+  </summary>
   <ul class="ac-list mb-0">
     <?php foreach ($smsLogs as $l): [$word, $tone] = $words[$l['status']] ?? [ucfirst(strtolower((string) $l['status'])), 'flag']; ?>
       <li>
@@ -40,4 +54,8 @@ $words = ['SENT' => ['Sent', 'pass'], 'FAILED' => ['Failed', 'fail'], 'PENDING' 
       </li>
     <?php endforeach; ?>
   </ul>
-</div>
+</details>
+<script>
+  // A link to #sms (or a failed text the staff member is looking for) opens the list.
+  (() => { const d = document.getElementById('sms'); if (d && location.hash === '#sms') d.open = true; })();
+</script>

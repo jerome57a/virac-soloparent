@@ -57,7 +57,7 @@ const SETTINGS_REGISTRY = [
         'note' => 'New and renewed IDs expire one year after confirmed release. Previously released IDs keep their recorded expiry date.',
         'keys' => [
             'id_validity_years' => ['label' => 'ID validity (years, fixed)', 'type' => 'int', 'default' => '1', 'min' => 1, 'max' => 1, 'readonly' => true],
-            'renewal_reminder_days' => ['label' => 'Renewal form opens (days before the ID expires; the Solo Parent can submit from the expiration date)', 'type' => 'int', 'default' => '30', 'min' => 1, 'max' => 180],
+            'renewal_reminder_days' => ['label' => 'Expiring IDs list: show IDs that expire within (days). Monitoring only; renewal always opens on the expiration date', 'type' => 'int', 'default' => '30', 'min' => 1, 'max' => 180],
             'renewal_grace_days' => ['label' => 'Renewal allowed until (days after the ID expires; after that, a new application is needed)', 'type' => 'int', 'default' => '365', 'min' => 1, 'max' => 730],
         ],
     ],

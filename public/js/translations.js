@@ -147,7 +147,7 @@ window.ViracTranslations = Object.fromEntries([
   ['Complete the online form with your personal information', 'Punan ang online form ng iyong personal na impormasyon'],
   ['Tick the documents you have available; MSWDO verifies them separately', 'Lagyan ng tsek ang mga dokumentong mayroon ka; hiwalay na kukumpirmahin ang mga ito ng MSWDO'],
   ['Track your application, attend the scheduled interview and document review, and claim your ID when notified', 'Subaybayan ang iyong aplikasyon, dumalo sa nakatakdang panayam at pagsusuri ng dokumento, at kunin ang ID kapag naabisuhan'],
-  ['The Solo Parent ID is valid for one year and must be renewed at the MSWDO upon expiration. The e-SoloParentID system will send you an SMS reminder 30 days before your ID expires.', 'May bisa ang Solo Parent ID sa loob ng isang taon at dapat i-renew sa MSWDO kapag paso na. Magpapadala ang e-SoloParentID ng paalala sa SMS 30 araw bago ito mapaso.'],
+  ['The Solo Parent ID is valid for one year and must be renewed at the MSWDO upon expiration. The e-SoloParentID system will send you an SMS on the day your ID expires, and you can renew online from that day.', 'May bisa ang Solo Parent ID sa loob ng isang taon at dapat i-renew sa MSWDO kapag paso na. Magpapadala ang e-SoloParentID ng SMS sa araw na mapaso ang ID mo, at maaari kang mag-renew online simula sa araw na iyon.'],
   ['The Solo Parent ID is a valid government-issued ID accepted in private and government transactions.', 'Ang Solo Parent ID ay wastong ID ng pamahalaan na tinatanggap sa mga pribado at pampamahalaang transaksyon.'],
   ['If you marry or re-marry, your Solo Parent ID may be revoked by the MSWDO.', 'Kung ikaw ay mag-asawa o mag-asawang muli, maaaring bawiin ng MSWDO ang iyong Solo Parent ID.'],
   ['If your children are given up for adoption, the Solo Parent ID benefits will be terminated.', 'Kung ipaampon ang iyong mga anak, matatapos ang mga benepisyo ng Solo Parent ID.'],
@@ -2938,6 +2938,12 @@ window.ViracTranslationPatterns = [
   [/^Valid until (.+)$/, 'May bisa hanggang $1'],
   [/^Released on (.+)$/, 'Naibigay noong $1'],
   [/^Not needed yet\. Renewal opens on (.+)\.$/, 'Hindi pa kailangan. Magbubukas ang pag-renew sa $1.'],
+  [/^Age (\d+) — qualifies \(22 or younger\)$/, 'Edad $1 — kwalipikado (22 taong gulang pababa)'],
+  [/^Age (\d+) — qualifies with a disability$/, 'Edad $1 — kwalipikado dahil may kapansanan'],
+  [/^Age (\d+) — over 22 without a disability: does not qualify$/, 'Edad $1 — higit 22 at walang kapansanan: hindi kwalipikado'],
+  [/^Needed because (.+) is over 22 and has a disability \(RA 11861\)\.$/, 'Kailangan dahil si $1 ay higit 22 at may kapansanan (RA 11861).'],
+  [/^Renewal opens on (.+), the day your ID expires\. Log in on that day to renew\.$/, 'Magbubukas ang renewal sa $1, ang araw na mapaso ang iyong ID. Mag-log in sa araw na iyon para mag-renew.'],
+  [/^Renewal opens on (.+), the day your ID expires\. Log in on that day to renew\. We will also text you that day\.$/, 'Magbubukas ang renewal sa $1, ang araw na mapaso ang iyong ID. Mag-log in sa araw na iyon para mag-renew. Tetext din kami sa iyo sa araw na iyon.'],
   [/^Keep your ID safe\. You can apply for renewal starting (.+)\.$/, 'Ingatan ang iyong ID. Maaari kang mag-renew simula $1.']
 ];
 
@@ -3359,5 +3365,168 @@ Object.assign(window.ViracTranslations, {
   "Open approved applications": "Buksan ang mga aprubadong aplikasyon",
   "Open application monitoring": "Buksan ang pagsubaybay sa aplikasyon",
   "Nothing here right now.": "Wala pa rito sa ngayon.",
-  "Recent activity and quick access": "Kamakailang aktibidad at mabilisang access"
+  "Recent activity and quick access": "Kamakailang aktibidad at mabilisang access",
+  "Click an item to open its page.": "Pindutin ang isang item para buksan ang pahina nito.",
+  "ID expiry SMS not sent": "Hindi naipadalang SMS sa pag-expire ng ID",
+  "Solo Parents whose ID expired and who did not get the expiry text on that day. MSWDO staff can send it from Failed Texts.": "Mga Solo Parent na na-expire ang ID at hindi nakatanggap ng text sa araw na iyon. Maipapadala ito ng kawani ng MSWDO mula sa Failed Texts.",
+  "Not sent": "Hindi naipadala",
+  "Nothing to send": "Walang ipapadala",
+  "Every ID that expired in the last 30 days got its expiry SMS.": "Lahat ng ID na na-expire sa nakaraang 30 araw ay nakatanggap ng SMS.",
+  "These Solo Parents did not get their expiry SMS on the day. MSWDO staff can send it from Failed Texts (Send now). Their account already shows the ID as expired.": "Hindi nakatanggap ng SMS sa araw ng pag-expire ang mga Solo Parent na ito. Maipapadala ito ng kawani ng MSWDO mula sa Failed Texts (Send now). Nakikita na sa account nila na expired ang ID.",
+  "Showing applications waiting more than 7 days": "Ipinapakita ang mga aplikasyong naghihintay nang higit 7 araw",
+  "(Pending Review or Under Verification with no change for a week).": "(Pending Review o Under Verification na walang pagbabago sa loob ng isang linggo).",
+  "Show all": "Ipakita lahat"
+});
+
+// Side menu groups (MSWDO staff and admin).
+Object.assign(window.ViracTranslations, {
+  "Work": "Gawain",
+  "Records": "Mga Talaan",
+  "Monitor": "Pagsubaybay",
+  "Manage": "Pamamahala",
+  "Security": "Seguridad",
+  "Failed Texts": "Mga Bigong Text"
+});
+
+// Icons and "what do I do next" guidance (MSWDO staff and admin).
+Object.assign(window.ViracTranslations, {
+  "What do I do here?": "Ano ang gagawin ko rito?",
+  "Start here: your work in order": "Magsimula rito: ang iyong gawain ayon sa pagkakasunod",
+  "Work from 1 to 5. The number shows how many are waiting; click a step to open it.": "Gawin mula 1 hanggang 5. Ipinapakita ng numero kung ilan ang naghihintay; i-click ang hakbang para buksan.",
+  "Review new applications": "Suriin ang mga bagong aplikasyon",
+  "Verify documents": "I-verify ang mga dokumento",
+  "Schedule interviews": "Mag-iskedyul ng mga interview",
+  "Confirm interview results": "Kumpirmahin ang resulta ng interview",
+  "Release IDs": "Ibigay ang mga ID",
+  "Nothing is waiting. You are all caught up.": "Walang naghihintay. Tapos na ang lahat ng gawain.",
+  "Interview": "Interview",
+  "Decision": "Desisyon",
+  "ID release": "Pagbibigay ng ID",
+  "Progress of this application": "Pag-usad ng aplikasyong ito",
+  "Application rejected": "Tinanggihan ang aplikasyon",
+  "This application was rejected. No further step is needed.": "Tinanggihan ang aplikasyong ito. Wala nang susunod na hakbang.",
+  "All done": "Tapos na",
+  "The ID has been released. No further step is needed.": "Naibigay na ang ID. Wala nang susunod na hakbang.",
+  "Next step: release the ID": "Susunod na hakbang: ibigay ang ID",
+  "The application is approved. Set the ID release and hand the ID to the Solo Parent.": "Aprubado na ang aplikasyon. Itakda ang pagbibigay ng ID at iabot ito sa Solo Parent.",
+  "Open ID release": "Buksan ang pagbibigay ng ID",
+  "Next step: check the documents": "Susunod na hakbang: suriin ang mga dokumento",
+  "Open each document, then mark it Verified or ask for a correction.": "Buksan ang bawat dokumento, saka markahang Verified o humingi ng pagwawasto.",
+  "Open the documents": "Buksan ang mga dokumento",
+  "Waiting for the Solo Parent": "Naghihintay sa Solo Parent",
+  "Corrections were requested. You will be alerted when the Solo Parent sends the documents again.": "Humingi ng pagwawasto. Aabisuhan ka kapag ipinadala muli ng Solo Parent ang mga dokumento.",
+  "Review the documents": "Suriin ang mga dokumento",
+  "Next step: verify the documents": "Susunod na hakbang: i-verify ang mga dokumento",
+  "Required documents still to verify": "Mga kinakailangang dokumentong kailangan pang i-verify",
+  "Next step: schedule the interview": "Susunod na hakbang: mag-iskedyul ng interview",
+  "All required documents are verified.": "Na-verify na ang lahat ng kinakailangang dokumento.",
+  "Schedule the interview": "Mag-iskedyul ng interview",
+  "The Solo Parent missed the interview": "Hindi dumalo ang Solo Parent sa interview",
+  "Schedule another interview date.": "Mag-iskedyul ng ibang petsa ng interview.",
+  "Schedule another interview": "Mag-iskedyul ng panibagong interview",
+  "The interview was unsuccessful": "Hindi matagumpay ang interview",
+  "Request corrections, schedule another interview, or reject.": "Humingi ng pagwawasto, mag-iskedyul ng panibagong interview, o tanggihan.",
+  "Open the decision": "Buksan ang desisyon",
+  "Next step: record the interview result": "Susunod na hakbang: itala ang resulta ng interview",
+  "When the interview has taken place, record who attended and the result.": "Kapag naganap na ang interview, itala kung sino ang dumalo at ang resulta.",
+  "Record the result": "Itala ang resulta",
+  "Next step: approve or reject": "Susunod na hakbang: aprubahan o tanggihan",
+  "The documents are verified.": "Na-verify na ang mga dokumento.",
+  "The documents are verified and the interview was successful.": "Na-verify na ang mga dokumento at matagumpay ang interview.",
+  "Next waiting:": "Susunod na naghihintay:",
+  "Nothing to verify right now": "Walang ibe-verify ngayon",
+  "Next: check Appointment Management for interviews to schedule.": "Susunod: tingnan ang Appointment Management para sa mga interview na iiskedyul.",
+  "Open Appointment Management": "Buksan ang Appointment Management",
+  "Back to the Dashboard": "Bumalik sa Dashboard",
+  "Clear the filters": "I-clear ang mga filter",
+  "Set up the system": "I-set up ang sistema",
+  "of": "sa",
+  "steps done. Finish these once; this box then disappears.": "hakbang ang tapos na. Tapusin ito nang isang beses; mawawala na ang kahong ito.",
+  "Staff accounts created": "Nagawa na ang mga account ng kawani",
+  "User Management: add the MSWDO staff who will process applications.": "User Management: idagdag ang kawani ng MSWDO na magpoproseso ng mga aplikasyon.",
+  "Document requirements set": "Naitakda na ang mga kinakailangang dokumento",
+  "System Settings: choose the documents a Solo Parent must upload.": "System Settings: piliin ang mga dokumentong kailangang i-upload ng Solo Parent.",
+  "SMS provider connected": "Nakakonekta na ang SMS provider",
+  "The text messages are only sent when the SMS provider and its token are set on the server.": "Naipapadala lamang ang mga text kapag naitakda sa server ang SMS provider at ang token nito.",
+  "Renewal days checked": "Nasuri na ang mga araw ng renewal",
+  "System Settings: confirm how many days before expiry a Solo Parent may renew.": "System Settings: kumpirmahin kung ilang araw bago mag-expire maaaring mag-renew ang Solo Parent.",
+  "A text message was sent": "May naipadalang text",
+  "SMS Management: confirm that a real text reaches a phone.": "SMS Management: tiyaking may totoong text na umaabot sa telepono.",
+  "Open": "Buksan",
+  "Updates about applications and appointments appear here. Open one to go to the page it is about.": "Dito lumalabas ang mga update tungkol sa aplikasyon at appointment. Buksan ang isa para pumunta sa pahinang tinutukoy nito.",
+  "Open an application to review it. Start with Pending Review. Each application page shows the next step to take.": "Buksan ang aplikasyon para suriin. Magsimula sa Pending Review. Ipinapakita ng bawat pahina ng aplikasyon ang susunod na hakbang.",
+  "Search by name or reference number, then open a Solo Parent to see their account, applications and history.": "Maghanap gamit ang pangalan o reference number, saka buksan ang Solo Parent para makita ang account, mga aplikasyon at kasaysayan nila.",
+  "Schedule interviews for applications with verified documents, confirm who attended after the date, and check ID releases.": "Mag-iskedyul ng interview para sa mga aplikasyong na-verify na ang dokumento, kumpirmahin kung sino ang dumalo pagkatapos ng petsa, at tingnan ang pagbibigay ng ID.",
+  "Open an application, check each uploaded document, then mark it Verified or ask for a correction. The oldest is first.": "Buksan ang aplikasyon, suriin ang bawat na-upload na dokumento, saka markahang Verified o humingi ng pagwawasto. Una ang pinakamatanda.",
+  "Call these Solo Parents. When one agrees to a new date, open the application and schedule the interview.": "Tawagan ang mga Solo Parent na ito. Kapag pumayag sila sa bagong petsa, buksan ang aplikasyon at iiskedyul ang interview.",
+  "Retry a failed text. If it keeps failing, contact the Solo Parent another way, such as a call.": "Subukang muli ang bigong text. Kung patuloy na bumibigo, kontakin ang Solo Parent sa ibang paraan, tulad ng tawag.",
+  "Pick a report, set the filters, then print or download the results.": "Pumili ng ulat, itakda ang mga filter, saka i-print o i-download ang resulta.",
+  "Watch the applications the MSWDO staff are processing. This page is for monitoring: the staff review and decide.": "Bantayan ang mga aplikasyong pinoproseso ng kawani ng MSWDO. Pagsubaybay lamang ang pahinang ito: ang kawani ang sumusuri at nagpapasya.",
+  "Create staff accounts, change a role, and unlock an account that was locked after failed sign-ins.": "Gumawa ng account ng kawani, magpalit ng tungkulin, at i-unlock ang account na nalock dahil sa bigong pag-sign in.",
+  "See every text message sent to Solo Parents. Check failed ones; if many fail, check the SMS provider on the server.": "Tingnan ang bawat text na ipinadala sa mga Solo Parent. Suriin ang mga bigo; kung marami ang bumibigo, tingnan ang SMS provider sa server.",
+  "Choose a section, change it, and save that section. Every change is recorded in the Audit Logs.": "Pumili ng seksyon, baguhin, at i-save ang seksyong iyon. Itinatala sa Audit Logs ang bawat pagbabago.",
+  "Choose the documents a Solo Parent must upload. Changes apply to new applications.": "Piliin ang mga dokumentong kailangang i-upload ng Solo Parent. Para sa mga bagong aplikasyon ang mga pagbabago.",
+  "Find who did what and when. Records here are permanent and cannot be edited.": "Alamin kung sino ang gumawa ng ano at kailan. Permanente ang mga talaan dito at hindi mababago.",
+  "See the results of the eligibility check that people ran before applying.": "Tingnan ang resulta ng pagsusuri ng pagiging kwalipikado na ginawa ng mga tao bago mag-apply.",
+  "Solo Parents whose ID expired without the expiry text. MSWDO staff can send it from Failed Texts.": "Mga Solo Parent na nag-expire ang ID nang walang expiry text. Maipapadala ito ng kawani ng MSWDO mula sa Failed Texts.",
+  "Updates for the administrator appear here. Open one to go to the page it is about.": "Dito lumalabas ang mga update para sa administrator. Buksan ang isa para pumunta sa pahinang tinutukoy nito."
+});
+
+// Cleaner application page (notes, applicant details, decision buttons).
+Object.assign(window.ViracTranslations, {
+  "Notes": "Mga Tala",
+  "Show all notes": "Ipakita ang lahat ng tala",
+  "Warnings and errors are always shown.": "Laging ipinapakita ang mga babala at error.",
+  "Applicant details": "Mga detalye ng aplikante",
+  "Hide": "Itago",
+  "Everything is ready": "Handa na ang lahat",
+  "for approval.": "para sa pag-apruba.",
+  "Review each applicant-uploaded file. Record a status and explain any rejection or correction request.": "Suriin ang bawat file na in-upload ng aplikante. Magtala ng status at ipaliwanag ang anumang pagtanggi o hiling na pagwawasto.",
+  "Save Verification does not send an SMS. After you save documents as Needs Correction, review the message and confirm to send one SMS for the whole batch. Your remarks are never included in the SMS.": "Hindi nagpapadala ng SMS ang Save Verification. Pagkatapos i-save ang mga dokumento bilang Needs Correction, suriin ang mensahe at kumpirmahin para magpadala ng isang SMS para sa buong batch. Hindi kailanman kasama sa SMS ang iyong mga remarks.",
+  "Approving needs every required document verified and a successful interview.": "Kailangan ng approval na na-verify ang bawat kinakailangang dokumento at matagumpay na interview.",
+  "Rejecting or requesting corrections needs a reason. The reason is sent to the Solo Parent by SMS.": "Kailangan ng dahilan sa pagtanggi o paghingi ng pagwawasto. Ipinapadala ang dahilan sa Solo Parent sa pamamagitan ng SMS.",
+  "Approve unlocks when every required document is verified.": "Mabubuksan ang Approve kapag na-verify ang bawat kinakailangang dokumento.",
+  "Request Corrections and Approve unlock after a successful interview is recorded.": "Mabubuksan ang Request Corrections at Approve pagkatapos maitala ang matagumpay na interview.",
+  "Approve stays locked until an interview is recorded as successful.": "Naka-lock ang Approve hanggang maitala ang interview bilang matagumpay."
+});
+
+// Renewal opens on the expiration date.
+Object.assign(window.ViracTranslations, {
+  "Renewal period checked": "Nasuri na ang panahon ng renewal",
+  "System Settings: confirm how long after the ID expires a Solo Parent can still renew.": "System Settings: kumpirmahin kung hanggang kailan pagkatapos mag-expire ang ID maaaring mag-renew ang Solo Parent.",
+  "Expires today": "Mag-e-expire ngayon",
+  "Renew online": "Mag-renew online",
+});
+
+// Child with a disability (PWD): new application and renewal.
+Object.assign(window.ViracTranslations, {
+  "Do you have a child with a disability (PWD)?": "May anak ka bang may kapansanan (PWD)?",
+  "Yes": "Oo",
+  "No": "Hindi",
+  "A child over 22 can still qualify if they have a disability.": "Maaari pa ring maging kwalipikado ang anak na higit 22 taong gulang kung may kapansanan siya.",
+  "This child has a disability (PWD)": "May kapansanan ang anak na ito (PWD)",
+  "No child qualifies, so a Solo Parent ID cannot be issued (RA 11861).": "Walang anak na kwalipikado, kaya hindi maibibigay ang Solo Parent ID (RA 11861).",
+  "Add a child who is 22 or younger, or tick \"This child has a disability\" for a child over 22. If you need help, contact MSWDO.": "Magdagdag ng anak na 22 taong gulang pababa, o i-tick ang \"May kapansanan ang anak na ito\" para sa anak na higit 22. Kung kailangan mo ng tulong, makipag-ugnayan sa MSWDO.",
+  "Add a child who is 22 or younger, or tick \"This child has a disability\" for a child over 22.": "Magdagdag ng anak na 22 taong gulang pababa, o i-tick ang \"May kapansanan ang anak na ito\" para sa anak na higit 22.",
+  "Continue unlocks when at least one child qualifies.": "Mabubuksan ang Continue kapag may kahit isang anak na kwalipikado.",
+  "Submit unlocks when at least one child qualifies.": "Mabubuksan ang Submit kapag may kahit isang anak na kwalipikado.",
+  "Check the birthdate": "Suriin ang petsa ng kapanganakan",
+  "You will be asked to upload a PWD ID or medical certificate.": "Hihilingin sa iyong mag-upload ng PWD ID o medical certificate.",
+  "A child over 22 qualifies only with a disability. Tick the box above if this applies.": "Kwalipikado lamang ang anak na higit 22 kung may kapansanan. I-tick ang kahon sa itaas kung ito ang kaso.",
+  "A child over 22 qualifies only with a disability. If this child has one, answer Yes above.": "Kwalipikado lamang ang anak na higit 22 kung may kapansanan. Kung mayroon ang anak na ito, sagutin ng Oo sa itaas.",
+  "You answered Yes to \"Do you have a child with a disability?\" Tick the child who has a disability, or answer No.": "Sumagot ka ng Oo sa \"May anak ka bang may kapansanan?\" I-tick ang anak na may kapansanan, o sagutin ng Hindi.",
+  "For your child with a disability": "Para sa iyong anak na may kapansanan",
+  "PWD ID or medical certificate of the child with a disability": "PWD ID o medical certificate ng anak na may kapansanan",
+  "With a disability (PWD)": "May kapansanan (PWD)",
+  "Qualifies": "Kwalipikado",
+  "Qualifies with PWD ID or medical certificate": "Kwalipikado kung may PWD ID o medical certificate",
+  "Over 22, no disability: does not qualify": "Higit 22, walang kapansanan: hindi kwalipikado"
+});
+
+// ID expiry SMS names.
+Object.assign(window.ViracTranslations, {
+  "ID expiry-day text": "Text sa araw ng pag-expire ng ID",
+  "ID expired text (sent late)": "Text na nag-expire na ang ID (huling naipadala)",
+  "ID Expiry Day (auto)": "Araw ng Pag-expire ng ID (awtomatiko)",
+  "ID Expired, Sent Late (Send now)": "Nag-expire na ang ID, Huling Naipadala (Send now)"
 });

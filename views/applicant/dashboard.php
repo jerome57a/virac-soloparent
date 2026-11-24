@@ -189,7 +189,7 @@ $welcomeText = !empty($isFirstLogin) ? 'Welcome' : 'Welcome back';
               <?php if ($renewal['state'] === 'expired'): ?>
                 <span class="status-pill" data-i18n>Expired</span>
               <?php else: ?>
-                <span class="status-pill"><?= $renewal['state'] === 'due' ? 'Expiring soon' : 'Valid' ?></span>
+                <span class="status-pill"><?= $renewal['state'] === 'due' ? 'Expires today' : 'Valid' ?></span>
               <?php endif; ?>
               <div class="dash-home-expiry-label" data-i18n><?= $renewal['state'] === 'expired' ? 'Expired on' : 'Valid until' ?></div>
               <div class="dash-home-expiry-date"><?= e(format_date_long($renewal['expiresAt'])) ?></div>
@@ -198,9 +198,9 @@ $welcomeText = !empty($isFirstLogin) ? 'Welcome' : 'Welcome back';
               <?php if ($renewal['state'] === 'expired'): ?>
                 Renew now to keep your benefits.
               <?php elseif ($renewal['state'] === 'due'): ?>
-                <?= (int) $renewal['daysLeft'] ?> day<?= $renewal['daysLeft'] === 1 ? '' : 's' ?> left — renewal is now open.
+                Your ID expires today — renewal is now open.
               <?php else: ?>
-                <?= (int) $renewal['daysLeft'] ?> days left. Renewal opens <?= (int) $renewal['windowDays'] ?> days before expiry.
+                <?= (int) $renewal['daysLeft'] ?> day<?= $renewal['daysLeft'] === 1 ? '' : 's' ?> left. Renewal opens on <?= e(format_date_long($renewal['expiresAt'])) ?>, the day your ID expires.
               <?php endif; ?>
             </div>
             <div class="d-flex flex-wrap gap-2">

@@ -51,7 +51,7 @@
   <?php elseif (!$w['open']): ?>
     <div class="dash-card">
       <div class="dash-card-label" data-i18n>Not Due for Renewal Yet</div>
-      <div style="font-size:14px;color:var(--muted);margin:8px 0 0" data-i18n>Renewal opens on <b style="color:var(--ink)"><?= e(format_date_long($w['opensOn'])) ?></b>, <?= (int) $w['windowDays'] ?> days before your ID expires. We'll send you a reminder.</div>
+      <div style="font-size:14px;color:var(--muted);margin:8px 0 0" data-i18n>Renewal opens on <b style="color:var(--ink)"><?= e(format_date_long($w['opensOn'])) ?></b>, the day your ID expires. Log in on that day to renew. We will also text you that day.</div>
     </div>
   <?php else:
       $stepViews = [1 => APP_ROOT . '/views/applicant/renewal/step-details.php', 2 => APP_ROOT . '/views/applicant/application/step-children.php',

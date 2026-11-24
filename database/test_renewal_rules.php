@@ -1,7 +1,7 @@
 <?php
 /**
  * Renewal rules (SYNTHETIC data, disposable database):
- *   - timing: the form opens 30 days before expiry, submits from the expiration date, closes 365 days after (then a new application);
+ *   - timing: renewal opens on the expiration date (no early window), closes 365 days after (then a new application);
  *   - RA 11861 children: 22 or younger qualifies; over 22 only with a disability, which adds the PWD ID / medical certificate upload;
  *   - civil status and children can be updated; the automated check flags no qualifying child and a change to Married.
  *
@@ -87,9 +87,11 @@ try {
     // ---- Timing ----
     $at = fn(string $rel) => date('Y-m-d', strtotime($today . ' ' . $rel));
     $w = $service->window($source, $at('-40 days'));
-    sa_assert(!$w['open'] && !$w['submitOpen'] && !$w['closed'], '40 days before expiry the form is not open yet.');
+    sa_assert(!$w['open'] && !$w['submitOpen'] && !$w['closed'], '40 days before expiry the renewal is not open.');
     $w = $service->window($source, $at('-10 days'));
-    sa_assert($w['open'] && !$w['submitOpen'], '10 days before expiry the Solo Parent can prepare but not submit.');
+    sa_assert(!$w['open'] && !$w['submitOpen'] && !$w['closed'] && $w['opensOn'] === $today, '10 days before expiry there is no early window: renewal still opens on the expiration date.');
+    $w = $service->window($source, $at('-1 day'));
+    sa_assert(!$w['open'] && !$w['submitOpen'], 'The day before expiry the renewal is still not open.');
     $w = $service->window($source, $today);
     sa_assert($w['open'] && $w['submitOpen'], 'On the expiration date the renewal can be submitted.');
     $w = $service->window($source, $at('+366 days'));
@@ -99,6 +101,9 @@ try {
     $refused = null;
     try { $service->submit($user, $early, $service->freshDraft($early)); } catch (DomainException $e) { $refused = $e->getMessage(); }
     sa_assert(is_string($refused) && str_contains($refused, 'the day your ID expires'), 'Submitting before the expiration date must be refused: ' . var_export($refused, true));
+    $draftBefore = null;
+    try { $draftBefore = $service->freshDraft($early); } catch (Throwable $e) { $draftBefore = null; }
+    sa_assert($draftBefore !== null, 'A fresh draft can still be built (the screens decide whether to show the form).');
     // After the renewal period: a new application is allowed.
     $test->prepare('UPDATE applications SET id_expires_at = ? WHERE id = ?')->execute([$at('-400 days'), $appId]);
     sa_assert((new ApplicationService($test))->blockingApplication($user) === null, 'After the renewal period a new application must be allowed.');
@@ -169,7 +174,7 @@ try {
     sa_assert(str_contains($preview, 'Solo Parent ID'), 'The staff preview of a renewal interview text must include the reminder.');
     sa_assert(!SMSService::compact() || mb_strlen($preview) <= 160, 'In compact wording the renewal interview text must stay one text (160 characters): ' . mb_strlen($preview));
     echo 'Renewal interview text (' . (SMSService::compact() ? 'compact' : 'full') . ' wording): ' . mb_strlen($preview) . " characters.\n";
-    echo "PASS: renewal rules: prepare 30 days before, submit from the expiry date, close after 365 days (then a new application); RA 11861 children (22 or younger, or over 22 with a disability and proof); civil status and children updatable; no qualifying child and Married flagged; the renewal interview checks the current Solo Parent ID (or records why it was not shown) and its text asks for it.\n";
+    echo "PASS: renewal rules: opens on the expiry date (no early window), closes after 365 days (then a new application); RA 11861 children (22 or younger, or over 22 with a disability and proof); civil status and children updatable; no qualifying child and Married flagged; the renewal interview checks the current Solo Parent ID (or records why it was not shown) and its text asks for it.\n";
 } catch (Throwable $e) {
     fwrite(STDERR, $e->getMessage() . PHP_EOL . $e->getFile() . ':' . $e->getLine() . PHP_EOL); $exitCode = 1;
 } finally {

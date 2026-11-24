@@ -11,7 +11,7 @@
 $adminPages = require APP_ROOT . '/includes/admin-pages.php';
 $adminPageKey = basename($_SERVER['SCRIPT_NAME'] ?? '');
 $useAdminWorkspace = ($staff['role'] ?? '') === 'admin' && isset($adminPages[$adminPageKey]);
-$useStaffWorkspace = ($staff['role'] ?? '') === 'mswd_social_worker' && in_array($adminPageKey, ['dashboard.php', 'notifications.php', 'index.php', 'applicants.php', 'appointments.php', 'reports.php'], true);
+$useStaffWorkspace = ($staff['role'] ?? '') === 'mswd_social_worker' && in_array($adminPageKey, ['dashboard.php', 'notifications.php', 'index.php', 'applicants.php', 'appointments.php', 'reports.php', 'verification.php', 'follow_up.php'], true);
 require APP_ROOT . '/includes/header.php';
 if (!empty($staff)) {
     echo $useStaffWorkspace ? '<main class="portal-main staff-workspace" data-staff-page="' . e($adminPageKey) . '">' : '<main class="portal-main">';

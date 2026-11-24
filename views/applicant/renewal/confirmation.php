@@ -11,6 +11,8 @@
  */
 $fmt = fn(?string $d) => $d ? format_date_long($d) : '—';
 ?>
+<?php require_once APP_ROOT . '/includes/icons.php'; ?>
+<link rel="stylesheet" href="<?= public_asset('css/children.css') ?>">
 <?php if (!$renewalSource): ?>
   <div class="info-box" data-i18n>You need a released ID before renewing. <a href="?section=application" data-i18n>View My Application</a>.</div>
 <?php else: $w = $renewalWindow; $today = date('Y-m-d'); ?>
@@ -18,7 +20,6 @@ $fmt = fn(?string $d) => $d ? format_date_long($d) : '—';
     <div class="review-card-head"><div class="title" data-i18n>Renew your Solo Parent ID</div>
       <?php if ($w['closed']): ?><span class="status-pill" style="background:#fde8e8;color:#a51c1c" data-i18n>Renewal period ended</span>
       <?php elseif ($w['submitOpen']): ?><span class="status-pill" style="background:#dcf3e2;color:#1c7a3f" data-i18n>Ready to submit</span>
-      <?php elseif ($w['open']): ?><span class="status-pill" style="background:#fdf1d6;color:#7a5f12" data-i18n>Prepare now</span>
       <?php else: ?><span class="status-pill" style="background:#f1f1f1;color:#555" data-i18n>Not open yet</span><?php endif; ?>
     </div>
     <div class="review-grid">
@@ -30,8 +31,7 @@ $fmt = fn(?string $d) => $d ? format_date_long($d) : '—';
     <?php if ($w['expiresAt']): ?>
       <ol class="renewal-timeline" aria-label="Renewal dates" style="list-style:none;display:flex;flex-wrap:wrap;gap:8px;padding:0;margin:14px 0 0">
         <?php foreach ([
-            ['Prepare the form', 'from ' . $fmt($w['opensOn']), $w['open'] && !$w['submitOpen']],
-            ['Submit the renewal', 'from ' . $fmt($w['submitFrom']) . ' (expiry date)', $w['submitOpen']],
+            ['Renew online', 'from ' . $fmt($w['submitFrom']) . ' (the day your ID expires)', $w['submitOpen']],
             ['Renewal closes', $fmt($w['closesOn']) . ' — then apply again', $w['closed']],
         ] as $i => [$title, $when, $current]): ?>
           <li style="flex:1 1 180px;border:1px solid var(--border, #d9e1ec);border-radius:10px;padding:8px 10px;<?= $current ? 'border-color:#1b3a6b;box-shadow:0 0 0 2px rgba(27,58,107,.15);' : '' ?>">
@@ -53,15 +53,12 @@ $fmt = fn(?string $d) => $d ? format_date_long($d) : '—';
       <a href="?section=apply" class="btn-navy text-decoration-none" style="display:inline-block" data-i18n>Apply for a Solo Parent ID</a>
     </div>
   <?php elseif (!$w['open']): ?>
-    <div class="info-box" data-i18n>The renewal form opens on <b><?= e($fmt($w['opensOn'])) ?></b>, <?= (int) $w['windowDays'] ?> days before your ID expires. You can submit it from <b><?= e($fmt($w['submitFrom'])) ?></b>.</div>
+    <div class="info-box" data-i18n>Renewal opens on <b><?= e($fmt($w['opensOn'])) ?></b>, the day your ID expires. Log in on that day to renew.</div>
   <?php elseif (empty($renewalPlan['configured'])): ?>
     <div class="info-box" data-i18n>Renewal requirements for your category are not configured yet. <a href="?section=help" data-i18n>Contact MSWDO for the correct renewal documents</a>.</div>
   <?php else: $childOnDate = $childOnDate ?? $today; $kids = $draft['children'] ?: [['name' => '', 'birthdate' => '', 'disability' => false]]; ?>
     <?php if ($flashMessage): ?><div class="info-box" role="status"><?= e($flashMessage) ?></div><?php endif; ?>
     <?php if ($submitError): ?><div class="auth-error" role="alert"><?= e($submitError) ?></div><?php endif; ?>
-    <?php if (!$w['submitOpen']): ?>
-      <div class="info-box" role="status" data-i18n>You can prepare your renewal now and save it. <b>You can submit it from <?= e($fmt($w['submitFrom'])) ?></b>, the day your ID expires.</div>
-    <?php endif; ?>
     <?php foreach ($errors as $message): ?><div class="auth-error" role="alert"><?= e($message) ?></div><?php endforeach; ?>
 
     <form method="post" enctype="multipart/form-data" class="d-flex flex-column gap-3" id="renewal-form">
@@ -91,23 +88,34 @@ $fmt = fn(?string $d) => $d ? format_date_long($d) : '—';
       <section class="review-card d-flex flex-column gap-2">
         <h2 class="font-heading" style="font-size:19px;margin:0" data-i18n>3. Your children</h2>
         <p class="small mb-1" style="color:var(--muted)" data-i18n>List the children living with you and depending on you, who are unmarried and unemployed. Under RA 11861 a child qualifies when <b>22 years old or younger</b>, or <b>over 22 with a disability</b> that keeps them from fully taking care of themselves. At least one child must qualify.</p>
-        <div id="renewal-children" class="d-flex flex-column gap-2">
-          <?php foreach ($kids as $i => $child): $status = SoloParentChildRules::status($child, $childOnDate); ?>
-            <div class="renewal-child" style="border:1px solid var(--border, #d9e1ec);border-radius:10px;padding:10px 12px">
-              <div class="row g-2 align-items-end">
-                <label class="col-12 col-md-5 user-label mb-0" data-i18n>Child's full name<input class="form-control" name="children[<?= $i ?>][name]" maxlength="150" value="<?= e((string) ($child['name'] ?? '')) ?>"></label>
-                <label class="col-7 col-md-3 user-label mb-0" data-i18n>Birthdate<input class="form-control js-child-birth" type="date" max="<?= e($today) ?>" name="children[<?= $i ?>][birthdate]" value="<?= e((string) ($child['birthdate'] ?? '')) ?>"></label>
-                <div class="col-5 col-md-2 d-flex align-items-center" style="min-height:38px">
-                  <label class="d-flex align-items-center gap-2 mb-0" style="font-size:13px;color:var(--ink);cursor:pointer"><input type="checkbox" class="js-child-pwd" name="children[<?= $i ?>][disability]" value="1" <?= !empty($child['disability']) ? 'checked' : '' ?> style="width:18px;height:18px"> <span data-i18n>With a disability</span></label>
-                </div>
-                <div class="col-12 col-md-2 text-md-end"><button type="button" class="btn-outline js-child-remove" style="padding:4px 10px;font-size:12px" data-i18n>Remove</button></div>
-              </div>
-              <div class="small mt-2 js-child-status <?= in_array($status, [SoloParentChildRules::QUALIFIES, SoloParentChildRules::QUALIFIES_DISABILITY], true) ? 'child-ok' : 'child-bad' ?>" style="font-weight:600"><?= e(SoloParentChildRules::label($child, $childOnDate)) ?></div>
+        <div data-child-rules data-on-date="<?= e($childOnDate) ?>" data-max="<?= (int) SoloParentChildRules::MAX_AGE ?>" data-pwd="<?= !empty($draft['hasPwdChild']) ? '1' : '0' ?>" data-proof="#renewal-proof">
+          <fieldset class="cr-question">
+            <legend><?= ui_icon('info', 16) ?><span data-i18n>Do you have a child with a disability (PWD)?</span></legend>
+            <div class="cr-radios">
+              <label><input type="radio" class="js-pwd-answer" name="has_pwd_child" value="1" <?= !empty($draft['hasPwdChild']) ? 'checked' : '' ?>><span data-i18n>Yes</span></label>
+              <label><input type="radio" class="js-pwd-answer" name="has_pwd_child" value="0" <?= !empty($draft['hasPwdChild']) ? '' : 'checked' ?>><span data-i18n>No</span></label>
             </div>
-          <?php endforeach; ?>
+            <small data-i18n>A child over 22 can still qualify if they have a disability.</small>
+          </fieldset>
+          <div id="renewal-children" class="d-flex flex-column gap-2">
+            <?php foreach ($kids as $i => $child): ?>
+              <div class="cr-row js-child renewal-child">
+                <div class="row g-2 align-items-end">
+                  <label class="col-12 col-md-6 user-label mb-0" data-i18n>Child's full name<input class="form-control" name="children[<?= $i ?>][name]" maxlength="150" value="<?= e((string) ($child['name'] ?? '')) ?>"></label>
+                  <label class="col-7 col-md-4 user-label mb-0" data-i18n>Birthdate<input class="form-control js-child-birth" type="date" max="<?= e($today) ?>" name="children[<?= $i ?>][birthdate]" value="<?= e((string) ($child['birthdate'] ?? '')) ?>"></label>
+                  <div class="col-5 col-md-2 text-md-end"><button type="button" class="btn-outline js-child-remove" style="padding:4px 10px;font-size:12px" data-i18n>Remove</button></div>
+                </div>
+                <label class="cr-tick"><input type="checkbox" class="js-child-pwd" name="children[<?= $i ?>][disability]" value="1" <?= !empty($child['disability']) ? 'checked' : '' ?>><span><?= ui_icon('shield-check', 16) ?><span data-i18n>This child has a disability (PWD)</span></span></label>
+                <div class="cr-live js-child-live" role="status"></div>
+              </div>
+            <?php endforeach; ?>
+          </div>
+          <button type="button" id="renewal-add-child" class="btn-outline align-self-start mt-2" style="font-size:13px" data-i18n>+ Add a child</button>
+          <div class="cr-none js-child-none mt-2" role="alert" hidden>
+            <?= ui_icon('triangle-alert', 22) ?>
+            <div><b data-i18n>No child qualifies, so a Solo Parent ID cannot be issued (RA 11861).</b><span data-i18n>Add a child who is 22 or younger, or tick "This child has a disability" for a child over 22. If you need help, contact MSWDO.</span></div>
+          </div>
         </div>
-        <button type="button" id="renewal-add-child" class="btn-outline align-self-start" style="font-size:13px" data-i18n>+ Add a child</button>
-        <div class="auth-error d-none" id="renewal-no-qualifying" role="status" style="max-width:none;margin:0" data-i18n>No child qualifies yet (22 or younger, or over 22 with a disability). You can still submit; MSWDO will check it at your interview.</div>
       </section>
 
       <section class="review-card d-flex flex-column gap-2">
@@ -154,57 +162,38 @@ $fmt = fn(?string $d) => $d ? format_date_long($d) : '—';
 
       <div class="d-flex flex-wrap gap-2 align-items-center">
         <button type="submit" name="action" value="save_draft" formnovalidate class="btn-outline" data-i18n>Save draft</button>
-        <button type="submit" name="action" value="submit" class="btn-navy" <?= $w['submitOpen'] ? '' : 'disabled aria-disabled="true" title="You can submit from ' . e($fmt($w['submitFrom'])) . '"' ?> data-i18n>Submit Renewal</button>
+        <button type="submit" name="action" value="submit" class="btn-navy js-child-submit" <?= $w['submitOpen'] ? '' : 'disabled aria-disabled="true" title="You can submit from ' . e($fmt($w['submitFrom'])) . '"' ?> data-i18n>Submit Renewal</button>
         <?php if (!$w['submitOpen']): ?><span class="small" style="color:var(--muted)" data-i18n>Submit opens on <?= e($fmt($w['submitFrom'])) ?>.</span><?php endif; ?>
       </div>
+      <p class="cr-why js-child-why" hidden><?= ui_icon('lock', 14) ?><span data-i18n>Submit unlocks when at least one child qualifies.</span></p>
     </form>
 
     <template id="renewal-child-template">
-      <div class="renewal-child" style="border:1px solid var(--border, #d9e1ec);border-radius:10px;padding:10px 12px">
+      <div class="cr-row js-child renewal-child">
         <div class="row g-2 align-items-end">
-          <label class="col-12 col-md-5 user-label mb-0">Child's full name<input class="form-control" data-field="name" maxlength="150"></label>
-          <label class="col-7 col-md-3 user-label mb-0">Birthdate<input class="form-control js-child-birth" type="date" max="<?= e($today) ?>" data-field="birthdate"></label>
-          <div class="col-5 col-md-2 d-flex align-items-center" style="min-height:38px">
-            <label class="d-flex align-items-center gap-2 mb-0" style="font-size:13px;color:var(--ink);cursor:pointer"><input type="checkbox" class="js-child-pwd" data-field="disability" value="1" style="width:18px;height:18px"> <span>With a disability</span></label>
-          </div>
-          <div class="col-12 col-md-2 text-md-end"><button type="button" class="btn-outline js-child-remove" style="padding:4px 10px;font-size:12px">Remove</button></div>
+          <label class="col-12 col-md-6 user-label mb-0">Child's full name<input class="form-control" data-field="name" maxlength="150"></label>
+          <label class="col-7 col-md-4 user-label mb-0">Birthdate<input class="form-control js-child-birth" type="date" max="<?= e($today) ?>" data-field="birthdate"></label>
+          <div class="col-5 col-md-2 text-md-end"><button type="button" class="btn-outline js-child-remove" style="padding:4px 10px;font-size:12px">Remove</button></div>
         </div>
-        <div class="small mt-2 js-child-status" style="font-weight:600"></div>
+        <label class="cr-tick"><input type="checkbox" class="js-child-pwd" data-field="disability" value="1"><span><?= ui_icon('shield-check', 16) ?><span>This child has a disability (PWD)</span></span></label>
+        <div class="cr-live js-child-live" role="status"></div>
       </div>
     </template>
+    <script src="<?= public_asset('js/child-rules.js') ?>" defer></script>
     <script>
       (() => {
-        const MAX = <?= (int) SoloParentChildRules::MAX_AGE ?>, onDate = <?= json_encode($childOnDate) ?>;
         const list = document.getElementById('renewal-children'), tpl = document.getElementById('renewal-child-template');
-        const proof = document.getElementById('renewal-proof'), noneBox = document.getElementById('renewal-no-qualifying');
-        const age = (b) => {
-          if (!b) return null;
-          const [y, m, d] = b.split('-').map(Number), [ty, tm, td] = onDate.split('-').map(Number);
-          if (b > onDate) return null;
-          return ty - y - ((tm < m || (tm === m && td < d)) ? 1 : 0);
-        };
+        const box = document.querySelector('[data-child-rules]');
+        const refresh = () => { if (window.ChildRules) window.ChildRules.refresh(box); };
         const renumber = () => list.querySelectorAll('.renewal-child').forEach((row, i) => {
           row.querySelectorAll('[data-field], [name^="children["]').forEach(el => {
             const field = el.dataset.field || el.name.replace(/^children\[\d+\]\[(\w+)\]$/, '$1');
             el.dataset.field = field; el.name = 'children[' + i + '][' + field + ']';
           });
         });
-        const refresh = () => {
-          let anyQualifies = false, needsProof = false, rows = 0;
-          list.querySelectorAll('.renewal-child').forEach(row => {
-            const a = age(row.querySelector('.js-child-birth').value), pwd = row.querySelector('.js-child-pwd').checked;
-            const out = row.querySelector('.js-child-status');
-            if (a === null) { out.textContent = row.querySelector('.js-child-birth').value ? 'Check the birthdate' : ''; out.className = out.className.replace(/ child-(ok|bad)/g, '') + ' child-bad'; return; }
-            rows++;
-            if (a <= MAX) { out.textContent = 'Age ' + a + ' — qualifies (22 or younger)'; out.className = out.className.replace(/ child-(ok|bad)/g, '') + ' child-ok'; anyQualifies = true; }
-            else if (pwd) { out.textContent = 'Age ' + a + ' — qualifies with a disability (PWD ID or medical certificate needed)'; out.className = out.className.replace(/ child-(ok|bad)/g, '') + ' child-ok'; anyQualifies = true; needsProof = true; }
-            else { out.textContent = 'Age ' + a + ' — over 22 without a disability: no longer qualifies'; out.className = out.className.replace(/ child-(ok|bad)/g, '') + ' child-bad'; }
-          });
-          if (proof) proof.classList.toggle('d-none', !needsProof);
-          noneBox.classList.toggle('d-none', anyQualifies || rows === 0);
-        };
         document.getElementById('renewal-add-child').addEventListener('click', () => {
           list.appendChild(tpl.content.cloneNode(true)); renumber(); refresh();
+          if (window.ViracI18n) window.ViracI18n.refresh();
           list.lastElementChild.querySelector('[data-field="name"]').focus();
         });
         list.addEventListener('click', e => {
@@ -213,8 +202,7 @@ $fmt = fn(?string $d) => $d ? format_date_long($d) : '—';
           else { e.target.closest('.renewal-child').remove(); renumber(); }
           refresh();
         });
-        list.addEventListener('input', refresh); list.addEventListener('change', refresh);
-        renumber(); refresh();
+        renumber();
         const civil = document.getElementById('renewal-civil'), civilNote = document.getElementById('renewal-civil-note');
         const civilCheck = () => civilNote.classList.toggle('d-none', !(civil.value === 'Married' && civil.dataset.previous !== 'Married'));
         civil.addEventListener('change', civilCheck); civilCheck();

@@ -14,7 +14,7 @@ $reviewSections = [
         ['k' => 'Solo parent category', 'v' => $categoryName],
     ]],
     ['title' => 'Children', 'step' => 2, 'rows' => array_map(
-        fn($c, $i) => ['k' => 'Child ' . ($i + 1), 'v' => ($c['name'] ?: '—') . ' · ' . format_date_long($c['birthdate'])],
+        fn($c, $i) => ['k' => 'Child ' . ($i + 1), 'v' => ($c['name'] ?: '—') . ' · ' . format_date_long($c['birthdate']) . (!empty($c['disability']) ? ' · with a disability (PWD)' : '')],
         $draft['children'], array_keys($draft['children'])
     )],
     ['title' => 'Supporting Documents', 'step' => 3, 'rows' => array_map(function ($d) use ($draft) {

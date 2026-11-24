@@ -117,7 +117,7 @@ $row = function (array $iv, string $timeFormat) use ($staff, $canManage, $apptSt
   <?php endif; ?>
 
   <?php if ($awaitingOutcome): ?>
-    <div class="review-card" style="border-color:var(--red)">
+    <div class="review-card" id="staff-needs-outcome" style="border-color:var(--red)">
       <div class="review-card-head"><div class="title"><span data-i18n><?= $canManage ? 'Needs Outcome' : 'Awaiting MSWDO Staff Outcome' ?></span> (<?= count($awaitingOutcome) ?>)</div></div>
       <div style="font-size:13px;color:var(--muted);margin-bottom:8px"><?= $canManage ? 'These appointments have passed but are still marked booked. Record the interview result, or mark a no-show as missed then assign a replacement schedule if needed.' : 'These past appointments still need an outcome from MSWDO staff. Open an application to review its interview details.' ?></div>
       <?php if ($staff['role'] === 'admin'): ?><div class="admin-list-scroll" role="region" aria-label="Appointments needing an outcome" tabindex="0"><?php endif; ?>
@@ -127,7 +127,7 @@ $row = function (array $iv, string $timeFormat) use ($staff, $canManage, $apptSt
   <?php endif; ?>
 
   <?php if (!empty($overdueReleases)): ?>
-    <div class="review-card">
+    <div class="review-card" id="staff-release-overdue">
       <div class="review-card-head"><div class="title"><span data-i18n>ID release date passed</span> (<?= count($overdueReleases) ?>)</div></div>
       <div style="font-size:13px;color:var(--muted);margin-bottom:8px" data-i18n>These Solo Parents have not collected their ID yet. The ID keeps waiting at the office: confirm the release when they come, or set a new date if they ask.</div>
       <?php foreach ($overdueReleases as $r): ?>
@@ -142,7 +142,7 @@ $row = function (array $iv, string $timeFormat) use ($staff, $canManage, $apptSt
     </div>
   <?php endif; ?>
 
-  <div class="review-card">
+  <div class="review-card" id="staff-today-card">
     <div class="review-card-head"><div class="title" id="admin-appointments-today">Today's Appointments (<?= e(date('F j, Y')) ?>)</div></div>
     <?php if (!$todayAppointments): ?>
       <div style="font-size:13px;color:var(--muted)">No appointments scheduled for today.</div>
@@ -152,7 +152,7 @@ $row = function (array $iv, string $timeFormat) use ($staff, $canManage, $apptSt
     <?php if ($staff['role'] === 'admin' && $todayAppointments): ?></div><?php endif; ?>
   </div>
 
-  <div class="review-card">
+  <div class="review-card" id="staff-upcoming-card">
     <div class="review-card-head"><div class="title" id="admin-appointments-upcoming">Upcoming appointments</div></div>
     <?php if (!$upcomingByDate): ?>
       <div style="font-size:13px;color:var(--muted)">No upcoming appointments beyond today.</div>

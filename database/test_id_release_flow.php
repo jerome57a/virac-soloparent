@@ -156,7 +156,9 @@ try {
     sa_assert(!in_array('EXP-TOMORROW', $run['sent'], true) && !in_array('EXP-YESTERDAY', $run['sent'], true), 'Nothing is sent before or after the expiry date.');
     sa_assert(in_array('EXP-BADNUMBER', $run['failed'], true), 'A failed SMS must be reported as failed.');
     $msg = (string) $test->query("SELECT message FROM notifications WHERE user_id = $uToday ORDER BY id DESC LIMIT 1")->fetchColumn();
-    sa_assert(str_contains($msg, 'expired today'), 'The in-app notice must say the ID expired today: ' . $msg);
+    sa_assert(str_contains($msg, 'expires today') && str_contains($msg, 'renew online starting today'), 'The in-app notice must say the ID expires today and renewal is open: ' . $msg);
+    $smsToday = (string) $test->query("SELECT message FROM sms_logs WHERE application_id = $eToday ORDER BY id DESC LIMIT 1")->fetchColumn();
+    sa_assert(str_contains($smsToday, 'expires today') && !str_contains($smsToday, 'expired on'), 'The expiry-day SMS says it expires today: ' . $smsToday);
     $afterFirst = $smsCount();
     sa_assert((int) $test->query("SELECT COUNT(*) FROM sms_logs WHERE application_id IN ($eToday, $eAdvance) AND status = 'SENT'")->fetchColumn() === 2, 'Exactly one SMS per ID that expires today.');
     sa_assert($test->query("SELECT status FROM renewal_reminders WHERE application_id = $eBad")->fetchColumn() === 'FAILED', 'The failed SMS must be marked for a same-day retry.');
@@ -176,6 +178,8 @@ try {
     sa_assert(in_array('EXP-YESTERDAY', $notSent, true) && !in_array('EXP-TODAY', $notSent, true), 'A missed expiry day must be listed for staff: ' . json_encode($notSent));
     [$nowErr, $nowSms] = $renewals->sendExpirySmsNow($staff, $eYesterday);
     sa_assert($nowErr === null && ($nowSms['status'] ?? '') === 'SENT', 'Send now failed: ' . var_export($nowErr, true));
+    $smsLate = (string) $test->query("SELECT message FROM sms_logs WHERE application_id = $eYesterday ORDER BY id DESC LIMIT 1")->fetchColumn();
+    sa_assert(str_contains($smsLate, 'expired on') && !str_contains($smsLate, 'expires today'), 'A missed day sent late says it expired on the date: ' . $smsLate);
     sa_assert(!in_array('EXP-YESTERDAY', array_column($renewals->expirySmsNotSent(30, $today), 'reference_no'), true), 'A sent SMS must leave the list.');
     [$againErr] = $renewals->sendExpirySmsNow($staff, $eYesterday);
     sa_assert(is_string($againErr), 'Send now must not send twice.');

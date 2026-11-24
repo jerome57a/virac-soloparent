@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../../includes/icons.php';
 /**
  * @var array  $staff
  * @var string $ownDashboard
@@ -42,10 +43,7 @@ $hasFilters = $filters['q'] !== '' || $filters['barangay'] !== '' || $filters['s
   </div>
 
   <?php if (!$apps): ?>
-    <div class="empty-state">
-      <div class="empty-state-title"><?= $hasFilters ? 'No applications match your search' : 'No applications yet' ?></div>
-      <?= $hasFilters ? 'Check the reference number or name spelling, or clear the filters to see every application.' : 'New applications will appear here as soon as Solo Parents submit them.' ?>
-    </div>
+<div class="gi-empty"><span class="gi-chip gi-xl gi-blue"><?= ui_icon('search', 28) ?></span><strong><?= $hasFilters ? 'No applications match your search' : 'No applications yet' ?></strong><p><?= $hasFilters ? 'Check the reference number or name spelling, or clear the filters to see every application.' : 'New applications will appear here as soon as Solo Parents submit them.' ?></p><?php if ($hasFilters): ?><a class="gi-btn is-outline" href="<?= e(base_url('staff/index.php')) ?>"><?= ui_icon('rotate-cw', 17) ?><span data-i18n>Clear the filters</span></a><?php endif; ?></div>
   <?php endif; ?>
   <?php foreach ($apps as $app): $st = status_style($app['status']); ?>
     <a href="<?= base_url('staff/application.php?id=' . (int) $app['id']) ?>" class="app-card text-decoration-none" style="color:inherit">

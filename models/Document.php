@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../services/SoloParentChildRules.php';
 require_once __DIR__ . '/Model.php';
 
 /** application_documents rows plus the document_requirements definitions they satisfy. */
@@ -40,6 +41,7 @@ class Document extends Model
             }
         }
         $requirements = $standardOnly ? $this->standardRequirements() : $this->requirementsFor($categoryId);
+        $requirements = $this->withDisabilityProof($applicationId, $requirements);
         $stmt = $this->pdo->prepare('SELECT c.*, u.full_name AS verifier_name FROM application_document_checklists c LEFT JOIN users u ON u.id = c.reviewed_by WHERE c.application_id = ?');
         $stmt->execute([$applicationId]);
         $saved = array_column($stmt->fetchAll(), null, 'doc_key');
@@ -65,6 +67,22 @@ class Document extends Model
             $rows[] = $row;
         }
         return $this->appendUnlistedUploads($rows, $uploads);
+    }
+
+    /** Adds the required PWD ID / medical certificate row when the application lists a child over 22 with a disability. */
+    private function withDisabilityProof(int $applicationId, array $requirements): array
+    {
+        try {
+            $stmt = $this->pdo->prepare('SELECT full_name AS name, birthdate, has_disability FROM application_children WHERE application_id = ?');
+            $stmt->execute([$applicationId]);
+            $proof = SoloParentChildRules::proofRequirement($stmt->fetchAll(), date('Y-m-d'));
+        } catch (Throwable $e) {
+            return $requirements; // the column is not there yet (old database): nothing to add
+        }
+        if ($proof && !in_array(SoloParentChildRules::PROOF_KEY, array_column($requirements, 'doc_key'), true)) {
+            $requirements[] = $proof;
+        }
+        return $requirements;
     }
 
     private function mergeUploadStatus(array &$row, array $upload): void

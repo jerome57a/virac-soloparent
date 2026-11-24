@@ -123,6 +123,18 @@ $saved = [['key' => 'ocr_name', 'scope' => 'id', 'result' => 'flag', 'label' => 
 $merged = AutoVerificationService::withSavedOcr($base, $saved, [$row('id', true, $file('a'))]);
 check($merged['verdict'] === 'review' && count($merged['checks']) === count($base['checks']) + 1, 'saved ocr result is merged only for the current file and only ocr checks');
 check(AutoVerificationService::withSavedOcr($base, [], [])['verdict'] === 'ready', 'merging nothing changes nothing');
+// ID pictures (the 1x1 pictures) have no name or text to read: the text check must skip them, but still run for documents.
+$noText = $ocrRead('..  --');
+foreach (['photo1x1', 'photo'] as $pictureKey) {
+    $r = AutoVerificationService::evaluate($app, $kids, [$row($pictureKey, true, $file('p'))], $none_dup, $none, $today, $noText);
+    check($r['verdict'] === 'ready' && !in_array('ocr_name', array_column($r['checks'], 'key'), true), "ocr: the '$pictureKey' picture is not flagged for having no text");
+}
+$r = AutoVerificationService::evaluate($app, $kids, [$row('photo1x1', true, $file('p')), $row('id', true, $file('a'))], $none_dup, $none, $today, $noText);
+check($r['verdict'] === 'review' && array_column(array_filter($r['checks'], fn($c) => $c['key'] === 'ocr_name'), 'scope') === ['id'], 'ocr: with a picture and a document, only the document is checked for a name');
+$passedFlags = [];
+$spy = function (array $doc, bool $isPicture = false) use (&$passedFlags): ?array { $passedFlags[] = $isPicture; return ['issues' => []]; };
+AutoVerificationService::evaluate($app, $kids, [$row('photo1x1', true, $file('p')), $row('id', true, $file('a'))], $none_dup, $spy, $today);
+check($passedFlags === [true, false], 'the picture rules are applied to the picture only');
 
 // Image quality on real pixels.
 $dir = rtrim($argv[1] ?? sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'virac-av-test-' . getmypid();
@@ -151,6 +163,13 @@ check(str_contains($issues($small), 'Low resolution'), 'a small image is flagged
 check(str_contains($issues($dark), 'dark'), 'a very dark image is flagged');
 check(str_contains($issues($blank), 'washed out'), 'a blank white image is flagged');
 check(str_contains($issues($blur), 'blurry'), 'a blurred image is flagged: ' . $issues($blur));
+// A 1x1 inch ID picture is about 300 pixels wide at 300 dpi: it is not "low resolution", unless it is really tiny.
+$tiny = $make('tiny.jpg', 200, 260, $text);
+$pictureIssues = fn(array $doc) => implode(' ', $measure->invoke(new AutoVerificationService(), $doc, true)['issues'] ?? ['(null)']);
+check($pictureIssues($small) === '', 'a 300x400 ID picture has no size issue: ' . $pictureIssues($small));
+check(str_contains($pictureIssues($tiny), 'Small picture'), 'a 200x260 ID picture is flagged as too small');
+check(str_contains($issues($small), 'Low resolution'), 'the same 300x400 image is still low resolution when it is a document');
+check(str_contains($pictureIssues($dark), 'dark') && str_contains($pictureIssues($blank), 'washed out'), 'a dark or washed-out ID picture is still flagged');
 check($measure->invoke(new AutoVerificationService(), ['mime' => 'application/pdf', 'stored_path' => 'a.pdf']) === null, 'a PDF is not measured');
 check(str_contains($issues(['mime' => 'image/jpeg', 'stored_path' => '../escape.jpg']), 'could not be found'), 'a path outside the upload folder is not opened');
 // The applicant's draft (review step): staged files in <upload root>/drafts/<id>/, no database.

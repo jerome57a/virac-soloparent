@@ -6,7 +6,7 @@ const { parseTestBase, newGuardedContext } = require('./lib/test-origin.cjs');
 const { execFileSync } = require('node:child_process');
 const path = require('node:path');
 const assert = require('node:assert/strict');
-const routes = ['dashboard.php', 'notifications.php', 'index.php', 'applicants.php', 'appointments.php', 'reports.php'];
+const routes = ['dashboard.php', 'notifications.php', 'index.php', 'applicants.php', 'appointments.php', 'reports.php', 'verification.php', 'follow_up.php'];
 (async () => {
   // No default: an explicit test-only origin is required (see scripts/lib/test-origin.cjs). Every browser request is
   // decided by the guard: fixtures and static assets only, GET only, no redirects, nothing cross-origin.
@@ -36,8 +36,17 @@ const routes = ['dashboard.php', 'notifications.php', 'index.php', 'applicants.p
       }
       const missingLabels = await page.locator('.staff-workspace .filter-bar, .staff-workspace .record-filters, .staff-workspace .analytics-filters').evaluateAll(forms => forms.flatMap(form => [...form.querySelectorAll('input:not([type=hidden]),select')].filter(el => !el.labels.length).map(el => el.name)));
       assert.deepEqual(missingLabels, [], route + ' visible search labels');
-      const missingTargets = await page.locator('.staff-section-links a').evaluateAll(links => links.filter(a => !document.getElementById(a.hash.slice(1))).map(a => a.hash));
+      // Section links on the dashboard go to the page that does the work; a link that stays on this page must find its target.
+      const missingTargets = await page.locator('.staff-section-links a').evaluateAll(links => links.filter(a => a.pathname === location.pathname && a.hash && !document.getElementById(a.hash.slice(1))).map(a => a.hash));
       assert.deepEqual(missingTargets, []);
+      if (route === 'dashboard.php') {
+        const tileLinks = await page.locator('.stat-tile').evaluateAll(tiles => tiles.map(t => t.getAttribute('href')));
+        assert(tileLinks.length >= 15 && tileLinks.every(h => h && !h.startsWith('#')), 'every dashboard tile goes to a page, not a section below');
+        assert.equal(await page.locator('#staff-dashboard .review-card, #staff-dashboard .dash-panel').count(), 0, 'no lists are shown on the dashboard');
+        assert.equal(await page.locator('.gi-start li a').count(), 5, 'Start here lists the five steps of the staff work');
+        assert((await page.locator('.gi-start li a').evaluateAll(a => a.every(x => x.getAttribute('href') && !x.getAttribute('href').startsWith('#')))), 'every Start here step opens a page');
+        assert.equal(await page.locator('.stat-tile.has-icon .gi-chip svg.ui-icon').count(), await page.locator('.stat-tile').count(), 'every dashboard tile has its icon');
+      }
       const oversizedFields = await page.locator('.staff-workspace .filter-bar input, .staff-workspace .record-filters input, .staff-workspace .analytics-filters input:not([type=hidden]), .staff-code-field input').evaluateAll(fields => fields.filter(el => el.getBoundingClientRect().height > 60).map(el => el.name));
       assert.deepEqual(oversizedFields, [], route + ' normal input heights');
       for (const width of [1440, 1100, 768, 390, 320]) {

@@ -1,16 +1,14 @@
 <?php
 /**
- * Scheduled job: automatic renewal reminders.
+ * Scheduled job: the ID expiry-day message.
  *
- * Every released Solo Parent ID expiring within the configured number of
- * days (system_settings renewal_reminder_days, default 30; editable in
- * admin Settings) gets one reminder per expiry date: an in-app notification
- * plus an SMS (logged in sms_logs with the provider result). IDs that
- * already have a renewal filed, and deactivated accounts, are skipped. An
- * ID whose window passed without a reminder (e.g. the job wasn't running)
- * gets a catch-up "expired" reminder for up to the same number of days.
- * Each reminder is recorded in renewal_reminders and each run in
- * scheduled_job_runs; it is safe to run as often as you like.
+ * Renewal opens on the day a Solo Parent ID expires, and this job tells the Solo Parent that day: every released ID whose expiry date
+ * (Manila date, as entered by MSWDO staff from the card) is TODAY gets one in-app notification and one SMS ("expires today ... you can
+ * renew online starting today", logged in sms_logs with the provider result). Nothing is sent before the expiry date, and nothing after
+ * it by itself. An SMS that fails is retried by later runs the same day (up to RenewalReminder::MAX_ATTEMPTS). IDs that already have a
+ * renewal filed, and deactivated accounts, are skipped. If the job did not run on the expiry day, MSWDO staff see the ID under Failed
+ * Texts (and the admin under ID expiry SMS not sent) and press Send now, which sends "expired on <date>".
+ * Each message is recorded in renewal_reminders and each run in scheduled_job_runs; it is safe to run as often as you like.
  *
  * Schedule it daily with Windows Task Scheduler:
  *   Program:   C:\xampp\php\php.exe

@@ -70,6 +70,11 @@
       </button>
     </div>
 
+    <?php
+    // The menu shows only what fits the Solo Parent's stage (ApplicantController::menuState); the page being viewed is always listed.
+    $navState = $navState ?? [];
+    $navShow = fn(string $key, string $sectionKey) => ($navState[$key] ?? true) || $section === $sectionKey;
+    ?>
     <nav class="nav-drawer-list" aria-label="Solo Parent Portal" data-i18n-attrs="aria-label">
       <div class="nav-drawer-section-label" data-i18n>Main</div>
 
@@ -78,36 +83,49 @@
         <span data-i18n>Dashboard</span>
       </a>
 
+      <?php if ($navShow('apply', 'apply')): ?>
       <a href="?section=apply" class="nav-drawer-link nav-drawer-link-icon <?= $section === 'apply' ? 'active" aria-current="page' : '' ?>">
         <svg class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
         <span data-i18n>Apply for Solo Parent ID</span>
       </a>
+      <?php endif; ?>
 
+      <?php if ($navShow('application', 'application')): ?>
       <a href="?section=application" class="nav-drawer-link nav-drawer-link-icon <?= $section === 'application' ? 'active" aria-current="page' : '' ?>">
         <svg class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
         <span data-i18n>My Application</span>
       </a>
+      <?php endif; ?>
 
+      <?php if ($navShow('documents', 'documents')): ?>
       <a href="?section=documents" class="nav-drawer-link nav-drawer-link-icon <?= $section === 'documents' ? 'active" aria-current="page' : '' ?>">
         <svg class="nav-drawer-icon" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h8"/></svg>
         <span data-i18n>Documents</span>
         <?php if (!empty($documentsToFixCount)): ?><span class="nav-drawer-badge" title="Documents that need a new file"><?= (int) $documentsToFixCount ?></span><?php endif; ?>
       </a>
+      <?php endif; ?>
 
+      <?php if ($navShow('appointment', 'appointment')): ?>
       <a href="?section=appointment" class="nav-drawer-link nav-drawer-link-icon <?= $section === 'appointment' ? 'active" aria-current="page' : '' ?>">
         <svg class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         <span data-i18n>Appointment</span>
+        <?php if (!empty($navState['chooseDate'])): ?><span class="nav-drawer-badge" title="Choose your interview date">1</span><?php endif; ?>
       </a>
+      <?php endif; ?>
 
+      <?php if ($navShow('renewal', 'renewal')): ?>
       <a href="?section=renewal" class="nav-drawer-link nav-drawer-link-icon <?= $section === 'renewal' ? 'active" aria-current="page' : '' ?>">
         <svg class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg>
         <span data-i18n>ID Renewal</span>
       </a>
+      <?php endif; ?>
 
+      <?php if ($navShow('myid', 'myid')): ?>
       <a href="?section=myid" class="nav-drawer-link nav-drawer-link-icon <?= $section === 'myid' ? 'active" aria-current="page' : '' ?>">
         <svg class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="12" r="2"/><line x1="14" y1="10" x2="18" y2="10"/><line x1="14" y1="14" x2="18" y2="14"/></svg>
         <span data-i18n>My Solo Parent ID</span>
       </a>
+      <?php endif; ?>
 
       <div class="nav-drawer-section-label" data-i18n>Information</div>
 

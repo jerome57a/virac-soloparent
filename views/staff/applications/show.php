@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../../includes/icons.php';
 /**
  * @var array  $app
  * @var string $statusError
@@ -43,6 +44,18 @@ if ($interviewOutcome !== null) {
     $interviewNotes = $interviewNotes === $interviewOutcome ? '' : substr($interviewNotes, strlen($interviewOutcome) + 2);
 }
 ?>
+<?php
+require_once APP_ROOT . '/services/StaffGuideService.php';
+require_once APP_ROOT . '/services/SoloParentChildRules.php';
+$guide = StaffGuideService::applicationGuide($app, $interview, count($outstandingRequirements));
+$queueNext = $queueNext ?? null;
+/** "Notes (n)": the explanations that are not needed every time, hidden until the staff member opens them (or switches on Show all notes). */
+$noteBox = function (array $lines): string {
+    $html = '<details class="gi-notes"><summary>' . ui_icon('lightbulb', 15) . '<span><span data-i18n>Notes</span> (' . count($lines) . ')</span>' . ui_icon('chevron-down', 15) . '</summary><ul>';
+    foreach ($lines as $line) { $html .= '<li data-i18n>' . e($line) . '</li>'; }
+    return $html . '</ul></details>';
+};
+?>
 <div class="portal-container staff-application-review">
   <a href="<?= base_url('staff/index.php') ?>" class="staff-back-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5m7-7-7 7 7 7"/></svg><span data-i18n>Back</span></a>
   <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mt-2 mb-4">
@@ -53,11 +66,22 @@ if ($interviewOutcome !== null) {
     <div class="status-pill" style="background:<?= e($st['bg']) ?>;color:<?= e($st['color']) ?>;font-size:14px"><?= e($app['status']) ?></div>
   </div>
 
+  <?php require APP_ROOT . '/views/partials/staff-guide-card.php'; ?>
+  <div class="gi-switchrow"><label class="gi-switch"><input type="checkbox" id="gi-notes-all"><i aria-hidden="true"></i><span><?= ui_icon('lightbulb', 15) ?><span data-i18n>Show all notes</span></span></label><small data-i18n>Warnings and errors are always shown.</small></div>
+
   <div class="row g-4">
     <div class="col-12 col-lg-7">
       <?php if (isset($renewalOf)) { require APP_ROOT . '/views/partials/renewal-of.php'; } ?>
+      <?php $detailsSummary = 'Personal info · ' . count($children) . ' ' . (count($children) === 1 ? 'child' : 'children') . ' · ' . (!empty($app['consent_at']) ? 'declaration signed' : 'no declaration recorded'); ?>
+      <details class="gi-fold" id="applicant-details"<?= ($app['status'] ?? '') === 'Pending Review' ? ' open' : '' ?>>
+        <summary>
+          <span class="gi-chip gi-sm"><?= ui_icon('user', 18) ?></span>
+          <span class="gi-fold-text"><strong data-i18n>Applicant details</strong><small><?= e($detailsSummary) ?></small></span>
+          <span class="gi-fold-toggle"><span class="when-closed" data-i18n>Show</span><span class="when-open" data-i18n>Hide</span><?= ui_icon('chevron-down', 16) ?></span>
+        </summary>
+        <div class="gi-fold-body">
       <div class="review-card">
-        <div class="review-card-head"><div class="title" data-i18n>Personal Info</div></div>
+        <div class="review-card-head"><div class="title"><?= ui_icon('user', 18) ?><span data-i18n>Personal Info</span></div></div>
         <div class="staff-applicant-list">
           <div class="review-row"><div class="k" data-i18n>Full name</div><div class="v"><?= e($app['full_name']) ?></div></div>
           <div class="review-row"><div class="k" data-i18n>Birthdate</div><div class="v"><?= e(format_date_long($app['birthdate'])) ?></div></div>
@@ -71,21 +95,40 @@ if ($interviewOutcome !== null) {
       </div>
 
       <div class="review-card">
-        <div class="review-card-head"><div class="title" data-i18n>Children</div></div>
+        <div class="review-card-head"><div class="title"><?= ui_icon('users', 18) ?><span data-i18n>Children</span></div></div>
         <div class="staff-applicant-list">
           <?php if (!$children): ?>
             <div class="text-muted small">No children recorded for this application.</div>
-          <?php else: foreach ($children as $i => $c): ?>
-            <div class="review-row"><div class="k" data-i18n>Child <?= $i + 1 ?></div><div class="v"><?= e($c['full_name']) ?> · <?= e(format_date_long($c['birthdate'])) ?></div></div>
+          <?php else: $childToday = date('Y-m-d'); foreach ($children as $i => $c):
+              $childStatus = SoloParentChildRules::status($c, $childToday); $childAge = SoloParentChildRules::age((string) $c['birthdate'], $childToday); ?>
+            <div class="review-row"><div class="k" data-i18n>Child <?= $i + 1 ?></div><div class="v"><?= e($c['full_name']) ?> · <?= e(format_date_long($c['birthdate'])) ?><?= $childAge !== null ? ' · age ' . (int) $childAge : '' ?>
+              <span class="d-flex flex-wrap gap-1 mt-1">
+                <?php if (!empty($c['has_disability'])): ?><span class="gi-pill gi-blue"><?= ui_icon('shield-check', 14) ?><span data-i18n>With a disability (PWD)</span></span><?php endif; ?>
+                <?php if ($childStatus === SoloParentChildRules::QUALIFIES): ?><span class="gi-pill gi-green"><?= ui_icon('circle-check', 14) ?><span data-i18n>Qualifies</span></span>
+                <?php elseif ($childStatus === SoloParentChildRules::QUALIFIES_DISABILITY): ?><span class="gi-pill gi-amber"><?= ui_icon('file-check', 14) ?><span data-i18n>Qualifies with PWD ID or medical certificate</span></span>
+                <?php elseif ($childStatus === SoloParentChildRules::OVER_AGE): ?><span class="gi-pill gi-red"><?= ui_icon('circle-x', 14) ?><span data-i18n>Over 22, no disability: does not qualify</span></span>
+                <?php else: ?><span class="gi-pill gi-red"><?= ui_icon('triangle-alert', 14) ?><span data-i18n>Check the birthdate</span></span><?php endif; ?>
+              </span></div></div>
           <?php endforeach; endif; ?>
         </div>
       </div>
 
+      <div class="review-card">
+        <div class="review-card-head"><div class="title"><?= ui_icon('scroll-text', 18) ?><span>Solo Parent Declaration</span></div></div>
+        <div class="staff-applicant-list">
+          <div class="review-row">
+            <div class="k">Truth and data processing confirmation</div>
+            <div class="v"><?php if (!empty($app['consent_at'])): ?>Confirmed at submission (<?= e(date('F j, Y g:i A', strtotime($app['consent_at']))) ?>)<?php else: ?>No confirmation recorded<?php endif; ?></div>
+          </div>
+        </div>
+      </div>
+        </div>
+      </details>
+
       <?php if (!empty($autoCheck)): require APP_ROOT . '/views/staff/applications/auto-check.php'; endif; ?>
 
       <div class="review-card" id="checklist">
-        <div class="review-card-head"><div class="title" data-i18n>Supporting Documents</div></div>
-        <p class="small text-muted" data-i18n>Review each applicant-uploaded file. Record a status and explain any rejection or correction request.</p>
+        <div class="review-card-head"><div class="title"><?= ui_icon('file-check', 18) ?><span data-i18n>Supporting Documents</span></div><?= $noteBox(['Review each applicant-uploaded file. Record a status and explain any rejection or correction request.', 'Save Verification does not send an SMS. After you save documents as Needs Correction, review the message and confirm to send one SMS for the whole batch. Your remarks are never included in the SMS.']) ?></div>
         <?php if (!empty($verificationNotice)): ?><div class="<?= !empty($verificationNotice['warning']) ? 'auth-error' : 'info-box' ?>" style="max-width:none" role="status"><?= e($verificationNotice['text']) ?></div><?php endif; ?>
         <?php if (!empty($documentErrors['checklist'])): ?><div class="auth-error" role="alert"><?= e($documentErrors['checklist']) ?></div><?php endif; ?>
         <?php $canVerifyDocs = in_array($app['status'], Application::IN_PROGRESS_STATUSES, true); ?>
@@ -156,7 +199,6 @@ if ($interviewOutcome !== null) {
             $cnLabel = $cn['outcome'] === 'SENT' ? 'SENT' : ($cn['outcome'] === 'PENDING' ? 'PENDING - NOT CONFIRMED' : ($cn['outcome'] === 'FAILED' ? 'FAILED' : ($cn['outcome'] === 'DISABLED' ? 'NOT SENT - SMS DISABLED' : 'NOT SENT'))); ?>
             <div class="<?= $cn['outcome'] === 'SENT' ? 'info-box' : 'auth-error' ?> my-2" style="max-width:none" role="status" tabindex="-1"><strong><?= e($cnLabel) ?>:</strong> <?= e($cn['text']) ?></div>
           <?php endif; ?>
-          <p class="small text-muted mb-2" data-i18n>Save Verification does not send an SMS. After you save documents as Needs Correction, review the message below and confirm to send one SMS for the whole batch. Your remarks are never included in the SMS.</p>
           <?php if ($cs['has_batch']): ?>
             <?php if ($csLog): ?>
               <div class="small mb-2">Latest SMS for this batch: <strong><?= e($csLog['status']) ?></strong> (<?= e(date('M j, Y g:i A', strtotime($csLog['sent_at']))) ?>)<?= $csLog['status'] === 'FAILED' && !empty($csLog['error']) ? ' - ' . e($csLog['error']) : '' ?><?= $csLog['status'] === 'PENDING' ? ' - outcome not recorded; this batch stays blocked and needs separate manual investigation' : '' ?></div>
@@ -217,16 +259,8 @@ if ($interviewOutcome !== null) {
         </div>
       </div>
       <script src="<?= public_asset('js/document-viewer.js') ?>" defer></script>
+      <script src="<?= public_asset('js/staff-notes.js') ?>" defer></script>
       <script src="<?= public_asset('js/staff-next-step.js') ?>" defer data-auto="<?= ($_GET['next'] ?? '') === '1' ? '1' : '0' ?>"></script>
-      <div class="review-card">
-        <div class="review-card-head"><div class="title">Solo Parent Declaration</div></div>
-        <div class="staff-applicant-list">
-          <div class="review-row">
-            <div class="k">Truth and data processing confirmation</div>
-            <div class="v"><?php if (!empty($app['consent_at'])): ?>Confirmed at submission (<?= e(date('F j, Y g:i A', strtotime($app['consent_at']))) ?>)<?php else: ?>No confirmation recorded<?php endif; ?></div>
-          </div>
-        </div>
-      </div>
 
     </div>
 
@@ -236,6 +270,7 @@ if ($interviewOutcome !== null) {
       <?php if (!empty($smsLogs)) { require APP_ROOT . '/views/staff/applications/sms-log.php'; } ?>
 
       <div class="review-card" id="decision">
+        <div class="review-card-head"><div class="title"><?= ui_icon('clipboard-check', 18) ?><span data-i18n>Decision</span></div><?= $noteBox(['Approving needs every required document verified and a successful interview.', 'Rejecting or requesting corrections needs a reason. The reason is sent to the Solo Parent by SMS.']) ?></div>
         <?php if ($statusError): ?><div class="auth-error" role="alert"><?= e($statusError) ?></div><?php endif; ?>
         <?php if ($assessmentError): ?><div class="auth-error" role="alert"><?= e($assessmentError) ?></div><?php endif; ?>
 
@@ -244,12 +279,15 @@ if ($interviewOutcome !== null) {
         <?php else: ?>
           <?php if ($interview && $interview['status'] === 'BOOKED'): ?><div class="mb-2"><b data-i18n>Interview Scheduled</b> · <?= e(interview_schedule_text($interview['scheduled_at'], interview_is_date_only($interview))) ?> at <?= e($interview['location']) ?></div><?php endif; ?>
           <?php if ($approvalChecklist): ?>
+            <?php $todoItems = array_values(array_filter($approvalChecklist, fn($i) => empty($i['ok']))); ?>
+            <details class="gi-req<?= $todoItems ? ' has-todo' : ' is-ready' ?>">
+              <summary><?= ui_icon($todoItems ? 'info' : 'circle-check', 16) ?><span><?php if ($todoItems): ?><b><?= count($todoItems) ?> <?= count($todoItems) === 1 ? 'thing' : 'things' ?></b> before approving: <?= e($todoItems[0]['label']) ?><?php else: ?><b data-i18n>Everything is ready</b> <span data-i18n>for approval.</span><?php endif; ?></span><?= ui_icon('chevron-down', 15) ?></summary>
             <div class="approval-checklist">
-              <div style="font-size:12px;font-weight:700;color:var(--ink);margin-bottom:6px">Before approving</div>
               <?php foreach ($approvalChecklist as $item): ?>
                 <div class="<?= $item['ok'] ? 'ok' : 'no' ?>"><?= $item['ok'] ? '✓' : '✗' ?> <?= e($item['label']) ?><?php if ($item['detail']): ?> <span class="detail" style="white-space:pre-line">— <?= e($item['detail']) ?></span><?php endif; ?></div>
               <?php endforeach; ?>
             </div>
+            </details>
           <?php endif; ?>
           <?php if (empty($app['renewal_simplified']) && (in_array($interview['status'] ?? '', ['BOOKED', 'COMPLETED'], true) || $lateAttended)): ?>
             <?php if ($lateAttended): ?><div class="info-box mb-3" role="status" style="max-width:none">The system released this interview because nobody recorded the outcome. <b>If the Solo Parent really attended, record the result here.</b> This is possible until they choose a new date.</div><?php endif; ?>
@@ -353,18 +391,29 @@ if ($interviewOutcome !== null) {
             <?= csrf_field() ?>
             <input type="hidden" name="form_action" value="update_status">
             <input type="hidden" name="expected_status" value="<?= e($app['status']) ?>">
-            <div class="review-action-grid">
-              <?php foreach ($allowedTransitions as $to):
-                  if ($to === 'Under Verification' || ($to === 'Approved' && !$canDecide) || ($to === 'For Revision' && !$canCorrect)) {
-                      continue;
+            <?php
+            // Request Corrections, Reject and Approve are always shown in this order; the ones not available yet are locked and say why.
+            $showLocked = in_array($app['status'], ['Pending Review', 'Under Verification', 'Interview Scheduled'], true);
+            $lockedNote = null;
+            ?>
+            <div class="review-action-grid gi-decide">
+              <?php foreach (['For Revision', 'Rejected', 'Approved'] as $to):
+                  $offered = in_array($to, $allowedTransitions, true);
+                  if (!$offered && !$showLocked) { continue; }
+                  $docsOpen = $to === 'Approved' && $canDecide && $outstandingRequirements;
+                  $locked = !$offered || $docsOpen || ($to === 'Approved' && !$canDecide) || ($to === 'For Revision' && !$canCorrect) || ($to === 'Rejected' && !$canReject);
+                  if ($locked && $to !== 'Rejected') {
+                      $lockedNote = $lockedNote ?? ($docsOpen ? 'Approve unlocks when every required document is verified.' : (!$canCorrect ? 'Request Corrections and Approve unlock after a successful interview is recorded.' : 'Approve stays locked until an interview is recorded as successful.'));
                   }
-                  $class = $to === 'Rejected' ? 'btn-outline review-button-danger' : ($to === 'Approved' || $to === 'ID Released' ? 'btn-navy review-button-success is-selected' : 'btn-outline review-button-correction');
+                  $class = $locked ? 'btn-outline review-button-locked' : ($to === 'Rejected' ? 'btn-outline review-button-danger' : ($to === 'Approved' ? 'btn-navy review-button-success is-selected' : 'btn-outline review-button-correction'));
                   $confirm = $to === 'Rejected' ? 'Reject this application? This is final.' : ($to === 'Approved' ? 'Approve this application?' : '');
                   $needsReason = in_array($to, Application::REASON_REQUIRED, true);
+                  $buttonIcon = $locked ? 'lock' : ($to === 'Rejected' ? 'circle-x' : ($to === 'Approved' ? 'circle-check' : 'send'));
               ?>
-                <button type="submit" name="status" value="<?= e($to) ?>" class="<?= $class ?>" style="flex:1 1 150px"<?= $to === 'Approved' && $outstandingRequirements ? ' disabled title="Complete all required documents before approval"' : '' ?><?= $needsReason ? ' data-needs-reason="1" data-confirm="' . e($confirm) . '"' : ($confirm ? ' onclick="return confirm(\'' . e($confirm) . '\')"' : '') ?>><?= e(Application::ACTION_LABELS[$to] ?? $to) ?></button>
+                <button type="submit" name="status" value="<?= e($to) ?>" class="<?= $class ?>"<?= $locked ? ' disabled' : '' ?><?= $docsOpen ? ' title="Complete all required documents before approval"' : '' ?><?= $needsReason ? ' data-needs-reason="1" data-confirm="' . e($confirm) . '"' : ($confirm ? ' onclick="return confirm(\'' . e($confirm) . '\')"' : '') ?>><?= ui_icon($buttonIcon, 17) ?><span><?= e(Application::ACTION_LABELS[$to] ?? $to) ?></span></button>
               <?php endforeach; ?>
             </div>
+            <?php if ($lockedNote): ?><p class="gi-lockline"><?= ui_icon('lock', 14) ?><span data-i18n><?= e($lockedNote) ?></span></p><?php endif; ?>
             <?php /* The reason is asked for only when the chosen action needs one (reject / request corrections). */ ?>
             <label id="decision-reason-wrap" class="d-none mt-2" style="font-size:13px;font-weight:600;color:var(--ink)">
               <span id="decision-reason-label">Reason for the Solo Parent</span>
@@ -406,9 +455,6 @@ if ($interviewOutcome !== null) {
               }));
             })();
           </script>
-          <?php endif; ?>
-          <?php if (!$canCorrect && $interview && in_array($interview['status'], ['BOOKED', 'COMPLETED', 'MISSED'], true)): ?>
-            <div class="info-box" role="status"><?= 'Request Corrections and Approve become available after a successful interview is recorded.' ?></div>
           <?php endif; ?>
         <?php endif; ?>
       </div>
@@ -489,7 +535,7 @@ if ($interviewOutcome !== null) {
               MSWDO staff must verify every required document before scheduling the interview. When the Solo Parent uploads a replacement, verify it above to unlock it.
             </div>
           <?php else: ?>
-            <div class="info-box" style="max-width:none"><b>All required documents are verified</b> <?php if (($invitationState ?? 'off') !== 'ready'): ?>Interview scheduling is not available until interview date booking is enabled.<?php else: ?>Pick the interview date in <b>Schedule the interview date</b> below. The Solo Parent is texted the date and can keep it or log in to pick another day; the booking then appears here and in the MSWDO staff dashboard's Expected Today list.<?php endif; ?></div>
+            <div class="info-box" style="max-width:none"><b>All required documents are verified.</b> <?php if (($invitationState ?? 'off') !== 'ready'): ?>Interview scheduling is not available until interview date booking is enabled.<?php else: ?>Schedule the interview in the card below.<?php endif; ?></div>
           <?php endif; ?>
         <?php endif; ?>
 
@@ -602,7 +648,7 @@ if ($interviewOutcome !== null) {
       <?php endif; ?>
       <?php if (!empty($app['renewal_simplified']) || in_array($interview['status'] ?? '', ['BOOKED', 'COMPLETED', 'MISSED'], true) || in_array($app['status'], ['Approved', 'ID Released'], true)): ?>
       <div class="review-card" id="id-release">
-        <div class="review-card-head"><div class="title">ID Release Scheduling</div>
+        <div class="review-card-head"><div class="title"><?= ui_icon('id-card', 18) ?><span>ID Release Scheduling</span></div>
           <?php if ($app['status'] === 'ID Released'): ?><span class="status-pill" style="background:#dcf3e2;color:#1c7a3f" data-i18n>ID Released</span>
           <?php elseif ($idReleaseSchedule): ?><span class="status-pill" style="background:#dce8f5;color:#1b3a6b" data-i18n>ID Release Scheduled</span>
           <?php else: ?><span class="status-pill" style="background:#f1f1f1;color:#555"><?= e($app['status']) ?></span><?php endif; ?>

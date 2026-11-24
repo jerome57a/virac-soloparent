@@ -4,7 +4,7 @@ require_once __DIR__ . '/../models/Appointment.php';
 /** Builds the limited information shown by reference-only public tracking. */
 class PublicApplicationTrackingService
 {
-    public static function summarize(array $app, array $history, ?array $interview, ?array $release, ?array $renewal = null, int $renewalDays = 30): array
+    public static function summarize(array $app, array $history, ?array $interview, ?array $release, ?array $renewal = null): array
     {
         $status = $app['status'];
         $released = $status === 'ID Released';
@@ -55,7 +55,7 @@ class PublicApplicationTrackingService
             $title = 'Your Solo Parent ID has expired';
             $instruction = 'Log in to check your ID renewal options, or contact MSWDO for renewal requirements.';
         }
-        $renewalOpens = $expiry ? (new DateTimeImmutable($expiry))->modify('-' . max(1, $renewalDays) . ' days')->format('Y-m-d') : null;
+        $renewalOpens = $expiry ?: null; // renewal opens on the expiration date
         $renewalDue = $released && $renewalOpens && date('Y-m-d') >= $renewalOpens;
         $handoverConfirmed = $released && !empty($release['released_at']);
         $idSummary = [

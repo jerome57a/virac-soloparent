@@ -64,7 +64,7 @@ function apply_steps_overview(): array
 function important_reminders(): array
 {
     return [
-        'The Solo Parent ID is valid for one year and must be renewed at the MSWDO upon expiration. The e-SoloParentID system will send you an SMS reminder 30 days before your ID expires.',
+        'The Solo Parent ID is valid for one year and must be renewed at the MSWDO upon expiration. The e-SoloParentID system will send you an SMS on the day your ID expires, and you can renew online from that day.',
         'The Solo Parent ID is a valid government-issued ID accepted in private and government transactions.',
         'If you marry or re-marry, your Solo Parent ID may be revoked by the MSWDO.',
         'If your children are given up for adoption, the Solo Parent ID benefits will be terminated.',

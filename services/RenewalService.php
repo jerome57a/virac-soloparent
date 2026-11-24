@@ -16,10 +16,9 @@ require_once __DIR__ . '/SoloParentChildRules.php';
  * goes through an interview, like a new application, so MSWDO can confirm
  * the Solo Parent still qualifies.
  *
- * Timing: the form opens renewal_reminder_days (default 30) before expiry so
- * the Solo Parent can prepare it; it can be SUBMITTED from the expiration
- * date; and it closes renewal_grace_days (default 365) after expiry, after
- * which the Solo Parent applies again as a new application.
+ * Timing: renewal opens on the expiration date (there is no early window: the Solo Parent
+ * logs in on or after that day), and it closes renewal_grace_days (default 365) after
+ * expiry, after which the Solo Parent applies again as a new application.
  */
 class RenewalService
 {
@@ -29,7 +28,7 @@ class RenewalService
     /** Fields that must stay as on the ID being renewed (a change of these needs a new application). */
     public const LOCKED_FIELDS = ['fullName', 'birthdate', 'sex', 'categoryId'];
     /** The extra document for a child over 22 with a disability (RA 11861). */
-    public const DISABILITY_PROOF_KEY = 'childDisabilityProof';
+    public const DISABILITY_PROOF_KEY = SoloParentChildRules::PROOF_KEY;
 
     private PDO $pdo;
     private Application $applications;
@@ -65,34 +64,30 @@ class RenewalService
     }
 
     /**
-     * When the ID can be renewed. 'open': the form may be filled in (prepared) now; 'submitOpen': it may be submitted now (from the
-     * expiration date); 'closed': the renewal period after expiry ended (a new application is needed). Also expiresAt, expired,
-     * opensOn (form opens), submitFrom (= expiresAt), closesOn, windowDays, graceDays. An ID without an expiry date (older records)
-     * can always be renewed.
+     * When the ID can be renewed: from the expiration date ('open' and 'submitOpen' are both true from that day) until
+     * renewal_grace_days after it; 'closed': that period ended (a new application is needed). Also expiresAt, expired,
+     * opensOn and submitFrom (both = expiresAt), closesOn, graceDays. An ID without an expiry date (older records) can always be renewed.
      */
     public function window(array $source, ?string $today = null): array
     {
         $today ??= date('Y-m-d');
-        $windowDays = max(1, (int) get_setting($this->pdo, 'renewal_reminder_days', '30'));
         $graceDays = max(1, (int) get_setting($this->pdo, 'renewal_grace_days', '365'));
         $expiresAt = $source['id_expires_at'] ?: null;
         if (!$expiresAt) {
             return ['open' => true, 'submitOpen' => true, 'closed' => false, 'expiresAt' => null, 'expired' => false, 'opensOn' => null,
-                'submitFrom' => null, 'closesOn' => null, 'windowDays' => $windowDays, 'graceDays' => $graceDays];
+                'submitFrom' => null, 'closesOn' => null, 'graceDays' => $graceDays];
         }
-        $opensOn = date('Y-m-d', strtotime($expiresAt . " -$windowDays days"));
         $closesOn = date('Y-m-d', strtotime($expiresAt . " +$graceDays days"));
         $closed = $today > $closesOn;
         return [
-            'open' => !$closed && $today >= $opensOn,
+            'open' => !$closed && $today >= $expiresAt,
             'submitOpen' => !$closed && $today >= $expiresAt,
             'closed' => $closed,
             'expiresAt' => $expiresAt,
             'expired' => $expiresAt < $today,
-            'opensOn' => $opensOn,
+            'opensOn' => $expiresAt,
             'submitFrom' => $expiresAt,
             'closesOn' => $closesOn,
-            'windowDays' => $windowDays,
             'graceDays' => $graceDays,
         ];
     }
@@ -130,6 +125,7 @@ class RenewalService
             'civilStatus' => $source['civil_status'],
             'categoryId' => (int) $source['category_id'],
             'children' => $children ?: [['name' => '', 'birthdate' => '']],
+            'hasPwdChild' => (bool) array_filter($children, fn($c) => !empty($c['disability'])),
             'documents' => [],
             'docErrors' => [],
             'consent' => false,
@@ -215,6 +211,14 @@ class RenewalService
                 }
                 $children[] = ['name' => $name, 'birthdate' => $birthdate, 'disability' => !empty($row['disability'])];
             }
+            // The Yes/No question: with the answer No the ticks are ignored (they are hidden on the form).
+            // When the answer is not sent at all (an older client), it is taken from the ticks; an explicit No always wins.
+            $hasPwd = isset($post['has_pwd_child']) ? $post['has_pwd_child'] === '1' : (bool) array_filter($children, fn($c) => !empty($c['disability']));
+            if (!$hasPwd) {
+                foreach ($children as &$kid) { $kid['disability'] = false; }
+                unset($kid);
+            }
+            $draft['hasPwdChild'] = $hasPwd;
             $draft['children'] = $children;
         }
         {
@@ -275,6 +279,13 @@ class RenewalService
             if (SoloParentChildRules::age((string) ($child['birthdate'] ?? ''), date('Y-m-d')) === null) {
                 $errors['children'] = 'Child ' . $n . ' (' . $child['name'] . '): enter a real birthdate that is not in the future.';
                 break;
+            }
+        }
+        if (!isset($errors['children']) && $children) {
+            if (!SoloParentChildRules::anyQualifies($children, date('Y-m-d'))) {
+                $errors['children'] = SoloParentChildRules::NONE_QUALIFIES;
+            } elseif (!empty($draft['hasPwdChild']) && !array_filter($children, fn($c) => !empty($c['disability']))) {
+                $errors['pwd'] = SoloParentChildRules::ANSWERED_YES_NO_TICK;
             }
         }
         foreach (['barangay'=>100,'address'=>255] as $key=>$max) {
@@ -356,7 +367,7 @@ class RenewalService
             throw new DomainException('The renewal period for this ID has ended. Please apply again as a new application.');
         }
         if (!$window['submitOpen']) {
-            throw new DomainException('You can submit your renewal from ' . date('F j, Y', strtotime((string) $window['submitFrom'])) . ', the day your ID expires. Your draft is saved.');
+            throw new DomainException('Renewal opens on ' . date('F j, Y', strtotime((string) $window['submitFrom'])) . ', the day your ID expires. Log in on that day to renew.');
         }
         $draft = $this->lock($draft, $source);
         $draft['contact'] = (string) $user['mobile'];
@@ -419,13 +430,6 @@ class RenewalService
             error_log('Automated verification result not saved for the renewal: ' . $e->getMessage());
         }
         return $refNumber;
-    }
-
-    /** Days before expiry that the reminder goes out (system_settings renewal_reminder_days, default 30). */
-    public function reminderDays(): int
-    {
-        $days = (int) get_setting($this->pdo, 'renewal_reminder_days', '30');
-        return $days > 0 ? $days : 30;
     }
 
     /**
@@ -533,7 +537,7 @@ class RenewalService
         try {
             $when = date('M j, Y', strtotime($app['id_expires_at']));
             $message = $daysLeft >= 0
-                ? 'Your Solo Parent ID (' . $app['reference_no'] . ') expired today (' . $when . '). Please renew online or visit MSWDO.'
+                ? 'Your Solo Parent ID (' . $app['reference_no'] . ') expires today (' . $when . '). You can renew online starting today, or visit MSWDO.'
                 : 'Your Solo Parent ID (' . $app['reference_no'] . ') expired on ' . $when . '. Please renew online or visit MSWDO.';
             $this->pdo->beginTransaction();
             $notificationId = $reminders->notificationFor($reminderId)

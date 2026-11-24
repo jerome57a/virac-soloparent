@@ -14,6 +14,10 @@
 <div class="portal-container">
   <?php require APP_ROOT . '/views/partials/admin-page-heading.php'; ?>
 
+  <?php if (!empty($waitingFilter)): ?>
+    <div class="info-box d-flex flex-wrap align-items-center justify-content-between gap-2" style="max-width:none" role="status"><span><b data-i18n>Showing applications waiting more than 7 days</b> <span data-i18n>(Pending Review or Under Verification with no change for a week).</span></span><a href="<?= base_url('admin/applications.php') ?>" class="btn-outline text-decoration-none" data-i18n>Show all</a></div>
+  <?php endif; ?>
+
   <nav class="d-flex flex-wrap gap-2 mb-4" aria-label="Filter by status" id="admin-application-status">
     <a href="?<?= e(http_build_query(['status' => 'ALL', 'type' => $typeFilter, 'q' => $q])) ?>" class="status-pill text-decoration-none"<?= $statusFilter === 'ALL' ? ' aria-current="page"' : '' ?>><span data-i18n>All applications</span> (<?= array_sum($stageCounts) ?>)</a>
     <?php foreach ($validStatuses as $vs): ?>

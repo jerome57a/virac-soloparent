@@ -33,8 +33,12 @@ const fixture = state => execFileSync('php', [path.join(__dirname, 'fixtures/adm
       assert.equal(await page.locator('.ad-metric.stat-tile').count(), 4, 'shared staff statistic tiles');
       assert.equal(await page.locator('.ad-metric').first().evaluate(el => getComputedStyle(el).borderTopWidth), '3px', 'staff tile accent');
       assert.equal(await page.locator('#admin-dashboard > .dash-two-col').count(), 1, 'one row of paired panels');
-      assert.equal(await page.locator('.ad-attention-item').count(), 5, 'five Needs attention items');
-      assert.equal(await page.locator('.ad-attention-item[open]').count(), 0, 'Needs attention details are hidden until clicked');
+      assert.equal(await page.locator('.ad-attention-row').count(), 5, 'five Needs attention items');
+      assert.equal(await page.locator('.ad-attention-row .gi-chip svg.ui-icon').count(), 5, 'every Needs attention item has its icon');
+      assert.equal(await page.locator('#admin-setup').count(), state === 'clear' ? 0 : 1, 'the setup checklist shows until every step is done');
+      if (state !== 'clear') assert.equal(await page.locator('#admin-setup .gi-check').count(), 5, 'five setup steps');
+      const attentionLinks = await page.locator('.ad-attention-row').evaluateAll(a => a.map(x => new URL(x.href).pathname.split('/').pop() + new URL(x.href).search));
+      assert.deepEqual(attentionLinks, ['sms.php?status=failed', 'users.php?status=locked', 'expiry_sms.php', 'applications.php?status=Approved', 'applications.php?waiting=7'], 'each Needs attention item goes straight to its page');
       assert.equal(await page.locator('.ad-details').getAttribute('open'), null, 'system details are hidden');
       assert.equal(await page.locator('#admin-more').getAttribute('open'), null, 'recent activity and quick access are hidden');
       await page.setViewportSize({ width: 1440, height: 1100 });
@@ -48,13 +52,8 @@ const fixture = state => execFileSync('php', [path.join(__dirname, 'fixtures/adm
       const reviewUrl = new URL(await page.locator('.ad-metric').nth(1).getAttribute('href'));
       assert.equal(reviewUrl.searchParams.get('status'), 'Pending Review');
       assert.equal(reviewUrl.searchParams.has('type'), false, 'pending card includes both types');
-      await page.locator('#admin-attention-locked > summary').click();
-      assert.equal(await page.locator('#admin-attention-locked').getAttribute('open'), '', 'a row opens its details');
-      const lockedUrl = new URL(await page.locator('#admin-attention-locked .ad-text-link').getAttribute('href'));
+      const lockedUrl = new URL(await page.locator('.ad-attention-row').nth(1).getAttribute('href'));
       assert.equal(lockedUrl.searchParams.get('status'), 'locked');
-      await page.locator('#admin-attention-failed-sms > summary').click();
-      assert.equal(await page.locator('#admin-attention-locked').getAttribute('open'), null, 'one row open at a time');
-      await page.locator('#admin-attention-failed-sms > summary').click();
       if (state === 'populated') {
         assert.equal(await page.locator('.ad-metric > strong').nth(1).textContent(), '31');
         assert.equal(await page.locator('.ad-attention-count b').textContent(), '5');

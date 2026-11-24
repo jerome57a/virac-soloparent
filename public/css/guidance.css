@@ -1,0 +1,153 @@
+/* MSWDO staff and admin: icons, "what do I do next" guidance (Start here, step tracker, Next card, setup checklist, empty pages).
+   Uses the shared colour tokens, so light and dark mode follow the preference automatically. */
+.ui-icon { flex: none; vertical-align: -0.2em; }
+
+/* A coloured icon chip: gi-navy (default) / gi-amber / gi-blue / gi-green / gi-red */
+.gi-chip { display: inline-grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 11px; background: var(--info); color: var(--navy); }
+.gi-chip.gi-lg { width: 46px; height: 46px; border-radius: 12px; }
+.gi-chip.gi-xl { width: 56px; height: 56px; border-radius: 50%; }
+.gi-amber { background: var(--warn-bg); color: var(--warn-text); }
+.gi-green { background: var(--success-bg); color: var(--success-text); }
+.gi-red { background: var(--error-bg); color: var(--error-text); }
+.gi-blue { background: var(--info); color: var(--navy); }
+
+/* Page heading with its icon (staff and admin) */
+.gi-heading { display: flex; gap: 14px; align-items: center; }
+.gi-heading > div { min-width: 0; }
+.gi-heading .gi-chip { margin-top: 2px; }
+.gi-help { margin-top: 8px; }
+.gi-help summary { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; color: var(--navy); font-size: 13px; font-weight: 600; list-style: none; }
+.gi-help summary::-webkit-details-marker { display: none; }
+.gi-help[open] summary { margin-bottom: 6px; }
+.gi-help p { margin: 0; max-width: 70ch; font-size: 13.5px; color: var(--body-text); }
+
+/* Start here (staff dashboard) */
+.gi-start { border: 1px solid var(--border); background: var(--theme-card, #fff); border-radius: 14px; padding: 14px; margin-bottom: 16px; }
+.gi-start h2 { display: flex; gap: 8px; align-items: center; margin: 0 0 4px; font-size: 16px; color: var(--navy); font-family: var(--font-body); }
+.gi-start > p { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
+.gi-start ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; counter-reset: gi; }
+.gi-start li { counter-increment: gi; }
+.gi-start a { display: flex; gap: 10px; align-items: center; border: 1px solid var(--border); border-radius: 10px; padding: 9px 10px; background: var(--surface); color: var(--ink); text-decoration: none; font-weight: 600; font-size: 14px; }
+.gi-start a:hover, .gi-start a:focus-visible { border-color: var(--navy); }
+.gi-start a::before { content: counter(gi); display: grid; place-items: center; flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--navy); color: var(--theme-card, #fff); font-size: 13px; font-weight: 700; }
+.gi-start a span { flex: 1; }
+.gi-start em { font-style: normal; font-weight: 700; font-size: 13px; border-radius: 999px; padding: 1px 9px; background: var(--warn-bg); color: var(--warn-text); }
+.gi-start em.is-zero { background: var(--surface); color: var(--muted); border: 1px solid var(--border); }
+.gi-start-clear { margin: 10px 0 0; font-size: 13px; color: var(--success-text); display: flex; gap: 6px; align-items: center; }
+
+/* Dashboard tiles with an icon */
+.stat-tile.has-icon { display: flex; gap: 12px; align-items: center; }
+.stat-tile.has-icon .gi-chip { width: 44px; height: 44px; }
+.stat-tile.has-icon .stat-body { flex: 1; min-width: 0; }
+.stat-tile.has-icon .stat-chevron { color: var(--muted); }
+
+/* Step tracker of an application */
+.gi-tracker { position: relative; list-style: none; display: flex; margin: 0 0 14px; padding: 2px 0 6px; overflow-x: auto; }
+.gi-step { flex: 1 0 96px; display: flex; flex-direction: column; align-items: center; gap: 6px; position: relative; font-size: 13px; color: var(--muted); text-align: center; }
+.gi-step:not(:last-child)::after { content: ""; position: absolute; top: 17px; left: calc(50% + 20px); right: calc(-50% + 20px); height: 2px; background: var(--border); }
+.gi-step.is-done:not(:last-child)::after { background: var(--success-text); }
+.gi-dot { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--surface); border: 2px solid var(--border); color: var(--muted); z-index: 1; }
+.is-done .gi-dot { background: var(--success-bg); border-color: var(--success-text); color: var(--success-text); }
+.is-now .gi-dot { background: var(--navy); border-color: var(--navy); color: var(--theme-card, #fff); box-shadow: 0 0 0 4px var(--info); }
+.is-now { color: var(--navy); font-weight: 700; }
+
+/* The Next card */
+.gi-next { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; border: 1px solid var(--navy); background: var(--info); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; }
+.gi-next .gi-chip { background: var(--theme-card, #fff); }
+.gi-next.gi-tone-amber { border-color: var(--warn-text); }
+.gi-next.gi-tone-green { border-color: var(--success-text); }
+.gi-next-text { flex: 1; min-width: 200px; }
+.gi-next-text strong { display: block; color: var(--ink); }
+.gi-next-text span { display: block; font-size: 13.5px; color: var(--body-text); }
+.gi-next .gi-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.gi-btn { display: inline-flex; gap: 8px; align-items: center; border: 1px solid var(--navy); border-radius: 10px; padding: 9px 15px; font: 600 14px var(--font-body); background: var(--navy); color: var(--theme-card, #fff); text-decoration: none; cursor: pointer; }
+.gi-btn.is-outline { background: transparent; color: var(--navy); }
+.gi-btn:hover, .gi-btn:focus-visible { filter: brightness(1.08); }
+
+/* A page with nothing to do: say what comes next */
+.gi-empty { display: grid; justify-items: center; gap: 8px; text-align: center; padding: 26px 16px; color: var(--muted); }
+.gi-empty strong { color: var(--ink); font-size: 16px; }
+.gi-empty p { margin: 0; max-width: 52ch; }
+
+/* Status labels and buttons with an icon */
+.gi-pill { display: inline-flex; gap: 5px; align-items: center; border-radius: 999px; padding: 2px 10px 2px 7px; font-size: 12.5px; font-weight: 600; }
+.review-card-head .title .ui-icon, .stat-label .ui-icon { margin-right: 6px; color: var(--navy); }
+
+/* Admin setup checklist */
+.gi-setup { border: 1px solid var(--border); background: var(--theme-card, #fff); border-radius: 14px; padding: 16px; margin-bottom: 18px; }
+.gi-setup-head { display: flex; gap: 12px; align-items: center; }
+.gi-setup-head h2 { margin: 0; font-size: 18px; color: var(--navy); font-family: var(--font-body); }
+.gi-setup-head p { margin: 2px 0 0; font-size: 13.5px; color: var(--muted); }
+.gi-bar { height: 8px; background: var(--border); border-radius: 6px; overflow: hidden; margin: 12px 0; }
+.gi-bar i { display: block; height: 100%; background: var(--success-text); }
+.gi-checklist { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.gi-check { display: flex; gap: 12px; align-items: center; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--surface); }
+.gi-check .gi-box { color: var(--muted); }
+.gi-check.is-done .gi-box { color: var(--success-text); }
+.gi-check-text { flex: 1; display: grid; min-width: 0; }
+.gi-check-text small { color: var(--muted); font-size: 13px; }
+.gi-check a { display: inline-flex; gap: 5px; align-items: center; color: var(--navy); font-weight: 600; font-size: 14px; white-space: nowrap; }
+
+/* Link back to where the person came from */
+.gi-next-after { margin-bottom: 14px; }
+
+@media (max-width: 560px) {
+  .gi-heading { align-items: flex-start; }
+  .gi-start ol { grid-template-columns: 1fr; }
+  .gi-next .gi-actions, .gi-next .gi-btn { width: 100%; justify-content: center; }
+  .gi-check { flex-wrap: wrap; }
+}
+.ad-row-text { display: flex; gap: 12px; align-items: center; min-width: 0; } .ad-row-text .gi-chip { width: 38px; height: 38px; }
+.gi-next-text span span { display: inline; }
+@media (max-width: 520px) { .stat-grid:has(.has-icon) { grid-template-columns: 1fr; } }
+.stat-tile.has-icon .stat-label, .stat-tile.has-icon .stat-sub { overflow-wrap: anywhere; }
+
+/* ---- Cleaner application page: Notes, Show all notes, Applicant details, the decision buttons ---- */
+.gi-notes { margin-left: auto; }
+.gi-notes summary { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; color: var(--navy); font-weight: 600; font-size: 13px; list-style: none; border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; background: var(--surface); }
+.gi-notes summary::-webkit-details-marker { display: none; }
+.gi-notes[open] summary svg:last-child { transform: rotate(180deg); }
+.gi-notes ul { margin: 8px 0 0; padding: 10px 14px 10px 30px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; font-size: 13.5px; color: var(--muted); max-width: 520px; text-align: left; font-weight: 400; }
+.gi-notes ul li + li { margin-top: 6px; }
+.review-card-head:has(.gi-notes[open]) { flex-wrap: wrap; }
+.review-card-head:has(.gi-notes[open]) .gi-notes { flex-basis: 100%; margin-left: 0; }
+.gi-switchrow { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: -6px 0 14px; }
+.gi-switchrow small { color: var(--muted); }
+.gi-switch { position: relative; display: inline-flex; gap: 10px; align-items: center; cursor: pointer; font-weight: 600; font-size: 14px; color: var(--navy); }
+.gi-switch input { position: absolute; z-index: 1; opacity: 0; width: 38px; height: 22px; margin: 0; cursor: pointer; }
+.gi-switch i { width: 38px; height: 22px; border-radius: 999px; background: var(--border); position: relative; transition: background .2s; flex: none; }
+.gi-switch i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--theme-card, #fff); transition: left .2s; }
+.gi-switch input:checked + i { background: var(--navy); }
+.gi-switch input:checked + i::after { left: 19px; }
+.gi-switch input:focus-visible + i { outline: 2px solid var(--navy); outline-offset: 2px; }
+.gi-switch > span { display: inline-flex; gap: 6px; align-items: center; }
+
+.gi-fold { background: var(--theme-card, #fff); border: 1px solid var(--border); border-radius: 14px; margin-bottom: 16px; }
+.gi-fold > summary { display: flex; gap: 12px; align-items: center; padding: 10px 14px; cursor: pointer; list-style: none; }
+.gi-fold > summary::-webkit-details-marker { display: none; }
+.gi-fold .gi-chip.gi-sm { width: 36px; height: 36px; }
+.gi-fold-text { flex: 1; display: grid; min-width: 0; }
+.gi-fold-text small { color: var(--muted); }
+.gi-fold-toggle { display: inline-flex; gap: 4px; align-items: center; color: var(--navy); font-weight: 600; font-size: 14px; }
+.gi-fold[open] .when-closed, .gi-fold:not([open]) .when-open { display: none; }
+.gi-fold[open] .gi-fold-toggle svg { transform: rotate(180deg); }
+.gi-fold-body { padding: 0 14px 4px; }
+.gi-fold-body > .review-card { margin-bottom: 14px; }
+
+.gi-req { margin-bottom: 12px; }
+.gi-req > summary { display: flex; gap: 8px; align-items: center; cursor: pointer; list-style: none; color: var(--muted); font-size: 14px; }
+.gi-req > summary::-webkit-details-marker { display: none; }
+.gi-req > summary > span { flex: 1; }
+.gi-req[open] > summary svg:last-child { transform: rotate(180deg); }
+.gi-req.is-ready > summary { color: var(--success-text); }
+.gi-req .approval-checklist { margin-top: 8px; }
+
+.gi-decide { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.gi-decide button { display: inline-flex; gap: 8px; align-items: center; justify-content: center; flex: none; }
+.review-action-grid button.review-button-locked, html[data-theme="dark"] .review-action-grid button.review-button-locked { background: var(--surface-alt) !important; color: var(--faint) !important; border: 1px dashed var(--border) !important; cursor: not-allowed; box-shadow: none; }
+.gi-lockline { display: flex; gap: 6px; align-items: center; margin: 4px 0 0; color: var(--muted); font-size: 13.5px; }
+@media (max-width: 620px) { .gi-decide { grid-template-columns: 1fr; } }
+.staff-application-review .review-action-grid.gi-decide { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.staff-application-review .review-action-grid.gi-decide button { padding-left: 8px; padding-right: 8px; line-height: 1.25; }
+.gi-decide button::before, .gi-decide button::after { content: none !important; }
+@media (max-width: 620px) { .staff-application-review .review-action-grid.gi-decide { grid-template-columns: 1fr; } }

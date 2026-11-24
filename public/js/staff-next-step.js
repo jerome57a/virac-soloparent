@@ -21,8 +21,8 @@ window.virScheduleConfirm = function (form) {
  *   - a document marked Needs Correction  -> the correction SMS review (Confirm and Send);
  *   - every document verified             -> the "Schedule the interview" form (date, time, SMS).
  * The forms live in hidden holders on the page (#correction-review, #schedule-modal-source) and are moved into the popup and put back
- * when it closes, so nothing is duplicated and closing the popup loses nothing. The buttons marked data-next-step-open and the "Next step"
- * banner open it. It opens by itself when the page was reached from Save Verification (data-auto="1"), after a scheduling error, or
+ * when it closes, so nothing is duplicated and closing the popup loses nothing. The buttons marked data-next-step-open open it (the
+ * correction step also has a "Next step" banner on the document card; the schedule step has only the button on its own card). It opens by itself when the page was reached from Save Verification (data-auto="1"), after a scheduling error, or
  * from a link to #schedule-interview (the dashboard's Ready to Schedule list). */
 (function () {
   var tag = document.currentScript;
@@ -87,14 +87,17 @@ window.virScheduleConfirm = function (form) {
       if (current) { giveBack(current); current = null; }
     });
 
-    // The "Next step" banner on the document card (always there while a step is waiting).
+    // The "Next step" banner on the document card: only for the correction SMS, which has no card of its own. The interview is
+    // scheduled from the "Schedule the interview date" card (its single button), so no second banner or button is added for it.
     var card = document.getElementById('checklist');
-    if (card) {
+    var bannerStep = null;
+    steps.forEach(function (s) { if (s.key === 'correction') { bannerStep = s; } });
+    if (card && bannerStep) {
       var banner = document.createElement('div');
       banner.className = 'info-box';
       banner.style.maxWidth = 'none';
       banner.setAttribute('role', 'status');
-      var first = steps[0];
+      var first = bannerStep;
       banner.innerHTML = '<strong></strong> <span></span> ';
       banner.querySelector('strong').textContent = first.title + '.';
       banner.querySelector('span').textContent = first.hint;

@@ -17,22 +17,18 @@ $recentActivity = [
     ['action' => 'User Updated', 'actor_name' => 'Example Administrator', 'created_at' => '2026-11-09 10:15:00'],
     ['action' => 'Login', 'actor_name' => 'Example Staff', 'created_at' => '2026-11-09 09:52:00'],
 ];
-// Detail rows for the opened "Needs attention" items (failed SMS, locked accounts).
-function sms_kind_label(?string $key): string { return $key === 'interview_date_assigned' ? 'Interview date set by MSWDO staff' : 'Renewal Reminder'; }
-class SMSService { public static function failureHelp(?string $e): array { return ['cause' => 'The SMS token is invalid, or it has no SMS credit left.']; } }
-$failedSmsRows = [['id' => 1, 'application_id' => 7, 'template_key' => 'interview_date_assigned', 'mobile' => '09171234567', 'error' => 'no load balance', 'sent_at' => '2026-11-22 09:12:00', 'reference_no' => 'VIRAC-SP-2026-0007']];
-$expiryNotSent = [['id' => 9, 'full_name' => 'Example Renewing Parent', 'reference_no' => 'VIRAC-SP-2025-0021', 'id_expires_at' => '2026-11-20']];
-$releaseOverdue = ['count' => 1, 'rows' => [['full_name' => 'Example Approved Parent', 'reference_no' => 'VIRAC-SP-2026-0011', 'scheduled_at' => '2026-11-18 10:00:00', 'location' => 'MSWDO Office']]];
-$staleApps = ['count' => 1, 'rows' => [['full_name' => 'Example Waiting Parent', 'reference_no' => 'VIRAC-SP-2026-0004', 'status' => 'Pending Review', 'last_change' => '2026-11-10 08:00:00']]];
-$lockedUsers = [['id' => 3, 'full_name' => 'Example Solo Parent', 'role' => 'applicant', 'locked_until' => '2026-11-23 10:30:00']];
+$expiryNotSentCount = 1; $releaseOverdueCount = 1; $staleCount = 1;
+// The setup checklist: two of five steps done (hidden once every step is done).
+$setupStep = fn(string $label, string $hint, bool $done) => ['label' => $label, 'hint' => $hint, 'done' => $done, 'href' => '#', 'icon' => 'info'];
+$setup = ['steps' => [$setupStep('Staff accounts created', 'User Management: add the MSWDO staff who will process applications.', true), $setupStep('Document requirements set', 'System Settings: choose the documents a Solo Parent must upload.', true), $setupStep('SMS provider connected', 'The text messages are only sent when the SMS provider and its token are set on the server.', false), $setupStep('Renewal period checked', 'System Settings: confirm how long after the ID expires a Solo Parent can still renew.', false), $setupStep('A text message was sent', 'SMS Management: confirm that a real text reaches a phone.', false)], 'done' => 2, 'total' => 5];
 if ($state === 'empty') {
     $stats = array_fill_keys(array_keys($stats), 0); $stats['expiringWindow'] = 30;
     $userStats = array_fill_keys(array_keys($userStats), 0);
     $auditStats = array_fill_keys(array_keys($auditStats), 0);
     $summary = ['thisMonth' => 0, 'lastMonth' => 0, 'approvalRate' => null, 'decided' => 0];
-    $recentActivity = []; $expiryNotSent = []; $releaseOverdue = ['count' => 0, 'rows' => []]; $staleApps = ['count' => 0, 'rows' => []]; $failedSmsRows = []; $lockedUsers = [];
+    $recentActivity = []; $expiryNotSentCount = 0; $releaseOverdueCount = 0; $staleCount = 0;
 } elseif ($state === 'clear') {
-    $stats['smsFailed'] = 0; $userStats['locked'] = 0; $expiryNotSent = []; $releaseOverdue = ['count' => 0, 'rows' => []]; $staleApps = ['count' => 0, 'rows' => []]; $failedSmsRows = []; $lockedUsers = [];
+    $setup['done'] = $setup['total']; $stats['smsFailed'] = 0; $userStats['locked'] = 0; $expiryNotSentCount = 0; $releaseOverdueCount = 0; $staleCount = 0;
 } elseif ($state === 'large') {
     $stats['totalApplications'] = 12345678; $stats['pendingNew'] = 999999;
     $userStats['applicants'] = 9876543;

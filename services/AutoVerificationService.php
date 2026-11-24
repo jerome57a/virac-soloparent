@@ -27,6 +27,13 @@ class AutoVerificationService
     public const MIN_SHARPNESS = 100.0;
     public const MIN_BRIGHTNESS = 40.0;
     public const MAX_BRIGHTNESS = 250.0;
+    /**
+     * ID pictures (the "Two 1x1 ID pictures" requirement, and the older 2x2 photo) are faces, not documents: there is no name or text on
+     * them to read, and a 1x1 inch picture is only about 300 pixels wide at 300 dpi. They skip the text-reading (OCR) name check, and
+     * their size limit is MIN_PHOTO_SIDE. Darkness, brightness and blur are still checked.
+     */
+    public const PHOTO_KEYS = ['photo', 'photo1x1'];
+    public const MIN_PHOTO_SIDE = 300;
     /** OCR name matching: the share of a name's words that must appear on the document, and the least text that counts as readable. */
     public const NAME_MATCH_MIN = 0.5;
     public const OCR_MIN_CHARS = 15;
@@ -85,7 +92,7 @@ class AutoVerificationService
         }
         return self::evaluate($app, $children, $checklist, [
             'sameApplication' => $sameApplication, 'otherApplications' => $otherApplications, 'samePerson' => $samePerson,
-        ], fn(array $doc): ?array => $this->imageQuality($doc), null,
+        ], fn(array $doc, bool $isPhoto = false): ?array => $this->imageQuality($doc, $isPhoto), null,
             $withOcr && self::ocrAvailable() ? $this->budgetedOcr() : null);
     }
 
@@ -157,7 +164,7 @@ class AutoVerificationService
      * @param array $children   rows with full_name and birthdate
      * @param array $checklist  Document::checklistForReview() rows (is_required, label, doc_key, uploaded_document?)
      * @param array $duplicates ['sameApplication' => sha => [doc_key...], 'otherApplications' => sha => count, 'samePerson' => int]
-     * @param callable $quality fn(array $uploadedDocument): ?array{issues: string[]} -- null when the file cannot be measured
+     * @param callable $quality fn(array $uploadedDocument, bool $isIdPicture = false): ?array{issues: string[]} -- null when the file cannot be measured
      */
     public static function evaluate(array $app, array $children, array $checklist, array $duplicates, callable $quality, ?string $today = null, ?callable $ocr = null): array
     {
@@ -280,7 +287,8 @@ class AutoVerificationService
                     $problems[] = 'The same file appears in another Solo Parent\'s application.';
                 }
             }
-            $measured = $quality($doc);
+            $isPicture = in_array($scope, self::PHOTO_KEYS, true);
+            $measured = $quality($doc, $isPicture);
             foreach (($measured['issues'] ?? []) as $issue) {
                 $problems[] = $issue;
             }
@@ -290,8 +298,9 @@ class AutoVerificationService
                 $add('file', $scope, self::PASS, $label, $measured === null ? 'File is valid (quality is not measured for this type).' : 'File is readable and not a duplicate.');
             }
 
-            // Does the text on the document contain the applicant's (or a child's) name? Only when OCR is available.
-            $text = $ocr !== null && $measured !== null ? $ocr($doc) : null;
+            // Does the text on the document contain the applicant's (or a child's) name? Only when OCR is available, and never for an
+            // ID picture: a face has no name or text to read, so it would be flagged every time.
+            $text = $ocr !== null && $measured !== null && !$isPicture ? $ocr($doc) : null;
             if ($text !== null) {
                 $names = array_merge([(string) ($app['full_name'] ?? '')], array_map(fn($c) => (string) ($c['full_name'] ?? ''), $children));
                 $best = 0.0;
@@ -492,7 +501,7 @@ class AutoVerificationService
      *
      * @return ?array{issues: string[]}
      */
-    private function imageQuality(array $doc): ?array
+    private function imageQuality(array $doc, bool $isPicture = false): ?array
     {
         if (!in_array($doc['mime'] ?? '', ['image/jpeg', 'image/png'], true) || !defined('STORAGE_PATH') || !function_exists('imagecreatefromjpeg')) {
             return null;
@@ -503,14 +512,18 @@ class AutoVerificationService
             return ['issues' => ['The stored file could not be found.']];
         }
         $m = self::measureImage($path);
-        return $m === null ? null : ['issues' => self::imageIssues($m)];
+        return $m === null ? null : ['issues' => self::imageIssues($m, $isPicture)];
     }
 
-    /** Plain-words problems for one measurement from measureImage(). */
-    public static function imageIssues(array $m): array
+    /** Plain-words problems for one measurement from measureImage(). $isPicture: an ID picture, which is small by nature. */
+    public static function imageIssues(array $m, bool $isPicture = false): array
     {
         $issues = [];
-        if (min($m['width'], $m['height']) < self::MIN_IMAGE_SIDE) {
+        if ($isPicture) {
+            if (min($m['width'], $m['height']) < self::MIN_PHOTO_SIDE) {
+                $issues[] = 'Small picture (' . $m['width'] . '×' . $m['height'] . ' px); it may print blurry.';
+            }
+        } elseif (min($m['width'], $m['height']) < self::MIN_IMAGE_SIDE) {
             $issues[] = 'Low resolution (' . $m['width'] . '×' . $m['height'] . ' px); text may be unreadable.';
         }
         if ($m['brightness'] !== null) {

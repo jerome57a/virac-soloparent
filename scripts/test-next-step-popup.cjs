@@ -1,6 +1,6 @@
 /* Next-step popup test (staff application page): drives public/js/staff-next-step.js in a real browser with a minimal page that has the same
  * element ids the real page has. Checks: which popup opens after Save Verification (data-auto=1), that the page's own form is moved into the
- * popup and put back on close, that the "Next step" banner reopens it, that nothing opens when nothing is waiting or on a plain page view,
+ * popup and put back on close, that the correction step's "Next step" banner reopens it (the schedule step has only the button on its own card), that nothing opens when nothing is waiting or on a plain page view,
  * and that a scheduling error reopens the schedule popup. No server, no database, no network.
  *
  *   NODE_PATH=scripts/node_modules node scripts/test-next-step-popup.cjs
@@ -67,7 +67,8 @@ const check = (ok, msg) => { if (!ok) { failures++; console.log('FAIL: ' + msg);
     await p.click('button[data-next-step-open="schedule"]');
     await p.waitForTimeout(500);
     check(await open(p) && await inModal(p, '#sched-form'), 'the page button should open the schedule popup at any time');
-    check((await p.$('#checklist .info-box button')) !== null, 'the banner is still shown so staff know the next step');
+    check((await p.$('#checklist .info-box button')) === null, 'the schedule step has no banner: its own card holds the single button');
+    check((await p.$$('[data-next-step-open="schedule"]')).length === 1, 'exactly one Schedule the interview button');
   });
 
   await run({ correction: false, schedule: true, scheduleError: true, auto: false }, async (p) => {

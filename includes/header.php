@@ -53,6 +53,7 @@ if (!empty($staff)) {
 <link rel="stylesheet" href="<?= public_asset('css/preferences.css') ?>">
 <?php if (!empty($useAdminWorkspace)): ?><link rel="stylesheet" href="<?= public_asset('css/admin-workspace.css') ?>"><?php endif; ?>
 <?php if (!empty($useStaffWorkspace)): ?><link rel="stylesheet" href="<?= public_asset('css/staff-workspace.css') ?>"><?php endif; ?>
+<?php if ($isPersonnelPortal): require_once APP_ROOT . '/includes/icons.php'; ?><link rel="stylesheet" href="<?= public_asset('css/guidance.css') ?>"><?php endif; ?>
 <?php if (($contentView ?? '') === 'views/staff/account.php'): ?><link rel="stylesheet" href="<?= public_asset('css/personnel-account.css') ?>"><?php endif; ?>
 </head>
 <body<?= !empty($staff) ? ' class="portal-body' . ($isPersonnelPortal ? ' personnel-portal' : '') . (($staff['role'] ?? '') === 'admin' ? ' admin-portal' : ' staff-portal') . '"' : '' ?>>
@@ -103,87 +104,17 @@ if (!empty($staff)) {
     </button>
   </div>
   <nav class="nav-drawer-list" aria-label="Main navigation" data-i18n-attrs="aria-label">
-    <?php if (!empty($staff)): ?>
-      <div class="nav-drawer-section-label" data-i18n>Main</div>
-
-      <a href="<?= base_url($staff['role'] === 'admin' ? 'admin/dashboard.php' : 'staff/dashboard.php') ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive('admin/dashboard.php', 'staff/dashboard.php') ?>">
-        <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>
-        <span data-i18n>Dashboard</span>
-      </a>
-      <a href="<?= base_url($staff['role'] === 'admin' ? 'admin/notifications.php' : 'staff/notifications.php') ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive('admin/notifications.php', 'staff/notifications.php') ?>">
-        <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-        <span data-i18n>Notifications</span>
-      </a>
-      <?php if (can($staff, 'applications.process')): ?>
-      <a href="<?= base_url('staff/index.php') ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive('staff/index.php', 'staff/application.php') ?>">
-        <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
-        <span data-i18n>Applications</span>
-      </a>
-      <?php endif; ?>
-      <?php if (can($staff, 'applicants.view')): ?>
-      <a href="<?= base_url(role_portal_path($staff, 'applicants.php')) ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive('staff/applicants.php', 'staff/applicant_view.php', 'admin/applicants.php', 'admin/applicant_view.php') ?>">
-        <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-        <span data-i18n>Solo Parent Records</span>
-      </a>
-      <?php endif; ?>
-      <?php if (can($staff, 'appointments.view')): ?>
-      <a href="<?= base_url(role_portal_path($staff, 'appointments.php')) ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive('staff/appointments.php', 'admin/appointments.php') ?>">
-        <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        <span data-i18n><?= $staff['role'] === 'admin' ? 'Appointment Overview' : 'Appointment Management' ?></span><?php if (($staff['role'] ?? '') !== 'admin'): require_once APP_ROOT . '/includes/sms-attention.php'; $outcomeWaiting = staff_outcome_waiting_count() + staff_release_overdue_count(); if ($outcomeWaiting > 0): ?><span style="margin-left:8px;background:#b45309;color:#fff;border-radius:999px;padding:1px 8px;font-size:12px;font-weight:700" aria-label="<?= (int) $outcomeWaiting ?> interviews to confirm or ID releases whose date passed" title="Interviews to confirm and ID releases whose date passed"><?= (int) $outcomeWaiting ?></span><?php endif; endif; ?>
-      </a>
-      <?php endif; ?>
-      <?php if (($staff['role'] ?? '') !== 'admin' && can($staff, 'applications.process')): require_once APP_ROOT . '/includes/sms-attention.php'; $docWaiting = staff_doc_waiting_counts(); ?>
-      <a href="<?= base_url('staff/dashboard.php#verification-queue') ?>" class="nav-drawer-link nav-drawer-link-icon" id="nav-docs-to-verify">
-        <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><polyline points="9 15 11 17 15 13"/></svg>
-        <span>Documents to Verify</span><?php if ($docWaiting['applications'] > 0): ?><span data-doc-badge style="margin-left:8px;background:<?= $docWaiting['resent'] > 0 ? '#b45309' : '#1b3a6b' ?>;color:#fff;border-radius:999px;padding:1px 8px;font-size:12px;font-weight:700"><?= (int) $docWaiting['applications'] ?></span><?php endif; ?>
-      </a>
-      <?php endif; ?>
-      <?php if (($staff['role'] ?? '') !== 'admin' && can($staff, 'applications.process')): $smsAttention = staff_sms_attention_count(); ?>
-      <a href="<?= base_url('staff/sms.php') ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive('staff/sms.php') ?>">
-        <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="12" y1="8" x2="12" y2="11"/><line x1="12" y1="14" x2="12.01" y2="14"/></svg>
-        <span data-i18n>Failed Texts</span><?php if ($smsAttention > 0): ?><span style="margin-left:8px;background:#b3261e;color:#fff;border-radius:999px;padding:1px 8px;font-size:12px;font-weight:700" aria-label="<?= (int) $smsAttention ?> failed texts need attention"><?= (int) $smsAttention ?></span><?php endif; ?>
-      </a>
-      <?php endif; ?>
-      <?php if (can($staff, 'reports.view')): ?>
-      <a href="<?= base_url($staff['role'] === 'admin' ? 'admin/reports.php' : 'staff/reports.php') ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive('admin/reports.php', 'staff/reports.php') ?>">
-        <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-        <span data-i18n>Reports</span>
-      </a>
-      <?php endif; ?>
-
-      <?php if (can($staff, 'admin.dashboard')): ?>
-        <div class="nav-drawer-section-label" data-i18n>Administration</div>
-        <a href="<?= base_url('admin/eligibility_logs.php') ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive('admin/eligibility_logs.php') ?>">
-          <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18H6z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>
-          <span data-i18n>Eligibility Logs</span>
+    <?php if (!empty($staff)): require_once APP_ROOT . '/includes/staff-nav.php'; $staffNavIcons = staff_nav_icons(); ?>
+      <?php /* Grouped by purpose, with a number badge where work is waiting (see includes/staff-nav.php). */ ?>
+      <?php foreach (staff_nav_groups($staff, (int) ($navBell['count'] ?? 0)) as $navGroup): ?>
+        <div class="nav-drawer-section-label" data-i18n><?= e($navGroup['label']) ?></div>
+        <?php foreach ($navGroup['items'] as $navItem): ?>
+        <a href="<?= e($navItem['href']) ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive(...$navItem['pages']) ?>"<?= $navItem['id'] ? ' id="' . e($navItem['id']) . '"' : '' ?>>
+          <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><?= $staffNavIcons[$navItem['key']] ?? '' ?></svg>
+          <span<?= $navItem['translate'] ? ' data-i18n' : '' ?>><?= e($navItem['label']) ?></span><?php if ($navItem['badge'] > 0): ?><span<?= $navItem['key'] === 'verification' ? ' data-doc-badge' : '' ?> class="nav-staff-badge" style="background:<?= e($navItem['tone']) ?>" aria-label="<?= (int) $navItem['badge'] ?> waiting"><?= (int) $navItem['badge'] ?></span><?php endif; ?>
         </a>
-        <a href="<?= base_url('admin/applications.php') ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive('admin/applications.php', 'admin/application_view.php') ?>">
-          <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-          <span>Application Monitoring</span>
-        </a>
-        <a href="<?= base_url('admin/users.php') ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive('admin/users.php', 'admin/user_edit.php') ?>">
-          <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          <span data-i18n>User Management</span>
-        </a>
-        <a href="<?= base_url('admin/sms.php') ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive('admin/sms.php') ?>">
-          <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          <span>SMS Management</span>
-        </a>
-        <a href="<?= base_url('admin/settings.php') ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive('admin/settings.php', 'admin/requirements.php') ?>">
-          <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          <span data-i18n>System Settings</span>
-        </a>
-        <a href="<?= base_url('admin/audit_log.php') ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive('admin/audit_log.php') ?>">
-          <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12h6"/><path d="M9 16h6"/><path d="M13 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M13 3v5h5"/></svg>
-          <span data-i18n>Audit Logs</span>
-        </a>
-      <?php endif; ?>
-
-      <div class="nav-drawer-section-label" data-i18n>Account</div>
-      <a href="<?= base_url(role_portal_path($staff, 'account.php')) ?>" class="nav-drawer-link nav-drawer-link-icon<?= $navActive('staff/account.php', 'admin/account.php') ?>">
-        <svg aria-hidden="true" focusable="false" class="nav-drawer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-        <span data-i18n>My Account</span>
-      </a>
+        <?php endforeach; ?>
+      <?php endforeach; ?>
       <form method="post" action="<?= base_url(role_portal_path($staff, 'logout.php')) ?>" class="nav-drawer-logout-form">
         <?= csrf_field() ?>
         <button type="submit" class="nav-drawer-link nav-drawer-link-icon nav-drawer-logout">
@@ -191,7 +122,7 @@ if (!empty($staff)) {
           <span data-i18n>Log Out</span>
         </button>
       </form>
-    <?php else: ?>
+<?php else: ?>
     <?php
     // Signed-in applicants return to their dashboard sections from standalone pages.
     // Visitors continue to use the public portal.

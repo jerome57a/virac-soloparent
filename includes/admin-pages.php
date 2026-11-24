@@ -9,6 +9,7 @@ return [
     'applications.php' => ['Application Monitoring', 'Track submitted applications and renewals. MSWDO staff handle approval, corrections, and rejection.', 'Administration', ['Application status' => 'admin-application-status', 'Filters' => 'admin-application-filters', 'Results' => 'admin-application-results']],
     'users.php' => ['User Management', 'Find accounts, manage access, and create accounts for new users.', 'Administration', ['Accounts' => 'admin-user-list', 'Create Account' => 'admin-user-create']],
     'sms.php' => ['SMS Management', 'Check message delivery, review failed messages, and manage notification templates.', 'Administration', ['SMS Logs' => 'admin-sms-logs', 'Send a Test SMS' => 'admin-sms-test', 'Notification Templates' => 'admin-sms-templates']],
+    'expiry_sms.php' => ['ID expiry SMS not sent', 'Solo Parents whose ID expired and who did not get the expiry text on that day. MSWDO staff can send it from Failed Texts.', 'Administration', ['Not sent' => 'admin-expiry-sms']],
     'settings.php' => ['System Settings', 'Choose a settings section and save it separately. Changes are recorded in the audit log.', 'Administration', ['Settings sections' => 'admin-settings-sections', 'Reminder Jobs' => 'jobs', 'Server' => 'server']],
     'audit_log.php' => ['Audit Logs', 'Find who performed an action and when. Audit records are permanent and cannot be edited here.', 'Administration', ['Event category' => 'admin-audit-categories', 'Filters' => 'admin-audit-filters', 'Results' => 'admin-audit-results']],
 ];

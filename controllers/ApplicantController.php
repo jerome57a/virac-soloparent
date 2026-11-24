@@ -148,7 +148,40 @@ class ApplicantController extends Controller
             'contentView' => 'views/applicant/' . $result['view'],
             'unreadNotificationCount' => (new Notification($this->pdo))->unreadCount((int) $this->user['id']),
             'documentsToFixCount' => count($this->documentsToFix()),
+            'navState' => $this->menuState(),
         ]));
+    }
+
+    /**
+     * Which menu items fit this Solo Parent right now (true = show), and whether a date must be chosen (badge on Appointment):
+     *  apply        no application yet, a rejected one, a draft in progress, or the renewal period ended (apply again);
+     *  application, documents  once an application exists;   appointment  while an application is in progress;
+     *  myid         once the ID is approved (release scheduled) or released;   renewal  from the expiration date, or if one exists.
+     * Any failure shows everything: a menu must never hide a page by mistake.
+     */
+    private function menuState(): array
+    {
+        try {
+            $latest = $this->applications[0] ?? null;
+            $idApplication = $this->idApplication();
+            $renewal = $this->renewalInfo($idApplication);
+            $hasDraft = (new ApplicationService($this->pdo))->draftSummary($this->user) !== null;
+            $hasRenewal = (bool) array_filter($this->applications, fn($a) => $a['type'] === 'renewal');
+            $bookable = (new AppointmentService($this->pdo))->findBookableApplication($this->applications);
+            $options = $bookable ? (new InterviewBookingService($this->pdo))->options($this->user, $bookable) : null;
+            return [
+                'apply' => !$latest || $latest['status'] === 'Rejected' || $hasDraft || $renewal['state'] === 'closed',
+                'application' => (bool) $latest,
+                'documents' => (bool) $latest,
+                'appointment' => $latest && $latest['status'] !== 'Rejected',
+                'myid' => $this->viewableIdApplication() !== null,
+                'renewal' => in_array($renewal['state'], ['due', 'expired', 'in_progress'], true) || $hasRenewal,
+                'chooseDate' => $options !== null && ($options['state'] ?? '') === 'open',
+            ];
+        } catch (Throwable $e) {
+            error_log('Solo Parent menu state failed: ' . $e->getMessage());
+            return [];
+        }
     }
 
     /**
@@ -259,8 +292,7 @@ class ApplicantController extends Controller
     /**
      * Renewal status of the applicant's released ID: state is none (no
      * released ID), in_progress (a renewal is already being processed),
-     * expired, due (within the renewal window, admin-configurable, default
-     * 30 days) or valid.
+     * expired, due (it expires today: renewal opens on the expiration date) or valid.
      */
     private function renewalInfo(?array $idApplication): array
     {
@@ -272,12 +304,11 @@ class ApplicantController extends Controller
         if (!$idApplication || $idApplication['status'] !== 'ID Released' || !$idApplication['id_expires_at']) {
             return ['state' => 'none'];
         }
-        $windowDays = (int) get_setting($this->pdo, 'renewal_reminder_days', '30');
         $graceDays = max(1, (int) get_setting($this->pdo, 'renewal_grace_days', '365'));
         $daysLeft = (int) floor((strtotime($idApplication['id_expires_at']) - strtotime('today')) / 86400);
         // closed: the renewal period after expiry ended, so the Solo Parent applies again as a new application.
-        $state = $daysLeft < -$graceDays ? 'closed' : ($daysLeft < 0 ? 'expired' : ($daysLeft <= $windowDays ? 'due' : 'valid'));
-        return ['state' => $state, 'daysLeft' => $daysLeft, 'expiresAt' => $idApplication['id_expires_at'], 'windowDays' => $windowDays];
+        $state = $daysLeft < -$graceDays ? 'closed' : ($daysLeft < 0 ? 'expired' : ($daysLeft === 0 ? 'due' : 'valid'));
+        return ['state' => $state, 'daysLeft' => $daysLeft, 'expiresAt' => $idApplication['id_expires_at']];
     }
 
     /** Soonest appointment still ahead, across all of the applicant's applications. */

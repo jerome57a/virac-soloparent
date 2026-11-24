@@ -252,7 +252,7 @@ class SettingsService
             }
         }
         if ($section === 'renewals' && (int) $new['renewal_reminder_days'] >= (int) $new['id_validity_years'] * 365) {
-            return 'The renewal reminder period must be shorter than the ID validity.';
+            return 'The Expiring IDs look-ahead must be shorter than the ID validity.';
         }
         return null;
     }

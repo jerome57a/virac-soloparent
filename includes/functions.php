@@ -537,7 +537,7 @@ function sms_kind_label(?string $key): string
         'interview_date_assigned_custom' => 'Interview date set by MSWDO staff (custom)', 'interview_date_booked' => 'Interview date booked',
         'appointment_reminder' => 'Appointment reminder', 'appointment_cancelled' => 'Appointment cancelled', 'appointment_missed' => 'Appointment missed',
         'id_release_scheduled' => 'ID release scheduled', 'id_release_custom' => 'ID release scheduled (custom)', 'renewal_submitted' => 'Renewal received',
-        'renewal_reminder' => 'Renewal reminder', 'renewal_expired' => 'Renewal reminder (expired)', 'document_correction' => 'Document correction',
+        'renewal_reminder' => 'ID expiry-day text', 'renewal_expired' => 'ID expired text (sent late)', 'document_correction' => 'Document correction',
     ];
     return $kinds[(string) $key] ?? ((string) $key !== '' ? ucfirst(str_replace('_', ' ', (string) $key)) : 'Message');
 }

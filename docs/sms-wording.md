@@ -24,9 +24,9 @@ back to the full wording.
 | Message | Compact | Full |
 |---|---|---|
 | Application received, renewal received / reminder / expired, appointment reminder, interview booked | shortened templates (`SMSService::COMPACT_TEMPLATES`) | `SMSService::TEMPLATES` |
-| Interview scheduled by staff | "Interview for {ref} is on Mon, Nov 23, 2026, 7AM-5PM. Come then, or log in to e-SoloParentID to pick another date." | the long date, "7:00 AM to 5:00 PM", the office address and "log in to your e-SoloParentID account" |
+| Interview scheduled by staff | "Interview for {ref} is on Mon, Nov 23, 2026, 7AM-5PM. Bring valid ID, 2 1x1 pics. Log in to pick another date." (a renewal: "…7AM-5PM. Bring Solo Parent ID, valid ID, 2 1x1 pics.") | the long date, "7:00 AM to 5:00 PM", the office address and "log in to your e-SoloParentID account", then "Bring a valid ID and two 1x1 pictures." (a renewal: "Bring your current Solo Parent ID, a valid ID and two 1x1 pictures.") |
 | Document needs correction | "Your "{document}" needs correction. Log in, open Documents and upload a new file." (a count replaces the names when they do not fit) | `SMSService::CORRECTION_BODY` (the approved wording) |
-| ID release scheduled (automatic text) | "ID release on {when} at {location}. Bring a valid ID." | `SMSService::idReleaseTemplate()` full text |
+| ID release scheduled (automatic text) | "ID release on {when} at {location}. Bring a valid ID." | `SMSService::idReleaseTemplate()` full text (ends "…at your scheduled time and bring a valid ID.") |
 
 Templates that are not in the table (status change, password reset, appointment cancelled or missed) are not affected.
 Staff-written custom messages are never changed.

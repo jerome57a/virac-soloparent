@@ -20,7 +20,7 @@ require APP_ROOT . '/includes/csrf.php';
 require APP_ROOT . '/controllers/AdminController.php';
 require APP_ROOT . '/controllers/StaffController.php';
 $pdo->exec('START TRANSACTION READ ONLY');
-$actions = ['notifications.php' => 'notifications', 'applicants.php' => 'applicants', 'appointments.php' => 'appointments', 'reports.php' => 'reports', 'eligibility_logs.php' => 'eligibilityLogs', 'applications.php' => 'applications', 'users.php' => 'users', 'sms.php' => 'sms', 'settings.php' => 'settings', 'audit_log.php' => 'auditLog'];
+$actions = ['notifications.php' => 'notifications', 'applicants.php' => 'applicants', 'appointments.php' => 'appointments', 'reports.php' => 'reports', 'eligibility_logs.php' => 'eligibilityLogs', 'applications.php' => 'applications', 'users.php' => 'users', 'expiry_sms.php' => 'expirySms', 'sms.php' => 'sms', 'settings.php' => 'settings', 'audit_log.php' => 'auditLog'];
 $actions['account.php'] = 'account';
 $isStaff = in_array($route, ['applicants.php', 'appointments.php', 'account.php'], true);
 $class = $isStaff ? StaffController::class : AdminController::class;

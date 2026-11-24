@@ -8,7 +8,7 @@ Virac, Catanduanes, Philippines**.
 > MariaDB 10.4) with real SMS through the IPROG gateway.
 >
 > **Checked:** PHP lint of every file; 14 database test suites that pass on an
-> isolated test instance; four offline suites (62, 156, 31 and 15 checks); a
+> isolated test instance; five offline suites (77, 156, 31, 15 and 11 checks); a
 > dark-mode contrast test of 28 screens at desktop and phone width; and the
 > public pages on the running site. Details and the exact commands are in
 > section 15.
@@ -115,7 +115,7 @@ access on its next request.
 | Interview day booking (section 5.1) | Implemented, switched on |
 | ID release scheduling, handover confirmation and one-year validity | Implemented |
 | SMS notifications, logs, failure alerts, Failed Texts page and retry | Implemented |
-| ID-expiry reminder 30 days before expiry (automatic) | Implemented |
+| ID-expiry SMS on the expiration date (automatic; renewal opens that day) | Implemented |
 | Reports with print and CSV, full CSV export for MSWDO admins | Implemented |
 | Audit log (append-only) | Implemented |
 | Help page and fixed FAQs | Implemented |
@@ -173,7 +173,7 @@ part of the system and are preserved as they are.
 Files: `index.php`, `portal.php`, `login.php`, `register.php`,
 `eligibility.php`, `views/home/`, `includes/portal/`.
 
-**Required Documents on the home screen.** Each category lists its documents, and every document opens a "How to get it" guide (where to get it, what to prepare, how to request it, fees and official references) without logging in. It is the same content as the signed-in Requirements Guide (`services/RequirementGuideService.php`, `includes/requirement-guides.php`); the 2x2 photo has no guide.
+**Required Documents on the home screen.** Each category lists its documents, and every document opens a "How to get it" guide (where to get it, what to prepare, how to request it, fees and official references) without logging in. It is the same content as the signed-in Requirements Guide (`services/RequirementGuideService.php`, `includes/requirement-guides.php`); the older 2x2 photo has no guide, and the 1x1 ID pictures have a general one.
 
 **Public status lookup** (`portal.php?tab=status`) accepts only an application
 reference number. It shows the status, the next step, dates (no times), the ID
@@ -237,7 +237,8 @@ confirmed. Staff can confirm a number for older accounts
    the card) — every item must be ticked for a Successful result. If the ID was lost or
    forgotten, staff tick **ID not shown** and give the reason (history and audit log). The
    renewal screen, the Appointment page and the interview SMS remind the Solo Parent to
-   bring the current Solo Parent ID and a valid ID (the compact SMS stays one text).
+   bring the current Solo Parent ID and a valid ID; the interview date text staff send also asks for **two 1x1
+   pictures** (a valid ID and two 1x1 pictures for a new application; the compact SMS stays one text).
 7. **ID release:** schedule the release date and text the Solo Parent. On the day, **Confirm handover**:
    the ID is given only to the Solo Parent in person (a required tick), and staff type the **start date
    and expiration date printed on the card** (pre-filled with today and one year later; a span far from
@@ -296,7 +297,7 @@ applications, possible duplicate Solo Parent, contact details, and image quality
 (width and height at least 600 pixels, brightness 40 to 250, sharpness at least
 100). Where Tesseract is installed, a name from the application must appear in at
 least half of the words read from each document (accents ignored, one-letter
-tolerance), within a 20 second budget. The result is ready, needs a closer look,
+tolerance), within a 20 second budget. The 1x1 ID pictures are the exception: a face has no name to read, so they skip this check, and they may be as small as 300 pixels (documents need 600). The result is ready, needs a closer look,
 or needs a fix, with a reason for each check, and is saved in
 `application_auto_checks`. It never rejects an application or marks a document
 verified: it only helps staff and the Solo Parent. It cannot prove a document is
@@ -312,10 +313,10 @@ document that has expired. One-time proofs (birth, marriage and death
 certificates, decrees, police and medical records) are not asked again. Each
 document is uploaded as a file through the same validation, held in the private
 draft folder until submission, then queued for staff verification. An uploaded
-file is **never** treated as verified. **Timing:** the form opens 30 days before the
-ID expires (`renewal_reminder_days`) so the Solo Parent can prepare and save it; it
-can be **submitted from the expiration date**; and it closes 365 days after expiry
-(`renewal_grace_days`), after which a new application is needed. **RA 11861:** a
+file is **never** treated as verified. **Timing:** renewal **opens on the expiration date**
+(there is no early window: the Solo Parent logs in on or after that day), and it closes 365 days after expiry
+(`renewal_grace_days`), after which a new application is needed. The setting `renewal_reminder_days` now only sets how far ahead the
+admin's "Expiring IDs" list looks; it does not open renewal. **RA 11861:** a
 qualifying child is 22 or younger, or over 22 with a disability that keeps them from
 fully taking care of themselves; the Solo Parent may update civil status and children
 and tick "With a disability", which adds a **PWD ID or medical certificate** upload. The
@@ -346,10 +347,10 @@ Notification Templates.
 | Text | How it is sent | Default |
 |---|---|---|
 | ID expired: **one SMS on the exact expiration date** (the date staff entered from the card); never before, never repeated; a failed SMS is retried the same day; a missed day is listed for staff (**Send now**) | **Automatic**, job `cron/renewal-reminders.php` (hourly) and the staff dashboard | On |
-| Interview date set by staff | Staff action (automatic or custom wording) | On |
+| Interview date set by staff (the automatic wording ends with what to bring: a valid ID and two 1x1 pictures, and the current Solo Parent ID for a renewal) | Staff action (automatic or custom wording) | On |
 | Document correction | Staff previews and confirms | On |
 | ID release scheduled | Staff action | On |
-| Appointment cancelled; interview missed (only when the Solo Parent cannot rebook) | Staff action | On |
+| Appointment cancelled (a missed interview is never texted; the Solo Parent sees an in-app notice instead) | Staff action | On |
 | Password reset code | On request, by SMS | On |
 | Sign-up confirmation code | At registration | Off |
 | Application received, renewal received, status update, interview date booked, appointment reminder, reminder after expiry | Automatic | **Off** |
@@ -505,7 +506,8 @@ storage folder and `TEST_DOCUMENT_ROOT`.
 | Script | Purpose |
 |---|---|
 | `database/tool_safety_guard_checks.php` | No-connection checks of the test-environment guard |
-| `database/test_auto_verification.php` | Offline: 62 checks of the automated verification rules and image quality |
+| `database/test_auto_verification.php` | Offline: 77 checks of the automated verification rules and image quality (including that the 1x1 ID pictures are not flagged for having no text) |
+| `database/test_interview_bring_note.php` | Offline: 11 checks of what the interview date text asks the Solo Parent to bring (valid ID, two 1x1 pictures, the current Solo Parent ID for a renewal), the compact wording length, and the ID release text |
 | `database/test_login_identifiers_offline.php` | Offline: 156 checks of username login, lockout, account creation and sign-up races |
 | `database/test_mobile_verification_offline.php`, `test_sms_notice_offline.php` | Offline: 31 and 15 checks (sign-up code, SMS outcome notice) |
 | `database/test_new_application_uploads.php` | New-application uploads: required files, replaced files, rechecks at submission, rollback, staff review |
@@ -518,6 +520,12 @@ storage folder and `TEST_DOCUMENT_ROOT`.
 | `database/test_document_verification_queue.php` | Staff verification queue: oldest application first, re-uploads marked, tile/badge/alert counts agree |
 | `database/test_unconfirmed_interview_release.php` | Unconfirmed interviews: released after the grace weekdays, booking reopened, not a counted miss, no SMS, others left alone |
 | `database/test_id_release_flow.php` | ID release: card dates and in-person tick, expired-document override, date correction, one SMS on the exact expiry date (same-day retry, no repeat), missed days for Send now |
+| `database/test_side_menu.php` | Side menus: staff and admin groups and items, nothing of the other role, number badges, and the Solo Parent menu by stage |
+| `database/test_staff_guide.php` | Guidance: step tracker and next action at every stage, admin setup checklist, and that every icon exists |
+| `database/test_expiry_sms_wording.php` | ID expiry SMS wording migration: old built-in text replaced, an administrator's text left alone, labels renamed, rerun changes nothing; the expiry day says "expires today", a missed day "expired on" |
+| `database/test_child_pwd_rules.php` | Child with a disability: the answer and tick, the server refuses when no child qualifies (new application and renewal), the required PWD ID or medical certificate, the saved flag, the staff checklist |
+| `scripts/test-child-pwd.cjs` | Children block (browser): Yes/No question, green/amber/red lines, red box and locked Continue, the extra document, Tagalog, dark mode, 320-1440px |
+| `scripts/test-application-clean.cjs` | Staff application page (browser): three decision buttons always shown with locked ones explained, Notes and Show all notes, folded Applicant details, light/dark, Tagalog, 320-1440px |
 | `database/test_staff_any_time_schedule.php` | Staff scheduling: today, right now, a weekend and any hour are accepted; past dates and invalid times refused; the time is saved |
 | `database/test_role_account_creation.php`, `test_user_account_actions.php`, `test_optional_applicant_gmail.php` | Account creation and actions |
 | `database/test_admin_management_layout.php`, `test_eligibility_history.php` | Admin lists and SMS filters; public eligibility and history |

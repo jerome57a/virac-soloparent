@@ -7,12 +7,17 @@
  * @var array $docDefs  the requirements of the chosen category
  * @var array $catOnlyKeys
  */
-$standardDocs = array_values(array_filter($docDefs, fn($d) => !in_array($d['doc_key'], $catOnlyKeys, true)));
+require_once APP_ROOT . '/includes/icons.php';
+require_once APP_ROOT . '/services/SoloParentChildRules.php';
+$proofDocs = array_values(array_filter($docDefs, fn($d) => $d['doc_key'] === SoloParentChildRules::PROOF_KEY));
+$standardDocs = array_values(array_filter($docDefs, fn($d) => !in_array($d['doc_key'], $catOnlyKeys, true) && $d['doc_key'] !== SoloParentChildRules::PROOF_KEY));
 $categoryDocs = array_values(array_filter($docDefs, fn($d) => in_array($d['doc_key'], $catOnlyKeys, true)));
 $groups = [['title' => 'Standard requirements', 'items' => $standardDocs]];
 if ($categoryDocs) { $groups[] = ['title' => 'Category-specific requirements', 'items' => $categoryDocs]; }
+if ($proofDocs) { $groups[] = ['title' => 'For your child with a disability', 'items' => $proofDocs]; }
 $maxMb = (string) document_rules()['max_mb'];
 ?>
+<link rel="stylesheet" href="<?= public_asset('css/children.css') ?>">
 <form method="post" enctype="multipart/form-data" class="apply-step-form"<?= !empty($isApplicationWizard) ? ' id="application-step-form"' : '' ?>>
   <?= csrf_field() ?>
   <?php if (!empty($isApplicationWizard)): ?><input type="hidden" name="wizard_step" value="3"><?php endif; ?>
@@ -30,6 +35,7 @@ $maxMb = (string) document_rules()['max_mb'];
         <div class="checklist-row doc-upload-card" style="flex-wrap:wrap">
           <span class="checklist-row-label"><label for="<?= $inputId ?>" class="checklist-document-name" data-i18n><?= e($d['label']) ?></label><span class="checklist-requirement" data-i18n><?= !empty($d['is_required']) ? 'Required' : 'Optional' ?></span></span>
           <div style="flex-basis:100%" class="doc-upload-body">
+            <?php if (!empty($d['reason'])): ?><p class="doc-proof-reason"><?= ui_icon('info', 16) ?><span data-i18n><?= e($d['reason']) ?></span></p><?php endif; ?>
             <?php if ($staged && !$problem): ?>
               <p class="small mb-1 doc-upload-status is-ready"><strong data-i18n>File ready to submit:</strong> <?= e($staged['original_name'] ?? '') ?><?php if (!empty($staged['size'])): ?> (<?= e(number_format(((int) $staged['size']) / 1024, 0)) ?> KB)<?php endif; ?></p>
             <?php elseif (!empty($d['is_required'])): ?>

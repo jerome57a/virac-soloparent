@@ -31,3 +31,12 @@ html[data-theme="dark"] #staff-dashboard .stat-tile.is-open { outline-color: #7f
 .ad-more[open] > summary { margin-bottom: 16px; }
 .ad-more[open] > summary .ad-details-toggle { transform: rotate(45deg); }
 @media (max-width: 560px) { .ad-attention-detail { padding-inline: 16px; } }
+
+/* ---- Document Verification Queue page: All / Re-uploaded tabs ---- */
+.queue-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 8px; }
+.queue-tab { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border, #d9e1ec); border-radius: 999px; padding: 6px 14px; font-size: 13px; font-weight: 600;
+  color: var(--ink); background: var(--surface, #fff); text-decoration: none; }
+.queue-tab b { background: var(--surface-alt, #eef2f8); border-radius: 999px; padding: 0 8px; font-size: 12px; }
+.queue-tab.is-active { background: #1b3a6b; color: #fff; border-color: #1b3a6b; }
+.queue-tab.is-active b { background: rgba(255, 255, 255, .22); color: #fff; }
+html[data-theme="dark"] .queue-tab.is-active { background: #2f5fa8; border-color: #2f5fa8; }

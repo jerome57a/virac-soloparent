@@ -58,6 +58,11 @@ class Application extends Model
             $where .= ' AND (SELECT c.verdict FROM application_auto_checks c WHERE c.application_id = a.id ORDER BY c.id DESC LIMIT 1) = ?';
             $params[] = $filters['auto'];
         }
+        if (($filters['waiting'] ?? 0) > 0) {
+            // Pending Review / Under Verification with no status change for N days (the admin's "waiting" watch).
+            $where .= " AND a.status IN ('Pending Review','Under Verification')"
+                . ' AND COALESCE((SELECT MAX(h.changed_at) FROM application_status_history h WHERE h.application_id = a.id), a.submitted_at) < (NOW() - INTERVAL ' . (int) $filters['waiting'] . ' DAY)';
+        }
         if (($filters['barangay'] ?? '') !== '') {
             $where .= ' AND a.barangay LIKE ?';
             $params[] = '%' . $filters['barangay'] . '%';

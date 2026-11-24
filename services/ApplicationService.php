@@ -7,6 +7,7 @@ require_once __DIR__ . '/../models/Document.php';
 require_once __DIR__ . '/DocumentValidationService.php';
 require_once __DIR__ . '/SMSService.php';
 require_once __DIR__ . '/EmergencyContactService.php';
+require_once __DIR__ . '/SoloParentChildRules.php';
 
 /**
  * Thrown by ApplicationService::submit() when a required supporting document is missing, invalid or no
@@ -79,7 +80,8 @@ class ApplicationService
             'sex' => (string) ($profile['sex'] ?? ''),
             'civilStatus' => (string) ($profile['civil_status'] ?? ''),
             'categoryId' => null,
-            'children' => [['name' => '', 'birthdate' => '']],
+            'children' => [['name' => '', 'birthdate' => '', 'disability' => false]],
+            'hasPwdChild' => false,
             'documents' => [],
             'docErrors' => [],
             'consent' => false,
@@ -246,18 +248,27 @@ class ApplicationService
             $names = is_array($post['child_name'] ?? null) ? array_values($post['child_name']) : [];
             $dates = is_array($post['child_birthdate'] ?? null) ? array_values($post['child_birthdate']) : [];
             $count = min(20, max(count($names), count($dates)));
+            // The Yes/No question and the tick on each child (a tick counts only when the answer is Yes).
+            $ticks = is_array($post['child_disability'] ?? null) ? $post['child_disability'] : [];
+            $hasPwd = isset($post['has_pwd_child']) ? $post['has_pwd_child'] === '1' : (bool) array_filter($ticks); // not sent: taken from the ticks; an explicit No wins
             for ($i = 0; $i < $count; $i++) {
                 $children[] = [
                     'name' => $str($names[$i] ?? ''),
                     'birthdate' => $str($dates[$i] ?? ''),
+                    'disability' => $hasPwd && !empty($ticks[$i]),
                 ];
             }
-            $draft['children'] = $children ?: [['name' => '', 'birthdate' => '']];
+            $draft['children'] = $children ?: [['name' => '', 'birthdate' => '', 'disability' => false]];
+            $draft['hasPwdChild'] = $hasPwd;
+            // A proof uploaded for a child who no longer needs it is dropped from the draft.
+            if (isset($draft['documents'][SoloParentChildRules::PROOF_KEY]) && !SoloParentChildRules::needsDisabilityProof($draft['children'], date('Y-m-d'))) {
+                $draft = $this->files->detachFromDraft($draft, SoloParentChildRules::PROOF_KEY);
+            }
         }
         if ($step === 3) {
             // Staged files are kept only for requirements of the chosen category; a file for any other key
             // (a forged key, or a category changed after uploading) is deleted from the draft folder.
-            $allowed = array_column($this->documents->requirementsFor($draft['categoryId'] ?? null), 'doc_key');
+            $allowed = array_column($this->documentRequirements($draft), 'doc_key');
             foreach (array_keys($draft['documents'] ?? []) as $docKey) {
                 if (!in_array((string) $docKey, $allowed, true)) {
                     $draft = $this->files->detachFromDraft($draft, (string) $docKey);
@@ -336,6 +347,14 @@ class ApplicationService
                     $errors['cd' . $i] = 'Enter a valid birthdate.';
                 }
             }
+            // RA 11861: at least one child must qualify (22 or younger, or over 22 with a disability). Checked here, on the server.
+            if (!$errors) {
+                if (!SoloParentChildRules::anyQualifies($draft['children'], $today)) {
+                    $errors['children'] = SoloParentChildRules::NONE_QUALIFIES;
+                } elseif (!empty($draft['hasPwdChild']) && !array_filter($draft['children'], fn($c) => !empty($c['disability']))) {
+                    $errors['pwd'] = SoloParentChildRules::ANSWERED_YES_NO_TICK;
+                }
+            }
         }
 
         if ($step === 3) {
@@ -363,7 +382,7 @@ class ApplicationService
             $draft['docErrors'][$docKey] = 'Choose your Solo Parent category (step 1) before uploading documents.';
             return $draft;
         }
-        $allowed = array_column($this->documents->requirementsFor($draft['categoryId'] ?? null), 'doc_key');
+        $allowed = array_column($this->documentRequirements($draft), 'doc_key');
         if (!in_array($docKey, $allowed, true)) {
             $draft['docErrors'][$docKey] = 'That document is not required for your application.';
             return $draft;
@@ -374,6 +393,17 @@ class ApplicationService
             $draft['documents'][$docKey]['path'] = $dir . '/' . basename((string) $draft['documents'][$docKey]['stored_name']);
         }
         return $draft;
+    }
+
+    /** The documents this application needs: the category's list, plus the PWD ID or medical certificate when a child over 22 has a disability (RA 11861). */
+    public function documentRequirements(array $draft): array
+    {
+        $requirements = $this->documents->requirementsFor($draft['categoryId'] ?? null);
+        $proof = SoloParentChildRules::proofRequirement($draft['children'] ?? [], date('Y-m-d'));
+        if ($proof && !in_array(SoloParentChildRules::PROOF_KEY, array_column($requirements, 'doc_key'), true)) {
+            $requirements[] = $proof;
+        }
+        return $requirements;
     }
 
     /**
@@ -392,7 +422,7 @@ class ApplicationService
             return ['documents' => 'Choose your Solo Parent category (step 1) before uploading documents.'];
         }
         $errors = [];
-        $requirements = $this->documents->requirementsFor($draft['categoryId']);
+        $requirements = $this->documentRequirements($draft);
         $labels = array_column($requirements, 'label', 'doc_key');
         foreach (($draft['docErrors'] ?? []) as $docKey => $message) {
             $errors['upload_' . $docKey] = ($labels[$docKey] ?? $docKey) . ': ' . $message;
@@ -496,7 +526,7 @@ class ApplicationService
         }
         $draft['contact'] = (string) $user['mobile'];
         // Only documents required for the chosen category go in (the category may have changed after uploading).
-        $allowed = array_column($this->documents->requirementsFor($draft['categoryId']), 'doc_key');
+        $allowed = array_column($this->documentRequirements($draft), 'doc_key');
         $draft['documents'] = array_intersect_key($draft['documents'] ?? [], array_flip($allowed));
         // Staged paths come from the stored name inside this applicant's own draft folder, never from the draft's saved path.
         $draft['documents'] = $this->rebuiltStagedFiles($draft['documents'], (int) $user['id']);
@@ -566,7 +596,7 @@ class ApplicationService
             ] + EmergencyContactService::applicationFields($draft), date('Y-m-d H:i:s'));
 
             foreach ($draft['children'] as $c) {
-                $this->applications->addChild($applicationId, $c['name'], $c['birthdate']);
+                $this->applications->addChild($applicationId, $c['name'], $c['birthdate'], !empty($c['disability']));
             }
             $this->syncProfileFromDraft($user, $draft);
             $moved = $this->storeDraftDocuments($applicationId, $draft['documents'], $user);

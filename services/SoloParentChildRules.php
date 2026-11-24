@@ -14,6 +14,13 @@ final class SoloParentChildRules
     /** "not more than twenty-two (22) years of age": 22 still qualifies, 23 and over needs the disability. */
     public const MAX_AGE = 22;
 
+    /** The document asked when a child over 22 is marked as having a disability (new application and renewal). */
+    public const PROOF_KEY = 'childDisabilityProof';
+    public const PROOF_LABEL = 'PWD ID or medical certificate of the child with a disability';
+    /** Shown (and enforced on the server) when no child qualifies. */
+    public const NONE_QUALIFIES = 'No child qualifies, so a Solo Parent ID cannot be issued (RA 11861). Add a child who is 22 or younger, or tick "This child has a disability" for a child over 22.';
+    public const ANSWERED_YES_NO_TICK = 'You answered Yes to "Do you have a child with a disability?" Tick the child who has a disability, or answer No.';
+
     public const QUALIFIES = 'qualifies';
     public const QUALIFIES_DISABILITY = 'qualifies_disability';
     public const OVER_AGE = 'over_age';
@@ -70,14 +77,28 @@ final class SoloParentChildRules
         return false;
     }
 
+    /** The extra required document for a child over 22 with a disability, or null when none is needed. The reason names the child. */
+    public static function proofRequirement(array $children, string $onDate): ?array
+    {
+        foreach ($children as $child) {
+            if (self::status($child, $onDate) === self::QUALIFIES_DISABILITY) {
+                $name = trim((string) ($child['name'] ?? $child['full_name'] ?? ''));
+                $age = self::age((string) ($child['birthdate'] ?? ''), $onDate);
+                return ['id' => 0, 'category_id' => null, 'doc_key' => self::PROOF_KEY, 'label' => self::PROOF_LABEL, 'is_required' => 1, 'sort_order' => 9999,
+                    'reason' => 'Needed because ' . ($name !== '' ? $name . ' (age ' . $age . ')' : 'a child') . ' is over 22 and has a disability (RA 11861).'];
+            }
+        }
+        return null;
+    }
+
     /** Short plain words for one child's status, for the screens. */
     public static function label(array $child, string $onDate): string
     {
         $age = self::age((string) ($child['birthdate'] ?? ''), $onDate);
         return match (self::status($child, $onDate)) {
             self::QUALIFIES => 'Age ' . $age . ' — qualifies (22 or younger)',
-            self::QUALIFIES_DISABILITY => 'Age ' . $age . ' — qualifies with a disability (PWD ID or medical certificate needed)',
-            self::OVER_AGE => 'Age ' . $age . ' — over 22 without a disability: no longer qualifies',
+            self::QUALIFIES_DISABILITY => 'Age ' . $age . ' — qualifies with a disability',
+            self::OVER_AGE => 'Age ' . $age . ' — over 22 without a disability: does not qualify',
             default => 'Check the birthdate',
         };
     }

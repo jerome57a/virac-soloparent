@@ -23,8 +23,8 @@ class SMSService
         'status_change' => ['Status Change (approval/rejection/correction/etc.)', 'MSWDO Virac: Application {ref} is now {status}. Note: {remarks}'],
         'interview_scheduled' => ['Interview/Appointment Scheduled', 'Hello {name}, your Solo Parent ID application interview is scheduled on {when}. Location: {location}. Please arrive on time. For inquiries, contact the MSWDO Virac office.'],
         'renewal_submitted' => ['Renewal Submitted', 'MSWDO Virac: Your Solo Parent ID renewal request {ref} has been received and is Pending Review. We will text you when its status changes.'],
-        'renewal_reminder' => ['Renewal Reminder (auto)', 'MSWDO Virac: Your Solo Parent ID ({ref}) expires on {when}. Please visit MSWDO or apply for renewal online soon to avoid interruption.'],
-        'renewal_expired' => ['Renewal Reminder after Expiry (auto)', 'MSWDO Virac: Your Solo Parent ID ({ref}) expired on {when}. Please renew online or visit MSWDO to keep your benefits.'],
+        'renewal_reminder' => ['ID Expiry Day (auto)', 'MSWDO Virac: Your Solo Parent ID ({ref}) expires today, {when}. You can renew online starting today, or visit MSWDO.'],
+        'renewal_expired' => ['ID Expired, Sent Late (Send now)', 'MSWDO Virac: Your Solo Parent ID ({ref}) expired on {when}. Please renew online or visit MSWDO to keep your benefits.'],
         'appointment_reminder' => ['Appointment Reminder (auto)', 'MSWDO Virac: Reminder -- your appointment for application {ref} is on {when} at {location}. Please arrive on time and bring a valid ID.'],
         'appointment_cancelled' => ['Appointment Cancelled', 'MSWDO Virac: Your appointment for application {ref} on {when} was cancelled. Reason: {reason}. Please contact MSWDO for a new schedule.'],
         'appointment_missed' => ['Appointment Missed', 'MSWDO Virac: You missed your appointment for application {ref} on {when}. Please contact MSWDO for a new schedule.'],
@@ -42,8 +42,8 @@ class SMSService
     public const COMPACT_TEMPLATES = [
         'submitted' => ['Application Submitted', 'MSWDO Virac: Application {ref} received and Pending Review. We will text you when its status changes.'],
         'renewal_submitted' => ['Renewal Submitted', 'MSWDO Virac: Renewal request {ref} received and Pending Review. We will text you when its status changes.'],
-        'renewal_reminder' => ['Renewal Reminder (auto)', 'MSWDO Virac: Your Solo Parent ID ({ref}) expires on {when}. Please renew online or visit MSWDO.'],
-        'renewal_expired' => ['Renewal Reminder after Expiry (auto)', 'MSWDO Virac: Your Solo Parent ID ({ref}) expired on {when}. Please renew online or visit MSWDO.'],
+        'renewal_reminder' => ['ID Expiry Day (auto)', 'MSWDO Virac: Your Solo Parent ID ({ref}) expires today, {when}. Renew online from today or visit MSWDO.'],
+        'renewal_expired' => ['ID Expired, Sent Late (Send now)', 'MSWDO Virac: Your Solo Parent ID ({ref}) expired on {when}. Please renew online or visit MSWDO.'],
         'appointment_reminder' => ['Appointment Reminder (auto)', 'MSWDO Virac: Reminder: your interview for {ref} is on {when}. Please bring a valid ID.'],
         'interview_date_assigned' => ['Interview Date Scheduled by MSWDO Staff', 'MSWDO Virac: Interview for {ref} is on {when}, {hours}. Come then, or log in to e-SoloParentID to pick another date.'],
         'interview_date_booked' => ['Interview Date Booked', 'MSWDO Virac: Interview for {ref} is booked for {when}. Come during office hours with a valid ID.'],
@@ -526,7 +526,8 @@ class SMSService
 
     public function notifyRenewalReminder(int $applicationId, string $mobile, string $refNumber, string $expiresAt): array
     {
-        return $this->sendTemplate($expiresAt <= date('Y-m-d') ? 'renewal_expired' : 'renewal_reminder',
+        // On the expiry day: "expires today". A day that was missed (staff press Send now): "expired on <date>".
+        return $this->sendTemplate($expiresAt >= date('Y-m-d') ? 'renewal_reminder' : 'renewal_expired',
             ['{ref}' => $refNumber, '{when}' => date('F j, Y', strtotime($expiresAt))], $applicationId, $mobile);
     }
 
@@ -570,39 +571,62 @@ class SMSService
     public function interviewDateAssignedMessage(string $refNumber, ?string $date, string $location, ?int $applicationId = null): string
     {
         $message = $this->render('interview_date_assigned', ['{ref}' => $refNumber, '{when}' => $date === null ? '{when}' : self::dateText($date), '{hours}' => $this->officeHours(), '{location}' => $location]);
-        return $applicationId !== null ? $this->withRenewalNote($message, $applicationId) : $message;
-    }
-
-    /** The compact staff-scheduled interview text ends with this; for a renewal it is replaced, so the text stays one credit. */
-    private const COMPACT_ASSIGNED_TAIL = 'Come then, or log in to e-SoloParentID to pick another date.';
-    private const COMPACT_ASSIGNED_RENEWAL_TAIL = 'Bring your Solo Parent ID. Log in to pick another date.';
-
-    /** Adds the "bring your current Solo Parent ID" reminder to a renewal interview text (unchanged for a new application). */
-    public function withRenewalNote(string $message, int $applicationId): string
-    {
-        $note = $this->renewalInterviewNote($applicationId);
-        if ($note === '') {
-            return $message;
-        }
-        if (str_contains($message, self::COMPACT_ASSIGNED_TAIL)) {
-            return str_replace(self::COMPACT_ASSIGNED_TAIL, self::COMPACT_ASSIGNED_RENEWAL_TAIL, $message);
-        }
-        return $message . ' ' . $note;
+        return $applicationId !== null ? $this->withBringNote($message, $applicationId) : $message;
     }
 
     /**
-     * For a RENEWAL interview: the reminder to bring the current Solo Parent ID (MSWDO checks it). Short in compact wording so the
-     * text stays one credit where possible. '' for a new application.
+     * The compact staff-scheduled interview text ends with this; it is replaced by the "what to bring" wording below, which is
+     * no longer than it, so the text stays one credit.
      */
-    public function renewalInterviewNote(int $applicationId): string
+    private const COMPACT_ASSIGNED_TAIL = 'Come then, or log in to e-SoloParentID to pick another date.';
+    private const COMPACT_ASSIGNED_NEW_TAIL = 'Bring valid ID, 2 1x1 pics. Log in to pick another date.';
+    private const COMPACT_ASSIGNED_RENEWAL_TAIL = 'Bring Solo Parent ID, valid ID, 2 1x1 pics.';
+
+    /** True when the application is a renewal (false for a new application, or when it cannot be read). */
+    private function isRenewal(int $applicationId): bool
     {
         try {
             $stmt = $this->pdo->prepare('SELECT type FROM applications WHERE id = ?');
             $stmt->execute([$applicationId]);
-            if ($stmt->fetchColumn() !== 'renewal') {
-                return '';
-            }
+            return $stmt->fetchColumn() === 'renewal';
         } catch (Throwable $e) {
+            return false;
+        }
+    }
+
+    /** What to bring to the interview, as one sentence: a valid ID and two 1x1 pictures, plus the current Solo Parent ID for a renewal. */
+    public static function interviewBringText(bool $renewal, ?bool $compact = null): string
+    {
+        if ($compact ?? self::compact()) {
+            return $renewal ? self::COMPACT_ASSIGNED_RENEWAL_TAIL : 'Bring valid ID, 2 1x1 pics.';
+        }
+        return $renewal
+            ? 'Bring your current Solo Parent ID, a valid ID and two 1x1 pictures.'
+            : 'Bring a valid ID and two 1x1 pictures.';
+    }
+
+    /** Adds the "what to bring" sentence to a staff-scheduled interview text. In the compact wording it replaces the closing line. */
+    public static function addBringNote(string $message, bool $renewal, ?bool $compact = null): string
+    {
+        if (str_contains($message, self::COMPACT_ASSIGNED_TAIL)) {
+            return str_replace(self::COMPACT_ASSIGNED_TAIL, $renewal ? self::COMPACT_ASSIGNED_RENEWAL_TAIL : self::COMPACT_ASSIGNED_NEW_TAIL, $message);
+        }
+        return $message . ' ' . self::interviewBringText($renewal, $compact);
+    }
+
+    /** Adds what to bring (valid ID and two 1x1 pictures; for a renewal also the current Solo Parent ID) to an interview text. */
+    public function withBringNote(string $message, int $applicationId): string
+    {
+        return self::addBringNote($message, $this->isRenewal($applicationId));
+    }
+
+    /**
+     * For a RENEWAL interview: the reminder to bring the current Solo Parent ID (MSWDO checks it). Short in compact wording so the
+     * text stays one credit where possible. '' for a new application. (Used by the text sent when the Solo Parent books a date.)
+     */
+    public function renewalInterviewNote(int $applicationId): string
+    {
+        if (!$this->isRenewal($applicationId)) {
             return '';
         }
         return self::compact() ? 'Bring your Solo Parent ID.' : 'Bring your current Solo Parent ID and a valid ID.';
@@ -616,7 +640,7 @@ class SMSService
     {
         if ($customMessage === null) {
             // With a time, it replaces the office-hours range in the text ("..., 9:00 AM at <place>").
-            return $this->sendTemplate('interview_date_assigned', ['{ref}' => $refNumber, '{when}' => self::dateText($date), '{hours}' => $time !== null ? self::timeText($time) : $this->officeHours(), '{location}' => $location], $applicationId, $mobile, '', fn(string $m) => $this->withRenewalNote($m, $applicationId));
+            return $this->sendTemplate('interview_date_assigned', ['{ref}' => $refNumber, '{when}' => self::dateText($date), '{hours}' => $time !== null ? self::timeText($time) : $this->officeHours(), '{location}' => $location], $applicationId, $mobile, '', fn(string $m) => $this->withBringNote($m, $applicationId));
         }
         if (!$this->templateEnabled('interview_date_assigned')) {
             return ['id' => null, 'status' => 'DISABLED', 'test_mode' => false, 'error' => null];
@@ -685,7 +709,7 @@ class SMSService
     {
         return ($compact ?? self::compact())
             ? 'MSWDO Virac: ID release on {when} at {location}. Bring a valid ID.'
-            : 'Hello {name}, your Solo Parent ID is scheduled for release on {when}. Location: {location}. Please visit the MSWDO Virac office at your scheduled time. For inquiries, contact the MSWDO office.';
+            : 'Hello {name}, your Solo Parent ID is scheduled for release on {when}. Location: {location}. Please visit the MSWDO Virac office at your scheduled time and bring a valid ID. For inquiries, contact the MSWDO office.';
     }
 
     /** The date and time of an ID release as SMS text: "November 27, 2026 at 9:00 AM", or "Fri, Nov 27, 2026 9:00 AM" in compact wording. */

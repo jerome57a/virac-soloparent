@@ -1,19 +1,19 @@
 <?php
+require_once __DIR__ . '/../../includes/icons.php';
 /** Administrator overview. ReportService supplies all live counts; application links are monitoring only. */
 $trend = (int) $summary['thisMonth'] - (int) $summary['lastMonth'];
 $pending = (int) $stats['pendingNew'] + (int) $stats['pendingRenewals'];
-$failedSmsRows = $failedSmsRows ?? [];
-$lockedUsers = $lockedUsers ?? [];
-$expiryNotSent = $expiryNotSent ?? [];
-$releaseOverdue = $releaseOverdue ?? ['count' => 0, 'rows' => []];
-$staleApps = $staleApps ?? ['count' => 0, 'rows' => []];
+$expiryNotSentCount = (int) ($expiryNotSentCount ?? 0);
+$releaseOverdueCount = (int) ($releaseOverdueCount ?? 0);
+$staleCount = (int) ($staleCount ?? 0);
 // Needs attention: what the MSWDO admin fixes (failed SMS, locked accounts) and what the admin watches (staff work piling up).
+// Each row goes straight to the page where it is handled or monitored.
 $attentionRows = [
-    ['failed-sms', 'Failed SMS', 'Check messages that were not sent.', (int) $stats['smsFailed']],
-    ['locked', 'Locked accounts', 'Review accounts after failed sign-ins.', (int) $userStats['locked']],
-    ['expiry-sms', 'ID expiry SMS not sent', 'Expired IDs whose SMS was not sent that day.', count($expiryNotSent)],
-    ['release-overdue', 'ID release date passed', 'Approved IDs still waiting at the office.', (int) $releaseOverdue['count']],
-    ['stale', 'Waiting more than 7 days', 'Applications with no action for a week.', (int) $staleApps['count']],
+    ['failed-sms', 'Failed SMS', 'Check messages that were not sent.', (int) $stats['smsFailed'], base_url('admin/sms.php?status=failed'), 'message-square-warning'],
+    ['locked', 'Locked accounts', 'Review accounts after failed sign-ins.', (int) $userStats['locked'], base_url('admin/users.php?status=locked'), 'lock'],
+    ['expiry-sms', 'ID expiry SMS not sent', 'Expired IDs whose SMS was not sent that day.', $expiryNotSentCount, base_url('admin/expiry_sms.php'), 'send'],
+    ['release-overdue', 'ID release date passed', 'Approved IDs still waiting at the office.', $releaseOverdueCount, base_url('admin/applications.php?status=Approved'), 'id-card'],
+    ['stale', 'Waiting more than 7 days', 'Applications with no action for a week.', $staleCount, base_url('admin/applications.php?waiting=7'), 'clock'],
 ];
 $attentionCount = count(array_filter($attentionRows, fn($r) => $r[3] > 0));
 $dashboardIcons = [
@@ -45,6 +45,7 @@ $shortcuts = [
     ['System Settings', 'Update service settings and requirements.', 'settings.php', 'settings'],
 ];
 ?>
+<link rel="stylesheet" href="<?= public_asset('css/guidance.css') ?>">
 <link rel="stylesheet" href="<?= public_asset('css/admin-dashboard.css') ?>">
 <link rel="stylesheet" href="<?= public_asset('css/dashboard-attention.css') ?>">
 <div class="portal-container admin-dashboard" id="admin-dashboard">
@@ -52,6 +53,17 @@ $shortcuts = [
     <div><p class="ad-eyebrow" data-i18n>Administration</p><h1 class="page-title" data-i18n>MSWDO Admin Dashboard</h1><p class="ad-description" data-i18n>Monitor applications, manage services, and keep the system running smoothly.</p></div>
     <div class="ad-heading-meta"><span class="ad-date"><?= $dashboardIcon('calendar') ?><time datetime="<?= e(date('Y-m-d')) ?>"><?= e(date('M j, Y')) ?></time></span><span class="ad-signed-in"><span data-i18n>Signed in as</span> <strong><?= e($staff['full_name']) ?></strong></span></div>
   </header>
+  <?php if (!empty($setup) && $setup['done'] < $setup['total']): ?>
+  <section class="gi-setup" id="admin-setup" aria-labelledby="admin-setup-title">
+    <div class="gi-setup-head"><span class="gi-chip gi-lg"><?= ui_icon('clipboard-check', 24) ?></span><div><h2 id="admin-setup-title" data-i18n>Set up the system</h2><p><?= (int) $setup['done'] ?> <span data-i18n>of</span> <?= (int) $setup['total'] ?> <span data-i18n>steps done. Finish these once; this box then disappears.</span></p></div></div>
+    <div class="gi-bar" role="progressbar" aria-valuemin="0" aria-valuemax="<?= (int) $setup['total'] ?>" aria-valuenow="<?= (int) $setup['done'] ?>"><i style="width:<?= (int) round($setup['done'] / max(1, $setup['total']) * 100) ?>%"></i></div>
+    <ul class="gi-checklist">
+      <?php foreach ($setup['steps'] as $setupStep): ?>
+        <li class="gi-check<?= $setupStep['done'] ? ' is-done' : '' ?>"><span class="gi-box"><?= ui_icon($setupStep['done'] ? 'circle-check' : 'circle-dot', 22) ?></span><span class="gi-check-text"><strong data-i18n><?= e($setupStep['label']) ?></strong><small data-i18n><?= e($setupStep['hint']) ?></small></span><?php if (!$setupStep['done']): ?><a href="<?= e($setupStep['href']) ?>"><span data-i18n>Open</span><?= ui_icon('arrow-right', 16) ?></a><?php endif; ?></li>
+      <?php endforeach; ?>
+    </ul>
+  </section>
+  <?php endif; ?>
   <section id="admin-overview" class="ad-overview" aria-label="Overview" data-i18n-attrs="aria-label">
     <div class="ad-section-heading"><span data-i18n>All-time totals unless noted</span></div>
     <div class="ad-metrics stat-grid">
@@ -80,31 +92,10 @@ $shortcuts = [
     </section>
       <div class="ad-stack">
       <section class="ad-panel ad-attention review-card" aria-labelledby="admin-attention-title">
-        <div class="ad-panel-heading review-card-head"><div><h2 id="admin-attention-title" data-i18n>Needs attention</h2><p data-i18n>Click an item to see its details.</p></div><span class="ad-attention-count<?= !$attentionCount ? ' is-clear' : '' ?>"><b><?= $attentionCount ?></b><span data-i18n>to check</span></span></div>
+        <div class="ad-panel-heading review-card-head"><div><h2 id="admin-attention-title" data-i18n>Needs attention</h2><p data-i18n>Click an item to open its page.</p></div><span class="ad-attention-count<?= !$attentionCount ? ' is-clear' : '' ?>"><b><?= $attentionCount ?></b><span data-i18n>to check</span></span></div>
         <?php if (!$attentionCount): ?><p class="ad-clear-message" data-i18n>Nothing needs attention right now.</p><?php endif; ?>
-        <?php foreach ($attentionRows as [$key, $label, $hint, $count]): ?>
-          <details class="ad-attention-item" id="admin-attention-<?= e($key) ?>">
-            <summary class="ad-attention-row"><span><strong data-i18n><?= e($label) ?></strong><small data-i18n><?= e($hint) ?></small></span><b class="<?= $count > 0 ? 'ad-count-warn' : '' ?>"><?= number_format($count) ?></b><?= $dashboardIcon('arrow') ?></summary>
-            <div class="ad-attention-detail">
-              <?php if ($key === 'failed-sms'): ?>
-                <?php foreach ($failedSmsRows as $t): ?><div class="ad-attention-line"><strong><?= e(sms_kind_label((string) $t['template_key'])) ?><?= $t['reference_no'] ? ' · ' . e($t['reference_no']) : '' ?></strong><small>To ending <?= e(substr((string) $t['mobile'], -4)) ?> · <?= e(date('M j, g:i A', strtotime((string) $t['sent_at']))) ?> · <?= e(SMSService::failureHelp((string) $t['error'])['cause']) ?></small></div><?php endforeach; ?>
-                <a class="ad-text-link" href="<?= base_url('admin/sms.php?status=failed') ?>" data-i18n>Open the SMS log</a>
-              <?php elseif ($key === 'locked'): ?>
-                <?php foreach ($lockedUsers as $u): ?><div class="ad-attention-line"><strong><?= e($u['full_name']) ?></strong><small><?= e(['admin' => 'MSWDO Admin', 'mswd_social_worker' => 'MSWDO Staff', 'applicant' => 'Solo Parent'][(string) $u['role']] ?? (string) $u['role']) ?> · locked until <?= e(date('M j, g:i A', strtotime((string) $u['locked_until']))) ?></small></div><?php endforeach; ?>
-                <a class="ad-text-link" href="<?= base_url('admin/users.php?status=locked') ?>" data-i18n>Open User Management</a>
-              <?php elseif ($key === 'expiry-sms'): ?>
-                <?php foreach (array_slice($expiryNotSent, 0, 5) as $x): ?><div class="ad-attention-line"><strong><?= e($x['full_name']) ?> · <?= e($x['reference_no']) ?></strong><small>Expired <?= e(date('M j, Y', strtotime((string) $x['id_expires_at']))) ?></small></div><?php endforeach; ?>
-                <p class="ad-attention-note" data-i18n>MSWDO staff can send these from Failed Texts (Send now).</p>
-              <?php elseif ($key === 'release-overdue'): ?>
-                <?php foreach ($releaseOverdue['rows'] as $r): ?><div class="ad-attention-line"><strong><?= e($r['full_name']) ?> · <?= e($r['reference_no']) ?></strong><small>Release date <?= e(date('M j, Y g:i A', strtotime((string) $r['scheduled_at']))) ?> · <?= e($r['location']) ?></small></div><?php endforeach; ?>
-                <a class="ad-text-link" href="<?= base_url('admin/applications.php?status=Approved') ?>" data-i18n>Open approved applications</a>
-              <?php else: ?>
-                <?php foreach ($staleApps['rows'] as $r): ?><div class="ad-attention-line"><strong><?= e($r['full_name']) ?> · <?= e($r['reference_no']) ?></strong><small><?= e($r['status']) ?> · last change <?= e(date('M j, Y', strtotime((string) $r['last_change']))) ?></small></div><?php endforeach; ?>
-                <a class="ad-text-link" href="<?= base_url('admin/applications.php') ?>" data-i18n>Open application monitoring</a>
-              <?php endif; ?>
-              <?php if ($count === 0): ?><p class="ad-attention-note" data-i18n>Nothing here right now.</p><?php endif; ?>
-            </div>
-          </details>
+        <?php foreach ($attentionRows as [$key, $label, $hint, $count, $href, $rowIcon]): ?>
+          <a class="ad-attention-row" href="<?= e($href) ?>"><span class="ad-row-text"><span class="gi-chip <?= $count > 0 ? 'gi-amber' : 'gi-blue' ?>"><?= ui_icon($rowIcon, 20) ?></span><span><strong data-i18n><?= e($label) ?></strong><small data-i18n><?= e($hint) ?></small></span></span><b class="<?= $count > 0 ? 'ad-count-warn' : '' ?>"><?= number_format($count) ?></b><?= $dashboardIcon('arrow') ?></a>
         <?php endforeach; ?>
       </section>
   <details class="ad-panel ad-details review-card">
@@ -160,8 +151,7 @@ $shortcuts = [
 </div>
 <script>
   (() => {
-    const items = [...document.querySelectorAll('#admin-dashboard .ad-attention-item')];
-    items.forEach(d => d.addEventListener('toggle', () => { if (d.open) items.forEach(o => { if (o !== d) o.open = false; }); }));
+    // A section link to something inside the folded part opens it first.
     const more = document.getElementById('admin-more');
     document.querySelectorAll('#admin-dashboard .ad-section-nav a').forEach(a => a.addEventListener('click', () => { const t = document.getElementById(a.hash.slice(1)); if (t && more.contains(t)) more.open = true; }));
   })();
