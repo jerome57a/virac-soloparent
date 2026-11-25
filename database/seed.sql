@@ -37,6 +37,12 @@ INSERT INTO categories (name, description, sort_order) VALUES
 ('Legal or de facto separation of spouse for at least six months', 'The spouses have been legally or de facto separated for at least six months.', 8),
 ('Spouse or family member of an OFW', 'The Solo Parent is the spouse or family member of an overseas Filipino worker.', 9);
 
+-- The new application shows only the categories that fit the chosen civil status; the guardian, rape and OFW categories fit everyone (NULL).
+UPDATE categories SET civil_statuses = 'Married,Separated' WHERE name IN ('Abandonment by the spouse', 'Detention or imprisonment of the spouse', 'Legal or de facto separation of spouse for at least six months');
+UPDATE categories SET civil_statuses = 'Annulled' WHERE name = 'Declaration of nullity or annulment of marriage';
+UPDATE categories SET civil_statuses = 'Single' WHERE name = 'Unmarried father or mother who keeps and rears the child/children';
+UPDATE categories SET civil_statuses = 'Widowed' WHERE name = 'Death of the spouse';
+
 -- ---------------------------------------------------------------
 -- Standard document requirements (category_id NULL = applies to all)
 -- ---------------------------------------------------------------

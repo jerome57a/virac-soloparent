@@ -46,7 +46,7 @@
   }
   function toast(opts) {
     var box = document.createElement('div');
-    box.className = 'staff-alert' + (opts.action ? ' is-action' : '');
+    box.className = 'staff-alert' + (opts.arrival ? ' is-arrival' : (opts.action ? ' is-action' : ''));
     box.setAttribute('role', 'status');
     var head = document.createElement('div');
     head.className = 'staff-alert-head';
@@ -101,6 +101,7 @@
     link.setAttribute('aria-label', tr('Notifications') + ' (' + unread + ' ' + tr('unread') + ')');
   }
   function buttonFor(item) {
+    if (item.type === 'office_arrival') { return tr('Open interview'); }
     if (/re-?upload|Uploaded:/i.test(item.message)) { return tr('Open the document'); }
     if (/interview|appointment/i.test(item.message)) { return tr('Open the interview'); }
     return tr('Open the application');
@@ -116,7 +117,8 @@
         bell(data.unread);
         var items = Array.isArray(data.items) ? data.items : [];
         items.forEach(function (item) {
-          toast({ action: item.action, icon: item.action ? 'file' : 'bell', title: tr(item.action ? 'New · needs your action' : item.label),
+          var arrival = item.type === 'office_arrival';
+          toast({ action: item.action, arrival: arrival, icon: item.action ? 'file' : 'bell', title: tr(arrival ? 'Arrived at the office' : (item.action ? 'New · needs your action' : item.label)),
             text: item.message, href: item.open, button: buttonFor(item), when: ago(item.created_at) });
         });
         if (items.length > MAX_SHOWN && data.notifications_url) {

@@ -32,17 +32,18 @@ class NotificationService
         'document_resubmitted' => ['Document re-uploaded', '📎'],
         'corrections_submitted' => ['Corrections submitted', '🔁'],
         'appointment_update' => ['Appointment update', '📅'],
+        'office_arrival' => ['Arrived at the office', '🏢'],
         'job_failed' => ['Scheduled job problem', '🛠️'],
         'security_alert' => ['Security alert', '🔒'],
     ];
     public const PER_PAGE = 20;
 
     /** Types that ask MSWDO staff or the admin to do something ("Needs your action"); every other type is for information. */
-    public const ACTION_TYPES = ['new_application', 'new_renewal', 'document_resubmitted', 'corrections_submitted', 'appointment_update', 'job_failed', 'security_alert'];
+    public const ACTION_TYPES = ['new_application', 'new_renewal', 'document_resubmitted', 'corrections_submitted', 'appointment_update', 'office_arrival', 'job_failed', 'security_alert'];
 
     /** Where on the staff application page each type opens (older notifications without an anchor get it too). */
     public const STAFF_ANCHORS = ['new_application' => 'checklist', 'new_renewal' => 'checklist', 'document_resubmitted' => 'checklist',
-        'corrections_submitted' => 'checklist', 'appointment_update' => 'interview'];
+        'corrections_submitted' => 'checklist', 'appointment_update' => 'interview', 'office_arrival' => 'decision'];
 
     public static function isAction(array $n): bool
     {
@@ -66,10 +67,13 @@ class NotificationService
     }
 
     /** Sends the same notification to every active user with one of $roles. Returns how many were sent. */
-    public function notifyRoles(array $roles, string $type, string $message, ?int $applicationId = null, ?string $link = null): int
+    public function notifyRoles(array $roles, string $type, string $message, ?int $applicationId = null, ?string $link = null, ?int $exceptUserId = null): int
     {
         $count = 0;
         foreach ($this->notifications->activeUserIds($roles) as $userId) {
+            if ($exceptUserId !== null && (int) $userId === $exceptUserId) {
+                continue; // the staff member who did it does not need to be told
+            }
             $this->notify($userId, $type, $message, $applicationId, $link);
             $count++;
         }
@@ -77,13 +81,13 @@ class NotificationService
     }
 
     /** MSWD staff (who process applications) get new work to act on. $anchor: the part of the application page it opens (e.g. doc-12). */
-    public function notifyStaff(string $type, string $message, int $applicationId, ?string $anchor = null): int
+    public function notifyStaff(string $type, string $message, int $applicationId, ?string $anchor = null, ?int $exceptUserId = null): int
     {
         if (setting('notify_staff_new_work') !== '1') {
             return 0;
         }
         $anchor = $anchor !== null && preg_match('/^[a-z][a-z0-9-]{0,40}$/', $anchor) ? $anchor : (self::STAFF_ANCHORS[$type] ?? null);
-        return $this->notifyRoles(['mswd_social_worker'], $type, $message, $applicationId, 'staff/application.php?id=' . $applicationId . ($anchor ? '#' . $anchor : ''));
+        return $this->notifyRoles(['mswd_social_worker'], $type, $message, $applicationId, 'staff/application.php?id=' . $applicationId . ($anchor ? '#' . $anchor : ''), $exceptUserId);
     }
 
     public function notifyAdmins(string $type, string $message, string $link): int

@@ -10,6 +10,7 @@ require_once __DIR__ . '/../services/ApplicationNextStepService.php';
 require_once __DIR__ . '/../services/SchedulingQueueService.php';
 require_once __DIR__ . '/../services/RenewalService.php';
 require_once __DIR__ . '/../services/IdReleaseService.php';
+require_once __DIR__ . '/../services/OfficeCheckInService.php';
 require_once __DIR__ . '/../services/AutoVerificationService.php';
 require_once __DIR__ . '/../models/ApplicationAutoCheck.php';
 require_once __DIR__ . '/../models/SmsLog.php';
@@ -81,9 +82,40 @@ class StaffController extends Controller
             'docBacklog' => $documents->verificationBacklog(),
             'failedTextCount' => $this->failedTextCount(),
             'followUp' => InterviewDateFeature::enabled($this->pdo) ? $appointments->missedNotRebooked(7, 200) : [],
+            'office' => (new OfficeCheckInService($this->pdo))->panel(is_string($_GET['checkin'] ?? null) ? $_GET['checkin'] : null),
+            'officeReturn' => 'dashboard',
             'flashMessage' => take_flash(),
             'smsNotice' => take_sms_notice(),
         ]);
+    }
+
+    /**
+     * staff/checkin.php (POST): record that a Solo Parent arrived at the office, then open their application at the interview result.
+     * action arrive | move_arrive (booked for another day) | schedule_arrive (no date yet). Staff check the valid ID first.
+     */
+    public function checkIn(): void
+    {
+        $this->authorize($this->staff, 'applications.process', 'staff/dashboard.php');
+        $back = ($_POST['return_to'] ?? '') === 'appointments' ? 'staff/appointments.php' : 'staff/dashboard.php';
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->redirectTo($back);
+        }
+        csrf_require();
+        $id = (int) ($_POST['application_id'] ?? 0);
+        $action = (string) ($_POST['action'] ?? '');
+        $service = new OfficeCheckInService($this->pdo);
+        [$error, $position] = match ($action) {
+            'arrive' => $service->arrive($this->staff, $id),
+            'move_arrive' => $service->arrive($this->staff, $id, true),
+            'schedule_arrive' => $service->scheduleTodayAndArrive($this->staff, $id),
+            default => ['Choose what to do.', null],
+        };
+        if ($error !== null) {
+            flash('Not checked in: ' . $error);
+            $this->redirectTo($back . '#office-today');
+        }
+        flash('Checked in' . ($position ? ': number ' . $position . ' waiting' : '') . '. Check the valid ID, then record the interview result here.');
+        $this->redirectTo('staff/application.php?id=' . $id . '#decision');
     }
 
     /** staff/index.php: the application queue with filters. */
@@ -222,6 +254,13 @@ class StaffController extends Controller
             'allowedTransitions' => Application::TRANSITIONS[$app['status']] ?? [],
             'approvalChecklist' => $review->approvalChecklist($app),
             'interview' => $appointmentModel->interviewFor($id),
+            'arrivedByName' => (function () use ($appointmentModel, $id) {
+                $iv = $appointmentModel->interviewFor($id);
+                if (empty($iv['arrived_by'])) return null;
+                $s = $this->pdo->prepare('SELECT full_name FROM users WHERE id = ?');
+                $s->execute([(int) $iv['arrived_by']]);
+                return $s->fetchColumn() ?: null;
+            })(),
             'interviewEvents' => InterviewDateFeature::enabled($this->pdo) ? (new AppointmentEvent($this->pdo))->forApplication($id) : [],
             'interviewSms' => $appointmentModel->interviewSms($id),
             'idReleaseSchedule' => (new IdReleaseService($this->pdo))->scheduleFor($id),
@@ -341,8 +380,9 @@ class StaffController extends Controller
                 break;
             case 'record_result':
                 $recheck = is_array($_POST['recheck'] ?? null) ? array_values(array_filter($_POST['recheck'], 'is_string')) : [];
+                $brought = is_array($_POST['brought'] ?? null) ? array_values(array_filter($_POST['brought'], 'is_string')) : [];
                 $error = $review->recordInterviewOutcome($this->staff, $id, $post('interview_outcome'), $post('interview_notes'), $recheck,
-                    $post('id_not_shown') === '1' ? $post('id_not_shown_reason') : '');
+                    $post('id_not_shown') === '1' ? $post('id_not_shown_reason') : '', $brought);
                 if ($error) {
                     return ['interview' => $error];
                 }
@@ -501,6 +541,8 @@ class StaffController extends Controller
             'dateError' => $dateError,
             'interviewDates' => $dateState === 'ready' ? $dateService->upcoming() : [],
             'defaultCapacity' => $dateState === 'ready' ? $dateService->defaultCapacity() : 0,
+            'office' => (new OfficeCheckInService($this->pdo))->panel($canManage && is_string($_GET['checkin'] ?? null) ? $_GET['checkin'] : null),
+            'officeReturn' => 'appointments',
         ]);
     }
 
@@ -617,7 +659,7 @@ class StaffController extends Controller
         if ($since !== null) {
             foreach ($model->unreadNewerThan($userId, $since) as $n) {
                 [$label] = NotificationService::label($n['type']);
-                $items[] = ['id' => (int) $n['id'], 'label' => $label, 'message' => $n['message'], 'action' => NotificationService::isAction($n),
+                $items[] = ['id' => (int) $n['id'], 'type' => $n['type'], 'label' => $label, 'message' => $n['message'], 'action' => NotificationService::isAction($n),
                     'open' => base_url('staff/notifications.php?open=' . (int) $n['id']), 'created_at' => $n['created_at']];
             }
         }

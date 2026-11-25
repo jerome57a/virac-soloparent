@@ -2,6 +2,7 @@
 require_once __DIR__ . '/Controller.php';
 require_once __DIR__ . '/../services/RateLimiter.php';
 require_once __DIR__ . '/../services/ApplicationService.php';
+require_once __DIR__ . '/../services/CategoryCivilStatus.php';
 require_once __DIR__ . '/../services/ApplicationTrackerService.php';
 require_once __DIR__ . '/../services/AuthService.php';
 require_once __DIR__ . '/../models/Application.php';
@@ -79,6 +80,17 @@ class ApplicationController extends Controller
             $legacy->execute([(int) $draft['categoryId']]);
             $legacyCategoryName = $legacy->fetchColumn() ?: null;
         }
+        // A saved draft whose category no longer fits its civil status: the category is asked for again (not saved until they continue).
+        $categoryRefit = false;
+        $civil = (string) ($draft['civilStatus'] ?? '');
+        if ($step === 1 && $civil !== '' && $draft['categoryId'] && isset($categoryMap[$draft['categoryId']]) && empty($errors['circumstance'])) {
+            foreach ($categories as $c) {
+                if ((int) $c['id'] === (int) $draft['categoryId'] && !CategoryCivilStatus::fits($c, $civil)) {
+                    $draft['categoryId'] = null;
+                    $categoryRefit = true;
+                }
+            }
+        }
         $categoryDocs = [];
         foreach ($categories as $c) {
             $categoryDocs[$c['id']] = array_map(fn($requirement) => [
@@ -98,6 +110,7 @@ class ApplicationController extends Controller
                 : ($errCount > 1 ? "Please fix the $errCount highlighted fields before continuing." : ''),
             'categories' => $categories,
             'categoryMap' => $categoryMap,
+            'categoryRefit' => $categoryRefit,
             'legacyCategoryName' => $legacyCategoryName,
             'categoryDocs' => $categoryDocs,
             'docDefs' => $service->documentRequirements($draft),

@@ -2,7 +2,8 @@
 /** Applicant ID viewer; access is checked by ApplicantController. */
 $isReleased = $idApplication && $idApplication['status'] === 'ID Released';
 $isExpired = !empty($idExpiryInfo['expired']);
-$idStatusLabel = $isExpired ? 'Expired' : ($isReleased ? 'ID Released' : 'Release Scheduled');
+$renewalInProgress = $renewalInProgress ?? null;
+$idStatusLabel = $renewalInProgress ? 'Renewal in progress' : ($isExpired ? 'Expired' : ($isReleased ? 'ID Released' : 'Release Scheduled'));
 ?>
 <link rel="stylesheet" href="<?= public_asset('css/applicant-id.css') ?>">
 <div class="applicant-id-page">
@@ -10,7 +11,7 @@ $idStatusLabel = $isExpired ? 'Expired' : ($isReleased ? 'ID Released' : 'Releas
     <link rel="stylesheet" href="<?= public_asset('css/verification-id.css') ?>">
     <header class="applicant-id-heading">
       <div><div class="applicant-id-eyebrow">MSWDO Virac</div><h1 data-i18n>My Solo Parent ID</h1><p data-i18n>Your ID details and collection information in one place.</p></div>
-      <span class="applicant-id-status <?= $isExpired ? 'is-expired' : ($isReleased ? 'is-released' : 'is-scheduled') ?>"><span aria-hidden="true"></span><?= e($idStatusLabel) ?></span>
+      <span class="applicant-id-status <?= $renewalInProgress ? 'is-scheduled' : ($isExpired ? 'is-expired' : ($isReleased ? 'is-released' : 'is-scheduled')) ?>"><span aria-hidden="true"></span><?= e($idStatusLabel) ?></span>
     </header>
 
     <div class="applicant-id-layout">
@@ -54,7 +55,8 @@ $idStatusLabel = $isExpired ? 'Expired' : ($isReleased ? 'ID Released' : 'Releas
             <p class="applicant-id-release-note" data-i18n>Your release date has passed, but your ID is still kept at the MSWDO office. You can collect it during office hours. If you would like a new date, contact MSWDO.</p>
           <?php endif; ?>
           <p class="applicant-id-release-note"><?= $isReleased ? 'MSWDO staff has confirmed the physical release of your Solo Parent ID.' : 'Bring a valid government ID. MSWDO staff will confirm physical release when you receive your card.' ?></p>
-          <?php if ($isExpired): ?><p class="applicant-id-expired-note" data-i18n>Your ID has expired. Check your renewal options to keep your details up to date.</p><a class="btn-outline applicant-id-link" href="<?= base_url('applicant/dashboard.php?section=renewal') ?>" data-i18n>View Renewal Options</a><?php endif; ?>
+          <?php if ($renewalInProgress): ?><p class="applicant-id-renewal-note">Your renewal <b translate="no"><?= e($renewalInProgress['reference_no']) ?></b> is being processed. Keep this ID until MSWDO releases the new one.</p><a class="btn-navy applicant-id-link" href="<?= base_url('applicant/dashboard.php?section=renewal&type=status') ?>" data-i18n>View Renewal Status</a>
+          <?php elseif ($isExpired): ?><p class="applicant-id-expired-note" data-i18n>Your ID has expired. Check your renewal options to keep your details up to date.</p><a class="btn-outline applicant-id-link" href="<?= base_url('applicant/dashboard.php?section=renewal') ?>" data-i18n>View Renewal Options</a><?php endif; ?>
         </section>
 
       </aside>

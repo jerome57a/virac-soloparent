@@ -60,6 +60,7 @@ $apptStyles = [
             </div>
           </div>
         <?php endif; ?>
+        <?php if ($appointment && $status === 'BOOKED' && substr((string) $appointment['scheduled_at'], 0, 10) === date('Y-m-d') && !empty($bookableApp['reference_no'])) { $counterRef = (string) $bookableApp['reference_no']; $counterRenewal = ($bookableApp['type'] ?? '') === 'renewal'; require APP_ROOT . '/views/partials/counter-card.php'; } ?>
         <?php if ($appointment): [$bg, $fg, $label] = $apptStyles[$status]; $apptTs = strtotime((string) $appointment['scheduled_at']); ?>
           <section class="appt-card" aria-labelledby="appt-card-title">
             <div class="appt-card-main">

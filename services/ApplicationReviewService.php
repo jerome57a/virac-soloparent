@@ -687,7 +687,10 @@ class ApplicationReviewService
      * Records Successful / Unsuccessful. For a renewal with an interview, $recheck holds the RENEWAL_RECHECK keys staff ticked: a
      * Successful result needs all of them; the result text says what was (not) confirmed.
      */
-    public function recordInterviewOutcome(array $staff, int $applicationId, string $outcome, string $notes, ?array $recheck = null, string $idNotShownReason = ''): ?string
+    /** What the Solo Parent brings to the interview (the 1x1 pictures are not uploaded). Ticked at the interview; never blocking. */
+    public const BROUGHT = ['valid_id' => 'valid ID (name and birthdate match)', 'pictures' => 'two 1x1 ID pictures', 'originals' => 'original documents'];
+
+    public function recordInterviewOutcome(array $staff, int $applicationId, string $outcome, string $notes, ?array $recheck = null, string $idNotShownReason = '', ?array $brought = null): ?string
     {
         $idNotShownReason = trim($idNotShownReason);
         if (mb_strlen($idNotShownReason) > 200) {
@@ -718,6 +721,12 @@ class ApplicationReviewService
             if ($idNotShown) {
                 $this->audit($staff, 'Renewal Interview: ID Not Shown', 'application', $applicationId, $idNotShownReason);
             }
+        }
+        if ($brought !== null) {
+            $have = array_values(array_intersect(array_keys(self::BROUGHT), array_map('strval', $brought)));
+            $missing = array_diff(array_keys(self::BROUGHT), $have);
+            $notes = trim($notes . ' ' . ($have ? 'Brought: ' . implode(', ', array_map(fn($k) => self::BROUGHT[$k], $have)) . '.' : 'Nothing ticked as brought.')
+                . ($have && $missing ? ' Not shown: ' . implode(', ', array_map(fn($k) => self::BROUGHT[$k], $missing)) . '.' : ''));
         }
         return $this->recordInterviewResult($staff, $applicationId, $outcome . ($notes !== '' ? ': ' . $notes : ''));
     }

@@ -25,14 +25,22 @@ if ($released) {
 }
 $pending = $idApplication ?: (!empty($latestApplication) && $latestApplication['status'] !== 'Rejected' ? $latestApplication : null);
 $isPast = $released && $idApplication['id_expires_at'] < date('Y-m-d');
+$releaseToday = $releaseToday ?? null;
+if ($releaseToday) { [$tone, $badge] = ['ok', 'Collect it today']; }
 $myIdUrl = $viewableIdApplication ? base_url('applicant/dashboard.php?section=myid&ref=' . urlencode($viewableIdApplication['reference_no'])) : base_url('applicant/dashboard.php?section=myid');
 ?>
 <link rel="stylesheet" href="<?= public_asset('css/id-sample.css') ?>">
 <div class="dash-card idc">
   <div class="idc-head">
     <h2 class="dash-card-label dash-home-card-heading" data-i18n><?= ui_icon('id-card', 20) ?>My Solo Parent ID</h2>
-    <?php if ($released || $pending): ?><span class="idc-badge is-<?= e($tone) ?>"><span aria-hidden="true"></span><span data-i18n><?= e($badge) ?></span></span><?php endif; ?>
+    <?php if ($released || $pending || $releaseToday): ?><span class="idc-badge is-<?= e($tone) ?>"><span aria-hidden="true"></span><span data-i18n><?= e($badge) ?></span></span><?php endif; ?>
   </div>
+
+  <?php if ($releaseToday): $counterRef = (string) $releaseToday['reference_no']; $counterRelease = $releaseToday; $counterRenewal = false; require APP_ROOT . '/views/partials/counter-card.php'; ?>
+    <?php if (!$released): ?>
+      <div class="idc-actions"><a href="?section=application" class="btn-outline text-decoration-none dash-card-link" data-i18n>View Application</a></div>
+    <?php endif; ?>
+  <?php endif; ?>
 
   <?php if ($released): $expires = format_date_long($idApplication['id_expires_at']); ?>
     <a class="idc-sample" href="<?= e($myIdUrl) ?>" aria-label="Sample of your Solo Parent ID <?= e($idApplication['reference_no']) ?>, valid until <?= e($expires) ?>. Open My ID.">
@@ -69,6 +77,7 @@ $myIdUrl = $viewableIdApplication ? base_url('applicant/dashboard.php?section=my
       <a href="<?= e($myIdUrl) ?>" class="<?= in_array($state, ['valid'], true) ? 'btn-navy' : 'btn-outline' ?> text-decoration-none dash-card-link" data-i18n>View My ID</a>
     </div>
 
+  <?php elseif ($releaseToday): /* the counter card above is the whole card on the release day */ ?>
   <?php elseif ($pending): $ps = status_style($pending['status']); ?>
     <div class="idc-sample is-grey" aria-label="Your ID is being prepared" role="img">
       <img src="<?= asset('images/solo-parent-id/front-preview.jpg') ?>" alt="" width="900" height="514" loading="lazy">

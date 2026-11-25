@@ -41,10 +41,13 @@ const routes = ['dashboard.php', 'notifications.php', 'index.php', 'applicants.p
       assert.deepEqual(missingTargets, []);
       if (route === 'dashboard.php') {
         const tileLinks = await page.locator('.stat-tile').evaluateAll(tiles => tiles.map(t => t.getAttribute('href')));
-        assert(tileLinks.length >= 15 && tileLinks.every(h => h && !h.startsWith('#')), 'every dashboard tile goes to a page, not a section below');
+        // 14 tiles: "Expected Today" was replaced by the "Today at the office" strip, which shows the same count.
+        assert(tileLinks.length >= 14 && tileLinks.every(h => h && !h.startsWith('#')), 'every dashboard tile goes to a page, not a section below');
+        assert.equal(await page.locator('.stat-tile .stat-label', { hasText: 'Expected Today' }).count(), 0, 'no duplicate Expected Today tile');
+        assert.equal(await page.locator('#office-today.is-compact').count(), 1, 'the short Today at the office strip is on the dashboard');
+        assert.equal(await page.locator('#office-today .ot-lh').count(), 0, 'its lists stay on Appointment Management');
         assert.equal(await page.locator('#staff-dashboard .review-card, #staff-dashboard .dash-panel').count(), 0, 'no lists are shown on the dashboard');
-        assert.equal(await page.locator('.gi-start li a').count(), 5, 'Start here lists the five steps of the staff work');
-        assert((await page.locator('.gi-start li a').evaluateAll(a => a.every(x => x.getAttribute('href') && !x.getAttribute('href').startsWith('#')))), 'every Start here step opens a page');
+        assert.equal(await page.locator('.gi-start').count(), 0, 'the Start here list is gone from the dashboard');
         assert.equal(await page.locator('.stat-tile.has-icon .gi-chip svg.ui-icon').count(), await page.locator('.stat-tile').count(), 'every dashboard tile has its icon');
       }
       const oversizedFields = await page.locator('.staff-workspace .filter-bar input, .staff-workspace .record-filters input, .staff-workspace .analytics-filters input:not([type=hidden]), .staff-code-field input').evaluateAll(fields => fields.filter(el => el.getBoundingClientRect().height > 60).map(el => el.name));

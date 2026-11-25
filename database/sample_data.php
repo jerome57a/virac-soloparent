@@ -41,7 +41,11 @@ const SAMPLE_CSV = __DIR__ . '/sample_data/solo-parents.csv';
 const ENCODER_USERNAME = 'sample.encoder';
 const ENCODER_NAME = 'Sample Data Encoder';
 const STAGES = ['released', 'released_renewal_filed', 'pending_review', 'documents_to_verify', 'for_revision', 'reuploaded', 'ready_to_schedule',
-    'waiting_for_date', 'interview_today', 'needs_result', 'missed', 'release_scheduled', 'release_overdue', 'rejected'];
+    'waiting_for_date', 'interview_today', 'needs_result', 'missed', 'release_scheduled', 'release_overdue', 'rejected',
+    // A renewal row: the first ID (card dates in the CSV, already expired) is released, the Solo Parent files the renewal on the web form,
+    // and the renewal goes to the stage after "renewal_". The new ID of renewal_released is valid from today for one year.
+    'renewal_pending_review', 'renewal_documents_to_verify', 'renewal_for_revision', 'renewal_ready_to_schedule', 'renewal_interview_today',
+    'renewal_needs_result', 'renewal_release_today', 'renewal_release_overdue', 'renewal_released', 'renewal_rejected'];
 
 $command = $argv[1] ?? 'check';
 $say = fn(string $s) => print($s . "\n");
@@ -78,7 +82,8 @@ function sample_problems(array $row): array
     if (!in_array($row['stage'], STAGES, true)) $p[] = 'unknown stage ' . $row['stage'];
     if (!in_array($row['civil_status'], CIVIL_STATUS_OPTIONS, true)) $p[] = 'civil status';
     if ($row['mobile'] !== 'TEAM' && !is_valid_ph_mobile(normalize_mobile($row['mobile']))) $p[] = 'mobile';
-    if (str_starts_with($row['stage'], 'released') && (!$row['card_valid_from'] || !$row['card_expires_at'])) $p[] = 'card dates';
+    if ((str_starts_with($row['stage'], 'released') || str_starts_with($row['stage'], 'renewal_')) && (!$row['card_valid_from'] || !$row['card_expires_at'])) $p[] = 'card dates';
+    if (str_starts_with($row['stage'], 'renewal_') && $row['card_expires_at'] && $row['card_expires_at'] > date('Y-m-d')) $p[] = 'a renewal needs an ID that has expired';
     if (!$row['children_list']) $p[] = 'no child';
     return $p;
 }
@@ -267,15 +272,18 @@ Mobile numbers: none is used by another account or application, none twice.");
         $scheduleRelease = fn(array $app, string $date) => must($release->schedule($staff, $fresh((int) $app['id']), $date, $date === $today ? date('H:i', strtotime('+10 minutes')) : '09:00', get_setting($pdo, 'appointment_location', 'MSWDO Office, Virac'), 'automatic', ''), 'schedule release');
 
         foreach ($rows as $r) {
+            // A renewal row has two applications: its first ID is released first, then (once the Solo Parent has filed the renewal on the web form)
+            // the renewal goes to its stage.
+            $jobs = str_starts_with($r['stage'], 'renewal_') ? [['new', 'released'], ['renewal', substr($r['stage'], 8)]] : [['new', $r['stage']]];
+            foreach ($jobs as [$type, $stage]) {
             $u = sample_user($pdo, $r['username']);
-            $app = $u ? sample_app($pdo, (int) $u['id'], 'new') : null;
+            $app = $u ? sample_app($pdo, (int) $u['id'], $type) : null;
             if (!$app) {
-                $say($r['key'] . ': no application yet (run the web form first), skipped');
+                $say($r['key'] . ': ' . ($type === 'renewal' ? 'the renewal is not filed yet (run the web form renewal first)' : 'no application yet (run the web form first)') . ', skipped');
                 continue;
             }
             SampleRecords::register($pdo, 'application', (int) $app['id'], $r['key']);
-            $stage = $r['stage'];
-            $releaseStage = in_array($stage, ['release_scheduled', 'release_overdue', 'released', 'released_renewal_filed'], true);
+            $releaseStage = in_array($stage, ['release_scheduled', 'release_today', 'release_overdue', 'released', 'released_renewal_filed'], true);
             $resumeRelease = $releaseStage && $app['status'] === 'Approved' && !$release->scheduleFor((int) $app['id']);
             if (!$resumeRelease && ($stage === 'pending_review' || $app['status'] !== 'Pending Review' && $app['status'] !== 'Under Verification')) {
                 $say($r['key'] . ': ' . $app['reference_no'] . ' is ' . $app['status'] . ($stage === 'pending_review' ? ' (left for staff)' : ' (already done, skipped)'));
@@ -337,6 +345,7 @@ Mobile numbers: none is used by another account or application, none twice.");
                     must($review->updateStatus($staff, $fresh((int) $app['id']), 'Rejected', 'The child listed is already supported by the other parent, so the applicant is not the sole caregiver (RA 11861).', 'Under Verification'), 'reject');
                     break;
                 case 'release_scheduled':
+                case 'release_today':
                 case 'release_overdue':
                 case 'released':
                 case 'released_renewal_filed':
@@ -351,6 +360,10 @@ Mobile numbers: none is used by another account or application, none twice.");
                         $scheduleRelease($app, $day(7));
                         break;
                     }
+                    if ($stage === 'release_today') {
+                        $scheduleRelease($app, $today);   // later today: the Solo Parent's release-day card and the counter search show it
+                        break;
+                    }
                     if ($stage === 'release_overdue') {
                         $scheduleRelease($app, $day(1));
                         $pdo->prepare('UPDATE id_release_schedules SET scheduled_at = ? WHERE application_id = ?')->execute([$day(-3) . ' 09:00:00', (int) $app['id']]);
@@ -359,7 +372,8 @@ Mobile numbers: none is used by another account or application, none twice.");
                     }
                     $scheduleRelease($app, $today);
                     // Handover: the card dates when the card is still valid; otherwise valid dates first, then corrected to the card.
-                    $from = $r['card_valid_from']; $to = $r['card_expires_at'];
+                    $from = $type === 'renewal' ? $today : $r['card_valid_from'];
+                    $to = $type === 'renewal' ? $day(365) : $r['card_expires_at'];
                     $handoverOk = IdReleaseService::datesError($from, $to, true) === null;
                     must($release->confirmRelease($staff, $fresh((int) $app['id']), ['valid_from' => $handoverOk ? $from : $today, 'expires_at' => $handoverOk ? $to : $day(365), 'identity_checked' => true, 'override_reason' => '']), 'confirm release');
                     if (!$handoverOk) {
@@ -368,7 +382,8 @@ Mobile numbers: none is used by another account or application, none twice.");
                     break;
             }
             $now = $fresh((int) $app['id']);
-            $say($r['key'] . ': ' . $now['reference_no'] . ' -> ' . $now['status'] . ' (' . $stage . ')');
+            $say($r['key'] . ': ' . $now['reference_no'] . ' -> ' . $now['status'] . ' (' . ($type === 'renewal' ? 'renewal ' : '') . $stage . ')');
+            }
         }
         exit(0);
     }

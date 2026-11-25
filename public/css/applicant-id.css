@@ -55,3 +55,7 @@
   .applicant-id-details dd { font-size: 12px; }
   .applicant-id-empty { margin: 16px auto; padding: 30px 20px; }
 }
+
+/* A renewal is being processed: the old ID stays the current record (label "Renewal in progress") */
+.applicant-id-status.is-scheduled { background: var(--info, #dce8f5); color: var(--navy, #1b3a6b); border-color: transparent; }
+.applicant-id-renewal-note { margin: 18px 22px 12px; padding: 10px 12px; border-radius: 10px; background: var(--info, #dce8f5); color: var(--ink, #1a2233); font-size: 14px; }

@@ -44,7 +44,7 @@
       if (element.hasAttribute('data-theme-toggle')) return;
       var saved = attributeOriginals.get(element) || {};
       element.dataset.i18nAttrs.split(' ').forEach(function (name) {
-        if (!/^(aria-label|title|placeholder|alt)$/.test(name)) return;
+        if (!/^(aria-label|title|placeholder|alt|label)$/.test(name)) return;
         var current = element.getAttribute(name);
         if (!saved[name] || current !== saved[name].written) saved[name] = { original: current };
         var next = saved[name].original === null ? null : translate(saved[name].original);

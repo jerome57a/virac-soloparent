@@ -21,3 +21,13 @@ B9,applying,Mylene D. Gianan,mylene.gianan,09990001019,1,Female,1995-08-13,Singl
 B10,applying,Carmela S. Obias,carmela.obias,09990001020,1,Female,1981-05-05,Annulled,Salvacion,Purok 3,11,Tina Obias:2013-09-14,release_scheduled,,
 B11,applying,Dennis F. Sorreta,dennis.sorreta,09990001021,1,Male,1987-11-11,Married,Danicop,Purok 5,18,Ace Sorreta:2018-08-01,release_overdue,,
 B12,applying,Arlene P. Tolentino,arlene.tolentino,09990001022,1,Female,1993-01-27,Single,Valencia,Purok 2,13,Iris Tolentino:2022-06-06,rejected,,
+R1,renewal,Maria Teresa L. Dizon,mariateresa.dizon,09990001031,1,Female,1985-03-14,Widowed,Concepcion,Purok 4,16,Paolo Dizon:2015-05-20,renewal_pending_review,2025-11-25,2026-11-25
+R2,renewal,Rodel S. Quiambao,rodel.quiambao,09990001032,1,Male,1983-08-09,Married,Francia,Purok 2,14,Kyle Quiambao:2017-02-11,renewal_documents_to_verify,2025-11-10,2026-11-10
+R3,renewal,Gina A. Palma,gina.palma,09990001033,1,Female,1988-12-01,Separated,Danicop,Purok 5,17,Ria Palma:2019-09-30;Marco Palma:2014-04-04,renewal_for_revision,2025-10-28,2026-10-28
+R4,renewal,Lourdes M. Ancheta,lourdes.ancheta,09990001034,1,Female,1991-06-22,Single,Gogon Centro,Purok 1,13,Ben Ancheta:2020-01-17,renewal_ready_to_schedule,2025-10-05,2026-10-05
+R5,renewal,Fernando J. Cabrera,fernando.cabrera,09990001035,1,Male,1980-10-30,Married,Salvacion,Purok 3,18,Ella Cabrera:2012-07-07,renewal_interview_today,2025-09-12,2026-09-12
+R6,renewal,Imelda C. Zafra,imelda.zafra,09990001036,1,Female,1976-02-18,Widowed,Rawis,Purok 6,16,Jun Zafra:2002-03-03:pwd;Nica Zafra:2013-11-25,renewal_needs_result,2025-08-20,2026-08-20
+R7,renewal,Benilda R. Ortega,benilda.ortega,09990001037,1,Female,1982-05-27,Annulled,Valencia,Purok 2,11,Carl Ortega:2016-12-12,renewal_release_today,2025-07-30,2026-07-30
+R8,renewal,Victor L. Nadres,victor.nadres,09990001038,1,Male,1979-09-15,Separated,Calatagan Proper,Purok 4,10,Jessa Nadres:2011-06-06,renewal_release_overdue,2025-06-15,2026-06-15
+R9,renewal,Corazon T. Abella,corazon.abella,09990001039,1,Female,1974-01-08,Widowed,San Isidro Village,Purok 1,16,Mia Abella:2010-10-10;Leo Abella:2018-03-19,renewal_released,2025-05-02,2026-05-02
+R10,renewal,Alfredo P. Sison,alfredo.sison,09990001040,1,Male,1981-07-21,Single,Cavinitan,Purok 3,12,Ken Sison:2014-08-08,renewal_rejected,2025-04-10,2026-04-10

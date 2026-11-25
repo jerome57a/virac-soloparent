@@ -312,6 +312,14 @@ $noteBox = function (array $lines): string {
             <form method="post" id="interview-result-form" class="d-flex flex-column gap-2 mb-3" onsubmit="return confirm('Confirm this interview result?');">
               <?= csrf_field() ?>
               <input type="hidden" name="form_action" value="record_result">
+              <?php if (!empty($interview['arrived_at'])): ?><div class="gi-arrived" role="status"><?= ui_icon('circle-check', 16) ?><span>Arrived <?= e(date(substr((string) $interview['arrived_at'], 0, 10) === date('Y-m-d') ? 'g:i A' : 'M j, g:i A', strtotime((string) $interview['arrived_at']))) ?><?= !empty($arrivedByName) ? ' · checked in by ' . e($arrivedByName) : '' ?></span></div><?php endif; ?>
+              <fieldset class="gi-brought"><legend data-i18n>Brought to the interview</legend>
+                <?php foreach (ApplicationReviewService::BROUGHT as $bKey => $bLabel): ?>
+                  <label class="gi-tick"><input type="checkbox" name="brought[]" value="<?= e($bKey) ?>"> <span data-i18n><?= e(['valid_id' => 'Valid government ID, name and birthdate match', 'pictures' => 'Two 1x1 ID pictures received', 'originals' => 'Original documents shown'][$bKey]) ?></span><?= $bKey === 'pictures' ? ' <small data-i18n>(not uploaded)</small>' : '' ?></label>
+                <?php endforeach; ?>
+                <?php if ($isRenewalInterview): ?><small class="gi-tick-note" data-i18n>Current Solo Parent ID: tick it in the renewal re-check below.</small><?php endif; ?>
+                <small class="gi-tick-note" data-i18n>Not required to save the result; what is ticked is written into it.</small>
+              </fieldset>
               <?php if ($isRenewalInterview): require_once APP_ROOT . '/services/SoloParentChildRules.php'; $rcToday = date('Y-m-d');
                 $rcPrevCivil = (string) ($renewalOf['civil_status'] ?? ''); $rcCivilChanged = ($app['civil_status'] ?? '') === 'Married' && $rcPrevCivil !== '' && $rcPrevCivil !== 'Married';
                 $rcValidFrom = $renewalOf['id_valid_from'] ?? null; $rcExpires = $renewalOf['id_expires_at'] ?? null; ?>
@@ -479,7 +487,7 @@ $noteBox = function (array $lines): string {
         <?php
         // Rescheduling: the Solo Parent booked again after a missed, unrecorded or cancelled interview.
         $evLabels = ['STAFF_SCHEDULED' => 'Scheduled by MSWDO staff', 'BOOKED' => 'Date booked', 'RESCHEDULED' => 'Rescheduled by the Solo Parent', 'MISSED' => 'Marked as not attended',
-            'NO_OUTCOME' => 'No outcome recorded (released by the system)', 'CANCELLED' => 'Cancelled', 'INVITATION_REOPENED' => 'Booking reopened', 'INVITATION_CLOSED' => 'Booking closed'];
+            'NO_OUTCOME' => 'No outcome recorded (released by the system)', 'CANCELLED' => 'Cancelled', 'ARRIVED' => 'Arrived at the office', 'MOVED_TO_TODAY' => 'Moved to today (came to the office)', 'INVITATION_REOPENED' => 'Booking reopened', 'INVITATION_CLOSED' => 'Booking closed'];
         $priorEvents = array_values(array_filter($interviewEvents ?? [], fn($ev) => in_array($ev['event_type'], ['MISSED', 'NO_OUTCOME', 'CANCELLED'], true)));
         $isResched = $interview && $ivStatus === 'BOOKED' && ($interview['booking_source'] ?? '') === 'APPLICANT' && $priorEvents;
         if ($isResched): $lastPrior = $priorEvents[count($priorEvents) - 1]; ?>

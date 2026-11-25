@@ -1,0 +1,125 @@
+/* "Today at the office" (views/partials/office-today.php): the check-in box, the confirm card and today's lists. Shared colour tokens
+   only, so light and dark follow the preference. */
+.ot { border: 1px solid var(--border); border-top: 5px solid var(--navy); border-radius: 14px; background: var(--theme-card, #fff); overflow: hidden; margin: 0 0 18px; scroll-margin-top: 80px; }
+.ot-h { display: flex; gap: 10px; align-items: baseline; justify-content: space-between; flex-wrap: wrap; padding: 14px 16px 6px; }
+.ot-h h2 { margin: 0; font: 700 17px/1.3 Georgia, 'Times New Roman', serif; color: var(--ink); }
+.ot-h small { color: var(--muted); font-size: 12.5px; }
+.ot-checkin { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 16px 14px; margin: 0; }
+.ot-checkin label { flex-basis: 100%; margin: 0; font-weight: 700; color: var(--ink); font-size: 13.5px; }
+.ot-field { flex: 1 1 260px; min-width: 0; border: 1.5px solid var(--input-border); border-radius: 10px; padding: 11px 12px; background: var(--theme-card, #fff); color: var(--ink); font-size: 16px; }
+.ot-field:focus { outline: 3px solid color-mix(in srgb, var(--navy) 35%, transparent); border-color: var(--navy); }
+.ot-find { padding: 10px 22px !important; }
+.ot-hint { flex-basis: 100%; color: var(--muted); font-size: 12.5px; }
+.ot-note { margin: 0; padding: 6px 16px 12px; color: var(--muted); font-size: 13px; }
+
+.ot-result { padding: 0 16px 16px; }
+.ot-confirm { border: 1.5px solid var(--navy); border-radius: 14px; background: var(--theme-card, #fff); box-shadow: 0 10px 30px rgba(20, 35, 60, .16); max-width: 620px; }
+html[data-theme="dark"] .ot-confirm { box-shadow: 0 10px 30px rgba(0, 0, 0, .5); }
+.ot-confirm-h { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.ot-confirm-h b { color: var(--ink); font: 700 16px/1.3 Georgia, 'Times New Roman', serif; }
+.ot-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; padding: 14px 16px; margin: 0; }
+.ot-facts dt { font-size: 12px; font-weight: 400; color: var(--muted); }
+.ot-facts dd { margin: 0; color: var(--ink); font-weight: 700; overflow-wrap: anywhere; }
+.ot-idcheck { display: flex; gap: 8px; margin: 0 16px 12px; padding: 10px 12px; border-radius: 10px; background: var(--warn-bg); color: var(--warn-text); font-size: 13.5px; }
+.ot-idcheck svg { flex: none; margin-top: 1px; }
+.ot-msg { margin: 0 16px 12px; color: var(--ink); font-size: 14px; }
+.ot-confirm-a { display: flex; gap: 8px; justify-content: flex-end; align-items: center; flex-wrap: wrap; padding: 12px 16px; border-top: 1px solid var(--border); }
+.ot-arrive { border: 0; border-radius: 8px; padding: 9px 16px; font-weight: 700; font-size: 14px; background: #1f6b35; color: #fff; cursor: pointer; }
+.ot-arrive:hover, .ot-arrive:focus-visible { background: #18562a; }
+html[data-theme="dark"] .ot-arrive { background: #6fcf97; color: #0d1f14; }
+.ot-btn { padding: 7px 14px !important; font-size: 13px !important; text-decoration: none; white-space: nowrap; display: inline-flex; align-items: center; min-height: 36px; }
+
+.ot-case { border: 1px solid var(--border); border-left: 5px solid var(--warn-text); border-radius: 12px; background: var(--theme-card, #fff); padding: 12px 14px; max-width: 620px; }
+.ot-case.is-err { border-left-color: var(--error-text); }
+.ot-case.is-info { border-left-color: var(--navy); }
+.ot-case b { display: block; color: var(--ink); }
+.ot-case p { margin: 4px 0 10px; font-size: 13.5px; color: var(--ink); }
+.ot-pick { list-style: none; margin: 0; padding: 0; }
+.ot-pick li a { display: block; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; color: var(--ink); text-decoration: none; }
+.ot-pick li a:hover, .ot-pick li a:focus-visible { border-color: var(--navy); }
+.ot-pick small { color: var(--muted); }
+
+.ot-pill { display: inline-flex; align-items: center; border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.ot-pill.is-ok { background: var(--success-bg); color: var(--success-text); }
+.ot-pill.is-warn { background: var(--warn-bg); color: var(--warn-text); }
+.ot-pill.is-err { background: var(--error-bg); color: var(--error-text); }
+.ot-pill.is-info { background: var(--info); color: var(--navy); }
+
+.ot-counts { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--border); }
+.ot-counts div { padding: 10px 16px; border-right: 1px solid var(--border); }
+.ot-counts div:last-child { border-right: 0; }
+.ot-counts strong { display: block; font-size: 22px; line-height: 1.15; color: var(--ink); }
+.ot-counts span { font-size: 12.5px; color: var(--muted); }
+.ot-lh { display: flex; justify-content: space-between; gap: 8px; padding: 8px 16px; background: var(--surface); border-top: 1px solid var(--border); font-weight: 700; font-size: 12.5px; color: var(--ink); text-transform: uppercase; letter-spacing: .04em; }
+.ot-lh small { color: var(--muted); font-weight: 400; text-transform: none; letter-spacing: 0; font-size: 12.5px; }
+.ot-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 10px 16px; border-top: 1px solid var(--border); }
+.ot-lh + .ot-row { border-top: 0; }
+.ot-qn { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--navy); color: var(--theme-card, #fff); font-weight: 700; font-size: 13px; flex: none; }
+.ot-qn.is-dim { background: var(--surface); color: var(--muted); border: 1px solid var(--border); }
+.ot-who { flex: 1 1 200px; min-width: 0; }
+.ot-who b { display: block; color: var(--ink); overflow-wrap: anywhere; }
+.ot-who small { display: block; color: var(--muted); font-size: 12.5px; }
+.ot-acts { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.ot-empty { padding: 10px 16px; color: var(--muted); font-size: 13.5px; border-top: 1px solid var(--border); }
+.ot-lh + .ot-empty { border-top: 0; }
+
+/* The two review tiles that must never be missed (staff dashboard "Other work") */
+.stat-tile.is-review { border: 1.5px solid #b45309 !important; border-top-width: 5px !important; }
+.stat-tile.is-zero { opacity: .72; }
+.stat-tile.is-zero .stat-value { color: var(--faint, var(--muted)); }
+
+@media (max-width: 620px) {
+  .ot-facts { grid-template-columns: 1fr; }
+  .ot-counts strong { font-size: 19px; }
+  .ot-confirm-a .btn-outline, .ot-confirm-a form, .ot-confirm-a .btn-navy { flex: 1 1 auto; }
+  .ot-arrive { width: 100%; }
+  .ot-row .ot-acts { width: 100%; padding-left: 42px; }
+}
+
+/* Solo Parent, on the interview day: the reference number to show at the counter (views/partials/counter-card.php) */
+.ot-counter { border: 1px solid var(--border); border-radius: 14px; background: var(--theme-card, #fff); padding: 14px 16px; margin: 0 0 14px; }
+.ot-counter h3 { margin: 0 0 8px; font: 700 16px/1.3 Georgia, 'Times New Roman', serif; color: var(--ink); }
+.ot-ref { border: 2px dashed var(--navy); border-radius: 14px; padding: 14px; text-align: center; margin: 0 0 12px; }
+.ot-ref small { display: block; color: var(--muted); font-size: 12.5px; text-transform: uppercase; letter-spacing: .05em; }
+.ot-ref strong { display: block; font: 700 26px/1.25 'Courier New', Courier, monospace; color: var(--navy); letter-spacing: .04em; overflow-wrap: anywhere; }
+.ot-ref span { display: block; color: var(--muted); font-size: 13px; margin-top: 4px; }
+.ot-bring-h { color: var(--ink); font-size: 14px; }
+.ot-bring { list-style: none; margin: 6px 0 0; padding: 0; }
+.ot-bring li { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; color: var(--ink); font-size: 14px; }
+.ot-bring li svg { flex: none; color: var(--navy); margin-top: 2px; }
+@media (max-width: 420px) { .ot-ref strong { font-size: 21px; } }
+.dash-card .ot-counter { border: 0; padding: 0; background: transparent; }
+
+/* Dashboard: the short strip (box, one line of counts, the next person); the full lists are on Appointment Management. */
+.ot.is-compact { padding-bottom: 12px; }
+.ot-line { display: flex; justify-content: space-between; align-items: center; gap: 8px 16px; flex-wrap: wrap; margin: 0 16px; padding-top: 10px; border-top: 1px solid var(--border); }
+.ot-line-c { display: flex; gap: 6px 18px; flex-wrap: wrap; }
+.ot-line-c a { color: var(--ink); text-decoration: none; font-size: 14px; }
+.ot-line-c a b { font-size: 17px; }
+.ot-line-c a:hover span, .ot-line-c a:focus-visible span { text-decoration: underline; }
+.ot-all { color: var(--navy); font-weight: 700; font-size: 13.5px; text-decoration: none; white-space: nowrap; }
+.ot-all:hover, .ot-all:focus-visible { text-decoration: underline; }
+.ot-next { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 10px 16px 0; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); }
+.ot-next > small { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+#ot-waiting, #ot-expected, #ot-done { scroll-margin-top: 90px; }
+@media (max-width: 620px) { .ot-next .ot-btn { width: 100%; justify-content: center; } }
+
+/* ID release on the check-in card: the release date block */
+.ot-rel { display: flex; gap: 12px; align-items: center; margin: 0 16px 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.ot-rel-d { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 10px; background: var(--info); color: var(--navy); line-height: 1.1; text-align: center; flex: none; }
+.ot-rel-d small { font-size: 10.5px; text-transform: uppercase; }
+.ot-rel-d b { font-size: 18px; }
+.ot-rel-t { min-width: 0; }
+.ot-rel-t b { display: block; color: var(--ink); }
+.ot-rel-t span { color: var(--muted); font-size: 13px; }
+.ot-rel.is-late { border-color: var(--error-text); }
+.ot-rel.is-late .ot-rel-d { background: var(--error-bg); color: var(--error-text); }
+
+/* Solo Parent, ID release day: the date block above the reference number (views/partials/counter-card.php) */
+.ot-when { display: flex; gap: 12px; align-items: center; margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); }
+.ot-when-d { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 10px; background: var(--info); color: var(--navy); line-height: 1.1; text-align: center; flex: none; }
+.ot-when-d small { font-size: 10.5px; text-transform: uppercase; }
+.ot-when-d b { font-size: 18px; }
+.ot-when > div { min-width: 0; }
+.ot-when > div b { display: block; color: var(--ink); }
+.ot-when > div span { color: var(--muted); font-size: 13px; }

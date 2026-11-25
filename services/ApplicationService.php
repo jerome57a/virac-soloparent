@@ -7,6 +7,7 @@ require_once __DIR__ . '/../models/Document.php';
 require_once __DIR__ . '/DocumentValidationService.php';
 require_once __DIR__ . '/SMSService.php';
 require_once __DIR__ . '/EmergencyContactService.php';
+require_once __DIR__ . '/CategoryCivilStatus.php';
 require_once __DIR__ . '/SoloParentChildRules.php';
 
 /**
@@ -329,6 +330,8 @@ class ApplicationService
             }
             if (!$draft['categoryId'] || !$this->categoryExists((int) $draft['categoryId'])) {
                 $errors['circumstance'] = 'Select your solo parent category.';
+            } elseif (isset($errors['civilStatus']) === false && !CategoryCivilStatus::fitsId($this->pdo, (int) $draft['categoryId'], (string) $draft['civilStatus'])) {
+                $errors['circumstance'] = 'This category does not apply to the civil status you chose. Choose a category that fits, or change your civil status.';
             }
         }
 

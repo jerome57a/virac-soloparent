@@ -153,6 +153,7 @@ $welcomeText = !empty($isFirstLogin) ? 'Welcome' : 'Welcome back';
         <div class="dash-card">
           <h2 class="dash-card-label dash-home-card-heading" data-i18n><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><?= $icons['calendar'] ?></svg>Appointment</h2>
           <?php if ($upcomingAppointment): ?>
+            <?php if (date('Y-m-d', strtotime($upcomingAppointment['interview_at'])) === date('Y-m-d')) { $counterRef = (string) $upcomingAppointment['reference_no']; $counterRenewal = ($upcomingAppointment['type'] ?? '') === 'renewal'; require APP_ROOT . '/views/partials/counter-card.php'; } ?>
             <div class="dash-home-appointment-date">
               <div class="dash-home-date-tile" aria-hidden="true"><span><?= e(date('M', strtotime($upcomingAppointment['interview_at']))) ?></span><b><?= e(date('j', strtotime($upcomingAppointment['interview_at']))) ?></b></div>
               <?php $apptDay = date('Y-m-d', strtotime($upcomingAppointment['interview_at'])); $apptIn = (int) round((strtotime($apptDay) - strtotime(date('Y-m-d'))) / 86400); ?>

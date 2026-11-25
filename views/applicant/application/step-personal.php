@@ -1,5 +1,14 @@
 <?php
-/** Personal information step. @var array $draft @var array $errors @var array $categories @var array $categoryDocs */
+/** Personal information step. @var array $draft @var array $errors @var array $categories @var array $categoryDocs @var bool $categoryRefit */
+require_once APP_ROOT . '/services/CategoryCivilStatus.php';
+require_once APP_ROOT . '/includes/icons.php';
+$categoryRefit = $categoryRefit ?? false;
+$civilNow = (string) ($draft['civilStatus'] ?? '');
+// With a civil status chosen only the categories that fit it are listed; the ones for every civil status come last, under their own heading.
+$visibleCategories = $civilNow !== '' ? CategoryCivilStatus::filter($categories, $civilNow) : $categories;
+$situational = array_values(array_filter($visibleCategories, fn($c) => CategoryCivilStatus::allowed($c) !== null));
+$general = array_values(array_filter($visibleCategories, fn($c) => CategoryCivilStatus::allowed($c) === null));
+$categoryOption = fn(array $c) => '<option value="' . (int) $c['id'] . '"' . ((int) $draft['categoryId'] === (int) $c['id'] ? ' selected' : '') . ' data-i18n>' . e($c['name']) . '</option>';
 $invalid = fn(string $key) => isset($errors[$key]) ? 'is-invalid' : '';
 $fieldAccessibility = function (string $key, string $hintId = '') use ($errors): string {
     $hasError = !empty($errors[$key]);
@@ -92,13 +101,17 @@ $fieldAccessibility = function (string $key, string $hintId = '') use ($errors):
       <span data-i18n>Category <span class="personal-required">*</span></span>
       <select name="categoryId" id="circumstance-select" class="<?= $invalid('circumstance') ?>"<?= $fieldAccessibility('circumstance', 'personal-category-hint') ?>>
         <option value="" <?= empty($draft['categoryId']) || !isset($categoryMap[$draft['categoryId']]) ? 'selected' : '' ?> data-i18n>Select your category</option>
-        <?php foreach ($categories as $c): ?>
-          <option value="<?= (int) $c['id'] ?>" <?= (int) $draft['categoryId'] === (int) $c['id'] ? 'selected' : '' ?> data-i18n><?= e($c['name']) ?></option>
-        <?php endforeach; ?>
+        <?php foreach ($situational as $c) { echo $categoryOption($c), "\n"; } ?>
+        <?php if ($general): ?><optgroup label="For any civil status" data-i18n-attrs="label"><?php foreach ($general as $c) { echo $categoryOption($c), "\n"; } ?></optgroup><?php endif; ?>
       </select>
+      <span class="field-hint cf-first" id="category-civil-hint" hidden><?= ui_icon('info', 14) ?><span data-i18n>Choose your civil status first.</span></span>
       <span class="field-hint" id="personal-category-hint" data-i18n>Your category determines the additional documents required for your application.</span>
       <?php if (!empty($errors['circumstance'])): ?><span class="field-error" id="personal-error-circumstance" data-i18n><?= e($errors['circumstance']) ?></span><?php endif; ?>
     </label>
+    <div id="category-filter-status" class="cf-status" aria-live="polite">
+      <span class="cf-pill" id="category-filter-pill"<?= $civilNow === '' ? ' hidden' : '' ?>><span data-i18n>Showing categories for</span> <span data-i18n><?= e($civilNow) ?></span></span>
+      <div class="cf-msg cf-info" id="category-filter-msg" role="note"<?= $categoryRefit ? '' : ' hidden' ?>><?= ui_icon('info', 16) ?><span id="category-filter-msg-text" data-i18n><?= $categoryRefit ? 'The category in your saved draft no longer fits your civil status. Please choose it again.' : '' ?></span></div>
+    </div>
     <?php if (!empty($legacyCategoryName)): ?><div class="info-box personal-category-notice" role="note">Your saved draft used the retired category “<?= e($legacyCategoryName) ?>”. Select one of the current categories to continue; the rest of your saved draft is preserved.</div><?php endif; ?>
     <div id="category-doc-box" class="info-box personal-category-notice" style="display:none" aria-live="polite"></div>
     <a href="<?= base_url('applicant/dashboard.php?section=requirements') ?>" class="personal-requirements-guide-link" target="_blank" rel="noopener" data-i18n>How to get your requirements</a>
@@ -119,4 +132,7 @@ $fieldAccessibility = function (string $key, string $hintId = '') use ($errors):
 
 <script>
   window.CATEGORY_DOCS = <?= json_encode($categoryDocs, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) ?>;
+  window.CATEGORY_CIVIL = <?= json_encode(CategoryCivilStatus::forBrowser($categories), JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) ?>;
 </script>
+<link rel="stylesheet" href="<?= public_asset('css/category-filter.css') ?>">
+<script src="<?= public_asset('js/category-civil.js') ?>" defer></script>

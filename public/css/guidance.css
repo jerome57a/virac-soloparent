@@ -1,4 +1,4 @@
-/* MSWDO staff and admin: icons, "what do I do next" guidance (Start here, step tracker, Next card, setup checklist, empty pages).
+/* MSWDO staff and admin: icons, "what do I do next" guidance (step tracker, Next card, setup checklist, empty pages).
    Uses the shared colour tokens, so light and dark mode follow the preference automatically. */
 .ui-icon { flex: none; vertical-align: -0.2em; }
 
@@ -21,19 +21,6 @@
 .gi-help[open] summary { margin-bottom: 6px; }
 .gi-help p { margin: 0; max-width: 70ch; font-size: 13.5px; color: var(--body-text); }
 
-/* Start here (staff dashboard) */
-.gi-start { border: 1px solid var(--border); background: var(--theme-card, #fff); border-radius: 14px; padding: 14px; margin-bottom: 16px; }
-.gi-start h2 { display: flex; gap: 8px; align-items: center; margin: 0 0 4px; font-size: 16px; color: var(--navy); font-family: var(--font-body); }
-.gi-start > p { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
-.gi-start ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; counter-reset: gi; }
-.gi-start li { counter-increment: gi; }
-.gi-start a { display: flex; gap: 10px; align-items: center; border: 1px solid var(--border); border-radius: 10px; padding: 9px 10px; background: var(--surface); color: var(--ink); text-decoration: none; font-weight: 600; font-size: 14px; }
-.gi-start a:hover, .gi-start a:focus-visible { border-color: var(--navy); }
-.gi-start a::before { content: counter(gi); display: grid; place-items: center; flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--navy); color: var(--theme-card, #fff); font-size: 13px; font-weight: 700; }
-.gi-start a span { flex: 1; }
-.gi-start em { font-style: normal; font-weight: 700; font-size: 13px; border-radius: 999px; padding: 1px 9px; background: var(--warn-bg); color: var(--warn-text); }
-.gi-start em.is-zero { background: var(--surface); color: var(--muted); border: 1px solid var(--border); }
-.gi-start-clear { margin: 10px 0 0; font-size: 13px; color: var(--success-text); display: flex; gap: 6px; align-items: center; }
 
 /* Dashboard tiles with an icon */
 .stat-tile.has-icon { display: flex; gap: 12px; align-items: center; }
@@ -93,7 +80,6 @@
 
 @media (max-width: 560px) {
   .gi-heading { align-items: flex-start; }
-  .gi-start ol { grid-template-columns: 1fr; }
   .gi-next .gi-actions, .gi-next .gi-btn { width: 100%; justify-content: center; }
   .gi-check { flex-wrap: wrap; }
 }
@@ -196,3 +182,18 @@ html[data-theme="dark"] .staff-alert.is-action { border-left-color: #ff9a8f; }
 .notif-group-count { display: inline-grid; place-items: center; min-width: 24px; height: 22px; padding: 0 7px; border-radius: 999px; font-size: 12px; background: var(--surface); color: var(--muted); border: 1px solid var(--border); }
 .notif-group-title.is-act .notif-group-count { background: var(--error-bg); color: var(--error-text); border-color: transparent; }
 .notif-group-empty { color: var(--muted); font-size: 14px; margin: 0 0 8px; }
+
+/* Office check-in on the interview result form: when the Solo Parent arrived, and what they brought (never blocking). */
+.gi-arrived { display: flex; gap: 8px; align-items: center; padding: 9px 12px; border-radius: 10px; background: var(--success-bg); color: var(--success-text); font-weight: 700; font-size: 13.5px; }
+.gi-arrived svg { flex: none; }
+.gi-brought { border: 1px solid var(--border); border-radius: 12px; padding: 8px 12px 10px; margin: 0; background: var(--surface); min-width: 0; }
+.gi-brought legend { float: none; width: auto; font-size: 13.5px; font-weight: 700; color: var(--ink); padding: 0 4px; margin: 0; }
+.gi-tick { display: flex; gap: 10px; align-items: center; padding: 5px 0; margin: 0; color: var(--ink); font-size: 14px; cursor: pointer; }
+.gi-tick input { width: 19px; height: 19px; accent-color: var(--navy); flex: none; margin: 0; }
+.gi-tick small, .gi-tick-note { color: var(--muted); font-size: 12.5px; }
+.gi-tick-note { display: block; margin-top: 2px; }
+
+/* The "arrived at the office" pop-up */
+.staff-alert.is-arrival { border-left-color: #1f6b35; }
+.staff-alert.is-arrival .staff-alert-head { color: var(--success-text); }
+html[data-theme="dark"] .staff-alert.is-arrival { border-left-color: #6fcf97; }

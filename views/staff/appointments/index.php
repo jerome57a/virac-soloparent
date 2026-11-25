@@ -147,6 +147,8 @@ if ($canManage) {
   <?php if (!empty($smsNotice)) { require APP_ROOT . '/views/staff/applications/sms-notice.php'; } ?>
   <?php if ($flashMessage): ?><div class="info-box" style="max-width:none" role="status"><?= e($flashMessage) ?></div><?php endif; ?>
 
+  <?php if (!empty($office)) { require APP_ROOT . '/views/partials/office-today.php'; } ?>
+
   <?php if ($next): ?>
   <div class="ap-next is-<?= e($next['tone']) ?>">
     <span class="ap-next-i" aria-hidden="true"><?= ui_icon($next['icon'], 22) ?></span>

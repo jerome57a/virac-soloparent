@@ -53,6 +53,7 @@ async function errorsOn(page) { return (await page.locator('.field-error:visible
 
 async function apply(page, row) {
   await page.goto(base + 'applicant/dashboard.php?section=apply');
+  if ((await stepOf(page)) === 0) return null;   // no wizard: this Solo Parent already has an application
   for (let guard = 0; guard < 12; guard++) {
     const step = await stepOf(page);
     if (step === 0) break;
@@ -119,7 +120,9 @@ async function renew(page, row) {
       break;
     }
     if (await page.locator('button[name=action][value=continue]').count()) { await click(page, 'continue'); continue; }
-    throw new Error(row.key + ': the renewal form did not open: ' + (await page.locator('main').innerText()).slice(0, 200));
+    const shown = (await page.locator('main').innerText()).slice(0, 300);
+    if (/being processed|already|in progress/i.test(shown)) return 'a renewal is already filed (skipped)';
+    throw new Error(row.key + ': the renewal form did not open: ' + shown.slice(0, 200));
   }
   const errors = await errorsOn(page);
   if (errors) throw new Error(row.key + ': renewal not submitted: ' + errors);
@@ -136,11 +139,12 @@ async function renew(page, row) {
       try {
         if (phase === 'apply') {
           await signIn(page, row);
-          console.log(`${row.key} ${row.username}: submitted ${await apply(page, row)}`);
+          const ref = await apply(page, row);
+          console.log(`${row.key} ${row.username}: ` + (ref ? `submitted ${ref}` : 'already has an application (skipped)'));
         } else if (phase === 'followup' && row.stage === 'reuploaded') {
           await signIn(page, row);
           console.log(`${row.key} ${row.username}: ${await reupload(page, row)}`);
-        } else if (phase === 'followup' && row.stage === 'released_renewal_filed') {
+        } else if (phase === 'followup' && (row.stage === 'released_renewal_filed' || row.stage.startsWith('renewal_'))) {
           await signIn(page, row);
           console.log(`${row.key} ${row.username}: ${await renew(page, row)}`);
         }

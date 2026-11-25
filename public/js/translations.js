@@ -3618,3 +3618,90 @@ Object.assign(window.ViracTranslations, {
   "No interview date yet": "Wala pang petsa ng panayam",
   "You monitor interview appointments here. MSWDO staff schedule each interview day, record results and handle changes; the Solo Parent can keep the date or pick another day.": "Dito mo sinusubaybayan ang mga appointment sa panayam. Ang MSWDO staff ang nagtatakda ng bawat araw ng panayam, nagtatala ng resulta at humahawak ng mga pagbabago; maaaring panatilihin ng Solo Parent ang petsa o pumili ng ibang araw."
 });
+
+/* November 2026: office check-in by reference number, "Today at the office", what was brought, the counter card. */
+Object.assign(window.ViracTranslations, {
+  "Today at the office": "Ngayong araw sa opisina",
+  "office hours 7:00 AM to 5:00 PM": "oras ng opisina 7:00 AM hanggang 5:00 PM",
+  "Check in a Solo Parent": "I-check in ang isang Solo Parent",
+  "Reference number, e.g. VIRAC-SP-2026-0062 or 0062": "Reference number, hal. VIRAC-SP-2026-0062 o 0062",
+  "Find": "Hanapin",
+  "You can also type a name or mobile number. Always compare with the Solo Parent's valid ID.": "Maaari ring i-type ang pangalan o mobile number. Laging ihambing sa valid ID ng Solo Parent.",
+  "Check-in is not set up yet (database/migrate_office_checkin.php). Today's interviews are listed below.": "Hindi pa naka-set up ang check-in (database/migrate_office_checkin.php). Nakalista sa ibaba ang mga panayam ngayong araw.",
+  "Not found": "Hindi nahanap",
+  "Choose the one whose name and birthdate match the valid ID.": "Piliin ang may pangalan at kaarawang tugma sa valid ID.",
+  "Is this the Solo Parent at the counter?": "Ito ba ang Solo Parent na nasa counter?",
+  "Check the valid ID.": "Suriin ang valid ID.",
+  "The name and birthdate must match. A reference number alone does not prove who the person is.": "Dapat tugma ang pangalan at kaarawan. Hindi sapat ang reference number para patunayan kung sino ang tao.",
+  "The documents are verified, but no interview date was set. Scheduling today also sends the Solo Parent the usual interview text.": "Beripikado na ang mga dokumento pero walang naitakdang petsa ng panayam. Kapag itinakda ngayong araw, ipapadala rin sa Solo Parent ang karaniwang text tungkol sa panayam.",
+  "The interview result is already recorded. Open the application for the next step.": "Naitala na ang resulta ng panayam. Buksan ang aplikasyon para sa susunod na hakbang.",
+  "Not this person": "Hindi ang taong ito",
+  "Arrived · open the interview": "Dumating na · buksan ang panayam",
+  "Schedule today and check in": "Itakda ngayong araw at i-check in",
+  "Open the documents": "Buksan ang mga dokumento",
+  "Open interview": "Buksan ang panayam",
+  "Open the application": "Buksan ang aplikasyon",
+  "Waiting": "Naghihintay",
+  "first come, first served": "kung sino ang unang dumating, siya ang una",
+  "Expected, not here yet": "Inaasahan, wala pa",
+  "booked for today": "naka-book ngayong araw",
+  "Done today": "Tapos ngayong araw",
+  "No one is waiting.": "Walang naghihintay.",
+  "No one else is booked for today.": "Wala nang iba pang naka-book ngayong araw.",
+  "No interview result recorded today yet.": "Wala pang naitalang resulta ng panayam ngayong araw.",
+  "Check in": "I-check in",
+  "Successful": "Matagumpay",
+  "Unsuccessful": "Hindi matagumpay",
+  "Recorded": "Naitala",
+  "Other work": "Iba pang gawain",
+  "Brought to the interview": "Dinala sa panayam",
+  "Valid government ID, name and birthdate match": "Valid na government ID, tugma ang pangalan at kaarawan",
+  "Two 1x1 ID pictures received": "Natanggap ang dalawang 1x1 na larawan para sa ID",
+  "(not uploaded)": "(hindi na-upload)",
+  "Original documents shown": "Naipakita ang mga orihinal na dokumento",
+  "Current Solo Parent ID: tick it in the renewal re-check below.": "Kasalukuyang Solo Parent ID: lagyan ng tsek sa renewal re-check sa ibaba.",
+  "Not required to save the result; what is ticked is written into it.": "Hindi kailangan para ma-save ang resulta; isinusulat dito ang mga may tsek.",
+  "Arrived at the office": "Dumating sa opisina",
+  "Your interview is today": "Ngayong araw ang iyong panayam",
+  "Show this at the MSWDO counter": "Ipakita ito sa counter ng MSWDO",
+  "MSWDO Office, Virac · any time 7:00 AM to 5:00 PM": "MSWDO Office, Virac · anumang oras 7:00 AM hanggang 5:00 PM",
+  "Bring": "Dalhin",
+  "A valid government ID": "Isang valid na government ID",
+  "Two 1x1 ID pictures": "Dalawang 1x1 na larawan para sa ID",
+  "The original documents you uploaded": "Ang mga orihinal na dokumentong in-upload mo",
+  "Your current Solo Parent ID": "Ang kasalukuyan mong Solo Parent ID"
+});
+
+/* November 2026: the short "Today at the office" strip on the staff dashboard. */
+Object.assign(window.ViracTranslations, {
+  "waiting": "naghihintay",
+  "expected": "inaasahan",
+  "done today": "tapos ngayong araw",
+  "See today's list": "Tingnan ang listahan ngayong araw"
+});
+
+/* November 2026: ID release found by reference number; the release-day card; the My ID wording. */
+Object.assign(window.ViracTranslations, {
+  "ID release today": "Pagkuha ng ID ngayong araw",
+  "Release date passed": "Lumipas na ang petsa ng pagkuha",
+  "Approved · no release date": "Aprubado · wala pang petsa ng pagkuha",
+  "Open ID release": "Buksan ang pagkuha ng ID",
+  "The application is approved, but the ID release has not been scheduled. Open it to set the release date and time.": "Aprubado na ang aplikasyon, pero hindi pa naitatakda ang pagkuha ng ID. Buksan ito para magtakda ng petsa at oras.",
+  "The name and birthdate must match. The ID is handed only to the Solo Parent, in person.": "Dapat tugma ang pangalan at kaarawan. Sa Solo Parent lamang ibibigay ang ID, nang personal.",
+  "Collect it today": "Kunin ngayong araw",
+  "Your ID is ready for release today": "Handa nang kunin ang iyong ID ngayong araw",
+  "Only you can receive the ID, in person": "Ikaw lamang ang maaaring tumanggap ng ID, nang personal",
+  "Renewal in progress": "Isinasagawa ang renewal"
+});
+
+/* November 2026: the civil status filters the Solo Parent category (new application). */
+Object.assign(window.ViracTranslations, {
+  "Choose your civil status first.": "Piliin muna ang iyong civil status.",
+  "Showing categories for": "Ipinapakita ang mga kategorya para sa",
+  "For any civil status": "Para sa anumang civil status",
+  "Your category was cleared.": "Nabura ang iyong kategorya.",
+  "does not apply to": "ay hindi para sa",
+  "Choose a category again.": "Pumili muli ng kategorya.",
+  "The category in your saved draft no longer fits your civil status. Please choose it again.": "Hindi na akma sa iyong civil status ang kategorya sa naka-save mong draft. Pumili muli.",
+  "This category does not apply to the civil status you chose. Choose a category that fits, or change your civil status.": "Hindi para sa napili mong civil status ang kategoryang ito. Pumili ng kategoryang akma, o palitan ang iyong civil status."
+});

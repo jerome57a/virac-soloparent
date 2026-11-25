@@ -93,6 +93,7 @@ CREATE TABLE categories (
   id          INT AUTO_INCREMENT PRIMARY KEY,
   name        VARCHAR(150) NOT NULL UNIQUE,
   description VARCHAR(500) DEFAULT NULL,
+  civil_statuses VARCHAR(100) DEFAULT NULL,  -- the civil statuses this category is shown for in the new application ("Married,Separated"); NULL = every civil status (migrate_category_civil_status.php)
   sort_order  INT NOT NULL DEFAULT 0,
   is_active   TINYINT(1) NOT NULL DEFAULT 1
 ) ENGINE=InnoDB;
@@ -378,6 +379,8 @@ CREATE TABLE appointments (
   notes               VARCHAR(500) DEFAULT NULL,
   result              VARCHAR(500) DEFAULT NULL,
   result_recorded_at  DATETIME DEFAULT NULL,
+  arrived_at          DATETIME DEFAULT NULL,   -- the Solo Parent checked in at the MSWDO office (staff typed the reference number)
+  arrived_by          INT NULL,                -- the staff member who checked them in (migrate_office_checkin.php)
   cancelled_at        DATETIME DEFAULT NULL,
   cancelled_by        INT DEFAULT NULL,
   cancel_reason       VARCHAR(255) DEFAULT NULL,
@@ -393,6 +396,8 @@ CREATE TABLE appointments (
   CONSTRAINT fk_interview_slot FOREIGN KEY (slot_id) REFERENCES appointment_slots(id) ON DELETE SET NULL,
   CONSTRAINT fk_interview_staff FOREIGN KEY (scheduled_by) REFERENCES users(id),
   CONSTRAINT fk_appt_cancelled_by FOREIGN KEY (cancelled_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_appt_arrived_by FOREIGN KEY (arrived_by) REFERENCES users(id) ON DELETE SET NULL,
+  KEY idx_appt_arrived (arrived_at),
   KEY idx_appt_slot_status (slot_id, status),
   KEY idx_appt_interview_date (interview_date, status),
   CONSTRAINT chk_appt_date_only CHECK (date_only = 0 OR TIME(`scheduled_at`) = '00:00:00')

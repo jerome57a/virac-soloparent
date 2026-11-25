@@ -9,7 +9,8 @@ param(
   [string]$TeamMobile = '',
   [string]$Database = '',
   [string]$Pictures = 'C:/dev/sample-data/pictures',
-  [string]$PasswordFile = ''
+  [string]$PasswordFile = '',
+  [string]$Only = ''   # e.g. R1,R2,R3: run only those rows of the CSV (the others are left as they are)
 )
 $ErrorActionPreference = 'Stop'
 Set-Location (Join-Path $PSScriptRoot '..\..')
@@ -21,6 +22,7 @@ else {
 $env:SAMPLE_PASSWORD = $plain
 $env:SAMPLE_TEAM_MOBILE = $TeamMobile
 $env:SAMPLE_BASE = $Base
+if ($Only -ne '') { $env:SAMPLE_ONLY = $Only } else { Remove-Item Env:\SAMPLE_ONLY -ErrorAction SilentlyContinue }
 $env:SAMPLE_PICTURES = $Pictures
 $env:NODE_PATH = (Join-Path (Get-Location) 'scripts\node_modules')
 if ($Database -ne '') { $env:DB_NAME = $Database }
@@ -31,6 +33,7 @@ try {
   Step 'applications (web form)' { node scripts/sample-data/apply.cjs apply }
   Step 'staff steps' { php database/sample_data.php staff }
   Step 're-upload and renewal (web form)' { node scripts/sample-data/apply.cjs followup }
+  Step 'staff steps for the renewals' { php database/sample_data.php staff }
   Step 'report' { php database/sample_data.php report }
 } finally {
   Remove-Item Env:\SAMPLE_PASSWORD -ErrorAction SilentlyContinue

@@ -274,6 +274,7 @@ class ApplicantController extends Controller
             'idApplication' => $idApplication,
             'viewableIdApplication' => $this->viewableIdApplication(),
             'idExpiryInfo' => $this->idExpiryInfo($idApplication),
+            'releaseToday' => $this->releaseToday(),
             'renewal' => $renewal,
             'upcomingAppointment' => $upcoming,
             'upcomingRequirements' => $upcoming ? (new Document($this->pdo))->checklistForReview((int) $upcoming['id'], $upcoming['category_id'] !== null ? (int) $upcoming['category_id'] : null, $upcoming['type'] === 'renewal') : [],
@@ -410,6 +411,22 @@ class ApplicantController extends Controller
         return $actions;
     }
 
+    /** The Solo Parent's approved application whose ID release is scheduled for today and not collected yet (new or renewal), or null. */
+    private function releaseToday(): ?array
+    {
+        $releases = new IdReleaseService($this->pdo);
+        foreach ($this->applications as $app) {
+            if ($app['status'] !== 'Approved') {
+                continue;
+            }
+            $schedule = $releases->scheduleFor((int) $app['id']);
+            if ($schedule && $schedule['released_at'] === null && substr((string) $schedule['scheduled_at'], 0, 10) === date('Y-m-d')) {
+                return ['reference_no' => $app['reference_no'], 'type' => $app['type'], 'scheduled_at' => $schedule['scheduled_at'], 'location' => $schedule['location']];
+            }
+        }
+        return null;
+    }
+
     private function sectionMyid(): array
     {
         $idApplication = $this->viewableIdApplication();
@@ -419,6 +436,15 @@ class ApplicantController extends Controller
             'idReleaseSchedule' => $idApplication ? (new IdReleaseService($this->pdo))->scheduleFor((int) $idApplication['id']) : null,
             'idChildren' => $idApplication ? (new Application($this->pdo))->children((int) $idApplication['id']) : [],
             'latestApplication' => $this->applications[0] ?? null,
+            // A renewal being processed: the old ID stays the current record until the new one is released.
+            'renewalInProgress' => $idApplication && $idApplication['status'] === 'ID Released' ? (function () {
+                foreach ($this->applications as $a) {
+                    if ($a['type'] === 'renewal' && !in_array($a['status'], ['ID Released', 'Rejected'], true)) {
+                        return $a;
+                    }
+                }
+                return null;
+            })() : null,
         ]];
     }
 
