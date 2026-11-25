@@ -13,6 +13,7 @@
  *
  * @var array $staff
  * @var array $work    new_forms | resent | interview | release_date => ['rows' => [...], 'total' => int]
+ * @var array $registered ['registered' => Solo Parents registered in the system, 'renewed' => Solo Parents whose ID was renewed]
  * @var array $office  OfficeCheckInService::panel(): board {expected, done}, query, matches (one match never gets here: it opens)
  */
 require_once __DIR__ . '/../../includes/icons.php';
@@ -64,6 +65,11 @@ $matches = $office['matches'] ?? [];
       <a class="td-more" href="<?= e(base_url('staff/appointments.php')) ?>"><span data-i18n>See today's work</span> <?= ui_icon('chevron-right', 16) ?></a>
     </div>
   </section>
+
+  <div class="sp-stats" aria-label="Solo Parents in the system" data-i18n-attrs="aria-label">
+    <div class="sp-stat"><span class="sp-chip"><?= ui_icon('users', 24) ?></span><span><strong><?= number_format((int) ($registered['registered'] ?? 0)) ?></strong><small data-i18n>Solo Parents registered</small></span></div>
+    <div class="sp-stat"><span class="sp-chip is-renew"><?= ui_icon('rotate-cw', 24) ?></span><span><strong><?= number_format((int) ($registered['renewed'] ?? 0)) ?></strong><small data-i18n>Solo Parents renewed</small></span></div>
+  </div>
 
   <div class="wt-grid">
     <?php foreach ($lists as $key => [$title, $href, $icon]): $total = (int) ($work[$key]['total'] ?? 0); ?>

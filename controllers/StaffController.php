@@ -61,12 +61,25 @@ class StaffController extends Controller
         // Only work staff must start, in work order. The dashboard shows how many are waiting in each; the list opens on its own page.
         $this->page('MSWD Dashboard', 'views/staff/dashboard.php', [
             'work' => $this->workLists(1),
+            'registered' => $this->registeredCounts(),
             'office' => $this->officePanel(is_string($_GET['checkin'] ?? null) ? $_GET['checkin'] : null),
             'officeReturn' => 'dashboard',
             'flashMessage' => take_flash(),
             'smsNotice' => take_sms_notice(),
         ]);
     }
+    /**
+     * The two totals on the dashboard: Solo Parents registered in the system (accounts), and Solo Parents whose ID was renewed
+     * (a renewal that reached "ID Released"; a Solo Parent who renewed twice counts once).
+     */
+    private function registeredCounts(): array
+    {
+        return [
+            'registered' => (int) $this->pdo->query("SELECT COUNT(*) FROM users WHERE role = 'applicant'")->fetchColumn(),
+            'renewed' => (int) $this->pdo->query("SELECT COUNT(DISTINCT user_id) FROM applications WHERE type = 'renewal' AND status = 'ID Released'")->fetchColumn(),
+        ];
+    }
+
     /** The four lists of work, in work order: what staff must start. Each application is in one list, the step it is at now. */
     private const WORK_TITLES = [
         'new_forms' => 'New forms',

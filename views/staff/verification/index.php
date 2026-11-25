@@ -34,7 +34,7 @@ $tab = fn(string $key, string $label, int $count) => '<a href="' . e(base_url('s
       <?php foreach ($rows as $q): ?>
         <a href="<?= base_url('staff/application.php?id=' . (int) $q['id']) ?>#checklist" class="app-card text-decoration-none" style="color:inherit">
           <div>
-            <div class="app-ref"><?= e($q['reference_no']) ?> <span style="font-weight:400;color:var(--muted)">· <?= e($q['status']) ?></span></div>
+            <div class="app-ref"><?= e($q['reference_no']) ?> <?= ($q['type'] ?? '') === 'renewal' ? '<span class="doc-tag is-renewal" style="vertical-align:middle" data-i18n>RENEWAL</span>' : '<span class="doc-tag is-new" style="vertical-align:middle" data-i18n>NEW</span>' ?> <span style="font-weight:400;color:var(--muted)">· <?= e($q['status']) ?></span></div>
             <div class="app-date"><?= e($q['full_name']) ?> · waiting since <?= e(date('M j, Y', strtotime($q['oldest_upload']))) ?></div>
           </div>
           <span>

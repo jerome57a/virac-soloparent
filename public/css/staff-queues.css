@@ -77,3 +77,14 @@ html[data-theme="dark"] .wt-tile.has .wt-chip { background: #3d3020; color: #f3c
 html[data-theme="dark"] .wt-shortcuts a.is-main { background: #2f5aa6; border-color: #2f5aa6; }
 @media (max-width: 1100px) { .wt-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 600px) { .td-search { flex-direction: column; } .td-open { width: 100%; } .wt-grid { gap: 10px; } .wt-tile { padding: 14px; } .wt-n { font-size: 28px; } }
+
+/* Solo Parents registered and renewed: two plain totals above the work tiles */
+.sp-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 16px; }
+.sp-stat { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: var(--theme-card, var(--surface, #fff)); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 1px 2px rgba(16,32,58,.05), 0 4px 14px rgba(16,32,58,.05); min-width: 0; }
+.sp-chip { width: 44px; height: 44px; flex: none; border-radius: 12px; display: grid; place-items: center; background: #dff3e6; color: #1c7a3f; }
+.sp-chip.is-renew { background: #ece5fb; color: #4a2f8f; }
+.sp-stat strong { display: block; font-size: 28px; line-height: 1.1; color: var(--ink); }
+.sp-stat small { display: block; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+html[data-theme="dark"] .sp-chip { background: #1d4231; color: #9be0b5; }
+html[data-theme="dark"] .sp-chip.is-renew { background: #352d58; color: #d9cefb; }
+@media (max-width: 600px) { .sp-stats { gap: 10px; } .sp-stat { padding: 12px; gap: 10px; } .sp-chip { width: 38px; height: 38px; } .sp-stat strong { font-size: 24px; } .sp-stat small { font-size: 11px; } }

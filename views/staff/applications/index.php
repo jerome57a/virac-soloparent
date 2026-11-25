@@ -49,7 +49,7 @@ $hasFilters = $filters['q'] !== '' || $filters['barangay'] !== '' || $filters['s
   <?php foreach ($apps as $app): $st = status_style($app['status']); ?>
     <a href="<?= base_url('staff/application.php?id=' . (int) $app['id']) ?>" class="app-card text-decoration-none" style="color:inherit">
       <div>
-        <div class="app-ref"><?= e($app['reference_no']) ?><?php if ($app['type'] === 'renewal'): ?> <span class="doc-tag" style="vertical-align:middle" data-i18n>RENEWAL</span><?php endif; ?></div>
+        <div class="app-ref"><?= e($app['reference_no']) ?><?= $app['type'] === 'renewal' ? ' <span class="doc-tag is-renewal" style="vertical-align:middle" data-i18n>RENEWAL</span>' : ' <span class="doc-tag is-new" style="vertical-align:middle" data-i18n>NEW</span>' ?></div>
         <div class="app-date"><?= e($app['full_name']) ?></div>
         <?php $next = $nextSteps[(int) $app['id']] ?? null; if ($next): ?><div class="app-next app-next-<?= e($next['tone']) ?>"><span>Next:</span> <?= e($next['label']) ?></div><?php endif; ?>
       </div>

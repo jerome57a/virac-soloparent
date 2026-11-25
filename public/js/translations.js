@@ -3781,3 +3781,9 @@ Object.assign(window.ViracTranslations, {
   "MSWDO Staff Portal": "Portal ng MSWDO Staff",
   "MSWDO Admin Portal": "Portal ng MSWDO Admin"
 });
+
+Object.assign(window.ViracTranslations, {
+  "Solo Parents registered": "Mga Solo Parent na nakarehistro",
+  "Solo Parents renewed": "Mga Solo Parent na nag-renew",
+  "Solo Parents in the system": "Mga Solo Parent sa sistema"
+});

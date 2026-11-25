@@ -52,6 +52,8 @@ const routes = ['dashboard.php', 'notifications.php', 'index.php', 'applicants.p
         const cardLinks = await page.locator('a.wt-tile').evaluateAll(a => a.map(x => x.getAttribute('href')));
         assert.deepEqual(cardLinks.map(h => h.split('/').pop()), ['work.php?list=new_forms', 'work.php?list=resent', 'work.php?list=interview', 'work.php?list=release_date'], 'each tile opens its own list');
         assert.equal(await page.locator('.wt-shortcuts a').count(), 4, 'the four shortcut buttons');
+        assert.deepEqual((await page.locator('.sp-stat small').allInnerTexts()).map(t => t.toLowerCase()), ['solo parents registered', 'solo parents renewed'], 'how many Solo Parents are registered and how many renewed');
+        assert((await page.locator('.sp-stat strong').allInnerTexts()).every(t => /^[\d,]+$/.test(t.trim())), 'both are numbers');
         // The side menu works like the Solo Parent's: closed until the menu button opens it, also on a wide screen.
         await page.setViewportSize({ width: 1440, height: 1000 });
         assert(await page.locator('#nav-menu-btn').isVisible(), 'the menu button is there on a wide screen');

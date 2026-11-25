@@ -63,7 +63,7 @@ $noteBox = function (array $lines): string {
   <a href="<?= base_url('staff/index.php') ?>" class="staff-back-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5m7-7-7 7 7 7"/></svg><span data-i18n>Back</span></a>
   <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mt-2 mb-4">
     <div>
-      <h1 class="font-heading m-0" style="font-size:26px"><?= e($app['reference_no']) ?> <?php if ($app['type'] === 'renewal'): ?><span class="doc-tag" style="vertical-align:middle" data-i18n>RENEWAL</span><?php endif; ?></h1>
+      <h1 class="font-heading m-0" style="font-size:26px"><?= e($app['reference_no']) ?> <?= $app['type'] === 'renewal' ? '<span class="doc-tag is-renewal" style="vertical-align:middle" data-i18n>RENEWAL</span>' : '<span class="doc-tag is-new" style="vertical-align:middle" data-i18n>NEW</span>' ?></h1>
       <div style="font-size:13px;color:var(--muted)" data-i18n>Submitted <?= e(date('F j, Y g:i A', strtotime($app['submitted_at']))) ?><?php if ($app['reviewer_name']): ?> · Reviewed by <?= e($app['reviewer_name']) ?><?php endif; ?></div>
     </div>
     <div class="status-pill" style="background:<?= e($st['bg']) ?>;color:<?= e($st['color']) ?>;font-size:14px"><?= e($app['status']) ?></div>

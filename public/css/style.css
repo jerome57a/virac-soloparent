@@ -529,6 +529,10 @@ a.stat-tile:hover { border-color: var(--navy); }
 .doc-row { border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px 16px; background: #fff; margin-bottom: 12px; }
 .doc-row.has-error { border-color: var(--red); }
 .doc-tag { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .5px; color: var(--navy); background: var(--info); border-radius: 4px; padding: 2px 8px; margin-bottom: 6px; }
+.doc-tag.is-new { background: #dff3e6; color: #1c7a3f; }
+.doc-tag.is-renewal { background: #ece5fb; color: #4a2f8f; }
+html[data-theme="dark"] .doc-tag.is-new { background: #1d4231; color: #9be0b5; }
+html[data-theme="dark"] .doc-tag.is-renewal { background: #352d58; color: #d9cefb; }
 .doc-label { font-size: 14px; font-weight: 600; color: var(--ink); }
 .doc-label .req { font-weight: 400; color: var(--faint); font-size: 12px; }
 .doc-filename { font-size: 12px; overflow-wrap: anywhere; margin-top: 2px; color: var(--muted); }
