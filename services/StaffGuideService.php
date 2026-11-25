@@ -60,7 +60,7 @@ class StaffGuideService
             } elseif (Appointment::interviewOutcome($interview) === 'Unsuccessful') {
                 $action = $next('The interview was unsuccessful', 'Request corrections, schedule another interview, or reject.', 'Open the decision', '#decision', 'clipboard-check', 'amber');
             } else {
-                $action = $next('Next step: record the interview result', 'When the interview has taken place, record who attended and the result.', 'Record the result', '#decision', 'clipboard-check');
+                $action = $next('Next step: approve or reject', 'When the interview has taken place, approve or reject the application.', 'Approve or reject', '#decision', 'clipboard-check');
             }
         } else {
             $current = 'decision';

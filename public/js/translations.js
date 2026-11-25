@@ -3484,10 +3484,14 @@ Object.assign(window.ViracTranslations, {
   "Review each applicant-uploaded file. Record a status and explain any rejection or correction request.": "Suriin ang bawat file na in-upload ng aplikante. Magtala ng status at ipaliwanag ang anumang pagtanggi o hiling na pagwawasto.",
   "Save Verification does not send an SMS. After you save documents as Needs Correction, review the message and confirm to send one SMS for the whole batch. Your remarks are never included in the SMS.": "Hindi nagpapadala ng SMS ang Save Verification. Pagkatapos i-save ang mga dokumento bilang Needs Correction, suriin ang mensahe at kumpirmahin para magpadala ng isang SMS para sa buong batch. Hindi kailanman kasama sa SMS ang iyong mga remarks.",
   "Approving needs every required document verified and a successful interview.": "Kailangan ng approval na na-verify ang bawat kinakailangang dokumento at matagumpay na interview.",
-  "Rejecting or requesting corrections needs a reason. The reason is sent to the Solo Parent by SMS.": "Kailangan ng dahilan sa pagtanggi o paghingi ng pagwawasto. Ipinapadala ang dahilan sa Solo Parent sa pamamagitan ng SMS.",
+  "Rejecting needs a reason. The reason is sent to the Solo Parent by SMS.": "Kailangan ng dahilan sa pagtanggi. Ipapadala ang dahilan sa Solo Parent sa SMS.",
   "Approve unlocks when every required document is verified.": "Mabubuksan ang Approve kapag na-verify ang bawat kinakailangang dokumento.",
   "Request Corrections and Approve unlock after a successful interview is recorded.": "Mabubuksan ang Request Corrections at Approve pagkatapos maitala ang matagumpay na interview.",
-  "Approve stays locked until an interview is recorded as successful.": "Naka-lock ang Approve hanggang maitala ang interview bilang matagumpay."
+  "Approve stays locked until an interview is recorded as successful.": "Naka-lock ang Approve hanggang maitala ang interview bilang matagumpay.",
+  "Approve appears when every required document is verified.": "Lalabas ang Approve kapag na-verify ang bawat kinakailangang dokumento.",
+  "Approve appears after the interview has taken place.": "Lalabas ang Approve pagkatapos maganap ang interview.",
+  "Approve: the Solo Parent is told the ID is approved and MSWDO will set the release date.": "Approve: sasabihan ang Solo Parent na aprubado ang ID at itatakda ng MSWDO ang petsa ng pagkuha.",
+  "Reject: ends this application. You write a reason and it is sent to the Solo Parent by SMS.": "Reject: tinatapos nito ang aplikasyon. Magsusulat ka ng dahilan at ipapadala ito sa Solo Parent sa SMS."
 });
 
 // Renewal opens on the expiration date.
@@ -3623,6 +3627,9 @@ Object.assign(window.ViracTranslations, {
 Object.assign(window.ViracTranslations, {
   "Today at the office": "Ngayong araw sa opisina",
   "office hours 7:00 AM to 5:00 PM": "oras ng opisina 7:00 AM hanggang 5:00 PM",
+  "Open a Solo Parent's application": "Buksan ang aplikasyon ng Solo Parent",
+  "You can also type a name or mobile number.": "Maaari ring i-type ang pangalan o numero ng mobile.",
+  "Choose the Solo Parent to open.": "Piliin ang Solo Parent na bubuksan.",
   "Check in a Solo Parent": "I-check in ang isang Solo Parent",
   "Reference number, e.g. VIRAC-SP-2026-0062 or 0062": "Reference number, hal. VIRAC-SP-2026-0062 o 0062",
   "Find": "Hanapin",
@@ -3704,4 +3711,73 @@ Object.assign(window.ViracTranslations, {
   "Choose a category again.": "Pumili muli ng kategorya.",
   "The category in your saved draft no longer fits your civil status. Please choose it again.": "Hindi na akma sa iyong civil status ang kategorya sa naka-save mong draft. Pumili muli.",
   "This category does not apply to the civil status you chose. Choose a category that fits, or change your civil status.": "Hindi para sa napili mong civil status ang kategoryang ito. Pumili ng kategoryang akma, o palitan ang iyong civil status."
+});
+
+// Staff dashboard: the search box and the two lists.
+Object.assign(window.ViracTranslations, {
+  "New applications": "Mga bagong aplikasyon",
+  "Renewals": "Mga renewal",
+  "See all new applications": "Tingnan ang lahat ng bagong aplikasyon",
+  "See all renewals": "Tingnan ang lahat ng renewal",
+  "No new application needs work right now.": "Walang bagong aplikasyon na kailangang gawin ngayon.",
+  "No renewal needs work right now.": "Walang renewal na kailangang gawin ngayon."
+});
+
+// Staff dashboard tiles.
+Object.assign(window.ViracTranslations, {
+  "Needs Interview": "Kailangan ng Interview",
+  "ID Release": "Pagkuha ng ID"
+});
+
+// Staff dashboard: one set of tiles for new applications and one for renewals.
+Object.assign(window.ViracTranslations, {
+  "Being processed": "Pinoproseso",
+  "Showing": "Ipinapakita ang",
+  "only.": "lamang.",
+  "The list of interview dates to set shows": "Ipinapakita sa listahan ng mga petsa ng interview na itatakda ang"
+});
+
+// Decision card.
+Object.assign(window.ViracTranslations, {
+  "Approve or reject appears after the interview has taken place.": "Lalabas ang Approve o Reject pagkatapos maganap ang interview."
+});
+
+// Staff dashboard: the four lists of work.
+Object.assign(window.ViracTranslations, {
+  "New forms": "Mga bagong porma",
+  "Re-uploaded documents": "Mga dokumentong in-upload muli",
+  "Set the interview date": "Itakda ang petsa ng interview",
+  "Set the ID release date": "Itakda ang petsa ng pagkuha ng ID",
+  "applications match": "aplikasyon ang tugma sa",
+  "See all": "Tingnan lahat"
+});
+
+Object.assign(window.ViracTranslations, {
+  "See today's work": "Tingnan ang gagawin ngayong araw"
+});
+
+Object.assign(window.ViracTranslations, {
+  "Nothing waiting.": "Walang naghihintay."
+});
+
+// MSWDO admin dashboard (approved design).
+Object.assign(window.ViracTranslations, {
+  "Applications": window.ViracTranslations["Applications"] || "Mga Aplikasyon",
+  "Solo Parents": "Mga Solo Parent",
+  "Expiring IDs": window.ViracTranslations["Expiring IDs"] || "Mga ID na mag-e-expire",
+  "Recent activity": "Mga bagong aktibidad",
+  "Audit log": "Audit log",
+  "SMS that did not go through": "Mga SMS na hindi naipadala",
+  "Waiting to be unlocked": "Naghihintay na ma-unlock",
+  "Reminders still to send": "Mga paalalang ipapadala pa",
+  "Approved IDs still at the office": "Mga aprubadong ID na nasa opisina pa",
+  "Applications with no staff action": "Mga aplikasyong walang aksyon ng staff",
+  "No activity yet.": window.ViracTranslations["No activity yet."] || "Wala pang aktibidad.",
+  "Office hours 7:00 AM to 5:00 PM": "Oras ng opisina 7:00 AM hanggang 5:00 PM",
+  "MSWDO Admin Dashboard": window.ViracTranslations["MSWDO Admin Dashboard"] || "Dashboard ng MSWDO Admin"
+});
+
+Object.assign(window.ViracTranslations, {
+  "MSWDO Staff Portal": "Portal ng MSWDO Staff",
+  "MSWDO Admin Portal": "Portal ng MSWDO Admin"
 });

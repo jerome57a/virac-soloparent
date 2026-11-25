@@ -284,7 +284,7 @@ try {
         set_setting($test, InterviewDateFeature::FLAG_KEY, '1'); // the cloned test data has interview date booking switched off
         (new ReflectionProperty(InterviewDateFeature::class, 'memo'))->setValue(null, null); // drop the remembered 'feature off' answer
         $beforeInterviewHtml = review_render_staff($test, $staff, $id);
-        review_assert(!str_contains($beforeInterviewHtml, 'id="application-decision-form"'), 'Decision controls visible before an interview.');
+        review_assert(!str_contains($beforeInterviewHtml, 'value="Approved"'), 'Approve visible before an interview.');
         review_assert(!str_contains($beforeInterviewHtml, 'id="decisions"') && !str_contains($beforeInterviewHtml, 'No approve, reject or correction decision yet.'), 'Empty Decisions history visible before scheduling an interview.');
         review_assert(!str_contains($beforeInterviewHtml, 'id="id-release"') && str_contains($beforeInterviewHtml, 'name="interview_date"'), 'ID release section visible before scheduling an interview.');
         $appointments = new Appointment($test);
@@ -316,12 +316,12 @@ try {
         $stages = array_column((new ApplicationTrackerService($test))->track($app)['stages'], null, 'key');
         review_assert($stages['assessment']['state'] === 'attention' && $stages['decision']['state'] === 'pending', 'Unsuccessful interview completed assessment or allowed approval.');
         $checks = array_column($service->approvalChecklist($app), null, 'label');
-        review_assert(!$checks['Successful interview recorded']['ok'], 'Unsuccessful interview passed approval checks.');
+        review_assert(!$checks['Interview held']['ok'], 'Unsuccessful interview passed approval checks.');
         review_assert($service->recordInterviewOutcome($staff, $id, 'Successful', 'Interview completed.') === null, 'Recording a successful interview failed.');
         $stages = array_column((new ApplicationTrackerService($test))->track($app)['stages'], null, 'key');
         review_assert($stages['assessment']['state'] === 'done' && $stages['assessment']['date'] !== null, 'Successful interview did not complete MSWD assessment.');
         $checks = array_column($service->approvalChecklist($app), null, 'label');
-        review_assert($checks['Successful interview recorded']['ok'], 'Successful interview failed approval checks.');
+        review_assert($checks['Interview held']['ok'], 'Successful interview failed approval checks.');
         $decisionHtml = review_render_staff($test, $staff, $id);
         foreach (['For Revision', 'Approved', 'Rejected'] as $decision) {
             review_assert(str_contains($decisionHtml, 'name="status" value="' . $decision . '"'), 'Decision button missing after a successful interview: ' . $decision);

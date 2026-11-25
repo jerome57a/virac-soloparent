@@ -306,3 +306,4 @@
 /* eight work-queue tiles: two even rows of four on wide screens */
 .personnel-portal .stat-grid.stat-grid-quad { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 @media (max-width: 991px) { .personnel-portal .stat-grid.stat-grid-quad { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .personnel-portal .stat-grid.stat-grid-quad:has(.has-icon) { grid-template-columns: 1fr; } }

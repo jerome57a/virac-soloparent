@@ -108,17 +108,6 @@
 .gi-switch input:focus-visible + i { outline: 2px solid var(--navy); outline-offset: 2px; }
 .gi-switch > span { display: inline-flex; gap: 6px; align-items: center; }
 
-.gi-fold { background: var(--theme-card, #fff); border: 1px solid var(--border); border-radius: 14px; margin-bottom: 16px; }
-.gi-fold > summary { display: flex; gap: 12px; align-items: center; padding: 10px 14px; cursor: pointer; list-style: none; }
-.gi-fold > summary::-webkit-details-marker { display: none; }
-.gi-fold .gi-chip.gi-sm { width: 36px; height: 36px; }
-.gi-fold-text { flex: 1; display: grid; min-width: 0; }
-.gi-fold-text small { color: var(--muted); }
-.gi-fold-toggle { display: inline-flex; gap: 4px; align-items: center; color: var(--navy); font-weight: 600; font-size: 14px; }
-.gi-fold[open] .when-closed, .gi-fold:not([open]) .when-open { display: none; }
-.gi-fold[open] .gi-fold-toggle svg { transform: rotate(180deg); }
-.gi-fold-body { padding: 0 14px 4px; }
-.gi-fold-body > .review-card { margin-bottom: 14px; }
 
 .gi-req { margin-bottom: 12px; }
 .gi-req > summary { display: flex; gap: 8px; align-items: center; cursor: pointer; list-style: none; color: var(--muted); font-size: 14px; }
@@ -128,19 +117,19 @@
 .gi-req.is-ready > summary { color: var(--success-text); }
 .gi-req .approval-checklist { margin-top: 8px; }
 
-.gi-decide { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.gi-decide { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.gi-decide:has(> button:only-child) { grid-template-columns: 1fr; }
 .gi-decide button { display: inline-flex; gap: 8px; align-items: center; justify-content: center; flex: none; }
 .review-action-grid button.review-button-locked, html[data-theme="dark"] .review-action-grid button.review-button-locked { background: var(--surface-alt) !important; color: var(--faint) !important; border: 1px dashed var(--border) !important; cursor: not-allowed; box-shadow: none; }
 .gi-lockline { display: flex; gap: 6px; align-items: center; margin: 4px 0 0; color: var(--muted); font-size: 13.5px; }
 @media (max-width: 620px) { .gi-decide { grid-template-columns: 1fr; } }
-.staff-application-review .review-action-grid.gi-decide { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.staff-application-review .review-action-grid.gi-decide { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.staff-application-review .review-action-grid.gi-decide:has(> button:only-child) { grid-template-columns: 1fr; }
 .staff-application-review .review-action-grid.gi-decide button { padding-left: 8px; padding-right: 8px; line-height: 1.25; }
 .gi-decide button::before, .gi-decide button::after { content: none !important; }
 @media (max-width: 620px) { .staff-application-review .review-action-grid.gi-decide { grid-template-columns: 1fr; } }
 
 /* The Interview card: what the Solo Parent brings (the 1x1 ID pictures are not uploaded). */
-.gi-bring { display: flex; gap: 6px; align-items: flex-start; font-size: 13.5px; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; margin: 0 0 10px; }
-.gi-bring .ic, .gi-bring svg { flex: none; margin-top: 2px; color: var(--navy); }
 
 /* Document verification: the remark a Needs Correction needs. "* Required" appears with that status; a missing remark is outlined. */
 .doc-verify-form .doc-remark-field { flex: 1 1 260px; display: flex; flex-direction: column; gap: 3px; margin: 0; min-width: 0; }
@@ -197,3 +186,9 @@ html[data-theme="dark"] .staff-alert.is-action { border-left-color: #ff9a8f; }
 .staff-alert.is-arrival { border-left-color: #1f6b35; }
 .staff-alert.is-arrival .staff-alert-head { color: var(--success-text); }
 html[data-theme="dark"] .staff-alert.is-arrival { border-left-color: #6fcf97; }
+
+/* Opening an application goes straight to its next step: the card is scrolled into view and briefly outlined. */
+.staff-application-review .review-card { scroll-margin-top: 84px; }
+.review-card.gi-target { animation: gi-target-pulse 2.4s ease-out 1; }
+@keyframes gi-target-pulse { 0% { box-shadow: 0 0 0 4px var(--navy, #1b3a6b); } 100% { box-shadow: 0 0 0 0 rgba(27, 58, 107, 0); } }
+@media (prefers-reduced-motion: reduce) { .review-card.gi-target { animation: none; outline: 2px solid var(--navy, #1b3a6b); } }

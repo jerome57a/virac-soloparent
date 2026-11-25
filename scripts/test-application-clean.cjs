@@ -22,43 +22,53 @@ const assert = require('node:assert/strict');
     page.on('pageerror', e => errors.push(e.message));
     await page.goto(base + 'staff/application.php');
     await page.waitForFunction(() => !!window.ViracI18n);
+    // Opening the application goes straight to its next step (here: verify the documents).
+    await page.waitForFunction(() => !!document.querySelector('#checklist.gi-target'), null, { timeout: 5000 });
 
-    // The decision buttons: always the same three, in this order; the two that need a successful interview are locked and say why.
-    const names = await page.locator('.gi-decide button').evaluateAll(b => b.map(x => x.textContent.trim().replace(/\s+/g, ' ')));
-    assert.deepEqual(names, ['Request Corrections', 'Reject', 'Approve'], 'three decision buttons in a fixed order');
-    assert.deepEqual(await page.locator('.gi-decide button').evaluateAll(b => b.map(x => x.disabled)), [true, false, true], 'only Reject is available before a successful interview');
-    assert.equal(await page.locator('.gi-decide button svg.ui-icon').count(), 3, 'every decision button has an icon');
-    assert.equal(await page.locator('.gi-lockline').count(), 1, 'one line says why the buttons are locked');
-    assert(/unlock after a successful interview/.test(await page.locator('.gi-lockline').innerText()), 'the lock line names the reason');
-    assert.equal(await page.locator('.info-box', { hasText: 'become available after a successful interview' }).count(), 0, 'the old blue notice is gone');
-    assert.equal(await page.locator('.gi-decide button.review-button-locked').first().evaluate(el => getComputedStyle(el).borderTopStyle), 'dashed', 'locked buttons look locked');
-    // Reject asks for its reason first (nothing is sent).
-    await page.locator('.gi-decide button[value="Rejected"]').click();
-    assert(await page.locator('#decision-reason').isVisible(), 'Reject asks for the reason before anything is sent');
+    // Back returns to the page the application was opened from (the opening page's address is remembered for this tab).
+    const backHref = () => page.locator('.staff-back-link').getAttribute('href');
+    assert(/staff\/index\.php$/.test(await backHref()), 'Back goes to the Applications list when the origin is unknown');
+    await page.goto(base + 'staff/application.php', { referer: base + 'staff/work.php?list=interview' });
+    await page.waitForFunction(() => !!window.ViracI18n);
+    assert(/staff\/work\.php\?list=interview$/.test(await backHref()), 'Back returns to the list the application was opened from');
+    await page.goto(base + 'staff/application.php');   // reloaded (as after saving a form): no referrer, the origin is still remembered
+    await page.waitForFunction(() => !!window.ViracI18n);
+    assert(/staff\/work\.php\?list=interview$/.test(await backHref()), 'Back still returns there after the page reloads');
+    await page.evaluate(() => sessionStorage.removeItem('virac.staff.backto'));
+    await page.goto(base + 'staff/application.php');
+    await page.waitForFunction(() => !!window.ViracI18n);
 
-    // Notes: closed until opened; the switch opens all of them and is remembered.
+    // The decision: no button before the interview has taken place (not even Reject); one plain line says when it opens.
+    assert.equal(await page.locator('.gi-decide button').count(), 0, 'no Approve or Reject before the interview');
+    assert(/Approve or reject appears after the interview has taken place/.test(await page.locator('#decision .gi-lockline').innerText()), 'a line says when the decision opens');
+    assert.equal(await page.locator('#decision button[value="Rejected"]').count(), 0, 'Reject is not always available');
+    // Notes: closed until opened; each opens on its own.
     const notes = page.locator('details.gi-notes');
     assert(await notes.count() >= 2, 'Supporting Documents and Decision have Notes');
     assert.deepEqual(await notes.evaluateAll(n => n.map(x => x.open)), await notes.evaluateAll(n => n.map(() => false)), 'notes are closed by default');
     assert(!(await page.locator('.gi-notes ul').first().isVisible()), 'the note text is hidden');
     await notes.first().locator('summary').click();
     assert(await page.locator('.gi-notes ul').first().isVisible(), 'a single Notes box opens on click');
-    await page.locator('#gi-notes-all').check();
-    assert((await notes.evaluateAll(n => n.every(x => x.open))), 'Show all notes opens every Notes box');
-    await page.reload();
-    await page.waitForFunction(() => !!window.ViracI18n);
-    assert(await page.locator('#gi-notes-all').isChecked() && (await notes.evaluateAll(n => n.every(x => x.open))), 'the choice is remembered on this device');
-    await page.locator('#gi-notes-all').uncheck();
-    assert((await notes.evaluateAll(n => n.every(x => !x.open))), 'switching it off closes them again');
+    assert.equal(await page.locator('#gi-notes-all').count(), 0, 'there is no Show all notes switch');
+    assert.equal(await page.locator('#next-step-card').count(), 0, 'there is no Next step card');
+    assert.equal(await page.getByText('Next waiting').count(), 0, 'there is no Next waiting button');
 
-    // Applicant details: one folded row; opens to Personal Info, Children and the Declaration.
-    const fold = page.locator('#applicant-details');
-    assert.equal(await fold.count(), 1, 'one Applicant details row');
-    assert(!(await fold.evaluate(el => el.open)), 'closed once the documents are being verified');
-    assert(/child/.test(await fold.locator('summary').innerText()), 'its summary names the children');
-    assert(!(await page.getByText('Personal Info', { exact: true }).first().isVisible()), 'Personal Info is hidden while folded');
-    await fold.locator('summary').click();
-    for (const title of ['Personal Info', 'Children', 'Solo Parent Declaration']) assert(await page.getByText(title, { exact: true }).first().isVisible(), title + ' shows when opened');
+    // Automated verification: the details can be hidden or shown; the verdict line stays and the choice is remembered.
+    if (await page.locator('#auto-check').count()) {
+      const body = page.locator('#auto-check-body'), toggle = page.locator('#auto-check-toggle');
+      assert(await body.isVisible(), 'the automated verification details are shown by default');
+      await toggle.click();
+      assert(!(await body.isVisible()) && (await toggle.getAttribute('aria-expanded')) === 'false' && await page.locator('#auto-check .ac-pill').isVisible(), 'Hide hides the details but keeps the verdict');
+      await page.reload();
+      await page.waitForFunction(() => !!window.ViracI18n);
+      assert(!(await page.locator('#auto-check-body').isVisible()), 'the choice is remembered');
+      await page.locator('#auto-check-toggle').click();
+      assert(await page.locator('#auto-check-body').isVisible(), 'Show brings the details back');
+    }
+    // Applicant details: never folded; Personal Info, Children and the Declaration are always shown.
+    assert.equal(await page.locator('#applicant-details').count(), 1, 'one Applicant details section');
+    assert.equal(await page.locator('details#applicant-details').count(), 0, 'Applicant details is not folded');
+    for (const title of ['Personal Info', 'Children', 'Solo Parent Declaration']) assert(await page.getByText(title, { exact: true }).first().isVisible(), title + ' is always shown');
 
     // Both themes and languages, down to a 320px phone: nothing wider than the screen, locked buttons still look locked.
     for (const width of [1440, 768, 390, 320]) {
@@ -68,10 +78,8 @@ const assert = require('node:assert/strict');
     await page.locator('[data-language-select]').selectOption('tl');
     await page.locator('[data-theme-toggle]').click();
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'dark Tagalog 320px page fits');
-    assert.equal(await page.locator('.gi-decide button.review-button-locked').first().evaluate(el => getComputedStyle(el).borderTopStyle), 'dashed', 'locked buttons still look locked in dark mode');
-    assert(await page.locator('.gi-decide button.review-button-locked').first().evaluate(el => getComputedStyle(el).color !== getComputedStyle(el).backgroundColor), 'locked button text is readable');
     assert.deepEqual(errors, [], 'no script errors');
-    console.log('PASS: application page: three decision buttons always shown (locked ones explain), Notes and Show all notes (remembered), folded Applicant details, light/dark, Tagalog, 320-1440px.');
+    console.log('PASS: application page: no Approve or Reject before the interview, Notes boxes, no Show all notes or Next step card, Applicant details always shown, light/dark, Tagalog, 320-1440px.');
   } finally {
     await browser.close();
   }

@@ -11,13 +11,16 @@ require_once __DIR__ . '/../../../includes/icons.php';
  * @var int    $resentCount
  * @var array  $backlog     applications, documents
  */
-$tab = fn(string $key, string $label, int $count) => '<a href="' . e($key === 'all' ? base_url('staff/verification.php') : base_url('staff/verification.php?filter=' . $key))
+$typeFilter = $typeFilter ?? '';
+$typeQuery = $typeFilter !== '' ? 'type=' . $typeFilter : '';
+$tab = fn(string $key, string $label, int $count) => '<a href="' . e(base_url('staff/verification.php' . (($key !== 'all' || $typeQuery !== '') ? '?' . implode('&', array_filter([$key !== 'all' ? 'filter=' . $key : '', $typeQuery])) : '')))
     . '" class="queue-tab' . ($filter === $key ? ' is-active' : '') . '"' . ($filter === $key ? ' aria-current="page"' : '') . '>' . e($label) . ' <b>' . $count . '</b></a>';
 ?>
 <link rel="stylesheet" href="<?= public_asset('css/dashboard-attention.css') ?>">
 <div class="portal-container" style="max-width:900px">
   <?php require APP_ROOT . '/views/partials/staff-page-heading.php'; ?>
 
+  <?php if ($typeFilter !== ''): ?><div class="info-box" style="max-width:none" role="status"><span data-i18n>Showing</span> <b><?= $typeFilter === 'renewal' ? 'renewals' : 'new applications' ?></b> <span data-i18n>only.</span> <a href="<?= e(base_url('staff/verification.php')) ?>" data-i18n>Show all</a></div><?php endif; ?>
   <nav class="queue-tabs" aria-label="Show">
     <?= $tab('all', 'All waiting', $allCount) ?>
     <?= $tab('resent', 'Re-uploaded', $resentCount) ?>

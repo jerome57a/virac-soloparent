@@ -1,58 +1,42 @@
 <?php
 require_once __DIR__ . '/../../includes/icons.php';
-/** Administrator overview. ReportService supplies all live counts; application links are monitoring only. */
-$trend = (int) $summary['thisMonth'] - (int) $summary['lastMonth'];
+/**
+ * MSWDO admin dashboard (the approved design): four numbers, what needs attention, and the latest activity, side by side on a wide
+ * screen. The setup checklist shows only until the system is set up. Everything else (the status breakdown, account / SMS / audit
+ * details, quick access) is in the sidebar. ReportService supplies the counts; application links are monitoring only.
+ */
 $pending = (int) $stats['pendingNew'] + (int) $stats['pendingRenewals'];
-$expiryNotSentCount = (int) ($expiryNotSentCount ?? 0);
-$releaseOverdueCount = (int) ($releaseOverdueCount ?? 0);
-$staleCount = (int) ($staleCount ?? 0);
-// Needs attention: what the MSWDO admin fixes (failed SMS, locked accounts) and what the admin watches (staff work piling up).
-// Each row goes straight to the page where it is handled or monitored.
 $attentionRows = [
-    ['failed-sms', 'Failed SMS', 'Check messages that were not sent.', (int) $stats['smsFailed'], base_url('admin/sms.php?status=failed'), 'message-square-warning'],
-    ['locked', 'Locked accounts', 'Review accounts after failed sign-ins.', (int) $userStats['locked'], base_url('admin/users.php?status=locked'), 'lock'],
-    ['expiry-sms', 'ID expiry SMS not sent', 'Expired IDs whose SMS was not sent that day.', $expiryNotSentCount, base_url('admin/expiry_sms.php'), 'send'],
-    ['release-overdue', 'ID release date passed', 'Approved IDs still waiting at the office.', $releaseOverdueCount, base_url('admin/applications.php?status=Approved'), 'id-card'],
-    ['stale', 'Waiting more than 7 days', 'Applications with no action for a week.', $staleCount, base_url('admin/applications.php?waiting=7'), 'clock'],
+    ['Failed SMS', 'SMS that did not go through', (int) $stats['smsFailed'], base_url('admin/sms.php?status=failed'), 'message-square-warning', 'red'],
+    ['Locked accounts', 'Waiting to be unlocked', (int) $userStats['locked'], base_url('admin/users.php?status=locked'), 'lock', 'amber'],
+    ['ID expiry SMS not sent', 'Reminders still to send', (int) ($expiryNotSentCount ?? 0), base_url('admin/expiry_sms.php'), 'send', 'amber'],
+    ['ID release date passed', 'Approved IDs still at the office', (int) ($releaseOverdueCount ?? 0), base_url('admin/applications.php?status=Approved'), 'id-card', 'amber'],
+    ['Waiting more than 7 days', 'Applications with no staff action', (int) ($staleCount ?? 0), base_url('admin/applications.php?waiting=7'), 'clock', 'amber'],
 ];
-$attentionCount = count(array_filter($attentionRows, fn($r) => $r[3] > 0));
-$dashboardIcons = [
-    'applications' => '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M8 13h8M8 17h5"/>',
-    'clock' => '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
-    'users' => '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
-    'id' => '<rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8" cy="10" r="2"/><path d="M5 16c0-3 6-3 6 0M14 9h5M14 13h5"/>',
-    'calendar' => '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M8 14h2M14 14h2"/>',
-    'reports' => '<path d="M4 3v18h17M8 16v-4M13 16V8M18 16V5"/>',
-    'settings' => '<path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/>',
-    'arrow' => '<path d="M5 12h14M13 6l6 6-6 6"/>',
-    'search' => '<circle cx="10.5" cy="10.5" r="7.5"/><path d="m16 16 5 5"/>',
+$metrics = [
+    ['Applications', (int) $stats['totalApplications'], base_url('admin/applications.php'), 'file-text', 'blue'],
+    ['Awaiting review', $pending, base_url('admin/applications.php?status=Pending+Review'), 'clock', 'amber'],
+    ['Solo Parents', (int) $userStats['applicants'], base_url('admin/users.php?role=applicant'), 'users', 'green'],
+    ['Expiring IDs', (int) $stats['expiringIds'], base_url('admin/reports.php?type=expiring'), 'id-card', 'amber'],
 ];
-$dashboardIcon = static fn(string $key): string => '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . $dashboardIcons[$key] . '</svg>';
-$applicationRows = [
-    ['New applications awaiting review', 'pendingNew', 'type=new&status=Pending+Review', 'amber'],
-    ['Renewals awaiting review', 'pendingRenewals', 'type=renewal&status=Pending+Review', 'amber'],
-    ['Under Verification', 'underVerification', 'status=Under+Verification', 'blue'],
-    ['Needs Correction', 'forRevision', 'status=For+Revision', 'orange'],
-    ['Interview scheduled', 'interviewScheduled', 'status=Interview+Scheduled', 'blue'],
-    ['Approved, ID not yet released', 'approvedAwaitingId', 'status=Approved', 'green'],
-    ['ID released', 'idReleased', 'status=ID+Released', 'green'],
-    ['Rejected', 'rejectedApps', 'status=Rejected', 'red'],
-];
-$shortcuts = [
-    ['Solo Parent Records', 'Find a Solo Parent and view their records.', 'applicants.php', 'id'],
-    ['User Management', 'Manage accounts, roles, and access.', 'users.php', 'users'],
-    ['Reports', 'View reports and export records.', 'reports.php', 'reports'],
-    ['System Settings', 'Update service settings and requirements.', 'settings.php', 'settings'],
-];
+/** Initials for an activity row: the first letter and the last digit (Staff1 -> S1), or the first letters of two words. */
+$initials = static function (string $name): string {
+    $words = preg_split('/[\s._-]+/', trim($name), -1, PREG_SPLIT_NO_EMPTY) ?: ['?'];
+    $second = preg_match('/(\d)$/', $name, $m) ? $m[1] : (isset($words[1]) ? mb_substr($words[1], 0, 1) : mb_substr($words[0], 1, 1));
+    return mb_strtoupper(mb_substr($words[0], 0, 1) . $second);
+};
+$when = static function (string $at): string {
+    $t = strtotime($at);
+    if (date('Y-m-d', $t) === date('Y-m-d')) { return date('g:i A', $t); }
+    if (date('Y-m-d', $t) === date('Y-m-d', strtotime('-1 day'))) { return 'Yesterday'; }
+    return date('M j', $t);
+};
 ?>
 <link rel="stylesheet" href="<?= public_asset('css/guidance.css') ?>">
 <link rel="stylesheet" href="<?= public_asset('css/admin-dashboard.css') ?>">
-<link rel="stylesheet" href="<?= public_asset('css/dashboard-attention.css') ?>">
-<div class="portal-container admin-dashboard" id="admin-dashboard">
-  <header class="ad-heading personnel-page-heading">
-    <div><p class="ad-eyebrow" data-i18n>Administration</p><h1 class="page-title" data-i18n>MSWDO Admin Dashboard</h1><p class="ad-description" data-i18n>Monitor applications, manage services, and keep the system running smoothly.</p></div>
-    <div class="ad-heading-meta"><span class="ad-date"><?= $dashboardIcon('calendar') ?><time datetime="<?= e(date('Y-m-d')) ?>"><?= e(date('M j, Y')) ?></time></span><span class="ad-signed-in"><span data-i18n>Signed in as</span> <strong><?= e($staff['full_name']) ?></strong></span></div>
-  </header>
+<div class="portal-container admin-dashboard adm" id="admin-dashboard">
+  <h1 class="visually-hidden" data-i18n>MSWDO Admin Dashboard</h1>
+
   <?php if (!empty($setup) && $setup['done'] < $setup['total']): ?>
   <section class="gi-setup" id="admin-setup" aria-labelledby="admin-setup-title">
     <div class="gi-setup-head"><span class="gi-chip gi-lg"><?= ui_icon('clipboard-check', 24) ?></span><div><h2 id="admin-setup-title" data-i18n>Set up the system</h2><p><?= (int) $setup['done'] ?> <span data-i18n>of</span> <?= (int) $setup['total'] ?> <span data-i18n>steps done. Finish these once; this box then disappears.</span></p></div></div>
@@ -64,96 +48,33 @@ $shortcuts = [
     </ul>
   </section>
   <?php endif; ?>
-  <section id="admin-overview" class="ad-overview" aria-label="Overview" data-i18n-attrs="aria-label">
-    <div class="ad-section-heading"><span data-i18n>All-time totals unless noted</span></div>
-    <div class="ad-metrics stat-grid">
-      <a class="ad-metric stat-tile" href="<?= base_url('admin/applications.php') ?>"><span class="ad-metric-top"><span data-i18n>Total Applications</span><span class="ad-icon ad-blue"><?= $dashboardIcon('applications') ?></span></span><strong><?= number_format((int) $stats['totalApplications']) ?></strong><span class="ad-metric-bottom"><span><b><?= number_format((int) $stats['totalRenewals']) ?></b> <span data-i18n>renewals included</span></span><?= $dashboardIcon('arrow') ?></span></a>
-      <a class="ad-metric stat-tile" href="<?= base_url('admin/applications.php?status=Pending+Review') ?>"><span class="ad-metric-top"><span data-i18n>Awaiting review</span><span class="ad-icon ad-amber"><?= $dashboardIcon('clock') ?></span></span><strong><?= number_format($pending) ?></strong><span class="ad-metric-bottom"><span data-i18n>New applications and renewals</span><?= $dashboardIcon('arrow') ?></span></a>
-      <a class="ad-metric stat-tile" href="<?= base_url('admin/users.php?role=applicant') ?>"><span class="ad-metric-top"><span data-i18n>Registered Solo Parents</span><span class="ad-icon ad-green"><?= $dashboardIcon('users') ?></span></span><strong><?= number_format((int) $userStats['applicants']) ?></strong><span class="ad-metric-bottom"><span><b><?= number_format((int) $userStats['newThisMonth']) ?></b> <span data-i18n>new this month</span></span><?= $dashboardIcon('arrow') ?></span></a>
-      <a class="ad-metric stat-tile" href="<?= base_url('admin/reports.php?type=expiring') ?>"><span class="ad-metric-top"><span data-i18n>Expiring IDs</span><span class="ad-icon ad-orange"><?= $dashboardIcon('id') ?></span></span><strong><?= number_format((int) $stats['expiringIds']) ?></strong><span class="ad-metric-bottom"><span><span data-i18n>Within the next</span> <?= (int) $stats['expiringWindow'] ?> <span data-i18n>days</span></span><?= $dashboardIcon('arrow') ?></span></a>
-    </div>
-  </section>
-  <div class="ad-workspace dash-two-col">
-    <section class="ad-panel review-card" id="admin-applications" aria-labelledby="admin-applications-title">
-      <div class="ad-panel-heading review-card-head"><div><h2 id="admin-applications-title" data-i18n>Application overview</h2><p data-i18n>Select a status to view matching applications.</p></div><a class="ad-text-link" href="<?= base_url('admin/applications.php') ?>"><span data-i18n>View all</span><?= $dashboardIcon('arrow') ?></a></div>
-      <form class="ad-search" method="get" action="<?= base_url('admin/applications.php') ?>" role="search">
-        <label class="ad-search-label" for="admin-application-search" data-i18n>Find an application</label>
-        <div class="ad-search-controls"><span><?= $dashboardIcon('search') ?></span><input id="admin-application-search" type="search" name="q" placeholder="Name or application reference" maxlength="100" data-i18n-attrs="placeholder"><button type="submit" data-i18n>Search</button></div>
-      </form>
-      <div class="ad-status-list">
-        <?php foreach ($applicationRows as [$label, $key, $query, $tone]): ?>
-          <a href="<?= e(base_url('admin/applications.php?' . $query)) ?>" class="ad-status-row"><span class="ad-status-name"><span class="ad-status-dot ad-<?= e($tone) ?>" aria-hidden="true"></span><span data-i18n><?= e($label) ?></span></span><strong><?= number_format((int) $stats[$key]) ?></strong><?= $dashboardIcon('arrow') ?></a>
+
+  <div class="adm-metrics" id="admin-overview">
+    <?php foreach ($metrics as [$label, $value, $href, $icon, $tone]): ?>
+      <a class="adm-metric" href="<?= e($href) ?>"><span class="adm-chip is-<?= e($tone) ?>"><?= ui_icon($icon, 24) ?></span><span><small data-i18n><?= e($label) ?></small><strong><?= number_format($value) ?></strong></span></a>
+    <?php endforeach; ?>
+  </div>
+
+  <div class="adm-cols">
+    <section class="adm-panel" id="admin-attention" aria-labelledby="admin-attention-title">
+      <div class="adm-panel-h"><h2 id="admin-attention-title" data-i18n>Needs attention</h2></div>
+      <div class="adm-list">
+        <?php foreach ($attentionRows as [$label, $hint, $count, $href, $icon, $tone]): ?>
+          <a class="adm-item" href="<?= e($href) ?>"><span class="adm-chip sm<?= $count > 0 ? ' is-' . e($tone) : '' ?>"><?= ui_icon($icon, 20) ?></span><span class="adm-item-t"><b data-i18n><?= e($label) ?></b><small data-i18n><?= e($hint) ?></small></span><span class="adm-count<?= $count === 0 ? ' is-zero' : '' ?>"><?= number_format($count) ?></span><?= ui_icon('chevron-right', 18) ?></a>
         <?php endforeach; ?>
-      </div>
-      <div class="ad-trend-summary">
-        <div><span data-i18n>Applications this month</span><strong><?= number_format((int) $summary['thisMonth']) ?></strong><small><span><?= $trend > 0 ? '+' : '' ?><?= number_format($trend) ?></span> <span data-i18n>compared with last month</span><span> (<?= number_format((int) $summary['lastMonth']) ?>)</span></small></div>
-        <div><span data-i18n>Approval Rate</span><strong><?= $summary['approvalRate'] === null ? '—' : (int) $summary['approvalRate'] . '%' ?></strong><small><?php if ($summary['approvalRate'] === null): ?><span data-i18n>No decided applications yet</span><?php else: ?><span data-i18n>Based on decided applications</span><span> (<?= number_format((int) $summary['decided']) ?>)</span><?php endif; ?></small></div>
       </div>
     </section>
-      <div class="ad-stack">
-      <section class="ad-panel ad-attention review-card" aria-labelledby="admin-attention-title">
-        <div class="ad-panel-heading review-card-head"><div><h2 id="admin-attention-title" data-i18n>Needs attention</h2><p data-i18n>Click an item to open its page.</p></div><span class="ad-attention-count<?= !$attentionCount ? ' is-clear' : '' ?>"><b><?= $attentionCount ?></b><span data-i18n>to check</span></span></div>
-        <?php if (!$attentionCount): ?><p class="ad-clear-message" data-i18n>Nothing needs attention right now.</p><?php endif; ?>
-        <?php foreach ($attentionRows as [$key, $label, $hint, $count, $href, $rowIcon]): ?>
-          <a class="ad-attention-row" href="<?= e($href) ?>"><span class="ad-row-text"><span class="gi-chip <?= $count > 0 ? 'gi-amber' : 'gi-blue' ?>"><?= ui_icon($rowIcon, 20) ?></span><span><strong data-i18n><?= e($label) ?></strong><small data-i18n><?= e($hint) ?></small></span></span><b class="<?= $count > 0 ? 'ad-count-warn' : '' ?>"><?= number_format($count) ?></b><?= $dashboardIcon('arrow') ?></a>
-        <?php endforeach; ?>
-      </section>
-  <details class="ad-panel ad-details review-card">
-    <summary><span><strong data-i18n>System &amp; account details</strong><span data-i18n>MSWDO staff accounts, SMS totals, and security activity</span></span><span class="ad-details-toggle" aria-hidden="true">+</span></summary>
-    <div class="ad-details-grid">
-      <section><h3 data-i18n>Accounts</h3><dl>
-        <div><dt data-i18n>Active Accounts</dt><dd><?= number_format((int) $stats['activeUsers']) ?></dd></div>
-        <div><dt data-i18n>Deactivated accounts</dt><dd><?= number_format((int) $userStats['deactivated']) ?></dd></div>
-        <div><dt data-i18n>MSWDO Staff</dt><dd><?= number_format((int) $userStats['mswdStaff']) ?></dd></div>
-        <div><dt data-i18n>MSWDO Admins</dt><dd><?= number_format((int) $userStats['admins']) ?></dd></div>
-      </dl><a class="ad-text-link" href="<?= base_url('admin/users.php') ?>" data-i18n>Manage Users</a></section>
-      <section><h3 data-i18n>SMS delivery</h3><dl>
-        <div><dt><a href="<?= base_url('admin/sms.php?status=sent') ?>" data-i18n>Sent</a></dt><dd><?= number_format((int) $stats['smsSent']) ?></dd></div>
-        <div><dt><a href="<?= base_url('admin/sms.php?status=pending') ?>" data-i18n>Pending</a></dt><dd><?= number_format((int) $stats['smsPending']) ?></dd></div>
-      </dl><a class="ad-text-link" href="<?= base_url('admin/sms.php') ?>" data-i18n>View SMS logs</a></section>
-      <section><h3 data-i18n>Security activity</h3><dl>
-        <div><dt data-i18n>Audit events today</dt><dd><?= number_format((int) $auditStats['eventsToday']) ?></dd></div>
-        <div><dt data-i18n>Sign-ins today</dt><dd><?= number_format((int) $auditStats['loginsToday']) ?></dd></div>
-        <div><dt data-i18n>Access denied (7 days)</dt><dd><?= number_format((int) $auditStats['accessDenied7d']) ?></dd></div>
-        <div><dt data-i18n>Failed sign-ins / reset codes (7 days)</dt><dd><?= number_format((int) $auditStats['failedLogins7d']) ?></dd></div>
-        <div><dt data-i18n>Password resets (7 days)</dt><dd><?= number_format((int) $auditStats['passwordResets7d']) ?></dd></div>
-      </dl><a class="ad-text-link" href="<?= base_url('admin/audit_log.php') ?>" data-i18n>Audit Logs</a></section>
-    </div>
-  </details>
-      </div>
+    <section class="adm-panel" id="admin-activity" aria-labelledby="admin-activity-title">
+      <div class="adm-panel-h"><h2 id="admin-activity-title" data-i18n>Recent activity</h2><a class="adm-more" href="<?= base_url('admin/audit_log.php') ?>"><span data-i18n>Audit log</span><?= ui_icon('chevron-right', 16) ?></a></div>
+      <?php if (!$recentActivity): ?>
+        <p class="adm-empty" data-i18n>No activity yet.</p>
+      <?php else: ?>
+        <div class="adm-list">
+          <?php foreach (array_slice($recentActivity, 0, 5) as $log): $actor = (string) ($log['actor_name'] ?? 'System'); ?>
+            <div class="adm-item adm-act"><span class="adm-avatar" aria-hidden="true"><?= e($initials($actor)) ?></span><span class="adm-item-t"><b><?= e($log['action']) ?></b><small><?= e($actor) ?></small></span><time datetime="<?= e(date('c', strtotime($log['created_at']))) ?>"><?= e($when((string) $log['created_at'])) ?></time></div>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
+    </section>
   </div>
-  <details class="ad-more" id="admin-more">
-    <summary class="ad-more-summary"><span data-i18n>Recent activity and quick access</span><span class="ad-details-toggle" aria-hidden="true">+</span></summary>
-  <div class="ad-workspace ad-secondary-workspace ad-single">
-  <section id="admin-activity" class="ad-panel ad-activity review-card" aria-labelledby="admin-activity-title">
-    <div class="ad-panel-heading review-card-head"><div><h2 id="admin-activity-title" data-i18n>Recent Activity</h2><p data-i18n>Latest recorded actions across the system.</p></div><a class="ad-text-link" href="<?= base_url('admin/audit_log.php') ?>"><span data-i18n>View full audit log</span><?= $dashboardIcon('arrow') ?></a></div>
-    <?php if (!$recentActivity): ?><div class="ad-empty"><span class="ad-icon ad-blue"><?= $dashboardIcon('clock') ?></span><strong data-i18n>No activity yet.</strong><p data-i18n>Recorded actions will appear here.</p></div><?php else: ?>
-      <ol class="ad-activity-list">
-        <?php foreach ($recentActivity as $log): ?>
-          <li><span class="ad-activity-marker" aria-hidden="true"></span><div><strong><?= e($log['action']) ?></strong><span><?= e($log['actor_name']) ?></span></div><time datetime="<?= e(date('c', strtotime($log['created_at']))) ?>"><?= e(date('M j, Y · g:i A', strtotime($log['created_at']))) ?></time></li>
-        <?php endforeach; ?>
-      </ol>
-    <?php endif; ?>
-  </section>
-  </div>
-  <section id="admin-tools" class="ad-tools" aria-labelledby="admin-tools-title">
-    <div class="ad-section-heading"><h2 id="admin-tools-title" data-i18n>Quick access</h2><span data-i18n>Common administration tasks</span></div>
-    <div class="ad-tools-grid">
-      <?php foreach ($shortcuts as [$label, $description, $route, $icon]): ?>
-        <a class="ad-tool" href="<?= e(base_url('admin/' . $route)) ?>"><span class="ad-icon ad-blue"><?= $dashboardIcon($icon) ?></span><span><strong data-i18n><?= e($label) ?></strong><small data-i18n><?= e($description) ?></small></span><?= $dashboardIcon('arrow') ?></a>
-      <?php endforeach; ?>
-    </div>
-  </section>
-  </details>
-  <nav class="ad-section-nav" aria-label="Dashboard sections" data-i18n-attrs="aria-label">
-    <a href="#admin-overview" data-i18n>Overview</a><a href="#admin-applications" data-i18n>Applications</a><a href="#admin-tools" data-i18n>Quick access</a><a href="#admin-activity" data-i18n>Recent Activity</a>
-  </nav>
 </div>
-<script>
-  (() => {
-    // A section link to something inside the folded part opens it first.
-    const more = document.getElementById('admin-more');
-    document.querySelectorAll('#admin-dashboard .ad-section-nav a').forEach(a => a.addEventListener('click', () => { const t = document.getElementById(a.hash.slice(1)); if (t && more.contains(t)) more.open = true; }));
-  })();
-</script>
-

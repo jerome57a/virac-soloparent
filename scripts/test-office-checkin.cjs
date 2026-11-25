@@ -38,43 +38,22 @@ const assert = require('node:assert/strict');
     assert.deepEqual(await page.locator('.ot-counts strong').allInnerTexts(), ['2', '2', '1'], 'waiting, expected, done');
     assert.deepEqual(await page.locator('.ot-qn:not(.is-dim)').allInnerTexts(), ['1', '2'], 'the waiting list is numbered');
     assert(/VIRAC-SP-2026-0062/.test(await page.locator('.ot-row').first().innerText()), 'first to arrive is first');
-    assert((await page.locator('.ot-row', { hasText: 'Ana Reyes' }).locator('a').getAttribute('href')).includes('checkin=VIRAC-SP-2026-0071'), 'Check in on an expected row opens its card');
+    assert((await page.locator('.ot-row', { hasText: 'Ana Reyes' }).locator('a').getAttribute('href')).includes('application.php?id='), 'an expected row opens its application');
     assert((await page.locator('.ot-row', { hasText: 'Edwin' }).locator('a').getAttribute('href')).endsWith('#decision'), 'Open interview goes to the interview result');
-    assert.equal(await page.locator('.ot-confirm').count(), 0, 'no card before a search');
-
-    // Booked today: the card, the ID reminder, and Arrived posts to staff/checkin.php.
-    await open('today');
-    const card = page.locator('.ot-confirm');
-    assert(/Booked for today/.test(await card.innerText()) && /Edwin R\. Molina/.test(await card.innerText()) && /September 9, 1982/.test(await card.innerText()), 'name, birthdate and status to compare');
-    assert(/Check the valid ID/.test(await page.locator('.ot-idcheck').innerText()), 'the valid-ID reminder');
-    const form = card.locator('form');
-    assert((await form.getAttribute('action')).endsWith('staff/checkin.php') && (await form.getAttribute('method')) === 'post', 'Arrived posts to staff/checkin.php');
-    assert.equal(await form.locator('button[name=action]').getAttribute('value'), 'arrive');
-    assert.equal(await form.locator('input[name=csrf_token]').count(), 1, 'with the CSRF token');
-    assert(/Arrived · open the interview/.test(await form.locator('button').innerText()));
-
-    // Every other case says what is wrong and offers the right next step.
-    const expect = {
-      already: [/Already checked in/, /Number 1 in the waiting list/, 'Open interview'],
-      other_day: [/Booked for/, /not today/, 'Schedule today and check in'],
-      no_date: [/No interview date yet/, /usual interview text/, 'Schedule today and check in'],
-      docs: [/Documents not verified yet/, /2 required documents still need checking/, 'Open the documents'],
-      closed: [/Nothing to do today/, /Rejected/, 'Open the application'],
-    };
-    for (const [c, [badge, text, button]] of Object.entries(expect)) {
+    
+    // One match opens the application straight away (the controller redirects), so the page never shows a confirm card; several matches
+    // link each application directly, and a miss says so.
+    for (const c of ['today', 'already', 'other_day', 'no_date', 'docs', 'closed', 'release_today', 'release_overdue', 'release_later', 'release_unscheduled']) {
       await open(c);
-      const t = await page.locator('.ot-confirm').innerText();
-      assert(badge.test(t) && text.test(t), `${c}: ${t.slice(0, 160)}`);
-      assert.equal((await page.locator('.ot-confirm-a :is(a.btn-navy, button.ot-arrive)').innerText()).trim(), button, `${c}: the next step`);
+      assert.equal(await page.locator('.ot-confirm').count(), 0, c + ': no confirm card');
     }
-    await open('other_day');
-    assert.equal(await page.locator('.ot-confirm button[name=action]').getAttribute('value'), 'move_arrive', 'another day moves the interview to today');
-    await open('no_date');
-    assert.equal(await page.locator('.ot-confirm button[name=action]').getAttribute('value'), 'schedule_arrive', 'no date schedules today');
     await open('many');
     assert.equal(await page.locator('.ot-pick li').count(), 2, 'several matches: choose one');
+    assert((await page.locator('.ot-pick a').first().getAttribute('href')).includes('application.php?id='), 'each match opens its application directly');
     await open('none');
     assert(/Not found/.test(await page.locator('.ot-case').innerText()), 'not found says so');
+    assert.equal(await page.locator('label[for=ot-ref]').innerText(), "Open a Solo Parent's application", 'the box says what it does');
+    assert.equal((await page.locator('.ot-find').innerText()).trim(), 'Open', 'the button is Open');
 
     // Light, dark, phone.
     await open('today');
@@ -90,27 +69,6 @@ const assert = require('node:assert/strict');
     await page.waitForTimeout(200);
     assert(/Ngayong araw sa opisina/.test(await page.locator('#ot-title').innerText()), 'the title is in Tagalog');
 
-    // ID release: an approved application searched at the counter leads to the ID release card.
-    const release = {
-      release_today: [/ID release today/, /Release today, 9:00 AM/],
-      release_overdue: [/Release date passed/, /Not collected yet/],
-      release_later: [/Release on/, /came early/],
-      release_unscheduled: [/Approved · no release date/, /has not been scheduled/],
-    };
-    for (const [c, [badge, text]] of Object.entries(release)) {
-      await open(c);
-      const t = await page.locator('.ot-confirm').innerText();
-      assert(badge.test(t) && text.test(t), `${c}: ${t.slice(0, 200)}`);
-      const go = page.locator('.ot-confirm-a a.btn-navy');
-      assert.equal((await go.innerText()).trim(), 'Open ID release', `${c}: the next step`);
-      assert((await go.getAttribute('href')).endsWith('#id-release'), `${c}: opens the ID release card`);
-      assert.equal(await page.locator('.ot-confirm button[name=action]').count(), 0, `${c}: no Arrived button for a release`);
-    }
-    await open('release_today');
-    assert(/valid ID/.test(await page.locator('.ot-idcheck').innerText()) && /in person/.test(await page.locator('.ot-idcheck').innerText()), 'the reminder says the ID goes to the Solo Parent in person');
-    await open('release_unscheduled');
-    assert.equal(await page.locator('.ot-confirm .ot-idcheck').count(), 0, 'no valid-ID reminder before a release is scheduled');
-
     // The dashboard strip: the box, one line of counts and the next person; no lists.
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto(base + 'staff/strip.php');
@@ -118,13 +76,13 @@ const assert = require('node:assert/strict');
     assert.equal(await page.locator('.ot-lh, .ot-counts').count(), 0, 'the strip has no lists');
     assert.deepEqual((await page.locator('.ot-line-c a').allInnerTexts()).map(t => t.replace(/\s+/g, ' ').trim()), ['2 waiting', '2 expected', '1 done today'], 'one line of counts');
     const hrefs = await page.locator('.ot-line-c a').evaluateAll(a => a.map(x => x.getAttribute('href')));
-    assert(hrefs[0].endsWith('staff/appointments.php#ot-waiting') && hrefs[1].endsWith('#ot-expected') && hrefs[2].endsWith('#ot-done'), 'each count opens its list on Appointment Management');
-    assert((await page.locator('.ot-all').getAttribute('href')).endsWith('staff/appointments.php#office-today'), 'See today\'s list');
+    assert(hrefs.every(h => h.endsWith('staff/appointments.php#staff-today-card')), 'each count opens Today\'s list on Appointment Management');
+    assert((await page.locator('.ot-all').getAttribute('href')).endsWith('staff/appointments.php'), 'See today\'s work opens Appointment Management');
     assert(/VIRAC-SP-2026-0062/.test(await page.locator('.ot-next').innerText()) && (await page.locator('.ot-next a').getAttribute('href')).endsWith('#decision'), 'Next is the first person waiting, with Open interview');
     await page.goto(base + 'staff/strip-nobody.php');
     assert.equal(await page.locator('.ot-next').count(), 0, 'no Next line when nobody is waiting');
     await page.goto(base + 'staff/strip-today.php');
-    assert(await page.locator('.ot-confirm').isVisible() && await page.locator('.ot-line').isVisible(), 'after Find the card opens in the strip');
+    assert.equal(await page.locator('.ot-confirm').count(), 0, 'the strip has no confirm card');
     for (const width of [390, 320]) {
       await page.setViewportSize({ width, height: 900 });
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `the strip fits ${width}px`);
@@ -159,7 +117,7 @@ const assert = require('node:assert/strict');
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'the counter card fits a phone');
 
     assert.deepEqual(errors, [], 'no script errors');
-    console.log('PASS: office check-in: the dashboard strip (box, counts, next, no lists), box and lists in arrival order, the confirm card for every case with the right next step, Arrived posts with CSRF, light/dark, 320-1280px, Tagalog, and the Solo Parent counter card.');
+    console.log('PASS: office check-in: the dashboard strip (search box, counts, next, no lists), no confirm card, several matches open their application directly, light/dark, 320-1280px, Tagalog, and the Solo Parent counter card.');
   } finally {
     await browser.close();
   }

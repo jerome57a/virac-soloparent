@@ -1,0 +1,8 @@
+/* MSWDO staff and admin: the username pill in the top bar (initials and username).
+ * The side menu itself is the same slide-in menu as the Solo Parent's (style.css .nav-drawer, opened by the menu button). */
+.nav-icon-btn.has-name { border: 1px solid var(--border); border-radius: 999px; padding: 3px 12px 3px 3px; height: 40px; }
+.nav-avatar { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--info); color: var(--navy); font-weight: 800; font-size: 12.5px; flex: none; }
+@media (max-width: 600px) { .nav-icon-btn.has-name { padding: 3px; } .nav-icon-btn.has-name .nav-user { display: none; } }
+/* The menu's top, as on the Solo Parent's: the portal name under the system name. */
+.nav-drawer-brand .dash-brand-name { font-weight: 700; font-size: 15px; color: var(--navy); line-height: 1.3; }
+.nav-drawer-brand .dash-brand-sub { font-size: 11px; color: var(--muted); }

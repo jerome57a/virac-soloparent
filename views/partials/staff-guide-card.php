@@ -22,15 +22,5 @@ $queueNext = $queueNext ?? null;
     <?php endforeach; ?>
   </ol>
   <?php endif; ?>
-  <?php if ($guide['next']): $gn = $guide['next']; ?>
-  <div class="gi-next gi-tone-<?= e($gn['tone']) ?>" id="next-step-card" role="status">
-    <span class="gi-chip gi-<?= $gn['tone'] === 'navy' ? 'blue' : e($gn['tone']) ?>"><?= ui_icon($gn['icon'], 22) ?></span>
-    <div class="gi-next-text"><strong data-i18n><?= e($gn['title']) ?></strong><span><span data-i18n><?= e(preg_replace('/: \d+$/', '', $gn['text'])) ?></span><?= preg_match('/: (\d+)$/', $gn['text'], $count) ? ': ' . (int) $count[1] : '' ?></span></div>
-    <div class="gi-actions">
-      <?php if ($gn['label'] !== ''): ?><a class="gi-btn" href="<?= e($gn['href']) ?>"><?= ui_icon($gn['icon'], 17) ?><span data-i18n><?= e($gn['label']) ?></span></a><?php endif; ?>
-      <?php if ($queueNext): ?><a class="gi-btn is-outline" href="<?= e(base_url('staff/application.php?id=' . (int) $queueNext['id'])) ?>#checklist"><?= ui_icon('arrow-right', 17) ?><span><span data-i18n>Next waiting:</span> <?= e($queueNext['reference_no']) ?></span></a><?php endif; ?>
-    </div>
-  </div>
-  <?php endif; ?>
 <?php endif; ?>
 <script>(function(){var t=document.querySelector('.gi-tracker'),s=t&&t.querySelector('.is-now');if(t&&s){t.scrollLeft=s.offsetLeft-(t.clientWidth-s.offsetWidth)/2;}})();</script>

@@ -19,7 +19,9 @@ require_once __DIR__ . '/../../../includes/icons.php';
  */
 $st = status_style($app['status']);
 $interviewOutcome = Appointment::interviewOutcome($interview);
-$canDecide = !empty($app['renewal_simplified']) || Appointment::interviewSuccessful($interview);
+// Approve needs the interview to have taken place: recorded as successful, or booked with its date/time reached (approving records it).
+$interviewHeld = $interview && (Appointment::interviewSuccessful($interview) || (($interview['status'] ?? '') === 'BOOKED' && strtotime((string) $interview['scheduled_at']) <= time()));
+$canDecide = !empty($app['renewal_simplified']) || $interviewHeld;
 // After an UNSUCCESSFUL interview staff may still request corrections (approval stays locked), schedule another interview, or reject.
 $canCorrect = $canDecide || Appointment::interviewOutcome($interview) === 'Unsuccessful';
 // A renewal with an interview: staff re-check that the Solo Parent still qualifies (RA 11861).
@@ -27,7 +29,8 @@ $isRenewalInterview = ($app['type'] ?? '') === 'renewal' && empty($app['renewal_
 // An interview the system released because nobody confirmed it: staff can still record that the Solo Parent attended.
 $lateAttended = ($interview['status'] ?? '') === 'MISSED' && ($interview['notes'] ?? '') === 'Released automatically: no outcome was recorded';
 // Rejecting needs no successful interview (only a reason); corrections and approval still do ($canDecide).
-$canReject = in_array('Rejected', $allowedTransitions ?? [], true);
+// Reject, like Approve, belongs to the decision after the interview (also after one recorded as unsuccessful); it is not offered earlier.
+$canReject = in_array('Rejected', $allowedTransitions ?? [], true) && ($canDecide || Appointment::interviewOutcome($interview) === 'Unsuccessful');
 $interviewNotes = (string) ($interview['result'] ?? '');
 $requiredChecklist = array_filter($submittedChecklist ?? [], fn($item) => !empty($item['is_required']));
 $outstandingRequirements = array_filter($requiredChecklist, fn($item) => $item['verification_status'] !== 'Verified' || (!empty($item['expires_at']) && $item['expires_at'] < date('Y-m-d')));
@@ -67,19 +70,28 @@ $noteBox = function (array $lines): string {
   </div>
 
   <?php require APP_ROOT . '/views/partials/staff-guide-card.php'; ?>
-  <div class="gi-switchrow"><label class="gi-switch"><input type="checkbox" id="gi-notes-all"><i aria-hidden="true"></i><span><?= ui_icon('lightbulb', 15) ?><span data-i18n>Show all notes</span></span></label><small data-i18n>Warnings and errors are always shown.</small></div>
+  <?php if (!empty($guide['next']['href']) && ($_GET['next'] ?? '') !== '1'): ?>
+  <script>
+    /* Opening an application goes straight to its next step (unless the address already names a place). */
+    (function () {
+      var target = <?= json_encode($guide['next']['href'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+      if (!target || window.location.hash) { return; }
+      function go() {
+        var el = document.querySelector(target);
+        if (!el) { return; }
+        var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        el.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' });
+        el.classList.add('gi-target');
+      }
+      if (document.readyState === 'complete') { go(); } else { window.addEventListener('load', go); }
+    })();
+  </script>
+  <?php endif; ?>
 
   <div class="row g-4">
     <div class="col-12 col-lg-7">
       <?php if (isset($renewalOf)) { require APP_ROOT . '/views/partials/renewal-of.php'; } ?>
-      <?php $detailsSummary = 'Personal info · ' . count($children) . ' ' . (count($children) === 1 ? 'child' : 'children') . ' · ' . (!empty($app['consent_at']) ? 'declaration signed' : 'no declaration recorded'); ?>
-      <details class="gi-fold" id="applicant-details"<?= ($app['status'] ?? '') === 'Pending Review' ? ' open' : '' ?>>
-        <summary>
-          <span class="gi-chip gi-sm"><?= ui_icon('user', 18) ?></span>
-          <span class="gi-fold-text"><strong data-i18n>Applicant details</strong><small><?= e($detailsSummary) ?></small></span>
-          <span class="gi-fold-toggle"><span class="when-closed" data-i18n>Show</span><span class="when-open" data-i18n>Hide</span><?= ui_icon('chevron-down', 16) ?></span>
-        </summary>
-        <div class="gi-fold-body">
+      <div id="applicant-details">
       <div class="review-card">
         <div class="review-card-head"><div class="title"><?= ui_icon('user', 18) ?><span data-i18n>Personal Info</span></div></div>
         <div class="staff-applicant-list">
@@ -122,8 +134,7 @@ $noteBox = function (array $lines): string {
           </div>
         </div>
       </div>
-        </div>
-      </details>
+      </div>
 
       <?php if (!empty($autoCheck)): require APP_ROOT . '/views/staff/applications/auto-check.php'; endif; ?>
 
@@ -262,8 +273,8 @@ $noteBox = function (array $lines): string {
         </div>
       </div>
       <script src="<?= public_asset('js/document-viewer.js') ?>" defer></script>
-      <script src="<?= public_asset('js/staff-notes.js') ?>" defer></script>
       <script src="<?= public_asset('js/staff-remarks.js') ?>" defer></script>
+      <script src="<?= public_asset('js/staff-back.js') ?>" defer></script>
       <script src="<?= public_asset('js/staff-next-step.js') ?>" defer data-auto="<?= ($_GET['next'] ?? '') === '1' ? '1' : '0' ?>"></script>
 
     </div>
@@ -274,7 +285,7 @@ $noteBox = function (array $lines): string {
       <?php if (!empty($smsLogs)) { require APP_ROOT . '/views/staff/applications/sms-log.php'; } ?>
 
       <div class="review-card" id="decision">
-        <div class="review-card-head"><div class="title"><?= ui_icon('clipboard-check', 18) ?><span data-i18n>Decision</span></div><?= $noteBox(['Approving needs every required document verified and a successful interview.', 'Rejecting or requesting corrections needs a reason. The reason is sent to the Solo Parent by SMS.']) ?></div>
+        <div class="review-card-head"><div class="title"><?= ui_icon('clipboard-check', 18) ?><span data-i18n>Decision</span></div><?= $noteBox(['Approving needs every required document verified and a successful interview.', 'Rejecting needs a reason. The reason is sent to the Solo Parent by SMS.']) ?></div>
         <?php if ($statusError): ?><div class="auth-error" role="alert"><?= e($statusError) ?></div><?php endif; ?>
         <?php if ($assessmentError): ?><div class="auth-error" role="alert"><?= e($assessmentError) ?></div><?php endif; ?>
 
@@ -282,150 +293,31 @@ $noteBox = function (array $lines): string {
           <div style="font-size:13px;color:var(--muted)">This application has a final status (<?= e($app['status']) ?>). No further decisions can be made.</div>
         <?php else: ?>
           <?php if ($interview && $interview['status'] === 'BOOKED'): ?><div class="mb-2"><b data-i18n>Interview Scheduled</b> · <?= e(interview_schedule_text($interview['scheduled_at'], interview_is_date_only($interview))) ?> at <?= e($interview['location']) ?></div><?php endif; ?>
-          <?php if ($approvalChecklist): ?>
-            <?php $todoItems = array_values(array_filter($approvalChecklist, fn($i) => empty($i['ok']))); ?>
-            <details class="gi-req<?= $todoItems ? ' has-todo' : ' is-ready' ?>">
-              <summary><?= ui_icon($todoItems ? 'info' : 'circle-check', 16) ?><span><?php if ($todoItems): ?><b><?= count($todoItems) ?> <?= count($todoItems) === 1 ? 'thing' : 'things' ?></b> before approving: <?= e($todoItems[0]['label']) ?><?php else: ?><b data-i18n>Everything is ready</b> <span data-i18n>for approval.</span><?php endif; ?></span><?= ui_icon('chevron-down', 15) ?></summary>
-            <div class="approval-checklist">
-              <?php foreach ($approvalChecklist as $item): ?>
-                <div class="<?= $item['ok'] ? 'ok' : 'no' ?>"><?= $item['ok'] ? '✓' : '✗' ?> <?= e($item['label']) ?><?php if ($item['detail']): ?> <span class="detail" style="white-space:pre-line">— <?= e($item['detail']) ?></span><?php endif; ?></div>
-              <?php endforeach; ?>
-            </div>
-            </details>
-          <?php endif; ?>
-          <?php if (empty($app['renewal_simplified']) && (in_array($interview['status'] ?? '', ['BOOKED', 'COMPLETED'], true) || $lateAttended)): ?>
-            <?php if ($lateAttended): ?><div class="info-box mb-3" role="status" style="max-width:none">The system released this interview because nobody recorded the outcome. <b>If the Solo Parent really attended, record the result here.</b> This is possible until they choose a new date.</div><?php endif; ?>
-            <?php if ($interviewOutcome): ?>
-              <div class="review-saved-action mb-3"><span>Interview: <b><?= e($interviewOutcome) ?></b></span><?php $undoButton('interview', 'Undo Interview Result'); ?></div>
-              <?php if ($interviewNotes !== ''): ?><div class="small mb-3"><?= e($interviewNotes) ?></div><?php endif; ?>
-              <?php if ($outstandingRequirements): ?><div class="small text-muted mb-3" id="interview-result-locked">The interview result cannot be changed until all required documents are verified again (<?= e(implode('; ', array_map(fn($item) => $item['label'], $outstandingRequirements))) ?>).</div><?php endif; ?>
-            <?php elseif ($outstandingRequirements): ?>
-            <div class="info-box mb-3" id="interview-result-locked" style="max-width:none" role="status">
-              <b>Interview result is locked until all required documents are verified</b>
-              <ul><?php foreach ($outstandingRequirements as $item): $expiredItem = !empty($item['expires_at']) && $item['expires_at'] < date('Y-m-d'); ?><li><?= e($item['label']) ?><?= $expiredItem ? ' - expired' : (!empty($item['uploaded_document']) ? ' - ' . e(document_status_label($item['uploaded_document']['verification_status'])) : ' - no file uploaded') ?></li><?php endforeach; ?></ul>
-              MSWDO staff must verify every required document before recording the interview result. The appointment and its reminders are not affected; verify the documents above to unlock the result.
-              <?php if ($interview['status'] === 'BOOKED' && strtotime((string) $interview['scheduled_at']) > time()): ?>
-                <div class="small text-muted mt-2">The interview result can be recorded on or after <?= e(interview_schedule_text($interview['scheduled_at'], interview_is_date_only($interview))) ?>.</div>
-              <?php endif; ?>
-            </div>
-            <?php else: ?>
-            <form method="post" id="interview-result-form" class="d-flex flex-column gap-2 mb-3" onsubmit="return confirm('Confirm this interview result?');">
-              <?= csrf_field() ?>
-              <input type="hidden" name="form_action" value="record_result">
-              <?php if (!empty($interview['arrived_at'])): ?><div class="gi-arrived" role="status"><?= ui_icon('circle-check', 16) ?><span>Arrived <?= e(date(substr((string) $interview['arrived_at'], 0, 10) === date('Y-m-d') ? 'g:i A' : 'M j, g:i A', strtotime((string) $interview['arrived_at']))) ?><?= !empty($arrivedByName) ? ' · checked in by ' . e($arrivedByName) : '' ?></span></div><?php endif; ?>
-              <fieldset class="gi-brought"><legend data-i18n>Brought to the interview</legend>
-                <?php foreach (ApplicationReviewService::BROUGHT as $bKey => $bLabel): ?>
-                  <label class="gi-tick"><input type="checkbox" name="brought[]" value="<?= e($bKey) ?>"> <span data-i18n><?= e(['valid_id' => 'Valid government ID, name and birthdate match', 'pictures' => 'Two 1x1 ID pictures received', 'originals' => 'Original documents shown'][$bKey]) ?></span><?= $bKey === 'pictures' ? ' <small data-i18n>(not uploaded)</small>' : '' ?></label>
-                <?php endforeach; ?>
-                <?php if ($isRenewalInterview): ?><small class="gi-tick-note" data-i18n>Current Solo Parent ID: tick it in the renewal re-check below.</small><?php endif; ?>
-                <small class="gi-tick-note" data-i18n>Not required to save the result; what is ticked is written into it.</small>
-              </fieldset>
-              <?php if ($isRenewalInterview): require_once APP_ROOT . '/services/SoloParentChildRules.php'; $rcToday = date('Y-m-d');
-                $rcPrevCivil = (string) ($renewalOf['civil_status'] ?? ''); $rcCivilChanged = ($app['civil_status'] ?? '') === 'Married' && $rcPrevCivil !== '' && $rcPrevCivil !== 'Married';
-                $rcValidFrom = $renewalOf['id_valid_from'] ?? null; $rcExpires = $renewalOf['id_expires_at'] ?? null; ?>
-                <div class="renewal-recheck" style="border:1px solid var(--border, #d9e1ec);border-left:5px solid #1b3a6b;border-radius:12px;padding:12px 14px">
-                  <div class="d-flex align-items-center gap-2 mb-1">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:var(--ink)"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-                    <div class="fw-semibold" style="color:var(--ink)">Renewal re-check (RA 11861)</div>
-                  </div>
-                  <div class="small mb-2" style="color:var(--muted)">Confirm at the interview that the Solo Parent still qualifies. A <b>Successful</b> result needs every item; if one is not true, record <b>Unsuccessful</b> and reject with the reason.</div>
-
-                  <div class="small fw-semibold" style="color:var(--ink)">Current Solo Parent ID to check</div>
-                  <div class="recheck-id-card">
-                    <div><div class="k">Reference</div><div class="v"><?= e((string) ($renewalOf['reference_no'] ?? '—')) ?></div></div>
-                    <div><div class="k">Name on the ID</div><div class="v"><?= e((string) ($renewalOf['full_name'] ?? $app['full_name'])) ?></div></div>
-                    <div><div class="k">Valid from</div><div class="v"><?= $rcValidFrom ? e(date('M j, Y', strtotime((string) $rcValidFrom))) : '—' ?></div></div>
-                    <div><div class="k">Valid until</div><div class="v"><?= $rcExpires ? e(date('M j, Y', strtotime((string) $rcExpires))) : '—' ?></div></div>
-                  </div>
-
-                  <ul class="small mb-2" style="padding-left:18px">
-                    <?php foreach (($children ?? []) as $rc): $rcStatus = SoloParentChildRules::status($rc, $rcToday); ?>
-                      <li class="<?= in_array($rcStatus, [SoloParentChildRules::QUALIFIES, SoloParentChildRules::QUALIFIES_DISABILITY], true) ? 'child-ok' : 'child-bad' ?>"><b><?= e($rc['full_name']) ?></b> — <?= e(SoloParentChildRules::label($rc, $rcToday)) ?></li>
-                    <?php endforeach; ?>
-                    <?php if (!SoloParentChildRules::anyQualifies($children ?? [], $rcToday)): ?><li class="child-bad"><b>No qualifying child</b> — this renewal may not be eligible.</li><?php endif; ?>
-                    <?php if ($rcCivilChanged): ?><li class="child-bad"><b>Civil status changed to Married</b> (was <?= e($rcPrevCivil) ?>) — may no longer qualify.</li><?php endif; ?>
-                  </ul>
-
-                  <div class="d-flex flex-column gap-1">
-                    <?php foreach (ApplicationReviewService::RENEWAL_RECHECK as $rcKey => $rcLabel): ?>
-                      <label class="d-flex align-items-start gap-2" style="font-size:13px;color:var(--ink);cursor:pointer"><input type="checkbox" name="recheck[]" value="<?= e($rcKey) ?>" class="js-recheck<?= $rcKey === 'current_id' ? ' js-recheck-id' : '' ?>" style="margin-top:2px;width:17px;height:17px;flex:0 0 auto"> <span><?= $rcKey === 'current_id' ? '<b>' . e($rcLabel) . '</b> (compare it with the details above)' : e($rcLabel) ?></span></label>
-                    <?php endforeach; ?>
-                  </div>
-                  <div class="recheck-noid">
-                    <label class="d-flex align-items-start gap-2 mb-0" style="font-size:13px;color:#5b3a07;cursor:pointer"><input type="checkbox" name="id_not_shown" value="1" class="js-noid" style="margin-top:2px;width:17px;height:17px;flex:0 0 auto"> <span><b>ID not shown</b> — the Solo Parent lost or forgot their current Solo Parent ID</span></label>
-                    <label class="d-none js-noid-wrap mt-2" style="font-size:13px;font-weight:600;color:#5b3a07;width:100%">Reason (saved in the history and audit log)
-                      <input type="text" name="id_not_shown_reason" maxlength="200" class="form-control mt-1 js-noid-reason" placeholder="For example: lost, showed an affidavit of loss">
-                    </label>
-                  </div>
-                </div>
-                <script>
-                  (() => {
-                    const form = document.getElementById('interview-result-form');
-                    const noId = form.querySelector('.js-noid'), noIdWrap = form.querySelector('.js-noid-wrap'), noIdReason = form.querySelector('.js-noid-reason');
-                    const idBox = form.querySelector('.js-recheck-id');
-                    const sync = () => {
-                      noIdWrap.classList.toggle('d-none', !noId.checked);
-                      if (noId.checked) { idBox.checked = false; idBox.disabled = true; } else { idBox.disabled = false; }
-                    };
-                    noId.addEventListener('change', sync); sync();
-                    form.querySelectorAll('button[name="interview_outcome"][value="Successful"]').forEach(btn => btn.addEventListener('click', e => {
-                      const others = [...form.querySelectorAll('.js-recheck:not(.js-recheck-id)')];
-                      if (others.some(b => !b.checked)) { e.preventDefault(); alert('Tick every renewal re-check item before recording a successful interview. If one is not true, record Unsuccessful.'); return; }
-                      if (!idBox.checked && !(noId.checked && noIdReason.value.trim())) {
-                        e.preventDefault();
-                        alert(noId.checked ? 'Give the reason the Solo Parent ID was not shown.' : 'Tick that the Solo Parent showed their current Solo Parent ID, or choose "ID not shown" and give the reason.');
-                        (noId.checked ? noIdReason : idBox).focus();
-                      }
-                    }));
-                  })();
-                </script>
-              <?php endif; ?>
-              <?php if ($interviewOutcome): ?><div class="small">Current result: <b><?= e($interviewOutcome) ?></b></div><?php endif; ?>
-              <?php if ($interview['result_recorded_at']): ?>
-                <div style="font-size:12px;color:var(--faint)">Recorded <?= e(date('M j, Y g:i A', strtotime($interview['result_recorded_at']))) ?></div>
-              <?php endif; ?>
-              <?php if ($interview['status'] === 'BOOKED' && strtotime((string) $interview['scheduled_at']) > time()): ?>
-                <div class="small text-muted">The interview result can be recorded on or after <?= e(interview_schedule_text($interview['scheduled_at'], interview_is_date_only($interview))) ?>.</div>
-              <?php else: ?>
-                <div class="review-action-grid" role="group" aria-label="Interview result">
-                  <button type="submit" name="interview_outcome" value="Successful" class="btn-outline review-button-success<?= $interviewOutcome === 'Successful' ? ' is-selected' : '' ?>" aria-pressed="<?= $interviewOutcome === 'Successful' ? 'true' : 'false' ?>" style="flex:1" data-i18n>Successful</button>
-                  <button type="submit" name="interview_outcome" value="Unsuccessful" class="btn-outline review-button-danger<?= $interviewOutcome === 'Unsuccessful' ? ' is-selected' : '' ?>" aria-pressed="<?= $interviewOutcome === 'Unsuccessful' ? 'true' : 'false' ?>" style="flex:1" data-i18n>Unsuccessful</button>
-                </div>
-              <?php endif; ?>
-            </form>
-            <?php endif; ?>
-          <?php endif; ?>
-          <?php if (!$canDecide && $canCorrect): ?>
-            <div class="info-box" role="status" style="max-width:none">The last interview was <b>unsuccessful</b>. You can request corrections, schedule another interview (in the interview section below), or reject the application with a reason. Approval stays locked until an interview is successful.</div>
-          <?php endif; ?>
-          <?php if ($canDecide || $canCorrect || $canReject): ?>
+          <?php if ($canDecide || $canReject): ?>
           <form method="post" id="application-decision-form" class="d-flex flex-column gap-2">
             <?= csrf_field() ?>
             <input type="hidden" name="form_action" value="update_status">
             <input type="hidden" name="expected_status" value="<?= e($app['status']) ?>">
             <?php
-            // Request Corrections, Reject and Approve are always shown in this order; the ones not available yet are locked and say why.
-            $showLocked = in_array($app['status'], ['Pending Review', 'Under Verification', 'Interview Scheduled'], true);
-            $lockedNote = null;
+            // Only two decisions are ever shown: Reject and Approve. A button that cannot be used yet is not shown; a plain line says what comes first.
+            $showApprove = in_array('Approved', $allowedTransitions, true) && $canDecide && !$outstandingRequirements;
+            $showReject = $canReject;
+            $approveWait = null;
+            if (!$showApprove && in_array('Approved', $allowedTransitions, true)) {
+                $approveWait = $outstandingRequirements ? 'Approve appears when every required document is verified.' : 'Approve appears after the interview has taken place.';
+            }
             ?>
             <div class="review-action-grid gi-decide">
-              <?php foreach (['For Revision', 'Rejected', 'Approved'] as $to):
-                  $offered = in_array($to, $allowedTransitions, true);
-                  if (!$offered && !$showLocked) { continue; }
-                  $docsOpen = $to === 'Approved' && $canDecide && $outstandingRequirements;
-                  $locked = !$offered || $docsOpen || ($to === 'Approved' && !$canDecide) || ($to === 'For Revision' && !$canCorrect) || ($to === 'Rejected' && !$canReject);
-                  if ($locked && $to !== 'Rejected') {
-                      $lockedNote = $lockedNote ?? ($docsOpen ? 'Approve unlocks when every required document is verified.' : (!$canCorrect ? 'Request Corrections and Approve unlock after a successful interview is recorded.' : 'Approve stays locked until an interview is recorded as successful.'));
-                  }
-                  $class = $locked ? 'btn-outline review-button-locked' : ($to === 'Rejected' ? 'btn-outline review-button-danger' : ($to === 'Approved' ? 'btn-navy review-button-success is-selected' : 'btn-outline review-button-correction'));
-                  $confirm = $to === 'Rejected' ? 'Reject this application? This is final.' : ($to === 'Approved' ? 'Approve this application?' : '');
-                  $needsReason = in_array($to, Application::REASON_REQUIRED, true);
-                  $buttonIcon = $locked ? 'lock' : ($to === 'Rejected' ? 'circle-x' : ($to === 'Approved' ? 'circle-check' : 'send'));
-              ?>
-                <button type="submit" name="status" value="<?= e($to) ?>" class="<?= $class ?>"<?= $locked ? ' disabled' : '' ?><?= $docsOpen ? ' title="Complete all required documents before approval"' : '' ?><?= $needsReason ? ' data-needs-reason="1" data-confirm="' . e($confirm) . '"' : ($confirm ? ' onclick="return confirm(\'' . e($confirm) . '\')"' : '') ?>><?= ui_icon($buttonIcon, 17) ?><span><?= e(Application::ACTION_LABELS[$to] ?? $to) ?></span></button>
-              <?php endforeach; ?>
+              <?php if ($showReject): ?>
+                <button type="submit" name="status" value="Rejected" class="btn-outline review-button-danger" data-needs-reason="1" data-confirm="Reject this application? This is final."><?= ui_icon('circle-x', 17) ?><span data-i18n>Reject</span></button>
+              <?php endif; ?>
+              <?php if ($showApprove): ?>
+                <button type="submit" name="status" value="Approved" class="btn-navy review-button-success is-selected" onclick="return confirm('Approve this application?')"><?= ui_icon('circle-check', 17) ?><span data-i18n>Approve</span></button>
+              <?php endif; ?>
             </div>
-            <?php if ($lockedNote): ?><p class="gi-lockline"><?= ui_icon('lock', 14) ?><span data-i18n><?= e($lockedNote) ?></span></p><?php endif; ?>
+            <?php if ($showApprove): ?><p class="gi-lockline"><?= ui_icon('circle-check', 14) ?><span data-i18n>Approve: the Solo Parent is told the ID is approved and MSWDO will set the release date.</span></p><?php endif; ?>
+            <?php if ($showReject): ?><p class="gi-lockline"><?= ui_icon('circle-x', 14) ?><span data-i18n>Reject: ends this application. You write a reason and it is sent to the Solo Parent by SMS.</span></p><?php endif; ?>
+            <?php if ($approveWait): ?><p class="gi-lockline"><?= ui_icon('info', 14) ?><span data-i18n><?= e($approveWait) ?></span></p><?php endif; ?>
             <?php /* The reason is asked for only when the chosen action needs one (reject / request corrections). */ ?>
             <label id="decision-reason-wrap" class="d-none mt-2" style="font-size:13px;font-weight:600;color:var(--ink)">
               <span id="decision-reason-label">Reason for the Solo Parent</span>
@@ -467,6 +359,8 @@ $noteBox = function (array $lines): string {
               }));
             })();
           </script>
+          <?php else: ?>
+          <p class="gi-lockline"><?= ui_icon('info', 14) ?><span data-i18n>Approve or reject appears after the interview has taken place.</span></p>
           <?php endif; ?>
         <?php endif; ?>
       </div>
@@ -482,7 +376,6 @@ $noteBox = function (array $lines): string {
           <div class="title" data-i18n>Interview</div>
           <?php if ($ivStatus): [$ibg, $ifg, $ilabel] = $ivStyles[$ivStatus]; ?><span class="status-pill" style="background:<?= $ibg ?>;color:<?= $ifg ?>"><?= e($ilabel) ?></span><?php endif; ?>
         </div>
-        <p class="gi-bring"><?= ui_icon('square-user', 16) ?><span><b data-i18n>Bring:</b> <?= ($app['type'] ?? '') === 'renewal' ? 'the current Solo Parent ID, a valid ID and two 1x1 ID pictures' : 'a valid ID and two 1x1 ID pictures' ?> <span class="text-muted">(the pictures are not uploaded)</span></span></p>
         <?php if ($interviewError): ?><div class="auth-error" role="alert"><?= e($interviewError) ?></div><?php endif; ?>
         <?php
         // Rescheduling: the Solo Parent booked again after a missed, unrecorded or cancelled interview.
@@ -513,9 +406,6 @@ $noteBox = function (array $lines): string {
             <?php if ($interview['notes']): ?><div class="review-row"><div class="k">Notes</div><div class="v"><?= e($interview['notes']) ?></div></div><?php endif; ?>
             <?php if ($ivStatus === 'CANCELLED'): ?><div class="review-row"><div class="k">Cancelled</div><div class="v"><?= e(date('M j, Y g:i A', strtotime($interview['cancelled_at']))) ?><?= $interview['cancel_reason'] ? ' — ' . e($interview['cancel_reason']) : '' ?></div></div><?php endif; ?>
           </div>
-          <?php if ($ivStatus === 'BOOKED'): ?>
-            <div style="font-size:12px;color:var(--muted);margin-bottom:12px">To cancel this appointment or mark a no-show, use <a href="<?= base_url('staff/appointments.php') ?>" data-i18n>Appointment Management</a>.</div>
-          <?php endif; ?>
         <?php endif; ?>
 
         <?php if (!empty($interviewSms)): ?>
@@ -547,8 +437,8 @@ $noteBox = function (array $lines): string {
               <ul><?php foreach ($outstandingRequirements as $item): $expiredItem = !empty($item['expires_at']) && $item['expires_at'] < date('Y-m-d'); ?><li><?= e($item['label']) ?><?= $expiredItem ? ' - expired' : (!empty($item['uploaded_document']) ? ' - ' . e(document_status_label($item['uploaded_document']['verification_status'])) : ' - no file uploaded') ?></li><?php endforeach; ?></ul>
               MSWDO staff must verify every required document before scheduling the interview. When the Solo Parent uploads a replacement, verify it above to unlock it.
             </div>
-          <?php else: ?>
-            <div class="info-box" style="max-width:none"><b>All required documents are verified.</b> <?php if (($invitationState ?? 'off') !== 'ready'): ?>Interview scheduling is not available until interview date booking is enabled.<?php else: ?>Schedule the interview in the card below.<?php endif; ?></div>
+          <?php elseif (($invitationState ?? 'off') !== 'ready'): ?>
+            <div class="info-box" style="max-width:none">Interview scheduling is not available until interview date booking is enabled.</div>
           <?php endif; ?>
         <?php endif; ?>
 
@@ -618,7 +508,7 @@ $noteBox = function (array $lines): string {
           <?php if ($ivNow === 'BOOKED'): ?>
             <div class="small text-muted">An interview date is already set (shown above). The Solo Parent can keep it or pick another day from their own account. To change it yourself, the Solo Parent must cancel it first.</div>
           <?php elseif ($ivNow === 'COMPLETED' && !$ivRetake): ?>
-            <div class="small text-muted">The interview has been held. Record the result and decide on the application below.</div>
+            <div class="small text-muted">The interview has been held. Approve or reject the application in the Decision card.</div>
           <?php elseif (($invProblems['open'] ?? null) !== null && !$inv): ?>
             <div class="small text-muted"><?= e($invProblems['open']) ?></div>
           <?php else: ?>
@@ -666,7 +556,8 @@ $noteBox = function (array $lines): string {
           <?php elseif ($idReleaseSchedule): ?><span class="status-pill" style="background:#dce8f5;color:#1b3a6b" data-i18n>ID Release Scheduled</span>
           <?php else: ?><span class="status-pill" style="background:#f1f1f1;color:#555"><?= e($app['status']) ?></span><?php endif; ?>
         </div>
-        <?php if ($releaseError): ?><div class="auth-error" role="alert"><?= e($releaseError) ?></div><?php endif; ?>
+        <?php $postedAction = (string) ($_POST['form_action'] ?? ''); $releaseFormFailed = !empty($releaseError) && $postedAction === 'schedule_id_release'; $handoverFailed = !empty($releaseError) && $postedAction === 'confirm_id_release'; $datesFailed = !empty($releaseError) && $postedAction === 'correct_id_dates'; ?>
+        <?php if ($releaseError && !$releaseFormFailed && !$handoverFailed && !$datesFailed): ?><div class="auth-error" role="alert"><?= e($releaseError) ?></div><?php endif; ?>
         <?php if ($app['status'] === 'ID Released'): ?>
           <div class="review-row"><div class="k">Handed over</div><div class="v"><?= $idReleaseSchedule && $idReleaseSchedule['released_at'] ? e(date('F j, Y g:i A', strtotime($idReleaseSchedule['released_at']))) : 'Recorded in application status history.' ?></div></div>
           <?php if ($idReleaseSchedule && $idReleaseSchedule['released_by_name']): ?><div class="small text-muted">Confirmed by <?= e($idReleaseSchedule['released_by_name']) ?></div><?php endif; ?>
@@ -675,7 +566,10 @@ $noteBox = function (array $lines): string {
             <div class="review-row"><div class="k">Valid from</div><div class="v"><?= $validFromShown ? e(date('F j, Y', strtotime((string) $validFromShown))) : '—' ?><?= empty($app['id_valid_from']) && $validFromShown ? ' <span class="small text-muted">(handover date)</span>' : '' ?></div></div>
             <div class="review-row"><div class="k">Valid until</div><div class="v"><b><?= $app['id_expires_at'] ? e(date('F j, Y', strtotime((string) $app['id_expires_at']))) : '—' ?></b><?= $app['id_expires_at'] && $app['id_expires_at'] < date('Y-m-d') ? ' <span class="status-pill" style="background:#fde8e8;color:#a51c1c">Expired</span>' : '' ?></div></div>
           </div>
-          <details class="mt-1"><summary class="small fw-semibold" style="cursor:pointer;color:var(--ink)">Correct the ID dates</summary>
+          <button type="button" class="btn-outline mt-1" data-next-step-open="dates">Correct the ID dates</button>
+          <div id="dates-store" hidden>
+          <div id="dates-modal-source" data-open="<?= $datesFailed ? '1' : '0' ?>">
+          <?php if ($datesFailed && $releaseError): ?><div class="auth-error" role="alert"><?= e($releaseError) ?></div><?php endif; ?>
             <form method="post" class="d-flex flex-column gap-2 mt-2" onsubmit="return confirm('Save the corrected ID dates? The Solo Parent is told in their account.');">
               <?= csrf_field() ?><input type="hidden" name="form_action" value="correct_id_dates">
               <div class="small text-muted">Only to fix a typing mistake: use the dates printed on the card. The expiry SMS follows the corrected date if it has not been sent yet.</div>
@@ -686,7 +580,8 @@ $noteBox = function (array $lines): string {
               <label style="font-size:13px;font-weight:600;color:var(--ink)">Reason for the correction<textarea name="correction_reason" rows="2" maxlength="500" class="form-control mt-1" required placeholder="For example: the expiration date was typed wrong."></textarea></label>
               <button type="submit" class="btn-outline align-self-start">Save corrected dates</button>
             </form>
-          </details>
+          </div>
+          </div>
         <?php elseif ($outstandingRequirements && !($app['status'] === 'Approved' && $idReleaseSchedule)): ?>
           <div class="checklist-attention-summary" role="status">Remind the Solo Parent to submit the highlighted required documents before ID release can be scheduled.</div>
         <?php elseif ($app['status'] !== 'Approved'): ?>
@@ -709,9 +604,21 @@ $noteBox = function (array $lines): string {
             <?php endif; ?>
           <?php endif; ?>
 
-          <?php if ($idReleaseSchedule) { require APP_ROOT . '/views/staff/applications/id-handover.php'; } ?>
-          <?php if (!$outstandingRequirements): ?>
-          <?php if ($idReleaseSchedule): ?><details class="mb-3"><summary class="small fw-semibold" style="cursor:pointer;color:var(--ink)">Change the release date, time or place</summary><div class="mt-3"><?php endif; ?>
+          <?php if ($idReleaseSchedule): ?>
+          <button type="button" class="btn-navy mb-3 me-2" data-next-step-open="handover">Confirm handover</button>
+          <div id="handover-store" hidden>
+          <div id="handover-modal-source" data-open="<?= $handoverFailed ? '1' : '0' ?>">
+          <?php if ($handoverFailed && $releaseError): ?><div class="auth-error" role="alert"><?= e($releaseError) ?></div><?php endif; ?>
+          <?php require APP_ROOT . '/views/staff/applications/id-handover.php'; ?>
+          </div>
+          </div>
+          <?php endif; ?>
+          <?php if (!$outstandingRequirements && !$idReleaseSchedule): ?>
+          <button type="button" class="btn-navy mb-3" data-next-step-open="release">Schedule the ID release</button>
+          <div id="release-store" hidden>
+          <div id="release-modal-source" data-open="<?= $releaseFormFailed ? '1' : '0' ?>" data-hash="<?= $idReleaseSchedule ? '0' : '1' ?>">
+          <?php if ($releaseFormFailed && $releaseError): ?><div class="auth-error" role="alert"><?= e($releaseError) ?></div><?php endif; ?>
+          <div class="small text-muted mb-2">Choose the release date, time and place. The Solo Parent is texted.</div>
           <form method="post" class="d-flex flex-column gap-3 mb-3">
             <?= csrf_field() ?><input type="hidden" name="form_action" value="schedule_id_release">
             <div class="row g-2">
@@ -758,7 +665,8 @@ $noteBox = function (array $lines): string {
               [date,time,location,type,custom].forEach(el => el.addEventListener('input', update)); type.addEventListener('change', update); update();
             })();
           </script>
-          <?php if ($idReleaseSchedule): ?></div></details><?php endif; ?>
+          </div>
+          </div>
           <?php endif; ?>
         <?php endif; ?>
       </div>

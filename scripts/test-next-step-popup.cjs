@@ -13,13 +13,16 @@ const bootstrapJs = fs.readFileSync(path.join(root, 'public/lib/bootstrap/bootst
 const bootstrapCss = fs.readFileSync(path.join(root, 'public/lib/bootstrap/bootstrap.min.css'), 'utf8');
 const stepJs = fs.readFileSync(path.join(root, 'public/js/staff-next-step.js'), 'utf8');
 
-function page({ correction, schedule, scheduleError, auto }) {
+function page({ correction, schedule, scheduleError, auto, release, releaseError, releaseHash, handover, dates }) {
   return `<!doctype html><html><head><meta charset="utf-8"><style>${bootstrapCss}</style></head><body>
   <div class="review-card" id="checklist"><div class="review-card-head"><div class="title">Documents</div></div>
     <form id="verification-form"><button type="submit">Save Verification</button></form>
     ${correction ? `<div id="correction-sms"><button type="button" data-next-step-open="correction">Review and send correction SMS</button><div id="correction-review-store" hidden><div id="correction-review"><form id="corr-form"><button type="submit" class="js-correction-confirm" data-blocked="0">Confirm and Send Correction SMS</button></form></div></div></div>` : ''}
   </div>
   <div id="schedule-card">${schedule ? `<button type="button" data-next-step-open="schedule">Schedule the interview</button><div id="schedule-store" hidden><div id="schedule-modal-source" data-open="${scheduleError ? 1 : 0}"><form id="sched-form"><input type="date" name="interview_date"><input type="time" name="interview_time"><button type="submit">Schedule Date and Send SMS</button></form></div></div>` : ''}</div>
+  ${handover ? `<div><button type="button" data-next-step-open="handover">Confirm handover</button><div hidden><div id="handover-modal-source" data-open="0"><form id="hand-form"><input name="id_expires_at"></form></div></div></div>` : ''}
+  ${dates ? `<div><button type="button" data-next-step-open="dates">Correct the ID dates</button><div hidden><div id="dates-modal-source" data-open="0"><form id="dates-form"><input name="id_valid_from"></form></div></div></div>` : ''}
+  ${release ? `<div id="release-card"><button type="button" data-next-step-open="release">Schedule the ID release</button><div id="release-store" hidden><div id="release-modal-source" data-open="${releaseError ? 1 : 0}" data-hash="${releaseHash ? 1 : 0}"><form id="rel-form"><input name="release_date"><input name="release_time"></form></div></div></div>` : ''}
   <script>${bootstrapJs}</script>
   <script id="step">${stepJs}</script>
   </body></html>`.replace('<script id="step">', `<script id="step" data-auto="${auto ? 1 : 0}">`);
@@ -88,6 +91,31 @@ const check = (ok, msg) => { if (!ok) { failures++; console.log('FAIL: ' + msg);
 
   await run({ correction: false, schedule: true, auto: false, hash: '#schedule-interview' }, async (p) => {
     check(await open(p) && await inModal(p, '#sched-form'), 'a link to #schedule-interview should open the schedule popup');
+  });
+
+  await run({ release: true, releaseHash: true, auto: false, hash: '#id-release' }, async (p) => {
+    check(await open(p) && await inModal(p, '#rel-form'), 'a link to #id-release opens the release popup when no release is scheduled yet');
+  });
+  await run({ release: true, releaseHash: false, auto: false, hash: '#id-release' }, async (p) => {
+    check(!(await open(p)), 'a link to #id-release does not open the popup once a release is scheduled (staff go to the handover)');
+    await p.click('button[data-next-step-open="release"]');
+    await p.waitForTimeout(500);
+    check(await open(p) && await inModal(p, 'input[name="release_time"]'), 'the release button opens the popup with date and time');
+  });
+  await run({ release: true, releaseError: true, auto: false }, async (p) => {
+    check(await open(p) && await inModal(p, '#rel-form'), 'a release scheduling error reopens the release popup');
+  });
+
+  await run({ handover: true, auto: false }, async (p) => {
+    check(!(await open(p)), 'Confirm handover does not open by itself');
+    await p.click('button[data-next-step-open="handover"]');
+    await p.waitForTimeout(500);
+    check(await open(p) && await inModal(p, 'input[name="id_expires_at"]'), 'the Confirm handover button opens the handover form in the popup');
+  });
+  await run({ dates: true, auto: false }, async (p) => {
+    await p.click('button[data-next-step-open="dates"]');
+    await p.waitForTimeout(500);
+    check(await open(p) && await inModal(p, 'input[name="id_valid_from"]'), 'the Correct the ID dates button opens its form in the popup');
   });
 
   await browser.close();

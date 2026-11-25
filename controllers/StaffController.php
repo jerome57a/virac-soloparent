@@ -57,36 +57,65 @@ class StaffController extends Controller
         $this->authorize($this->staff, 'staff.dashboard', 'admin/dashboard.php');
         $applications = new Application($this->pdo);
         $documents = new Document($this->pdo);
-        $appointments = new Appointment($this->pdo);
-        // Expected today = active BOOKED appointments on today's Manila date only (cancelled, completed and missed are left out);
-        // the same list feeds the count and the "Today's Appointments" card, so the two always agree.
-        $todays = array_values(array_filter($appointments->todaysInterviews(), fn($iv) => $iv['status'] === 'BOOKED'));
         $this->releaseUnconfirmedInterviews();
-        $awaitingOutcome = $appointments->awaitingOutcome();
-        $queues = new SchedulingQueueService($this->pdo);
-        $readyToSchedule = $queues->readyToSchedule();
+        // Only work staff must start, in work order. The dashboard shows how many are waiting in each; the list opens on its own page.
         $this->page('MSWD Dashboard', 'views/staff/dashboard.php', [
-            'stats' => [
-                'pending'           => $applications->countWhere("type = 'new' AND status = 'Pending Review'"),
-                'underVerification' => $applications->countWhere("status = 'Under Verification'"),
-                'forRevision'       => $applications->countWhere("status = 'For Revision'"),
-                'pendingRenewals'   => $applications->countWhere("type = 'renewal' AND status = 'Pending Review'"),
-                'todaysAppointments' => count($todays),
-                'needsOutcome'      => count($awaitingOutcome),
-                'approved'          => $applications->countWhere("status IN ('Approved','ID Released')"),
-                'readyToSchedule'   => count($readyToSchedule),
-                'awaitingRelease'   => $queues->idReleaseCount(),
-                'releaseOverdue'    => (new IdReleaseService($this->pdo))->overdueCount(),
-                'rejected'          => $applications->countWhere("status = 'Rejected'"),
-            ],
-            'docBacklog' => $documents->verificationBacklog(),
-            'failedTextCount' => $this->failedTextCount(),
-            'followUp' => InterviewDateFeature::enabled($this->pdo) ? $appointments->missedNotRebooked(7, 200) : [],
-            'office' => (new OfficeCheckInService($this->pdo))->panel(is_string($_GET['checkin'] ?? null) ? $_GET['checkin'] : null),
+            'work' => $this->workLists(1),
+            'office' => $this->officePanel(is_string($_GET['checkin'] ?? null) ? $_GET['checkin'] : null),
             'officeReturn' => 'dashboard',
             'flashMessage' => take_flash(),
             'smsNotice' => take_sms_notice(),
         ]);
+    }
+    /** The four lists of work, in work order: what staff must start. Each application is in one list, the step it is at now. */
+    private const WORK_TITLES = [
+        'new_forms' => 'New forms',
+        'resent' => 'Re-uploaded documents',
+        'interview' => 'Set the interview date',
+        'release_date' => 'Set the ID release date',
+    ];
+
+    /** @return array<string, array{rows: array, total: int}> $limit rows of each list (the total is always the full count) */
+    private function workLists(int $limit): array
+    {
+        $limit = max(1, $limit);
+        $resent = array_values(array_filter((new Document($this->pdo))->verificationQueue(500), fn($row) => (int) $row['resent_docs'] > 0));
+        $toSchedule = (new SchedulingQueueService($this->pdo))->readyToSchedule(500);
+        $applications = new Application($this->pdo);
+        return [
+            'new_forms' => $applications->dashboardList('new_forms', $limit),
+            'resent' => ['rows' => array_slice($resent, 0, $limit), 'total' => count($resent)],
+            'interview' => ['rows' => array_slice($toSchedule, 0, $limit), 'total' => count($toSchedule)],
+            'release_date' => $applications->dashboardList('release_date', $limit),
+        ];
+    }
+
+    /** staff/work.php?list=new_forms|resent|interview|release_date: the Solo Parents in one dashboard list, each opening its application. */
+    public function workPage(): void
+    {
+        $this->authorize($this->staff, 'applications.process', 'staff/dashboard.php');
+        $key = (string) ($_GET['list'] ?? '');
+        if (!isset(self::WORK_TITLES[$key])) {
+            $this->redirectTo('staff/dashboard.php');
+        }
+        $this->page(self::WORK_TITLES[$key], 'views/staff/work/index.php', [
+            'listKey' => $key,
+            'listTitle' => self::WORK_TITLES[$key],
+            'list' => $this->workLists(500)[$key],
+        ]);
+    }
+
+    /**
+     * The "Today at the office" panel. A reference number (or name, mobile number) that matches exactly one application opens that
+     * Solo Parent's application straight away; no confirm card.
+     */
+    private function officePanel(?string $query): array
+    {
+        $panel = (new OfficeCheckInService($this->pdo))->panel($query);
+        if ($panel['query'] !== null && count($panel['matches']) === 1 && can($this->staff, 'applications.process')) {
+            $this->redirectTo('staff/application.php?id=' . (int) $panel['matches'][0]['id']);
+        }
+        return $panel;
     }
 
     /**
@@ -114,7 +143,7 @@ class StaffController extends Controller
             flash('Not checked in: ' . $error);
             $this->redirectTo($back . '#office-today');
         }
-        flash('Checked in' . ($position ? ': number ' . $position . ' waiting' : '') . '. Check the valid ID, then record the interview result here.');
+        flash('Checked in' . ($position ? ': number ' . $position . ' waiting' : '') . '. Check the valid ID, then approve or reject here.');
         $this->redirectTo('staff/application.php?id=' . $id . '#decision');
     }
 
@@ -125,6 +154,7 @@ class StaffController extends Controller
         $filters = [
             'status' => (string) ($_GET['status'] ?? 'ALL'),
             'type' => (string) ($_GET['type'] ?? 'ALL'),
+            'queue' => ($_GET['queue'] ?? '') === 'interview_pending' ? 'interview_pending' : '',
             'barangay' => trim((string) ($_GET['barangay'] ?? '')),
             'q' => trim((string) ($_GET['q'] ?? '')),
             'auto' => in_array($_GET['auto'] ?? '', ['ready', 'review', 'fix'], true) ? $_GET['auto'] : 'ALL',
@@ -187,18 +217,12 @@ class StaffController extends Controller
         if ($_SERVER['REQUEST_METHOD'] === 'GET' && AutoVerificationService::ocrAvailable() && $autoChecks->available()) {
             // Is there an uploaded image whose text has not been read yet? That is so for an application submitted before OCR or the
             // results table existed, and for a document the applicant replaced after a correction request (a new file, a new checksum).
-            $imageShas = [];
-            foreach ($submittedChecklist as $row) {
-                $doc = $row['uploaded_document'] ?? null;
-                if ($doc && !empty($doc['sha256']) && in_array($doc['mime'] ?? '', ['image/jpeg', 'image/png'], true)) {
-                    $imageShas[$doc['sha256']] = true;
-                }
-            }
-            $readShas = array_flip(array_filter(array_column(array_filter($savedChecks, fn($c) => ($c['key'] ?? '') === 'ocr_name'), 'sha')));
+            // (ID pictures are never read, so they are not counted: see AutoVerificationService::imagesNeedingOcr.)
+            $unread = AutoVerificationService::imagesNeedingOcr($submittedChecklist, $savedChecks);
             $latestSaved = $autoChecks->latestFor([$id])[$id]['created_at'] ?? null;
             // The pause stops a file that cannot be read from being retried on every page view.
             $recentlyTried = $latestSaved !== null && strtotime((string) $latestSaved) > time() - 120;
-            if (array_diff_key($imageShas, $readShas) && !$recentlyTried) {
+            if ($unread && !$recentlyTried) {
                 // Read the missing ones now (a few seconds) and keep the result, so the next visit is instant.
                 $fresh = (new AutoVerificationService($this->pdo))->snapshot($id, 'review');
                 if ($fresh) {
@@ -525,7 +549,12 @@ class StaffController extends Controller
             $waitingForDate = (new InterviewInvitation($this->pdo))->waitingForApplicant();
             $awaitingSchedule = (new SchedulingQueueService($this->pdo))->readyToSchedule();
         }
+        $typeFilter = in_array($_GET['type'] ?? '', ['new', 'renewal'], true) ? $_GET['type'] : '';
+        if ($typeFilter !== '') {
+            $awaitingSchedule = array_values(array_filter($awaitingSchedule, fn($a) => !isset($a['type']) || $a['type'] === $typeFilter));
+        }
         $this->page($this->staff['role'] === 'admin' ? 'Appointment Overview' : 'Appointment Management', 'views/staff/appointments/index.php', [
+            'typeFilter' => $typeFilter,
             'error' => $error,
             'flashMessage' => take_flash(),
             'canManage' => $canManage,
@@ -541,8 +570,6 @@ class StaffController extends Controller
             'dateError' => $dateError,
             'interviewDates' => $dateState === 'ready' ? $dateService->upcoming() : [],
             'defaultCapacity' => $dateState === 'ready' ? $dateService->defaultCapacity() : 0,
-            'office' => (new OfficeCheckInService($this->pdo))->panel($canManage && is_string($_GET['checkin'] ?? null) ? $_GET['checkin'] : null),
-            'officeReturn' => 'appointments',
         ]);
     }
 
@@ -607,15 +634,17 @@ class StaffController extends Controller
     {
         $this->authorize($this->staff, 'applications.process', 'staff/dashboard.php');
         $filter = ($_GET['filter'] ?? '') === 'resent' ? 'resent' : 'all';
+        $type = in_array($_GET['type'] ?? '', ['new', 'renewal'], true) ? $_GET['type'] : null;
         $documents = new Document($this->pdo);
-        $rows = $documents->verificationQueue(200);
+        $rows = $documents->verificationQueue(200, $type);
         $resent = array_values(array_filter($rows, fn($r) => (int) $r['resent_docs'] > 0));
         $this->page('Document Verification Queue', 'views/staff/verification/index.php', [
             'filter' => $filter,
+            'typeFilter' => $type ?? '',
             'rows' => $filter === 'resent' ? $resent : $rows,
             'allCount' => count($rows),
             'resentCount' => count($resent),
-            'backlog' => $documents->verificationBacklog(),
+            'backlog' => $documents->verificationBacklog($type),
         ]);
     }
 

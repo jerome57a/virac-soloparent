@@ -83,7 +83,7 @@ function ui_icon(string $name, int $size = 20, string $class = ''): string
 function ui_page_icon(string $script): string
 {
     return [
-        'dashboard.php' => 'house', 'index.php' => 'file-text', 'application.php' => 'file-text', 'verification.php' => 'file-check',
+        'dashboard.php' => 'house', 'work.php' => 'file-text', 'index.php' => 'file-text', 'application.php' => 'file-text', 'verification.php' => 'file-check',
         'appointments.php' => 'calendar-check', 'follow_up.php' => 'phone', 'sms.php' => 'message-square-warning', 'applicants.php' => 'user',
         'applicant_view.php' => 'user', 'reports.php' => 'chart-column', 'notifications.php' => 'bell', 'account.php' => 'key-round',
         'applications.php' => 'clipboard-list', 'application_view.php' => 'file-text', 'users.php' => 'users', 'user_edit.php' => 'user',

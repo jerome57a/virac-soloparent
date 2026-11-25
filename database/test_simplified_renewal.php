@@ -147,7 +147,7 @@ try {
     renewal_assert(!$saved['errors'] && $saved['changed']===2,'Staff verification of the uploaded renewal documents failed.');
     $renewal = $applications->findForReview((int) $renewal['id']);
     renewal_assert($renewal['eligibility_status'] === 'Not Assessed', 'Renewal verification automatically decided eligibility.');
-    renewal_assert(array_values(array_map(fn($row)=>$row['label'],array_filter($review->approvalChecklist($renewal),fn($row)=>!$row['ok'])))===['Successful interview recorded'], 'Only the interview should still block a renewal with verified documents.');
+    renewal_assert(array_values(array_map(fn($row)=>$row['label'],array_filter($review->approvalChecklist($renewal),fn($row)=>!$row['ok'])))===['Interview held'], 'Only the interview should still block a renewal with verified documents.');
     renewal_set_eligibility($test,$staff,$renewal,'Eligible','Renewal reviewed by MSWDO.');
     $renewal = $applications->findForReview((int) $renewal['id']);
     renewal_assert(is_string($review->updateStatus($staff,$renewal,'Approved','',$renewal['status'])),'A renewal was approved without an interview.');
@@ -159,7 +159,7 @@ try {
     (new ReflectionProperty(StaffController::class,'staff'))->setValue($controller,$staff);
     $_GET=['id'=>(int) $renewal['id']]; $_SERVER['REQUEST_METHOD']='GET'; $_SERVER['REQUEST_URI']='/staff/application.php';
     ob_start(); $controller->application(); $staffHtml=ob_get_clean();
-    renewal_assert(str_contains($staffHtml,'id="interview-result-form"') && str_contains($staffHtml,'Renewal re-check (RA 11861)') && str_contains($staffHtml,'name="recheck[]"'),'Staff renewal screen does not show the interview with the renewal re-check.');
+    renewal_assert(!str_contains($staffHtml,'id="interview-result-form"') && !str_contains($staffHtml,'name="recheck[]"') && !str_contains($staffHtml,'value="For Revision"'),'The decision card must only offer Approve and Reject (no interview result form, no re-check ticks, no Request Corrections).');
     renewal_assert(str_contains($staffHtml,'value="Rejected"'),'Staff cannot reject a renewal.');
     renewal_assert(is_string($review->recordInterviewOutcome($staff,(int) $renewal['id'],'Successful','',['not_married','caregiver'])),'A successful renewal interview was recorded without the full re-check.');
     renewal_assert($review->recordInterviewOutcome($staff,(int) $renewal['id'],'Successful','',array_keys(ApplicationReviewService::RENEWAL_RECHECK))===null,'Recording the renewal interview failed.');
@@ -198,7 +198,7 @@ try {
     $review->startReviewOnOpen($staff,$next); $next=$applications->findForReview((int) $next['id']);
     renewal_set_eligibility($test,$staff,$next,'Eligible','Existing documents and renewal reviewed.');
     $next=$applications->findForReview((int) $next['id']);
-    renewal_assert(array_values(array_map(fn($row)=>$row['label'],array_filter($review->approvalChecklist($next),fn($row)=>!$row['ok'])))===['Successful interview recorded'],'An all-reused renewal should wait only for its interview.');
+    renewal_assert(array_values(array_map(fn($row)=>$row['label'],array_filter($review->approvalChecklist($next),fn($row)=>!$row['ok'])))===['Interview held'],'An all-reused renewal should wait only for its interview.');
     echo "Renewal passed: required file uploads, staff verification of uploads, retained history, an interview with the RA 11861 re-check before approval, and one-year release.\n";
 } catch (Throwable $e) {
     fwrite(STDERR,$e->getMessage().PHP_EOL); $exitCode=1;

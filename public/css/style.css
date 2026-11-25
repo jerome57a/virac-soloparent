@@ -169,6 +169,10 @@ a:focus-visible, button:focus-visible, summary:focus-visible, [tabindex]:focus-v
   text-decoration: none;
 }
 .nav-icon-btn:hover { background: var(--surface-alt); color: var(--ink); }
+/* Staff and admin: their username sits beside the account icon. */
+.nav-icon-btn.has-name { width: auto; padding: 0 10px; gap: 6px; }
+.nav-user { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; }
+@media (max-width: 520px) { .nav-user { max-width: 96px; font-size: 13px; } }
 /* Logged-out visitors get the Log In / Create Account button (btn-navy btn-sm) in place of the account icon. */
 .nav-auth-btn { flex: none; white-space: nowrap; margin-left: 4px; }
 @media (max-width: 480px) { .nav-auth-extra { display: none; } } /* phones: "Log In" only, so the bar never overflows */

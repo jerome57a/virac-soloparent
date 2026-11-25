@@ -117,9 +117,9 @@ class ApplicationReviewService
         // Rejecting (with its required reason) does not need a successful interview; corrections and approval do.
         if (isset(self::DECISIONS[$newStatus]) && $newStatus !== 'Rejected' && empty($app['renewal_simplified'])) {
             $held = $this->appointments->interviewFor((int) $app['id']);
-            // Approval needs a successful interview; corrections may also follow an unsuccessful one.
-            if (!Appointment::interviewSuccessful($held) && !($newStatus === 'For Revision' && Appointment::interviewOutcome($held) === 'Unsuccessful')) {
-                return 'Record a successful interview before requesting corrections or approving this application.';
+            // Approval needs an interview that took place (approving records it as successful); corrections may also follow an unsuccessful one.
+            if (!self::interviewHeldForDecision($held) && !($newStatus === 'For Revision' && Appointment::interviewOutcome($held) === 'Unsuccessful')) {
+                return self::decisionBlockMessage($newStatus, $held ?? $heldNow ?? null);
             }
         }
         $remarks = trim($remarks);
@@ -151,10 +151,14 @@ class ApplicationReviewService
             }
             if (isset(self::DECISIONS[$newStatus]) && $newStatus !== 'Rejected' && empty($current['renewal_simplified'])) {
                 $heldNow = $this->appointments->interviewFor($id);
-                // Approval needs a successful interview; corrections may also follow an unsuccessful one.
-                if (!Appointment::interviewSuccessful($heldNow) && !($newStatus === 'For Revision' && Appointment::interviewOutcome($heldNow) === 'Unsuccessful')) {
+                if (!self::interviewHeldForDecision($heldNow) && !($newStatus === 'For Revision' && Appointment::interviewOutcome($heldNow) === 'Unsuccessful')) {
                     $this->pdo->rollBack();
-                    return 'Record a successful interview before requesting corrections or approving this application.';
+                    return self::decisionBlockMessage($newStatus, $held ?? $heldNow ?? null);
+                }
+                // Approving after the interview: the interview is recorded as successful with the approval (no separate result step).
+                if ($newStatus === 'Approved' && $heldNow && $heldNow['status'] === 'BOOKED') {
+                    $this->appointments->recordResult($id, 'Successful: approved by MSWDO staff');
+                    $this->applications->addHistory($id, $current['status'], 'Interview result recorded: Successful (approved by MSWDO staff)', $staff['full_name'], (int) $staff['id']);
                 }
             }
             if ($newStatus === 'Approved' && array_filter($this->approvalChecklist($current), fn($item) => !$item['ok'])) {
@@ -192,6 +196,25 @@ class ApplicationReviewService
         );
         $this->audit($staff, self::AUDIT_ACTIONS[$newStatus] ?? 'Status Change', 'application', $id, $app['reference_no'] . ' → ' . $newStatus);
         return null;
+    }
+
+    /** Why Approve (or Request Corrections) is refused when the interview does not support it. */
+    private static function decisionBlockMessage(string $newStatus, ?array $appointment): string
+    {
+        if ($appointment && Appointment::interviewOutcome($appointment) === 'Unsuccessful') {
+            return 'Approval is not possible after an unsuccessful interview. Reject the application, or schedule another interview.';
+        }
+        return $newStatus === 'Approved' ? 'The interview has to take place before this application can be approved.' : 'Record a successful interview before requesting corrections.';
+    }
+
+    /** An interview that can support a decision: recorded as successful, or booked with its date (and time) already reached. */
+    public static function interviewHeldForDecision(?array $appointment): bool
+    {
+        if (!$appointment) {
+            return false;
+        }
+        return Appointment::interviewSuccessful($appointment)
+            || ($appointment['status'] === 'BOOKED' && strtotime((string) $appointment['scheduled_at']) <= time());
     }
 
     /** Verdicts the applicant must be told the reason for. */
@@ -662,14 +685,14 @@ class ApplicationReviewService
             $documentSummary .= ' See the highlighted items in the Required Documents Checklist. These must be received before approval and ID release scheduling.';
         }
         $appt = $this->appointments->interviewFor((int) $app['id']);
-        $interviewDone = Appointment::interviewSuccessful($appt);
+        $interviewDone = self::interviewHeldForDecision($appt);
         $interviewDetail = $interviewDone ? '' : ($appt && $appt['status'] === 'BOOKED'
-            ? 'Interview booked. Record the result after the interview.'
+            ? 'Interview booked. It has to take place before approval.'
             : ($appt && $appt['status'] === 'MISSED' ? 'Interview missed. Send a new interview booking invitation.' : 'Send an interview booking invitation and wait for the Solo Parent to book a date, then record the result after the interview.'));
         return [
             ['label' => 'Required documents', 'ok' => !$unverified,
                 'detail' => $documentSummary],
-            ['label' => !empty($app['renewal_simplified']) ? 'Existing released ID confirmed (no new interview)' : 'Successful interview recorded', 'ok' => !empty($app['renewal_simplified']) ? $this->hasReleasedRenewalSource($app) : (bool) $interviewDone, 'detail' => !empty($app['renewal_simplified']) ? '' : (Appointment::interviewOutcome($appt) === 'Unsuccessful' ? 'Interview marked Unsuccessful. Review the result or schedule another interview.' : $interviewDetail)],
+            ['label' => !empty($app['renewal_simplified']) ? 'Existing released ID confirmed (no new interview)' : 'Interview held', 'ok' => !empty($app['renewal_simplified']) ? $this->hasReleasedRenewalSource($app) : (bool) $interviewDone, 'detail' => !empty($app['renewal_simplified']) ? '' : (Appointment::interviewOutcome($appt) === 'Unsuccessful' ? 'Interview marked Unsuccessful. Review the result or schedule another interview.' : $interviewDetail)],
         ];
     }
 

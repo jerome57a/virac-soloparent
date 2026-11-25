@@ -28,16 +28,17 @@ class SchedulingQueueService
      *
      * @return array<int, array{id: int, reference_no: string, full_name: string, submitted_at: string, appointment_status: ?string}>
      */
-    public function readyToSchedule(int $limit = 100): array
+    public function readyToSchedule(int $limit = 100, ?string $type = null): array
     {
+        $byType = in_array($type, ['new', 'renewal'], true) ? " AND a.type = '$type'" : '';
         // Cheap prefilter in SQL (at least one document and none unverified); the exact rule (every REQUIRED document for the
         // category, expiry included) is then checked per candidate with Document::outstandingRequired().
         $rows = $this->pdo->query(
-            "SELECT a.id, a.reference_no, a.full_name, a.submitted_at, i.status AS appointment_status
+            "SELECT a.id, a.reference_no, a.full_name, a.type, a.submitted_at, i.status AS appointment_status
              FROM applications a
              LEFT JOIN appointments i ON i.application_id = a.id
              WHERE a.status IN ('Pending Review','Under Verification','For Revision','Interview Scheduled')
-               AND a.renewal_simplified = 0 AND (i.id IS NULL OR i.status IN ('MISSED','CANCELLED'))
+               AND a.renewal_simplified = 0 AND (i.id IS NULL OR i.status IN ('MISSED','CANCELLED'))$byType
                AND EXISTS (SELECT 1 FROM application_documents d WHERE d.application_id = a.id)
                AND NOT EXISTS (SELECT 1 FROM application_documents d WHERE d.application_id = a.id AND d.verification_status <> 'VERIFIED')
              ORDER BY a.submitted_at, a.id LIMIT 200"

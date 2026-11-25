@@ -49,6 +49,10 @@ class Application extends Model
             $where .= ' AND a.status = ?';
             $params[] = $filters['status'];
         }
+        if (($filters['queue'] ?? '') === 'interview_pending') {
+            // Not given an interview yet: still being reviewed, verified or corrected (the dashboard's New applications / Renewals).
+            $where .= " AND a.status IN ('Pending Review','Under Verification','For Revision')";
+        }
         if (in_array($filters['type'] ?? '', ['new', 'renewal'], true)) {
             $where .= ' AND a.type = ?';
             $params[] = $filters['type'];
@@ -104,6 +108,27 @@ class Application extends Model
     }
 
     /** Count of applications matching a fixed, code-supplied WHERE clause (never user input). */
+    /**
+     * The staff dashboard lists that come straight from the applications table, oldest first:
+     *   new_forms    Pending Review (submitted, nobody has opened the form yet);
+     *   release_date Approved with no ID release date set yet.
+     *
+     * @return array{rows: array, total: int}
+     */
+    public function dashboardList(string $kind, int $limit = 5): array
+    {
+        if ($kind === 'new_forms') {
+            $from = "applications a WHERE a.status = 'Pending Review'";
+        } elseif ($kind === 'release_date') {
+            $from = "applications a LEFT JOIN id_release_schedules r ON r.application_id = a.id AND r.released_at IS NULL WHERE a.status = 'Approved' AND r.scheduled_at IS NULL";
+        } else {
+            return ['rows' => [], 'total' => 0];
+        }
+        $total = (int) $this->pdo->query("SELECT COUNT(*) FROM $from")->fetchColumn();
+        $rows = $this->pdo->query("SELECT a.id, a.reference_no, a.full_name, a.type FROM $from ORDER BY a.submitted_at, a.id LIMIT " . max(1, $limit))->fetchAll();
+        return ['rows' => $rows, 'total' => $total];
+    }
+
     public function countWhere(string $where): int
     {
         return (int) $this->pdo->query("SELECT COUNT(*) FROM applications WHERE $where")->fetchColumn();

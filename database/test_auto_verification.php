@@ -194,8 +194,39 @@ check($r['verdict'] === 'fix', 'draft: a missing required document gives the fix
 check(count(array_filter($r['checks'], fn($c) => $c['key'] === 'children')) === 1, 'draft: the blank child row is skipped');
 foreach (['/drafts/7/aaaa.jpg', '/drafts/7/bbbb.jpg'] as $f) { unlink($dir . $f); }
 rmdir($dir . '/drafts/7'); rmdir($dir . '/drafts');
+// The measurement cache (written under the test's storage folder) is removed with it.
+foreach (glob($dir . '/cache/image-quality/*') ?: [] as $f) { unlink($f); }
+@rmdir($dir . '/cache/image-quality'); @rmdir($dir . '/cache');
 foreach (glob($dir . DIRECTORY_SEPARATOR . '*') as $f) { unlink($f); }
 rmdir($dir);
 
+// ---- The staff page must not read documents again on every open ----
+$sha = fn(string $x) => hash('sha256', $x);
+$checklist = [
+    ['doc_key' => 'birthCert', 'uploaded_document' => ['sha256' => $sha('a'), 'mime' => 'image/jpeg']],
+    ['doc_key' => 'photo1x1', 'uploaded_document' => ['sha256' => $sha('b'), 'mime' => 'image/jpeg']],
+    ['doc_key' => 'photo', 'uploaded_document' => ['sha256' => $sha('c'), 'mime' => 'image/png']],
+    ['doc_key' => 'scan', 'uploaded_document' => ['sha256' => $sha('d'), 'mime' => 'application/pdf']],
+    ['doc_key' => 'noFile', 'uploaded_document' => null],
+];
+check(array_keys(AutoVerificationService::imagesNeedingOcr($checklist, [])) === [$sha('a')], 'unread: only a document image counts (not the ID pictures, not a PDF, not a missing file)');
+check(AutoVerificationService::imagesNeedingOcr($checklist, [['key' => 'ocr_name', 'sha' => $sha('a')]]) === [], 'unread: once the document has its saved reading, an application with an ID picture has nothing left to read');
+check(array_keys(AutoVerificationService::imagesNeedingOcr($checklist, [['key' => 'ocr_name', 'sha' => $sha('zzz')]])) === [$sha('a')], 'unread: a reading saved for another file does not count');
+
+$cache = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'imgq' . bin2hex(random_bytes(4));
+$img = $cache . '-src.jpg';
+$g = imagecreatetruecolor(800, 600);
+imagefilledrectangle($g, 0, 0, 800, 600, imagecolorallocate($g, 200, 190, 180));
+imagejpeg($g, $img, 90);
+$h = hash_file('sha256', $img);
+$first = AutoVerificationService::measureImageCached($img, $h, $cache);
+check(is_array($first) && $first['width'] === 800 && is_file($cache . '/v1-' . $h . '.json'), 'measure cache: the measurement is saved under the file checksum');
+unlink($img);
+$second = AutoVerificationService::measureImageCached($img, $h, $cache);
+check($second == $first, 'measure cache: the second call comes from the saved measurement (the file is not needed)');
+check(AutoVerificationService::measureImageCached($img, '', $cache) === null, 'measure cache: without a valid checksum nothing is saved or used');
+check(count(glob($cache . '/*')) === 1, 'measure cache: one small file for one image');
+foreach (glob($cache . '/*') as $x) { unlink($x); }
+rmdir($cache);
 echo $failures ? "FAILED: $failures of $checks checks.\n" : "PASS: $checks automated verification checks (rules and image quality). No database, no network.\n";
 exit($failures ? 1 : 0);

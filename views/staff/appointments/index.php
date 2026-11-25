@@ -66,7 +66,7 @@ $row = function (array $iv, string $mode) use ($staff, $canManage, $apptStyles, 
       <div class="ap-acts">
         <?php if ($iv['status'] !== 'BOOKED' || $mode !== 'past'): ?><span class="ap-pill is-<?= e($tone) ?>" data-i18n><?= e($label) ?></span><?php endif; ?>
         <?php if ($canManage && $iv['status'] === 'BOOKED'): ?>
-          <?php if ($canRecord): ?><a href="<?= $url ?>#interview" class="btn-navy ap-btn" data-i18n>Record result</a><?php endif; ?>
+          <a href="<?= $url ?>" class="<?= $canRecord ? 'btn-navy' : 'btn-outline' ?> ap-btn" data-i18n>Open</a>
           <?php if ($canMarkMissed): ?>
             <form method="post" class="m-0" onsubmit="return confirm('Mark this appointment as missed (no-show)?');">
               <?= csrf_field() ?>
@@ -74,16 +74,6 @@ $row = function (array $iv, string $mode) use ($staff, $canManage, $apptStyles, 
               <button type="submit" name="action" value="missed" class="btn-outline ap-btn" data-i18n>Mark missed</button>
             </form>
           <?php endif; ?>
-          <details class="ap-more">
-            <summary class="ap-more-btn"><span data-i18n>More</span><?= ui_icon('chevron-down', 14) ?></summary>
-            <form method="post" class="ap-more-panel">
-              <?= csrf_field() ?>
-              <input type="hidden" name="appointment_id" value="<?= (int) $iv['id'] ?>">
-              <label class="ap-more-label" for="cancel-reason-<?= (int) $iv['id'] ?>" data-i18n>Cancel this appointment</label>
-              <input type="text" id="cancel-reason-<?= (int) $iv['id'] ?>" name="reason" maxlength="255" required placeholder="Reason (sent to the Solo Parent)" class="form-control">
-              <button type="submit" name="action" value="cancel" class="btn-red ap-btn" data-i18n>Cancel &amp; notify</button>
-            </form>
-          </details>
         <?php elseif (!$canManage || $iv['status'] !== 'BOOKED'): ?>
           <a href="<?= $url ?>#interview" class="btn-outline ap-btn" data-i18n>Open</a>
         <?php endif; ?>
@@ -105,30 +95,6 @@ $empty = function (string $text): void { ?>
     <div class="ap-empty"><?= ui_icon('circle-check', 18) ?><span data-i18n><?= e($text) ?></span></div>
 <?php };
 
-// The one Next step for MSWDO staff, most urgent first.
-$next = null;
-if ($canManage) {
-    if ($awaitingOutcome) {
-        $first = $awaitingOutcome[0];
-        $next = ['tone' => 'err', 'icon' => 'clipboard-check', 'title' => count($awaitingOutcome) === 1 ? '1 interview needs a result' : count($awaitingOutcome) . ' interviews need a result',
-            'text' => 'Start with ' . $first['reference_no'] . ', interviewed ' . date('M j', strtotime((string) $first['scheduled_at'])) . '.',
-            'button' => 'Record result', 'href' => application_url($staff, (int) $first['application_id']) . '#interview'];
-    } elseif ($todayBooked) {
-        $first = $todayBooked[0];
-        $next = ['tone' => 'info', 'icon' => 'calendar', 'title' => count($todayBooked) === 1 ? '1 interview today' : count($todayBooked) . ' interviews today',
-            'text' => 'When ' . $first['reference_no'] . ' (' . $first['full_name'] . ') arrives, record the result.', 'button' => 'See today', 'href' => '#staff-today-card'];
-    } elseif ($awaitingSchedule) {
-        $first = $awaitingSchedule[0];
-        $next = ['tone' => 'warn', 'icon' => 'calendar-plus', 'title' => count($awaitingSchedule) === 1 ? '1 application needs an interview date' : count($awaitingSchedule) . ' applications need an interview date',
-            'text' => 'Start with ' . $first['reference_no'] . ' (' . $first['full_name'] . '), waiting the longest.',
-            'button' => 'Schedule date', 'href' => application_url($staff, (int) $first['id']) . '#schedule-interview'];
-    } elseif ($overdueReleases) {
-        $next = ['tone' => 'warn', 'icon' => 'id-card', 'title' => count($overdueReleases) === 1 ? '1 ID is waiting to be collected' : count($overdueReleases) . ' IDs are waiting to be collected',
-            'text' => 'Confirm the release when the Solo Parent comes, or set a new date if they ask.', 'button' => 'See the list', 'href' => '#staff-release-overdue'];
-    } else {
-        $next = ['tone' => 'ok', 'icon' => 'circle-check', 'title' => 'All caught up', 'text' => 'No interview needs a result, none is booked for today, and no application is waiting for a date.', 'button' => null, 'href' => null];
-    }
-}
 ?>
 <link rel="stylesheet" href="<?= public_asset('css/appointments.css') ?>">
 <div class="portal-container ap-page">
@@ -147,26 +113,10 @@ if ($canManage) {
   <?php if (!empty($smsNotice)) { require APP_ROOT . '/views/staff/applications/sms-notice.php'; } ?>
   <?php if ($flashMessage): ?><div class="info-box" style="max-width:none" role="status"><?= e($flashMessage) ?></div><?php endif; ?>
 
-  <?php if (!empty($office)) { require APP_ROOT . '/views/partials/office-today.php'; } ?>
-
-  <?php if ($next): ?>
-  <div class="ap-next is-<?= e($next['tone']) ?>">
-    <span class="ap-next-i" aria-hidden="true"><?= ui_icon($next['icon'], 22) ?></span>
-    <div class="ap-next-t"><small data-i18n>Next step</small><b data-i18n><?= e($next['title']) ?></b><span><?= e($next['text']) ?></span></div>
-    <?php if ($next['button']): ?><a class="btn-navy ap-next-btn" href="<?= e($next['href']) ?>" data-i18n><?= e($next['button']) ?></a><?php endif; ?>
-  </div>
-  <?php endif; ?>
-
-  <nav class="ap-chips" aria-label="Appointment counts">
-    <a class="ap-chip" href="#staff-needs-outcome"><span class="ap-si is-err" aria-hidden="true"><?= ui_icon('circle-alert', 18) ?></span><span><strong><?= count($awaitingOutcome) ?></strong><span data-i18n>Need a result</span></span></a>
-    <a class="ap-chip" href="#staff-today-card"><span class="ap-si is-info" aria-hidden="true"><?= ui_icon('calendar', 18) ?></span><span><strong><?= count($todayAppointments) ?></strong><span data-i18n>Today</span></span></a>
-    <?php if ($canManage): ?><a class="ap-chip" href="#staff-needs-schedule"><span class="ap-si is-warn" aria-hidden="true"><?= ui_icon('calendar-plus', 18) ?></span><span><strong><?= count($awaitingSchedule) ?></strong><span data-i18n>Need a date</span></span></a><?php endif; ?>
-    <a class="ap-chip" href="#staff-upcoming-card"><span class="ap-si is-ok" aria-hidden="true"><?= ui_icon('calendar-check', 18) ?></span><span><strong><?= $upcomingCount ?></strong><span data-i18n>Upcoming</span></span></a>
-  </nav>
-
+  <?php if (!empty($typeFilter)): ?><div class="info-box" style="max-width:none" role="status"><span data-i18n>The list of interview dates to set shows</span> <b><?= $typeFilter === 'renewal' ? 'renewals' : 'new applications' ?></b> <span data-i18n>only.</span> <a href="<?= e(base_url('staff/appointments.php')) ?>#staff-needs-schedule" data-i18n>Show all</a></div><?php endif; ?>
   <section class="ap-sec<?= $awaitingOutcome ? ' is-urgent' : '' ?>" id="staff-needs-outcome">
     <?php $head('circle-alert', 'err', $canManage ? 'Needs a result' : 'Awaiting MSWDO staff outcome', count($awaitingOutcome),
-        $awaitingOutcome ? ($canManage ? 'The interview day has passed. Record the result, or mark a no-show as missed.' : 'These past appointments still need an outcome from MSWDO staff.') : null); ?>
+        $awaitingOutcome ? ($canManage ? 'The interview day has passed. Open the application to approve or reject, or mark a no-show as missed.' : 'These past appointments still need an outcome from MSWDO staff.') : null); ?>
     <?php if (!$awaitingOutcome) { $empty('No interview is waiting for a result.'); } ?>
     <?php foreach ($awaitingOutcome as $iv) { $row($iv, 'past'); } ?>
   </section>

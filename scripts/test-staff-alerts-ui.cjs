@@ -62,7 +62,7 @@ const assert = require('node:assert/strict');
     assert(!(await row.evaluate(el => el.classList.contains('remark-missing'))) && await page.locator('.doc-save-hint').isHidden(), 'writing the remark clears the warning');
     await row.locator('.js-doc-status').selectOption('VERIFIED');
     assert(await row.locator('.doc-remark-req').isHidden(), 'Verified needs no remark');
-    assert(await page.locator('.gi-bring').isVisible() && /two 1x1 ID pictures/.test(await page.locator('.gi-bring').innerText()), 'the Interview card says what to bring');
+    assert.equal(await page.locator('.gi-bring').count(), 0, 'the Interview card no longer carries the bring line');
 
     // ---- Live alert: two new alerts pop up, each opens its place; the bell follows. ----
     reply = { ...reply, unread: 3, items: [
@@ -94,21 +94,15 @@ const assert = require('node:assert/strict');
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto(base + 'staff/appointments.php');
     await page.waitForTimeout(200);
-    assert(/2 interviews need a result/.test(await page.locator('.ap-next').innerText()), 'the Next step is the most urgent work');
-    assert((await page.locator('.ap-next-btn').getAttribute('href')).endsWith('#interview'), 'Next step opens the Interview card');
+    assert.equal(await page.locator('.ap-next, .ap-chips, #office-today').count(), 0, 'only the lists: no Next step banner, no count links, no office panel');
     const titles = await page.locator('.ap-sec-h h2 > span').allInnerTexts();
     assert.deepEqual(titles, ['Needs a result', 'Today', 'Needs an interview date', 'Waiting for the Solo Parent to pick a date', 'Upcoming', 'ID release date passed', 'Interview days'], 'sections in work order: ' + titles.join(' | '));
-    assert.deepEqual(await page.locator('.ap-chip strong').allInnerTexts(), ['2', '3', '1', '2'], 'the counts');
+    assert.deepEqual(await page.locator('.ap-sec-h .ap-cnt').allInnerTexts(), ['2', '3', '1', '0', '2', '1'], 'the counts sit on the list headings');
     const outcomeRow = page.locator('#staff-needs-outcome .ap-row').first();
-    assert.equal(await outcomeRow.locator('.btn-navy').innerText(), 'Record result', 'one main button per row');
-    assert(await outcomeRow.locator('.ap-more-panel').isHidden(), 'Cancel is tucked under More');
-    await outcomeRow.locator('.ap-more-btn').click();
-    assert(await outcomeRow.locator('.ap-more-panel input[name=reason]').isVisible(), 'More opens the cancel reason');
+    assert.equal(await outcomeRow.locator('.btn-navy').innerText(), 'Open', 'one main button per row');
+    assert.equal(await page.locator('.ap-more, .ap-more-btn, .ap-more-panel').count(), 0, 'no More button');
     assert(/Renewal/.test(await outcomeRow.innerText()), 'a renewal is tagged');
     assert((await page.locator('#staff-needs-schedule .ap-row a.btn-navy').getAttribute('href')).endsWith('#schedule-interview'), 'Schedule date opens the schedule card');
-    await page.locator('.ap-chip').nth(3).click();
-    await page.waitForTimeout(300);
-    assert(await page.locator('#staff-upcoming-card').evaluate(el => el.getBoundingClientRect().top < innerHeight), 'a count jumps to its section');
 
     // ---- Staff Notifications. ----
     await page.goto(base + 'staff/notifications.php');
@@ -142,7 +136,7 @@ const assert = require('node:assert/strict');
     assert(/Preview lamang/.test(await card('valid').locator('.idc-fine').innerText()), 'the preview line is in Tagalog: ' + await card('valid').locator('.idc-fine').innerText());
 
     assert.deepEqual(errors, [], 'no script errors');
-    console.log('PASS: remark check (Required, scroll, cursor, hint), live staff alert (no old news, one pop-up each, exact place, bell, dark, phone), Appointment Management (Next step, work order, counts, More), Notifications groups, dashboard ID card (no name, badges, light/dark, 320-1280px, Tagalog).');
+    console.log('PASS: remark check (Required, scroll, cursor, hint), live staff alert (no old news, one pop-up each, exact place, bell, dark, phone), Appointment Management (only the lists, in work order, counts, no More button), Notifications groups, dashboard ID card (no name, badges, light/dark, 320-1280px, Tagalog).');
   } finally {
     await browser.close();
   }

@@ -511,8 +511,67 @@ class AutoVerificationService
         if ($root === false || $path === false || strncmp($path, $root . DIRECTORY_SEPARATOR, strlen($root) + 1) !== 0 || !is_file($path)) {
             return ['issues' => ['The stored file could not be found.']];
         }
-        $m = self::measureImage($path);
+        $m = self::measureImageCached($path, (string) ($doc['sha256'] ?? ''));
         return $m === null ? null : ['issues' => self::imageIssues($m, $isPicture)];
+    }
+
+    /** Bump when measureImage() changes what it measures, so old saved measurements are not used. */
+    private const MEASURE_CACHE_VERSION = 1;
+
+    /**
+     * measureImage(), saved once per file: decoding a phone photo and scanning its pixels takes about half a second, and the staff
+     * application page asks for it again on every open although the file never changes. The measurement depends only on the file's
+     * content, so it is saved under the file's SHA-256 checksum ($sha) in a small JSON file; without a valid checksum (or when the
+     * folder cannot be written) it is simply measured each time, as before. $cacheDir is for tests.
+     */
+    public static function measureImageCached(string $path, string $sha, ?string $cacheDir = null): ?array
+    {
+        $dir = $cacheDir ?? (defined('STORAGE_PATH') ? STORAGE_PATH . '/cache/image-quality' : null);
+        if ($dir === null || preg_match('/^[a-f0-9]{64}$/i', $sha) !== 1) {
+            return self::measureImage($path);
+        }
+        $file = $dir . '/v' . self::MEASURE_CACHE_VERSION . '-' . strtolower($sha) . '.json';
+        if (is_file($file)) {
+            $saved = json_decode((string) @file_get_contents($file), true);
+            if (is_array($saved) && isset($saved['width'], $saved['height'])) {
+                return $saved;
+            }
+        }
+        $m = self::measureImage($path);
+        if ($m !== null && (is_dir($dir) || @mkdir($dir, 0775, true))) {
+            $tmp = @tempnam($dir, 'tmp');
+            if ($tmp !== false) {
+                if (@file_put_contents($tmp, json_encode($m)) !== false) {
+                    @rename($tmp, $file);   // whole file or nothing
+                }
+                if (is_file($tmp)) {
+                    @unlink($tmp);
+                }
+            }
+        }
+        return $m;
+    }
+
+    /**
+     * Fix 1: the images of this checklist whose text should have been read (OCR) but has no saved reading yet, as sha256 => true.
+     * ID pictures are never read (PHOTO_KEYS), so they must never count as "unread": counting them made the staff page read every
+     * document again on each visit for any application that has an ID picture.
+     *
+     * @param array $checklist rows of Document::checklistForReview() (doc_key, uploaded_document)
+     * @param array $savedChecks the 'checks' of the latest saved evaluation
+     */
+    public static function imagesNeedingOcr(array $checklist, array $savedChecks): array
+    {
+        $images = [];
+        foreach ($checklist as $row) {
+            $doc = $row['uploaded_document'] ?? null;
+            if ($doc && !empty($doc['sha256']) && !in_array((string) ($row['doc_key'] ?? ''), self::PHOTO_KEYS, true)
+                && in_array($doc['mime'] ?? '', ['image/jpeg', 'image/png'], true)) {
+                $images[$doc['sha256']] = true;
+            }
+        }
+        $read = array_flip(array_filter(array_column(array_filter($savedChecks, fn($c) => ($c['key'] ?? '') === 'ocr_name'), 'sha')));
+        return array_diff_key($images, $read);
     }
 
     /** Plain-words problems for one measurement from measureImage(). $isPicture: an ID picture, which is small by nature. */

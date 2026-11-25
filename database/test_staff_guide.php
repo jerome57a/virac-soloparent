@@ -87,7 +87,7 @@ try {
     sa_assert($states($g) === 'review:done,verify:done,interview:now,decision:todo,release:todo' && $g['next']['label'] === 'Schedule the interview' && $g['next']['href'] === '#schedule-interview', 'Verified, no interview: schedule it.');
 
     $g = $guide(['status' => 'Under Verification'], ['status' => 'BOOKED', 'result' => null], 0);
-    sa_assert($g['next']['label'] === 'Record the result', 'A booked interview: record the result.');
+    sa_assert($g['next']['label'] === 'Approve or reject', 'A booked interview: approve or reject.');
     $g = $guide(['status' => 'Under Verification'], ['status' => 'MISSED', 'result' => null], 0);
     sa_assert($g['next']['label'] === 'Schedule another interview', 'A missed interview: schedule another.');
     $g = $guide(['status' => 'Under Verification'], ['status' => 'COMPLETED', 'result' => 'Unsuccessful: documents unclear', 'result_recorded_at' => date('Y-m-d H:i:s')], 0);

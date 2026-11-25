@@ -1,0 +1,79 @@
+/* Staff dashboard (views/staff/dashboard.php): the search box and the four lists of work. Colours come from the shared theme tokens. */
+.sq-find { display: flex; gap: 8px; background: var(--theme-card, var(--surface, #fff)); border: 1px solid var(--border); border-top: 4px solid var(--navy, #1b3a6b); border-radius: 14px; padding: 14px 16px; margin-bottom: 14px; }
+.sq-find input { flex: 1; min-width: 0; padding: 11px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--theme-card, var(--surface, #fff)); color: var(--ink); font: inherit; }
+.sq-find button { padding: 0 20px; border-radius: 8px; }
+.sq-result { background: var(--theme-card, var(--surface, #fff)); border: 1px solid var(--border); border-radius: 14px; padding: 12px 16px; margin: -4px 0 14px; color: var(--ink); }
+.sq-result .sq-list { margin-top: 8px; }
+.sq-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; align-items: stretch; }
+.sq-card { background: var(--theme-card, var(--surface, #fff)); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; min-width: 0; }
+.sq-head { display: flex; align-items: center; gap: 12px; }
+.sq-head h2 { margin: 0; font-size: 16px; letter-spacing: .02em; text-transform: uppercase; color: var(--ink); flex: 1; min-width: 0; }
+.sq-count { min-width: 34px; text-align: center; font-weight: 700; padding: 3px 12px; border-radius: 999px; background: var(--navy, #1b3a6b); color: #fff; }
+.sq-count.is-zero { background: var(--border); color: var(--muted); }
+.sq-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.sq-list a { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; text-decoration: none; color: inherit; background: var(--surface-alt, transparent); }
+.sq-list a:hover, .sq-list a:focus-visible { border-color: var(--navy, #1b3a6b); }
+.sq-who { display: grid; min-width: 0; }
+.sq-who b { font-size: 14px; color: var(--ink); overflow-wrap: anywhere; }
+.sq-who small { color: var(--muted); font-size: 13px; }
+.sq-tag { flex: none; font-size: 11px; font-weight: 700; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; background: #ece4fb; color: #4a2f8f; }
+html[data-theme="dark"] .sq-tag { background: #3a3160; color: #dacffb; }
+html[data-theme="dark"] .sq-count { background: #2f5aa6; }
+html[data-theme="dark"] .sq-count.is-zero { background: var(--border); }
+.sq-more { display: inline-block; margin-top: 10px; font-weight: 600; font-size: 14px; color: var(--navy, #1b3a6b); text-decoration: none; }
+.sq-more:hover { text-decoration: underline; }
+html[data-theme="dark"] .sq-more { color: var(--link, #9db8e8); }
+@media (max-width: 520px) { .sq-find { flex-direction: column; } .sq-find button { padding: 11px; } }
+@media (max-width: 760px) { .sq-grid { grid-template-columns: 1fr; } }
+
+/* A dashboard card is a link to its list: title and count only. */
+.sq-card.sq-open { display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit; }
+.sq-card.sq-open h2 { margin: 0; font-size: 16px; letter-spacing: .02em; text-transform: uppercase; color: var(--ink); flex: 1; min-width: 0; }
+.sq-card.sq-open:hover, .sq-card.sq-open:focus-visible { border-color: var(--navy, #1b3a6b); }
+.sq-card.sq-open > svg:last-child { color: var(--muted); flex: none; }
+.sq-none { margin: 10px 0 0; color: var(--muted); }
+
+/* ---- The approved dashboard design ---- */
+/* Today at the office */
+.td-card { background: var(--theme-card, var(--surface, #fff)); border: 1px solid var(--border); border-radius: 16px; padding: 16px 18px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(16,32,58,.05), 0 4px 14px rgba(16,32,58,.05); }
+.td-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.td-head h2 { margin: 0; font-size: 16px; font-weight: 700; color: var(--ink); font-family: inherit; }
+.td-head small { color: var(--muted); }
+.td-search { display: flex; gap: 8px; }
+.td-field { flex: 1; min-width: 0; position: relative; margin: 0; }
+.td-field svg { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.td-field input { width: 100%; height: 46px; padding: 0 14px 0 40px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-alt, #f6f8fb); color: var(--ink); font: inherit; }
+.td-field input:focus { outline: none; border-color: var(--navy); box-shadow: 0 0 0 3px rgba(36, 80, 143, .25); background: var(--theme-card, #fff); }
+.td-open { height: 46px; padding: 0 22px; border: 0; border-radius: 12px; background: #24508f; color: #fff; font-weight: 700; cursor: pointer; }
+.td-open:hover { filter: brightness(1.08); }
+html[data-theme="dark"] .td-open { background: #2f5aa6; }
+.td-result { margin-top: 12px; color: var(--ink); }
+.td-result .sq-list { margin-top: 8px; }
+.td-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.td-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+.td-pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; background: var(--surface-alt, #f6f8fb); border: 1px solid var(--border); font-size: 13.5px; color: var(--muted); }
+.td-pill b { color: var(--ink); font-size: 15px; }
+.td-more { display: inline-flex; align-items: center; gap: 4px; color: var(--navy); font-weight: 700; text-decoration: none; }
+.td-more:hover { text-decoration: underline; }
+/* The four work tiles: icon, big number, title; an orange top edge when something is waiting */
+.wt-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 16px; }
+.wt-tile { position: relative; display: flex; flex-direction: column; gap: 12px; padding: 16px; background: var(--theme-card, var(--surface, #fff)); border: 1px solid var(--border); border-radius: 16px; text-decoration: none; color: var(--ink); overflow: hidden; box-shadow: 0 1px 2px rgba(16,32,58,.05), 0 4px 14px rgba(16,32,58,.05); transition: transform .12s, border-color .12s; }
+.wt-tile::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 4px; background: var(--border); }
+.wt-tile.has::before { background: #c0561a; }
+.wt-tile:hover, .wt-tile:focus-visible { transform: translateY(-2px); border-color: var(--navy); color: var(--ink); }
+.wt-top { display: flex; align-items: center; justify-content: space-between; color: var(--muted); }
+.wt-chip { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--info, #e2ebf7); color: var(--navy); }
+.wt-tile.has .wt-chip { background: #fdf0d8; color: #b45309; }
+.wt-n { font-size: 34px; font-weight: 800; line-height: 1; }
+.wt-tile:not(.has) .wt-n { color: var(--muted); }
+.wt-t { font-size: 12.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+html[data-theme="dark"] .wt-tile.has::before { background: #f0a06a; }
+html[data-theme="dark"] .wt-tile.has .wt-chip { background: #3d3020; color: #f3c27f; }
+/* Shortcut buttons */
+.wt-shortcuts { display: flex; gap: 8px; flex-wrap: wrap; }
+.wt-shortcuts a { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 12px; border: 1px solid var(--border); background: var(--theme-card, var(--surface, #fff)); color: var(--ink); text-decoration: none; font-weight: 600; font-size: 14px; }
+.wt-shortcuts a:hover { border-color: var(--navy); color: var(--ink); }
+.wt-shortcuts a.is-main { background: #24508f; border-color: #24508f; color: #fff; }
+html[data-theme="dark"] .wt-shortcuts a.is-main { background: #2f5aa6; border-color: #2f5aa6; }
+@media (max-width: 1100px) { .wt-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .td-search { flex-direction: column; } .td-open { width: 100%; } .wt-grid { gap: 10px; } .wt-tile { padding: 14px; } .wt-n { font-size: 28px; } }

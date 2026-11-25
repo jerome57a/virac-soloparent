@@ -185,6 +185,18 @@ try {
     sa_assert($test->query("SELECT status FROM interview_invitations WHERE application_id = $oldApp")->fetchColumn() === 'BOOKED', 'The booking should close again.');
     sa_assert((new AppointmentEvent($test))->countOf($oldApp, 'ATTENDED_CONFIRMED') === 1, 'The late confirmation must be in the history.');
 
+    // (1b) the decision is just Approve or Reject: a booked interview whose date has come is enough, and approving records it as successful.
+    [$apApp, $apAppt] = $mk('R-APPROVE', date('Y-m-d', strtotime('-1 day')), '00:00:00');
+    $apr = $review->updateStatus($staff, $appRow($apApp), 'Approved', '');
+    sa_assert($apr === null, 'Approving after the interview date failed: ' . var_export($apr, true));
+    $row = $test->query("SELECT status, result FROM appointments WHERE id = $apAppt")->fetch();
+    sa_assert($row['status'] === 'COMPLETED' && str_starts_with((string) $row['result'], 'Successful'), 'Approving must record the interview as successful.');
+    sa_assert($test->query("SELECT status FROM applications WHERE id = $apApp")->fetchColumn() === 'Approved', 'The application must be approved.');
+    sa_assert((int) $test->query("SELECT COUNT(*) FROM application_status_history WHERE application_id = $apApp AND remarks LIKE 'Interview result recorded: Successful%'")->fetchColumn() === 1, 'The history must say the interview result was recorded.');
+    [$futApp] = $mk('R-FUTURE', date('Y-m-d', strtotime('+3 days')), '00:00:00');
+    $fut = $review->updateStatus($staff, $appRow($futApp), 'Approved', '');
+    sa_assert(is_string($fut) && str_contains($fut, 'interview has to take place'), 'Approving before the interview date must be refused: ' . var_export($fut, true));
+    sa_assert($test->query("SELECT status FROM applications WHERE id = $futApp")->fetchColumn() === 'Interview Scheduled', 'A refused approval must not change the status.');
     // (2) after an UNSUCCESSFUL interview: approval stays locked, corrections and another interview are possible.
     [$unApp, $unAppt] = $mk('R-UNSUC', date('Y-m-d', strtotime('-2 days')), '00:00:00');
     sa_assert($review->recordInterviewOutcome($staff, $unApp, 'Unsuccessful', 'details do not match') === null, 'Recording an unsuccessful result failed.');

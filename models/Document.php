@@ -327,13 +327,14 @@ class Document extends Model
      * Applications with documents waiting, oldest application first (as before). oldest_upload is the date the application was
      * submitted; resent_docs is how many of the waiting documents are re-uploads (marked on the dashboard).
      */
-    public function verificationQueue(int $limit): array
+    public function verificationQueue(int $limit, ?string $type = null): array
     {
+        $byType = in_array($type, ['new', 'renewal'], true) ? " AND a.type = '$type'" : '';
         return $this->pdo->query(
-            "SELECT a.id, a.reference_no, a.full_name, a.status, COUNT(*) AS pending_docs, SUM(d.resent) AS resent_docs, MIN(a.submitted_at) AS oldest_upload
+            "SELECT a.id, a.reference_no, a.full_name, a.status, a.type, COUNT(*) AS pending_docs, SUM(d.resent) AS resent_docs, MIN(a.submitted_at) AS oldest_upload
              FROM applications a JOIN (" . self::PENDING_DOCUMENTS_SQL . ") d ON d.application_id = a.id
-             WHERE a.status IN ('Pending Review','Under Verification','For Revision','Interview Scheduled')
-             GROUP BY a.id, a.reference_no, a.full_name, a.status
+             WHERE a.status IN ('Pending Review','Under Verification','For Revision','Interview Scheduled')$byType
+             GROUP BY a.id, a.reference_no, a.full_name, a.status, a.type
              ORDER BY oldest_upload, a.id
              LIMIT " . (int) $limit
         )->fetchAll();
@@ -350,13 +351,14 @@ class Document extends Model
     }
 
     /** ['applications' => in-progress applications with unverified documents, 'documents' => those documents]. */
-    public function verificationBacklog(): array
+    public function verificationBacklog(?string $type = null): array
     {
+        $byType = in_array($type, ['new', 'renewal'], true) ? " AND a.type = '$type'" : '';
         return $this->pdo->query(
             "SELECT COUNT(DISTINCT a.id) AS applications, COUNT(*) AS documents,
                     COUNT(DISTINCT CASE WHEN d.resent = 1 THEN a.id END) AS resent_applications
              FROM applications a JOIN (" . self::PENDING_DOCUMENTS_SQL . ") d ON d.application_id = a.id
-             WHERE a.status IN ('Pending Review','Under Verification','For Revision','Interview Scheduled')"
+             WHERE a.status IN ('Pending Review','Under Verification','For Revision','Interview Scheduled')$byType"
         )->fetch();
     }
 

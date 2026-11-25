@@ -87,12 +87,12 @@ class ApplicationNextStepService
             $day = substr((string) $appointment['scheduled_at'], 0, 10);
             $today = Appointment::manilaDate();
             if ($day < $today) {
-                return $this->step('Interview was ' . $when . ': record the result', 'action');
+                return $this->step('Interview was ' . $when . ': approve or reject', 'action');
             }
             if ($day === $today) {
                 // A date-only interview can be recorded all day; a timed one once its time has come.
                 return $dateOnly || strtotime((string) $appointment['scheduled_at']) <= time()
-                    ? $this->step('Interview today: record the result', 'action')
+                    ? $this->step('Interview today: approve or reject', 'action')
                     : $this->step('Interview today at ' . date('g:i A', strtotime((string) $appointment['scheduled_at'])), 'wait');
             }
             return $this->step('Interview on ' . $when, 'wait');

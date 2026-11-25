@@ -53,7 +53,7 @@ if (!empty($staff)) {
 <link rel="stylesheet" href="<?= public_asset('css/preferences.css') ?>">
 <?php if (!empty($useAdminWorkspace)): ?><link rel="stylesheet" href="<?= public_asset('css/admin-workspace.css') ?>"><?php endif; ?>
 <?php if (!empty($useStaffWorkspace)): ?><link rel="stylesheet" href="<?= public_asset('css/staff-workspace.css') ?>"><?php endif; ?>
-<?php if ($isPersonnelPortal): require_once APP_ROOT . '/includes/icons.php'; ?><link rel="stylesheet" href="<?= public_asset('css/guidance.css') ?>"><?php endif; ?>
+<?php if ($isPersonnelPortal): require_once APP_ROOT . '/includes/icons.php'; ?><link rel="stylesheet" href="<?= public_asset('css/guidance.css') ?>"><link rel="stylesheet" href="<?= public_asset('css/portal-sidebar.css') ?>"><?php endif; ?>
 <?php if (($contentView ?? '') === 'views/staff/account.php'): ?><link rel="stylesheet" href="<?= public_asset('css/personnel-account.css') ?>"><?php endif; ?>
 </head>
 <body<?= !empty($staff) ? ' class="portal-body' . ($isPersonnelPortal ? ' personnel-portal' : '') . (($staff['role'] ?? '') === 'admin' ? ' admin-portal' : ' staff-portal') . '"' : '' ?>>
@@ -82,8 +82,14 @@ if (!empty($staff)) {
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       </a>
       <?php if ($navLoggedIn): ?>
-      <a href="<?= e($navAccountUrl) ?>" class="nav-icon-btn" aria-label="My account" data-i18n-attrs="aria-label">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+      <?php $navUsername = !empty($staff) ? trim((string) ($staff['username'] ?: $staff['full_name'])) : ''; ?>
+      <a href="<?= e($navAccountUrl) ?>" class="nav-icon-btn<?= $navUsername !== '' ? ' has-name' : '' ?>" aria-label="My account<?= $navUsername !== '' ? ': ' . e($navUsername) : '' ?>" data-i18n-attrs="aria-label">
+        <?php if ($navUsername === ''): ?><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg><?php endif; ?>
+        <?php if ($navUsername !== ''):
+            // Initials for the round badge: the first letter and the last digit (Staff1 -> S1), or the first letters of two words.
+            $navWords = preg_split('/[\s._-]+/', $navUsername, -1, PREG_SPLIT_NO_EMPTY) ?: [$navUsername];
+            $navInitials = strtoupper(mb_substr($navWords[0], 0, 1) . (preg_match('/(\d)$/', $navUsername, $navDigit) ? $navDigit[1] : (isset($navWords[1]) ? mb_substr($navWords[1], 0, 1) : mb_substr($navWords[0], 1, 1)))); ?>
+        <span class="nav-avatar" aria-hidden="true" translate="no"><?= e($navInitials) ?></span><span class="nav-user" translate="no"><?= e($navUsername) ?></span><?php endif; ?>
       </a>
       <?php else: ?>
       <a href="<?= e($navAccountUrl) ?>" class="btn-navy btn-sm nav-auth-btn" aria-label="Log In / Create Account" data-i18n data-i18n-attrs="aria-label">Log In<span class="nav-auth-extra" data-i18n> / Create Account</span></a>
@@ -97,7 +103,11 @@ if (!empty($staff)) {
   <div class="nav-drawer-head">
     <a href="<?= e($navHomeUrl ?? base_url('portal.php')) ?>" class="nav-drawer-brand text-decoration-none">
       <img src="<?= asset('images/solo-parent.png') ?>" alt="Virac Solo Parent ID">
+      <?php if (!empty($staff)): ?>
+      <div><div class="dash-brand-name" data-i18n>Solo Parent ID</div><div class="dash-brand-sub" data-i18n><?= ($staff['role'] ?? '') === 'admin' ? 'MSWDO Admin Portal' : 'MSWDO Staff Portal' ?></div></div>
+      <?php else: ?>
       <span data-i18n>Solo Parent ID Services</span>
+      <?php endif; ?>
     </a>
     <button type="button" class="nav-drawer-close" id="nav-drawer-close" aria-label="Close menu" data-i18n-attrs="aria-label">
       <svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg>

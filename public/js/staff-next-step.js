@@ -19,7 +19,9 @@ window.virScheduleConfirm = function (form) {
 };
 /* Staff application page: after Save Verification the next step opens as a popup, like the document viewer.
  *   - a document marked Needs Correction  -> the correction SMS review (Confirm and Send);
- *   - every document verified             -> the "Schedule the interview" form (date, time, SMS).
+ *   - every document verified             -> the "Schedule the interview" form (date, time, SMS);
+ *   - the ID release button               -> the "Schedule the ID release" form (date, time, place, SMS);
+ *   - Confirm handover and Correct the ID dates -> their forms.
  * The forms live in hidden holders on the page (#correction-review, #schedule-modal-source) and are moved into the popup and put back
  * when it closes, so nothing is duplicated and closing the popup loses nothing. The buttons marked data-next-step-open open it (the
  * correction step also has a "Next step" banner on the document card; the schedule step has only the button on its own card). It opens by itself when the page was reached from Save Verification (data-auto="1"), after a scheduling error, or
@@ -49,6 +51,22 @@ window.virScheduleConfirm = function (form) {
         button: 'Schedule the interview'
       });
     }
+    var release = document.getElementById('release-modal-source');
+    if (release && release.querySelector('form')) {
+      steps.push({
+        key: 'release', el: release, open: release.getAttribute('data-open') === '1', hash: release.getAttribute('data-hash') === '1',
+        title: 'Schedule the ID release',
+        hint: 'Choose the release date, time and place; the Solo Parent is texted.',
+        button: 'Schedule the ID release'
+      });
+    }
+    [['handover', 'handover-modal-source', 'Confirm the ID handover', 'Hand the ID to the Solo Parent in person, then type the dates printed on the card.'],
+      ['dates', 'dates-modal-source', 'Correct the ID dates', 'Only to fix a typing mistake: use the dates printed on the card.']].forEach(function (d) {
+      var el = document.getElementById(d[1]);
+      if (el && el.querySelector('form')) {
+        steps.push({ key: d[0], el: el, open: el.getAttribute('data-open') === '1', title: d[2], hint: d[3], button: d[2] });
+      }
+    });
     if (!steps.length) { return; }
 
     var shell = document.createElement('div');
@@ -124,6 +142,9 @@ window.virScheduleConfirm = function (form) {
     if (!toOpen && auto) { toOpen = steps[0]; }
     if (!toOpen && window.location.hash === '#schedule-interview') {
       steps.forEach(function (s) { if (s.key === 'schedule') { toOpen = s; } });
+    }
+    if (!toOpen && window.location.hash === '#id-release') {
+      steps.forEach(function (s) { if (s.key === 'release' && s.hash) { toOpen = s; } });
     }
     if (toOpen) { put(toOpen); }
   }

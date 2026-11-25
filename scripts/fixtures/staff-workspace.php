@@ -1,10 +1,10 @@
 <?php
 /** CLI-only GET previews. No login, writes, notification opens or messages. */
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
-$actions = ['dashboard.php' => 'dashboard', 'notifications.php' => 'notifications', 'index.php' => 'applications', 'applicants.php' => 'applicants', 'appointments.php' => 'appointments', 'reports.php' => 'reports', 'verification.php' => 'verificationPage', 'follow_up.php' => 'followUpPage'];
+$actions = ['dashboard.php' => 'dashboard', 'notifications.php' => 'notifications', 'index.php' => 'applications', 'applicants.php' => 'applicants', 'appointments.php' => 'appointments', 'reports.php' => 'reports', 'verification.php' => 'verificationPage', 'follow_up.php' => 'followUpPage', 'work.php' => 'workPage'];
 $route = $argv[1] ?? 'dashboard.php';
 if (!isset($actions[$route])) { fwrite(STDERR, 'Unknown preview page.'); exit(1); }
-$_GET = []; $_POST = [];
+$_GET = isset($argv[2]) && $argv[2] !== '' ? ['list' => $argv[2]] : []; $_POST = [];
 $_SERVER['REQUEST_METHOD'] = 'GET';
 $_SERVER['SCRIPT_NAME'] = '/virac-soloparent/staff/' . $route;
 $_SERVER['REQUEST_URI'] = $_SERVER['SCRIPT_NAME'];

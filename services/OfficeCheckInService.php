@@ -281,7 +281,7 @@ final class OfficeCheckInService
         if ($query !== null && trim($query) !== '') {
             $panel['query'] = mb_substr(trim($query), 0, 60);
             $panel['matches'] = $this->find($panel['query']);
-            if (count($panel['matches']) === 1) {
+            if (count($panel['matches']) === 1 && !empty($panel['board']['ready'])) {
                 $panel['situation'] = $this->situation($panel['matches'][0]);
             }
         }

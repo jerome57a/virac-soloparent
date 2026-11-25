@@ -19,11 +19,14 @@ $item = function (array $c) use ($marks): void {
 };
 ?>
 <div class="review-card" id="auto-check" role="region" aria-label="Automated verification">
-  <div class="review-card-head"><div class="title" data-i18n>Automated verification</div></div>
+  <div class="review-card-head"><div class="title" data-i18n>Automated verification</div>
+    <button type="button" class="btn-outline ac-toggle" id="auto-check-toggle" aria-controls="auto-check-body" aria-expanded="true" style="padding:4px 12px;font-size:13px"><span class="when-open" data-i18n>Hide</span><span class="when-closed" data-i18n hidden>Show</span></button>
+  </div>
   <div class="ac-head">
     <span class="ac-pill is-<?= e($autoCheck['verdict']) ?>"><?= e($title) ?></span>
     <span class="ac-counts"><?= (int) $autoCheck['counts']['pass'] ?> passed · <?= (int) $autoCheck['counts']['flag'] ?> flagged · <?= (int) $autoCheck['counts']['fail'] ?> failed</span>
   </div>
+  <div id="auto-check-body">
   <p class="small text-muted mb-2"><?= e($summary) ?> This is a recommendation; the final decision is the social worker's.</p>
   <?php if ($shown): ?>
     <ul class="ac-list"><?php foreach ($shown as $c) { $item($c); } ?></ul>
@@ -35,4 +38,27 @@ $item = function (array $c) use ($marks): void {
     <summary>All checks (<?= count($autoCheck['checks']) ?>)</summary>
     <ul class="ac-list mt-2 mb-0"><?php foreach ($autoCheck['checks'] as $c) { $item($c); } ?></ul>
   </details>
+  </div>
+  <script>
+    /* Hide or show the details of the automated verification; the verdict line stays. The choice is remembered on this device. */
+    (function () {
+      var btn = document.getElementById('auto-check-toggle'), body = document.getElementById('auto-check-body');
+      if (!btn || !body) { return; }
+      var KEY = 'virac.autocheck.hidden';
+      function apply(hidden) {
+        body.hidden = hidden;
+        btn.setAttribute('aria-expanded', hidden ? 'false' : 'true');
+        btn.querySelector('.when-open').hidden = hidden;
+        btn.querySelector('.when-closed').hidden = !hidden;
+      }
+      var saved = false;
+      try { saved = localStorage.getItem(KEY) === '1'; } catch (e) { saved = false; }
+      apply(saved);
+      btn.addEventListener('click', function () {
+        var hidden = !body.hidden;
+        apply(hidden);
+        try { localStorage.setItem(KEY, hidden ? '1' : '0'); } catch (e) { /* still works for this visit */ }
+      });
+    })();
+  </script>
 </div>

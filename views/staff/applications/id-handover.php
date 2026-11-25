@@ -11,11 +11,7 @@ $handoverOverride = !empty($outstandingRequirements);
 $defaultFrom = $idDefaults['from'] ?? date('Y-m-d');
 $defaultTo = $idDefaults['to'] ?? date('Y-m-d', strtotime('+1 year'));
 ?>
-<div class="id-handover" id="id-handover" style="border:1px solid var(--border, #d9e1ec);border-left:5px solid #1c7a3f;border-radius:12px;padding:14px 16px;margin-bottom:16px;background:var(--surface, #fff)">
-  <div class="d-flex align-items-center gap-2 mb-1">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1c7a3f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="12" r="2"/><path d="M14 10h4M14 14h3"/></svg>
-    <div class="fw-semibold" style="color:var(--ink)">Confirm handover</div>
-  </div>
+<div class="id-handover" id="id-handover">
   <p class="small text-muted mb-3">Give the ID <b>only to the Solo Parent, in person</b> — nobody else may claim it. Type the start date and the expiration date exactly as printed on the card. The system counts from these dates, and the Solo Parent gets one SMS on the expiration date.</p>
   <form method="post" id="id-handover-form" class="d-flex flex-column gap-3" data-name="<?= e($app['full_name']) ?>">
     <?= csrf_field() ?><input type="hidden" name="form_action" value="confirm_id_release"><input type="hidden" name="confirm_handover" value="1">
@@ -42,6 +38,7 @@ $defaultTo = $idDefaults['to'] ?? date('Y-m-d', strtotime('+1 year'));
       <span>I checked the Solo Parent's valid ID and handed the Solo Parent ID to <b><?= e($app['full_name']) ?></b> in person.</span>
     </label>
     <button type="submit" class="btn-navy review-button-success is-selected review-release-action">Confirm ID Released</button>
+    <p class="small text-muted mb-0">Press this only after the ID is in the Solo Parent's hands. It records the ID as released and starts its validity.</p>
   </form>
   <script>
     (() => {

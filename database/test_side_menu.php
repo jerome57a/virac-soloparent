@@ -71,12 +71,13 @@ try {
     $s = staff_nav_groups($staff, 3);
     sa_assert(array_column($s, 'label') === ['Work', 'Records', 'Account'], 'Staff groups: ' . json_encode(array_column($s, 'label')));
     $sk = $keys($s);
-    sa_assert($sk['Work'] === ['dashboard', 'applications', 'verification', 'appointments', 'sms'], 'Staff work items: ' . json_encode($sk['Work']));
+    sa_assert($sk['Work'] === ['dashboard', 'applications', 'verification', 'appointments'], 'Staff work items: ' . json_encode($sk['Work']));
     sa_assert($sk['Records'] === ['applicants', 'reports'] && $sk['Account'] === ['notifications', 'account'], 'Staff records/account items.');
     $everyStaffKey = array_merge(...array_values($sk));
     sa_assert(!array_intersect($everyStaffKey, ['monitoring', 'users', 'adminsms', 'settings', 'audit', 'eligibility']), 'Staff must not see admin-only items.');
     $notif = array_values(array_filter($s[2]['items'], fn($i) => $i['key'] === 'notifications'))[0];
-    sa_assert($notif['badge'] === 3, 'The unread notification count is the Notifications badge.');
+    sa_assert($notif['badge'] === 0, 'The staff menu has no coloured count on Notifications (the bell in the header counts).');
+    sa_assert(!in_array('sms', $sk['Work'], true), 'The staff menu has no Failed Texts entry.');
 
     $a = staff_nav_groups($admin, 0);
     sa_assert(array_column($a, 'label') === ['Overview', 'Monitor', 'Manage', 'Security', 'Account'], 'Admin groups: ' . json_encode(array_column($a, 'label')));
@@ -94,10 +95,8 @@ try {
     $test->prepare("UPDATE users SET locked_until = DATE_ADD(NOW(), INTERVAL 1 HOUR) WHERE id = ?")->execute([$uid]);
     sa_row($test, 'applications', ['reference_no' => 'MENU-1', 'user_id' => $uid, 'full_name' => 'Pending Person', 'status' => 'Pending Review', 'type' => 'new', 'category_id' => $catId]);
     sa_row($test, 'sms_logs', ['mobile' => '09171234567', 'message' => 'x', 'status' => 'FAILED']);
-    sa_assert($badge(staff_nav_groups($staff), 'applications') === 1, 'A pending application is the Applications badge.');
-    sa_assert($badge(staff_nav_groups($admin), 'monitoring') === 1, 'A pending application is the Application Monitoring badge.');
-    sa_assert($badge(staff_nav_groups($admin), 'users') === 1, 'A locked account is the User Management badge.');
-    sa_assert($badge(staff_nav_groups($admin), 'adminsms') === 1, 'A failed SMS is the SMS Management badge.');
+    foreach (staff_nav_groups($staff) as $g) { foreach ($g['items'] as $i) { sa_assert($i['badge'] === 0, 'The staff menu has no coloured badge: ' . $i['key']); } }
+    foreach (staff_nav_groups($admin) as $g) { foreach ($g['items'] as $i) { sa_assert($i['badge'] === 0, 'The admin menu has no coloured badge: ' . $i['key']); } }
 
     // Every item has what the drawer needs to render it.
     $icons = staff_nav_icons();

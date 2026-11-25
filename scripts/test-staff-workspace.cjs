@@ -6,14 +6,14 @@ const { parseTestBase, newGuardedContext } = require('./lib/test-origin.cjs');
 const { execFileSync } = require('node:child_process');
 const path = require('node:path');
 const assert = require('node:assert/strict');
-const routes = ['dashboard.php', 'notifications.php', 'index.php', 'applicants.php', 'appointments.php', 'reports.php', 'verification.php', 'follow_up.php'];
+const routes = ['dashboard.php', 'notifications.php', 'index.php', 'applicants.php', 'appointments.php', 'reports.php', 'verification.php', 'follow_up.php', 'work.php'];
 (async () => {
   // No default: an explicit test-only origin is required (see scripts/lib/test-origin.cjs). Every browser request is
   // decided by the guard: fixtures and static assets only, GET only, no redirects, nothing cross-origin.
   // Both the URL and TEST_STORAGE_ROOT are validated before any PHP fixture or browser runs.
   const base = parseTestBase(process.env.VIRAC_TEST_URL);
   screenshotDir();
-  const previews = new Map(routes.map(route => [route, execFileSync('php', [path.join(__dirname, 'fixtures/staff-workspace.php'), route], { encoding: 'utf8' })]));
+  const previews = new Map(routes.map(route => [route, execFileSync('php', [path.join(__dirname, 'fixtures/staff-workspace.php'), route, route === 'work.php' ? 'new_forms' : ''], { encoding: 'utf8' })]));
   for (const [route, html] of previews) assert(!/Warning:|Fatal error:/.test(html), route + ' renders cleanly');
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {
@@ -40,15 +40,34 @@ const routes = ['dashboard.php', 'notifications.php', 'index.php', 'applicants.p
       const missingTargets = await page.locator('.staff-section-links a').evaluateAll(links => links.filter(a => a.pathname === location.pathname && a.hash && !document.getElementById(a.hash.slice(1))).map(a => a.hash));
       assert.deepEqual(missingTargets, []);
       if (route === 'dashboard.php') {
-        const tileLinks = await page.locator('.stat-tile').evaluateAll(tiles => tiles.map(t => t.getAttribute('href')));
-        // 14 tiles: "Expected Today" was replaced by the "Today at the office" strip, which shows the same count.
-        assert(tileLinks.length >= 14 && tileLinks.every(h => h && !h.startsWith('#')), 'every dashboard tile goes to a page, not a section below');
-        assert.equal(await page.locator('.stat-tile .stat-label', { hasText: 'Expected Today' }).count(), 0, 'no duplicate Expected Today tile');
-        assert.equal(await page.locator('#office-today.is-compact').count(), 1, 'the short Today at the office strip is on the dashboard');
-        assert.equal(await page.locator('#office-today .ot-lh').count(), 0, 'its lists stay on Appointment Management');
-        assert.equal(await page.locator('#staff-dashboard .review-card, #staff-dashboard .dash-panel').count(), 0, 'no lists are shown on the dashboard');
+        // The approved design: Today at the office (search, counts, See today's work), four work tiles, four shortcut buttons.
+        assert.equal(await page.locator('.stat-tile').count(), 0, 'no old stat tiles');
+        assert(await page.locator('#office-today #ot-ref').isVisible(), 'the search box is in Today at the office');
+        assert.equal(await page.locator('#office-today .td-pill').count(), 2, 'two counts: expected and done today (no "waiting")');
+        assert((await page.locator('#office-today .td-more').getAttribute('href')).endsWith('staff/appointments.php'), "See today's work opens Appointment Management");
+        assert.deepEqual((await page.locator('.wt-tile .wt-t').allInnerTexts()).map(t => t.toLowerCase()), ['new forms', 're-uploaded documents', 'set the interview date', 'set the id release date'], 'four work tiles, in work order');
+        assert.equal(await page.locator('.wt-tile .wt-n').count(), 4, 'each tile has its number');
+        assert.equal(await page.locator('.wt-tile .wt-chip svg.ui-icon').count(), 4, 'each tile has its icon');
+        assert.equal(await page.locator('.sq-list, .sq-tag').count(), 0, 'the Solo Parents are not listed on the dashboard: staff open the list');
+        const cardLinks = await page.locator('a.wt-tile').evaluateAll(a => a.map(x => x.getAttribute('href')));
+        assert.deepEqual(cardLinks.map(h => h.split('/').pop()), ['work.php?list=new_forms', 'work.php?list=resent', 'work.php?list=interview', 'work.php?list=release_date'], 'each tile opens its own list');
+        assert.equal(await page.locator('.wt-shortcuts a').count(), 4, 'the four shortcut buttons');
+        // The side menu works like the Solo Parent's: closed until the menu button opens it, also on a wide screen.
+        await page.setViewportSize({ width: 1440, height: 1000 });
+        assert(await page.locator('#nav-menu-btn').isVisible(), 'the menu button is there on a wide screen');
+        assert.equal(await page.locator('#nav-drawer').getAttribute('aria-hidden'), 'true', 'the menu starts closed');
+        await page.locator('#nav-menu-btn').click();
+        await page.waitForTimeout(350);
+        assert.equal(await page.locator('#nav-drawer').getAttribute('aria-hidden'), 'false', 'the menu button opens it');
+        assert.equal((await page.locator('#nav-drawer .dash-brand-sub').innerText()).trim(), 'MSWDO Staff Portal', 'the menu names the portal, like the Solo Parent menu');
+        await page.locator('#nav-drawer-close').click();
+        await page.waitForTimeout(350);
+        assert.equal(await page.locator('#nav-drawer').getAttribute('aria-hidden'), 'true', 'the close button closes it');
         assert.equal(await page.locator('.gi-start').count(), 0, 'the Start here list is gone from the dashboard');
-        assert.equal(await page.locator('.stat-tile.has-icon .gi-chip svg.ui-icon').count(), await page.locator('.stat-tile').count(), 'every dashboard tile has its icon');
+      }
+      if (route === 'work.php') {
+        assert.equal((await page.locator('#staff-work-list h1').innerText()).trim(), 'New forms', 'the list page is titled with its list');
+        assert((await page.locator('#staff-work-list .sq-list a').evaluateAll(a => a.map(x => x.getAttribute('href')))).every(h => /staff\/application\.php\?id=\d+$/.test(h)), 'each Solo Parent opens its application');
       }
       const oversizedFields = await page.locator('.staff-workspace .filter-bar input, .staff-workspace .record-filters input, .staff-workspace .analytics-filters input:not([type=hidden]), .staff-code-field input').evaluateAll(fields => fields.filter(el => el.getBoundingClientRect().height > 60).map(el => el.name));
       assert.deepEqual(oversizedFields, [], route + ' normal input heights');

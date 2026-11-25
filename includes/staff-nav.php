@@ -3,7 +3,7 @@
  * The side menu (drawer) of the MSWDO staff and the MSWDO admin: groups of links, each with the pages that count as "active" and an
  * optional number badge for work that is waiting. Presentation only; each page still authorizes its own access.
  *
- * Staff:  Work (Dashboard, Applications, Documents to Verify, Appointment Management, Failed Texts) · Records (Solo Parent Records,
+ * Staff:  Work (Dashboard, Applications, Documents to Verify, Appointment Management; no badges, no Failed Texts) · Records (Solo Parent Records,
  *         Reports) · Account (Notifications, My Account).
  * Admin:  Overview (Dashboard, Notifications) · Monitor (Application Monitoring, Solo Parent Records, Appointment Overview, Eligibility
  *         Logs, Reports) · Manage (User Management, SMS Management, System Settings) · Security (Audit Logs) · Account.
@@ -62,13 +62,14 @@ function staff_nav_groups(array $staff, int $unreadNotifications = 0): array
     $groups = [];
 
     if ($isAdmin) {
+        $notifications['badge'] = 0;   // no coloured numbers in the menu (the bell in the header counts)
         $groups[] = ['label' => 'Overview', 'items' => [
             $item('dashboard', 'Dashboard', base_url('admin/dashboard.php'), ['admin/dashboard.php']),
             $notifications,
         ]];
         $monitor = [];
         if (can($staff, 'admin.dashboard')) {
-            $monitor[] = $item('monitoring', 'Application Monitoring', base_url('admin/applications.php'), ['admin/applications.php', 'admin/application_view.php'], staff_nav_count("SELECT COUNT(*) FROM applications WHERE status = 'Pending Review'"), '#b45309', null, false);
+            $monitor[] = $item('monitoring', 'Application Monitoring', base_url('admin/applications.php'), ['admin/applications.php', 'admin/application_view.php'], 0, '#b45309', null, false);
         }
         if (can($staff, 'applicants.view')) {
             $monitor[] = $item('applicants', 'Solo Parent Records', base_url(role_portal_path($staff, 'applicants.php')), ['staff/applicants.php', 'staff/applicant_view.php', 'admin/applicants.php', 'admin/applicant_view.php']);
@@ -85,8 +86,8 @@ function staff_nav_groups(array $staff, int $unreadNotifications = 0): array
         $groups[] = ['label' => 'Monitor', 'items' => $monitor];
         if (can($staff, 'admin.dashboard')) {
             $groups[] = ['label' => 'Manage', 'items' => [
-                $item('users', 'User Management', base_url('admin/users.php'), ['admin/users.php', 'admin/user_edit.php'], staff_nav_count('SELECT COUNT(*) FROM users WHERE locked_until > NOW()'), '#b45309'),
-                $item('adminsms', 'SMS Management', base_url('admin/sms.php'), ['admin/sms.php', 'admin/expiry_sms.php'], staff_nav_count("SELECT COUNT(*) FROM sms_logs WHERE status = 'FAILED'"), '#b3261e', null, false),
+                $item('users', 'User Management', base_url('admin/users.php'), ['admin/users.php', 'admin/user_edit.php']),
+                $item('adminsms', 'SMS Management', base_url('admin/sms.php'), ['admin/sms.php', 'admin/expiry_sms.php'], 0, '#b3261e', null, false),
                 $item('settings', 'System Settings', base_url('admin/settings.php'), ['admin/settings.php', 'admin/requirements.php']),
             ]];
             $groups[] = ['label' => 'Security', 'items' => [
@@ -98,19 +99,14 @@ function staff_nav_groups(array $staff, int $unreadNotifications = 0): array
     }
 
     // MSWDO staff
-    $work = [$item('dashboard', 'Dashboard', base_url('staff/dashboard.php'), ['staff/dashboard.php'])];
+    $work = [$item('dashboard', 'Dashboard', base_url('staff/dashboard.php'), ['staff/dashboard.php', 'staff/work.php'])];
+    // The staff menu is plain: no coloured number badges (the dashboard shows what is waiting) and no Failed Texts entry.
     if ($canWork) {
-        $docWaiting = staff_doc_waiting_counts();
-        $work[] = $item('applications', 'Applications', base_url('staff/index.php'), ['staff/index.php', 'staff/application.php'], staff_nav_count("SELECT COUNT(*) FROM applications WHERE status = 'Pending Review'"), '#b45309');
-        $work[] = $item('verification', 'Documents to Verify', base_url('staff/verification.php'), ['staff/verification.php'], $docWaiting['applications'], $docWaiting['resent'] > 0 ? '#b45309' : '#1b3a6b', 'nav-docs-to-verify', false);
+        $work[] = $item('applications', 'Applications', base_url('staff/index.php'), ['staff/index.php', 'staff/application.php']);
+        $work[] = $item('verification', 'Documents to Verify', base_url('staff/verification.php'), ['staff/verification.php'], 0, '#1b3a6b', null, false);
     }
     if (can($staff, 'appointments.view')) {
-        // Needs a result + still booked today + ID release date passed: the work waiting on the Appointments page.
-        $toConfirm = staff_outcome_waiting_count() + staff_today_booked_count() + staff_release_overdue_count();
-        $work[] = $item('appointments', 'Appointment Management', base_url(role_portal_path($staff, 'appointments.php')), ['staff/appointments.php', 'staff/follow_up.php'], $toConfirm, '#b45309');
-    }
-    if ($canWork) {
-        $work[] = $item('sms', 'Failed Texts', base_url('staff/sms.php'), ['staff/sms.php'], staff_sms_attention_count());
+        $work[] = $item('appointments', 'Appointment Management', base_url(role_portal_path($staff, 'appointments.php')), ['staff/appointments.php', 'staff/follow_up.php']);
     }
     $groups[] = ['label' => 'Work', 'items' => $work];
     $records = [];
@@ -121,6 +117,7 @@ function staff_nav_groups(array $staff, int $unreadNotifications = 0): array
         $records[] = $item('reports', 'Reports', base_url('staff/reports.php'), ['admin/reports.php', 'staff/reports.php']);
     }
     $groups[] = ['label' => 'Records', 'items' => $records];
+    $notifications['badge'] = 0;   // staff: no coloured count on the Notifications entry either (the bell in the header still counts)
     $groups[] = ['label' => 'Account', 'items' => [$notifications, $account]];
     return array_values(array_filter($groups, fn($g) => $g['items']));
 }
