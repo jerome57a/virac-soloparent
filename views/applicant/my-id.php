@@ -16,19 +16,19 @@ $idStatusLabel = $renewalInProgress ? 'Renewal in progress' : ($isExpired ? 'Exp
 
     <div class="applicant-id-layout">
       <section class="applicant-id-panel applicant-id-preview" aria-labelledby="id-preview-title">
-        <div class="applicant-id-panel-heading"><h2 id="id-preview-title" data-i18n>Your identification card</h2><span id="id-visible-side" aria-live="polite" data-i18n>Front side</span></div>
+        <div class="applicant-id-panel-heading"><h2 id="id-preview-title" data-i18n>Sample Solo Parent ID</h2><span id="id-visible-side" aria-live="polite" data-i18n>Front side</span></div>
         <div class="applicant-id-stage">
-          <div class="applicant-id-card-wrap">
+          <div class="applicant-id-card-wrap no-print">
             <?php
+            // A SAMPLE only: the real card is printed and handed to the Solo Parent at the MSWDO office, so it is not shown or printable here.
             $a = $idApplication;
-            $verificationCard = $idApplication;
-            $verificationCard['children'] = $idChildren;
+            $verificationSample = true;
             require APP_ROOT . '/views/partials/solo-parent-id-card.php';
             ?>
           </div>
         </div>
         <div class="applicant-id-preview-actions">
-          <p data-i18n>Tap the card or use the button to see the other side.</p>
+          <p data-i18n>This is a sample of the card. Your own ID is printed and handed to you at the MSWDO office. Tap the card or use the button to see the other side.</p>
           <button type="button" id="id-flip-control" class="applicant-id-flip" aria-controls="verification-id" aria-pressed="false"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 10a9 9 0 0 1 15-6l3 3M21 3v4h-4M21 14a9 9 0 0 1-15 6l-3-3M3 21v-4h4"/></svg><span data-i18n>View back of ID</span></button>
         </div>
         <dl class="applicant-id-details">

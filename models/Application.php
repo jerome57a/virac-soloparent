@@ -109,17 +109,39 @@ class Application extends Model
 
     /** Count of applications matching a fixed, code-supplied WHERE clause (never user input). */
     /**
-     * The staff dashboard lists that come straight from the applications table, oldest first:
-     *   new_forms    Pending Review (submitted, nobody has opened the form yet);
+     * New forms on the staff dashboard, oldest first: a Solo Parent stays here until staff ACT on the form, not just open it.
+     * Staff have not acted while the application is Pending Review or Under Verification and no interview date was ever given
+     * (no appointment) and no correction was ever asked for: no document is marked Needs Correction now, no correction text
+     * (document_correction) was logged for it, and it was never For Revision. Giving the interview date, or asking for a correction,
+     * takes it off this list (it then shows under the action that follows: after the Solo Parent sends the file again, under
+     * "Re-uploaded documents"); so does verifying every document, which puts it under "Set the interview date" (the dashboard
+     * removes those, see StaffController::workLists).
+     *
+     * @return array<int, array{id: int, reference_no: string, full_name: string, type: string}>
+     */
+    public function newFormCandidates(): array
+    {
+        return $this->pdo->query(
+            "SELECT a.id, a.reference_no, a.full_name, a.type FROM applications a
+             WHERE a.status IN ('Pending Review','Under Verification')
+               AND NOT EXISTS (SELECT 1 FROM appointments i WHERE i.application_id = a.id)
+               AND NOT EXISTS (SELECT 1 FROM application_status_history h WHERE h.application_id = a.id AND h.status = 'For Revision')
+               AND NOT EXISTS (SELECT 1 FROM application_documents d WHERE d.application_id = a.id AND d.verification_status = 'NEEDS_CORRECTION')
+               AND NOT EXISTS (SELECT 1 FROM sms_logs s WHERE s.application_id = a.id AND s.template_key = 'document_correction')
+             ORDER BY a.submitted_at, a.id"
+        )->fetchAll();
+    }
+
+    /**
+     * The staff dashboard list that comes straight from the applications table, oldest first:
      *   release_date Approved with no ID release date set yet.
+     * (New forms: see newFormCandidates.)
      *
      * @return array{rows: array, total: int}
      */
     public function dashboardList(string $kind, int $limit = 5): array
     {
-        if ($kind === 'new_forms') {
-            $from = "applications a WHERE a.status = 'Pending Review'";
-        } elseif ($kind === 'release_date') {
+        if ($kind === 'release_date') {
             $from = "applications a LEFT JOIN id_release_schedules r ON r.application_id = a.id AND r.released_at IS NULL WHERE a.status = 'Approved' AND r.scheduled_at IS NULL";
         } else {
             return ['rows' => [], 'total' => 0];

@@ -95,8 +95,12 @@ class StaffController extends Controller
         $resent = array_values(array_filter((new Document($this->pdo))->verificationQueue(500), fn($row) => (int) $row['resent_docs'] > 0));
         $toSchedule = (new SchedulingQueueService($this->pdo))->readyToSchedule(500);
         $applications = new Application($this->pdo);
+        // New forms: not yet acted on (see Application::newFormCandidates), and not already listed under another action
+        // (an interview date to set, or a document the Solo Parent sent again).
+        $ready = array_flip(array_map(fn($row) => (int) $row['id'], array_merge($toSchedule, $resent)));
+        $newForms = array_values(array_filter($applications->newFormCandidates(), fn($row) => !isset($ready[(int) $row['id']])));
         return [
-            'new_forms' => $applications->dashboardList('new_forms', $limit),
+            'new_forms' => ['rows' => array_slice($newForms, 0, $limit), 'total' => count($newForms)],
             'resent' => ['rows' => array_slice($resent, 0, $limit), 'total' => count($resent)],
             'interview' => ['rows' => array_slice($toSchedule, 0, $limit), 'total' => count($toSchedule)],
             'release_date' => $applications->dashboardList('release_date', $limit),

@@ -63,4 +63,6 @@
 .verification-id-emergency-relation { left: 54.2%; top: 62.2%; width: 18.4%; height: 2.5%; font-size: 1.45cqw; }
 .verification-id-emergency-phone { left: 83%; top: 62.2%; width: 14%; height: 2.5%; font-size: 1.2cqw; }
 .verification-id-emergency-address { left: 14%; top: 67%; width: 83%; height: 2.5%; font-size: 1.55cqw; }
+/* A sample card: SAMPLE across both sides, so it cannot pass for a real ID. */
+.verification-id-sample { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; color: rgba(185, 28, 28, .28); font-weight: 900; font-size: 15cqw; letter-spacing: .06em; transform: rotate(-18deg); text-shadow: 0 0 0 transparent; }
 @media (prefers-reduced-motion: reduce) { .verification-id-inner { transition: none; } }

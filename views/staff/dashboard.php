@@ -3,7 +3,8 @@
  * MSWD Social Worker dashboard (the approved design): "Today at the office" (the search box, today's counts and See today's work),
  * the four work tiles, and the shortcut buttons. Only the work staff must start, in work order, for new applications and renewals
  * together; each application is in one list, the step it is at now:
- *   New forms               submitted, nobody has opened the form yet
+ *   New forms               submitted and not acted on yet: opening or reviewing it keeps it here until staff give the interview
+ *                           date, ask for a correction, or finish verifying every document
  *   Re-uploaded documents   the Solo Parent sent a document again after a correction request
  *   Set the interview date  documents verified, no interview date yet
  *   Set the ID release date approved, no release date yet

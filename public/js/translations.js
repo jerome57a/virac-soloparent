@@ -3787,3 +3787,8 @@ Object.assign(window.ViracTranslations, {
   "Solo Parents renewed": "Mga Solo Parent na nag-renew",
   "Solo Parents in the system": "Mga Solo Parent sa sistema"
 });
+
+Object.assign(window.ViracTranslations, {
+  "Sample Solo Parent ID": "Halimbawa ng Solo Parent ID",
+  "This is a sample of the card. Your own ID is printed and handed to you at the MSWDO office. Tap the card or use the button to see the other side.": "Halimbawa lamang ito ng card. Ang sarili mong ID ay ipi-print at iaabot sa iyo sa tanggapan ng MSWDO. I-tap ang card o gamitin ang button para makita ang kabilang bahagi."
+});
